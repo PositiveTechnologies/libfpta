@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2017-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -383,7 +383,6 @@ typedef struct fpta_mutex { pthread_mutex_t ptmx; } fpta_mutex_t;
 static int __inline fpta_mutex_init(fpta_mutex_t *mutex) {
   return pthread_mutex_init(&mutex->ptmx, NULL);
 }
-
 static int __inline fpta_mutex_lock(fpta_mutex_t *mutex) {
   return pthread_mutex_lock(&mutex->ptmx);
 }
