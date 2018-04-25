@@ -1767,6 +1767,10 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
        * catch-up with itself by growing while trying to save it. */
       flags &=
           ~(MDBX_ALLOC_GC | MDBX_ALLOC_KICK | MDBX_COALESCE | MDBX_LIFORECLAIM);
+    } else if (unlikely(txn->mt_dbs[FREE_DBI].md_entries == 0)) {
+      /* avoid (recursive) search inside empty tree and while tree is updating,
+       * https://github.com/leo-yuriev/libmdbx/issues/31 */
+      flags &= ~MDBX_ALLOC_GC;
     }
   }
 
@@ -8817,7 +8821,7 @@ static int mdbx_rebalance(MDBX_cursor *mc) {
           }
         }
       }
-    } else if (IS_BRANCH(mp) && NUMKEYS(mp) == 1) {
+    } else if (IS_BRANCH(mp) && nkeys == 1) {
       int i;
       mdbx_debug("collapsing root page!");
       rc = mdbx_pnl_append(&mc->mc_txn->mt_befree_pages, mp->mp_pgno);
