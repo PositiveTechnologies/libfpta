@@ -4,16 +4,13 @@ add_subdirectory(libfptu/test)
 
 ###############################################################################
 
-add_library(t1ha STATIC
-  t1ha/src/t1ha0.c
-  t1ha/src/t1ha1.c
+add_library(t1ha STATIC t1ha/src/t1ha1.c)
+
+target_compile_definitions(t1ha PRIVATE
+  T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>
+  T1HA0_DISABLED=1
+  T1HA2_DISABLED=1
   )
-
-target_compile_definitions(t1ha PRIVATE T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>)
-
-if(CC_HAS_ARCH_NATIVE)
-  target_compile_options(t1ha PRIVATE "-march=native")
-endif()
 
 set_target_properties(t1ha PROPERTIES
   PROJECT_LABEL "Fast Positive Hash"
