@@ -955,7 +955,7 @@ int fpta_table_column_count_ex(const fpta_name *table_id,
     for (size_t i = 0; i < schema->column_count(); ++i) {
       const auto shove = schema->column_shove(i);
       assert(i < fpta_max_indexes);
-      if (!fpta_index_is_secondary(shove))
+      if (fpta_index_is_secondary(shove))
         break;
       if (fpta_is_composite(shove))
         ++count;
