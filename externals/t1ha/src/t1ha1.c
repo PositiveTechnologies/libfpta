@@ -41,6 +41,7 @@
  * for The 1Hippeus project - zerocopy messaging in the spirit of Sparta!
  */
 
+#ifndef T1HA1_DISABLED
 #include "t1ha_bits.h"
 
 /* xor-mul-xor mixer */
@@ -75,10 +76,10 @@ static __inline uint64_t final_weak_avalanche(uint64_t a, uint64_t b) {
                                                                                \
       const uint64_t d02 = w0 ^ rot64(w2 + d, 17);                             \
       const uint64_t c13 = w1 ^ rot64(w3 + c, 17);                             \
-      c += a ^ rot64(w0, 41);                                                  \
       d -= b ^ rot64(w1, 31);                                                  \
-      a ^= prime_1 * (d02 + w3);                                               \
+      c += a ^ rot64(w0, 41);                                                  \
       b ^= prime_0 * (c13 + w2);                                               \
+      a ^= prime_1 * (d02 + w3);                                               \
     } while (likely(v < detent));                                              \
                                                                                \
     a ^= prime_6 * (rot64(c, 17) + d);                                         \
@@ -128,7 +129,7 @@ uint64_t t1ha1_le(const void *data, size_t len, uint64_t seed) {
   uint64_t a = seed;
   uint64_t b = len;
 
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT
   T1HA1_BODY(le, unaligned);
 #else
   const bool misaligned = (((uintptr_t)data) & (ALIGNMENT_64 - 1)) != 0;
@@ -144,7 +145,7 @@ uint64_t t1ha1_be(const void *data, size_t len, uint64_t seed) {
   uint64_t a = seed;
   uint64_t b = len;
 
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT
   T1HA1_BODY(be, unaligned);
 #else
   const bool misaligned = (((uintptr_t)data) & (ALIGNMENT_64 - 1)) != 0;
@@ -155,3 +156,5 @@ uint64_t t1ha1_be(const void *data, size_t len, uint64_t seed) {
   }
 #endif
 }
+
+#endif /* T1HA1_DISABLED */
