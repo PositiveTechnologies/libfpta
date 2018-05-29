@@ -41,6 +41,7 @@
  * for The 1Hippeus project - zerocopy messaging in the spirit of Sparta!
  */
 
+#ifndef T1HA2_DISABLED
 #include "t1ha_bits.h"
 
 static __always_inline void init_ab(t1ha_state256_t *s, uint64_t x,
@@ -66,8 +67,8 @@ static __always_inline void init_cd(t1ha_state256_t *s, uint64_t x,
                                                                                \
     const uint64_t d02 = w0 + rot64(w2 + s->n.d, 56);                          \
     const uint64_t c13 = w1 + rot64(w3 + s->n.c, 19);                          \
-    s->n.c ^= s->n.a + rot64(w0, 57);                                          \
     s->n.d ^= s->n.b + rot64(w1, 38);                                          \
+    s->n.c ^= s->n.a + rot64(w0, 57);                                          \
     s->n.b ^= prime_6 * (c13 + w2);                                            \
     s->n.a ^= prime_5 * (d02 + w3);                                            \
   } while (0)
@@ -201,7 +202,7 @@ uint64_t t1ha2_atonce(const void *data, size_t length, uint64_t seed) {
   t1ha_state256_t state;
   init_ab(&state, seed, length);
 
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT
   if (unlikely(length > 32)) {
     init_cd(&state, seed, length);
     T1HA2_LOOP(le, unaligned, &state, data, length);
@@ -238,7 +239,7 @@ uint64_t t1ha2_atonce128(uint64_t *__restrict extra_result,
   init_ab(&state, seed, length);
   init_cd(&state, seed, length);
 
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT
   if (unlikely(length > 32)) {
     T1HA2_LOOP(le, unaligned, &state, data, length);
     length &= 31;
@@ -291,7 +292,7 @@ void t1ha2_update(t1ha_context_t *__restrict ctx, const void *__restrict data,
   }
 
   if (length >= 32) {
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT
     T1HA2_LOOP(le, unaligned, &ctx->state, data, length);
 #else
     const bool misaligned = (((uintptr_t)data) & (ALIGNMENT_64 - 1)) != 0;
@@ -323,3 +324,5 @@ uint64_t t1ha2_final(t1ha_context_t *__restrict ctx,
 
   T1HA2_TAIL_ABCD(le, aligned, &ctx->state, ctx->buffer.u64, ctx->partial);
 }
+
+#endif /* T1HA2_DISABLED */
