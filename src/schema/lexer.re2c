@@ -123,6 +123,7 @@ ILexer::Result Lexer::Scan() {
 
       version = 'version';
       import = 'include';
+      eof = 'end.';
       enum = 'enum';
       typedef = 'type' | "~";
       tuple = 'tuple' | "&";
@@ -146,9 +147,6 @@ ILexer::Result Lexer::Scan() {
       open = "<" | "(";
       close = ">" | ")";
 
-      ref = "->" | "→";
-      asterix = "*";
-      map = "=>" | "⇒";
       at = "@";
       equal = "=";
   */
@@ -170,6 +168,7 @@ ILexer::Result Lexer::Scan() {
 
         version                       { return token(TOKEN_VERSION); }
         import                        { return token(TOKEN_IMPORT); }
+        eof                           { return token(TOKEN_EOF); }
 
         enum                          { return token(TOKEN_ENUM); }
         typedef                       { return token(TOKEN_TYPEDEF); }
@@ -179,7 +178,6 @@ ILexer::Result Lexer::Scan() {
         dot                           { return token(TOKEN_DOT); }
         as                            { return token(TOKEN_AS); }
         at                            { return token(TOKEN_AT); }
-        map                           { return token(TOKEN_MAP); }
         equal                         { return token(TOKEN_EQUAL); }
         begin                         { return token(TOKEN_BEGIN); }
         end                           { return token(TOKEN_END); }

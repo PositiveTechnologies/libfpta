@@ -297,7 +297,6 @@ type_definition ::= COLON name suffix SEMICOLON.
 field ::= opt_deprecated ident field_definition.
 field ::= OPTIONAL ident field_definition.
 field_definition ::= type_definition.
-field_definition ::= COLON name MAP name suffix SEMICOLON.
 
 //------------------------------------------------------------------------------
 
