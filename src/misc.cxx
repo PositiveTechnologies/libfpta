@@ -31,7 +31,7 @@
 
 #define FIXME "FIXME: " __FILE__ ", " FPT_STRINGIFY(__LINE__)
 
-static const char *__fpta_errstr(int errnum) {
+__cold static const char *__fpta_errstr(int errnum) {
 #if defined(_WIN32) || defined(_WIN64)
   static_assert(FPTA_ENOMEM == ERROR_OUTOFMEMORY, "error code mismatch");
   static_assert(FPTA_ENOIMP == ERROR_NOT_SUPPORTED, "error code mismatch");
@@ -103,12 +103,12 @@ static const char *__fpta_errstr(int errnum) {
   }
 }
 
-const char *fpta_strerror(int errnum) {
+__cold const char *fpta_strerror(int errnum) {
   const char *msg = __fpta_errstr(errnum);
   return msg ? msg : mdbx_strerror(errnum);
 }
 
-const char *fpta_strerror_r(int errnum, char *buf, size_t buflen) {
+__cold const char *fpta_strerror_r(int errnum, char *buf, size_t buflen) {
   const char *msg = __fpta_errstr(errnum);
   return msg ? msg : mdbx_strerror_r(errnum, buf, buflen);
 }
