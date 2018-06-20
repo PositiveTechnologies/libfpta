@@ -289,6 +289,7 @@ struct fpta_table_schema final {
 
     list_begin = composite + 1;
     list_end = list_begin + *composite;
+    assert(list_begin < list_end);
     return FPTA_SUCCESS;
   }
 
