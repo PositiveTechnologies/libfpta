@@ -64,7 +64,7 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
          hash == &key.place.longkey_reverse.headhash);
   const bool obverse = hash == &key.place.longkey_obverse.tailhash;
 
-  if (key.mdbx.iov_len < fpta_max_keylen) {
+  if (key.mdbx.iov_len <= fpta_max_keylen) {
     const size_t left = fpta_max_keylen - key.mdbx.iov_len;
     const size_t chunk = (left >= length) ? length : left;
 
@@ -364,6 +364,7 @@ int __hot fpta_composite_row2key(const fpta_table_schema *const schema,
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
+  assert(begin < end);
   concat_column_t concat;
   if (likely(fpta_index_is_unordered(index))) {
     key.mdbx.iov_base = &key.place.u64;
