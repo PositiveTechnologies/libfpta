@@ -68,32 +68,33 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
     const size_t left = fpta_max_keylen - key.mdbx.iov_len;
     const size_t chunk = (left >= length) ? length : left;
 
-    if (obverse) {
-      /* append bytes to the key */
-      uint8_t *obverse_append =
-          ((uint8_t *)&key.place.longkey_obverse.head) + key.mdbx.iov_len;
-      memcpy(obverse_append, data, chunk);
-      /* update pointer to the end of a chunk */
-      data = (const uint8_t *)data + chunk;
-    } else {
-      /* put bytes ahead of the key */
-      uint8_t *reverse_ahead = ((uint8_t *)&key.place.longkey_reverse.tail) +
-                               sizeof(key.place.longkey_reverse.tail) -
-                               key.mdbx.iov_len;
-      memcpy(reverse_ahead - chunk, (const uint8_t *)data + length - chunk,
-             chunk);
-    }
+    if (likely(chunk > 0)) {
+      if (obverse) {
+        /* append bytes to the key */
+        uint8_t *obverse_append =
+            ((uint8_t *)&key.place.longkey_obverse.head) + key.mdbx.iov_len;
+        memcpy(obverse_append, data, chunk);
+        /* update pointer to the end of a chunk */
+        data = (const uint8_t *)data + chunk;
+      } else {
+        /* put bytes ahead of the key */
+        uint8_t *reverse_ahead = ((uint8_t *)&key.place.longkey_reverse.tail) +
+                                 sizeof(key.place.longkey_reverse.tail) -
+                                 key.mdbx.iov_len;
+        memcpy(reverse_ahead - chunk, (const uint8_t *)data + length - chunk,
+               chunk);
+      }
 
-    length -= chunk;
-    if (length == 0) {
-      key.mdbx.iov_len += chunk;
-      return FPTA_SUCCESS;
-    } else {
-      /* Limit for key-size reached,
-       * continue hashing all of the rest.
-       * Initialize hash value */
-      *hash = 0;
+      length -= chunk;
+      if (length == 0) {
+        key.mdbx.iov_len += chunk;
+        return FPTA_SUCCESS;
+      }
     }
+    /* Limit for key-size reached,
+     * continue hashing all of the rest.
+     * Initialize hash value */
+    *hash = 0;
 
     /* Now key includes hash-value. */
     key.mdbx.iov_len = sizeof(key.place);
