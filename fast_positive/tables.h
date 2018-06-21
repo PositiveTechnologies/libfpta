@@ -347,7 +347,8 @@ enum fpta_error {
 
   FPTA_NODATA = -1 /* No data or EOF was reached */,
   FPTA_DEADBEEF = UINT32_C(0xDeadBeef) /* Pseudo error for results by refs,
-    mean `no value` returned */,
+    mean `no value` returned */
+  ,
 
   /**************************************** Native (system) error codes ***/
 
@@ -391,12 +392,14 @@ enum fpta_error {
   FPTA_NOTFOUND = -30798 /* key/data pair not found */,
 
   FPTA_DB_REF = -30797 /* wrong page address/number,
-    this usually indicates corruption */,
+    this usually indicates corruption */
+  ,
 
   FPTA_DB_DATA = -30796 /* Located page was wrong data */,
 
   FPTA_DB_PANIC = -30795 /* Update of meta page failed
-    or environment had fatal error */,
+    or environment had fatal error */
+  ,
 
   FPTA_DB_MISMATCH = -30794 /* DB version mismatch libmdbx */,
 
@@ -409,37 +412,44 @@ enum fpta_error {
   FPTA_READERS_FULL = -30790 /* Too many readers (maxreaders reached) */,
 
   FPTA_TXN_FULL = -30788 /* Transaction has too many dirty pages,
-    e.g. a lot of changes. */,
+    e.g. a lot of changes. */
+  ,
 
   FPTA_CURSOR_FULL = -30787 /* Cursor stack too deep (mdbx internal) */,
 
   FPTA_PAGE_FULL = -30786 /* Page has not enough space (mdbx internal) */,
 
   FPTA_DB_RESIZED = -30785 /* Database contents grew
-    beyond environment mapsize */,
+    beyond environment mapsize */
+  ,
 
   FPTA_DB_INCOMPAT = -30784 /* Operation and DB incompatible (mdbx internal),
    This can mean:
      - The operation expects an MDBX_DUPSORT/MDBX_DUPFIXED database.
      - Opening a named DB when the unnamed DB has MDBX_DUPSORT/MDBX_INTEGERKEY.
      - Accessing a data record as a database, or vice versa.
-     - The database was dropped and recreated with different flags. */,
+     - The database was dropped and recreated with different flags. */
+  ,
 
   FPTA_BAD_RSLOT = -30783 /* Invalid reuse of reader locktable slot */,
 
   FPTA_BAD_TXN = -30782 /* Transaction must abort,
-    e.g. has a child, or is invalid */,
+    e.g. has a child, or is invalid */
+  ,
 
   FPTA_BAD_VALSIZE = -30781 /* Unsupported size of key/DB name/data,
-    or wrong DUPFIXED size */,
+    or wrong DUPFIXED size */
+  ,
 
   FPTA_BAD_DBI = -30780 /* The specified DBI was changed unexpectedly */,
 
   FPTA_DB_PROBLEM = -30779 /* Unexpected internal mdbx problem,
-    txn should abort */,
+    txn should abort */
+  ,
 
   FPTA_EMULTIVAL = -30421 /* the mdbx_put() or mdbx_replace() was called
-    for a key, that has more that one associated value. */,
+    for a key, that has more that one associated value. */
+  ,
 
   FPTA_EBADSIGN = -30420 /* wrong signature of a runtime object(s) */,
 };
@@ -475,8 +485,8 @@ FPTA_API int fpta_panic(int errnum_initial, int errnum_fatal);
 /* Типы данных для ключей (проиндексированных полей) и значений
  * для сравнения в условиях фильтров больше/меньше/равно/не-равно. */
 typedef enum fpta_value_type {
-  fpta_null,       /* "Пусто", в том числе для проверки присутствия
-                    * или отсутствия колонки/поля в строке. */
+  fpta_null, /* "Пусто", в том числе для проверки присутствия
+              * или отсутствия колонки/поля в строке. */
   fpta_signed_int, /* Integer со знаком, задается в int64_t */
   fpta_unsigned_int, /* Беззнаковый integer, задается в uint64_t */
   fpta_datetime,    /* Время в форме fptu_time */
@@ -678,7 +688,8 @@ typedef enum fpta_inplace {
   fpta_max /* target = max(target, argument) */,
   fpta_bes /* Basic Exponential Smoothing, при этом коэффициент сглаживания
             * определяется дополнительным (третьим) аргументом.
-            * https://en.wikipedia.org/wiki/Exponential_smoothing */,
+            * https://en.wikipedia.org/wiki/Exponential_smoothing */
+  ,
 } fpta_inplace;
 
 //----------------------------------------------------------------------------
@@ -812,41 +823,44 @@ typedef enum fpta_durability {
   fpta_readonly /* Только чтение, изменения запрещены. */,
 
   fpta_sync /* Полностью синхронная запись на диск.
-              * Самый надежный и самый медленный режим.
-              *
-              * При завершении каждой транзакции формируется сильная точка
-              * фиксации (выполняется fdatasync).
-              *
-              * Производительность по записи определяется скоростью диска,
-              * ориентировано 500 TPS для SSD. */,
+             * Самый надежный и самый медленный режим.
+             *
+             * При завершении каждой транзакции формируется сильная точка
+             * фиксации (выполняется fdatasync).
+             *
+             * Производительность по записи определяется скоростью диска,
+             * ориентировано 500 TPS для SSD. */
+  ,
 
   fpta_lazy /* "Ленивый" режим записи.
-              * Достаточно быстрый режим, но с риском потери последних
-              * изменений при аварии.
-              *
-              * FIXME: Скорректировать описание после перехода на libmdbx
-              * с "догоняющей" фиксацией.
-              *
-              * Периодически формируются сильные точки фиксации. В случае
-              * системной аварии могут быть потеряны последние транзакции.
-              *
-              * Производительность по записи в основном определяется
-              * скоростью диска, порядка 50K TPS для SSD. */,
+             * Достаточно быстрый режим, но с риском потери последних
+             * изменений при аварии.
+             *
+             * FIXME: Скорректировать описание после перехода на libmdbx
+             * с "догоняющей" фиксацией.
+             *
+             * Периодически формируются сильные точки фиксации. В случае
+             * системной аварии могут быть потеряны последние транзакции.
+             *
+             * Производительность по записи в основном определяется
+             * скоростью диска, порядка 50K TPS для SSD. */
+  ,
 
   fpta_weak /* Самый быстрый режим, но без гарантий сохранности всей базы
-              * при аварии.
-              *
-              * Cильные точки фиксации не формируются, а существующие стираются
-              * в процессе сборки мусора.
-              *
-              * Ядро ОС, по своему усмотрению, асинхронно записывает измененные
-              * страницы данных на диск. При этом ядро ОС обещает запись всех
-              * изменений при сбое приложения, при срабатывании OOM-killer или
-              * при штатной остановке системы. Но НЕ при сбое в ядре или при
-              * отключении питания.
-              *
-              * Производительность по записи в основном определяется скоростью
-              * CPU и RAM (более 100K TPS). */,
+             * при аварии.
+             *
+             * Cильные точки фиксации не формируются, а существующие стираются
+             * в процессе сборки мусора.
+             *
+             * Ядро ОС, по своему усмотрению, асинхронно записывает измененные
+             * страницы данных на диск. При этом ядро ОС обещает запись всех
+             * изменений при сбое приложения, при срабатывании OOM-killer или
+             * при штатной остановке системы. Но НЕ при сбое в ядре или при
+             * отключении питания.
+             *
+             * Производительность по записи в основном определяется скоростью
+             * CPU и RAM (более 100K TPS). */
+  ,
 } fpta_durability;
 
 /* Дополнительные флаги для оптимизации работы БД.
@@ -861,21 +875,25 @@ typedef enum fpta_regime_flags {
                                * LIFO-порядке, что увеличивает эффективность
                                * работы кеша обратной записи. */
   fpta_frendly4hdd = 2 /* Для шпиндельных дисков. Движок будет стремиться
-                               * выделять и повторно использовать
-                               * страницы так, чтобы запись на диск была более
-                               * последовательной. */,
+                        * выделять и повторно использовать
+                        * страницы так, чтобы запись на диск была более
+                        * последовательной. */
+  ,
   fpta_frendly4compaction = 4 /* Для освобождения места. Движок будет
                                * стремиться повторно использовать страницы
                                * размещенные ближе к началу БД, с тем чтобы
                                * иметь больше шансов освободить место в конце
-                               * БД и уменьшить размер файла. */,
+                               * БД и уменьшить размер файла. */
+  ,
   fpta_saferam = 8 /* Защита от записи в ОЗУ. Данные будут отображены
-                               * в память в режиме «только для чтения», что
-                               * исключит возможность их непосредственного
-                               * повреждения вследствие некорректно использования
-                               * указателей в коде приложения. */,
+                    * в память в режиме «только для чтения», что
+                    * исключит возможность их непосредственного
+                    * повреждения вследствие некорректно использования
+                    * указателей в коде приложения. */
+  ,
   fpta_openweakness = 16 /* При открытии базы не производить откат
-                          * к сильной точке фиксации. */,
+                          * к сильной точке фиксации. */
+  ,
 } fpta_regime_flags;
 
 /* Открывает базу по заданному пути и в durability режиме.
@@ -1177,7 +1195,8 @@ typedef enum fpta_index_type {
   fpta_tersely_composite =
       /* формирование коротких ключей для составных индексов,
        * подробности см. в описании fpta_describe_composite_index()
-       */ fpta_index_fnullable,
+       */
+  fpta_index_fnullable,
 
   /* Первичный ключ/индекс.
    *
@@ -1648,7 +1667,8 @@ typedef struct fpta_table_stat {
   size_t branch_pages /* количество не-листьевых страниц (со ссылками)*/;
   size_t leaf_pages /* количество листьевых страниц (с данными) */;
   size_t large_pages /* количество больших (вынужденно склеенных)
-                          страниц для хранения длинных записей */;
+                          страниц для хранения длинных записей */
+      ;
 } fpta_table_stat;
 
 /* Возвращает информацию о таблице, в том числе количестве строк.

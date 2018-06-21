@@ -546,8 +546,8 @@ TEST(Threaded, SimpleVisitor) {
 
   int SCOPED_TRACE_ONLY i = 0;
   for (auto &thread : threads) {
-    SCOPED_TRACE("Thread " + std::to_string(i) + ": counter = " +
-                 std::to_string(counters[i]));
+    SCOPED_TRACE("Thread " + std::to_string(i) +
+                 ": counter = " + std::to_string(counters[i]));
     thread.join();
   }
 

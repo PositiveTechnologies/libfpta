@@ -1002,8 +1002,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +
@@ -1052,8 +1052,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +
@@ -1117,8 +1117,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +
@@ -1202,8 +1202,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +

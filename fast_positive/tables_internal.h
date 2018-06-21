@@ -487,7 +487,7 @@ int fpta_internal_abort(fpta_txn *txn, int errnum, bool txn_maybe_dead = false);
 namespace std {
 FPTA_API string to_string(const MDBX_val &);
 FPTA_API string to_string(const fpta_key &);
-}
+} // namespace std
 
 static __inline bool fpta_is_same(const MDBX_val &a, const MDBX_val &b) {
   return a.iov_len == b.iov_len &&
