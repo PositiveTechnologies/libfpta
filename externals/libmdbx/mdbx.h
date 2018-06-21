@@ -165,7 +165,7 @@ typedef pthread_t mdbx_tid_t;
 /*--------------------------------------------------------------------------*/
 
 #define MDBX_VERSION_MAJOR 0
-#define MDBX_VERSION_MINOR 1
+#define MDBX_VERSION_MINOR 2
 
 #if defined(LIBMDBX_EXPORTS)
 #define LIBMDBX_API __dll_export
@@ -202,6 +202,24 @@ typedef struct mdbx_build_info {
 
 extern LIBMDBX_API const mdbx_version_info mdbx_version;
 extern LIBMDBX_API const mdbx_build_info mdbx_build;
+
+#if defined(_WIN32) || defined(_WIN64)
+
+/* Dll initialization callback for ability to dynamically load MDBX DLL by
+ * LoadLibrary() on Windows versions before Windows Vista. This function MUST be
+ * called once from DllMain() for each reason (DLL_PROCESS_ATTACH,
+ * DLL_PROCESS_DETACH, DLL_THREAD_ATTACH and DLL_THREAD_DETACH). Do this
+ * carefully and ONLY when actual Windows version don't support initialization
+ * via "TLS Directory" (e.g .CRT$XL[A-Z] sections in executable or dll file). */
+
+#ifndef MDBX_CONFIG_MANUAL_TLS_CALLBACK
+#define MDBX_CONFIG_MANUAL_TLS_CALLBACK 0
+#endif
+#if MDBX_CONFIG_MANUAL_TLS_CALLBACK
+void LIBMDBX_API NTAPI mdbx_dll_callback(PVOID module, DWORD reason,
+                                         PVOID reserved);
+#endif /* MDBX_CONFIG_MANUAL_TLS_CALLBACK */
+#endif /* Windows */
 
 /* The name of the lock file in the DB environment */
 #define MDBX_LOCKNAME "/mdbx.lck"
@@ -270,9 +288,8 @@ typedef int(MDBX_cmp_func)(const MDBX_val *a, const MDBX_val *b);
 #define MDBX_MAPASYNC 0x100000u
 /* tie reader locktable slots to MDBX_txn objects instead of to threads */
 #define MDBX_NOTLS 0x200000u
-/* don't do any locking, caller must manage their own locks
- * WARNING: libmdbx don't support this mode. */
-#define MDBX_NOLOCK__UNSUPPORTED 0x400000u
+/* open DB in exclusive/monopolistic mode. */
+#define MDBX_EXCLUSIVE 0x400000u
 /* don't do readahead */
 #define MDBX_NORDAHEAD 0x800000u
 /* don't initialize malloc'd memory before writing to datafile */
@@ -652,8 +669,6 @@ LIBMDBX_API int mdbx_env_create(MDBX_env **penv);
  *   - MDBX_EAGAIN   - the environment was locked by another process. */
 LIBMDBX_API int mdbx_env_open(MDBX_env *env, const char *path, unsigned flags,
                               mode_t mode);
-LIBMDBX_API int mdbx_env_open_ex(MDBX_env *env, const char *path,
-                                 unsigned flags, mode_t mode, int *exclusive);
 
 /* Copy an MDBX environment to the specified path, with options.
  *

@@ -34,6 +34,9 @@
 #endif
 
 #ifdef _MSC_VER
+#   if _MSC_VER < 1400
+#       error "Microsoft Visual C++ 8.0 (Visual Studio 2005) or later version is required"
+#   endif
 #   ifndef _CRT_SECURE_NO_WARNINGS
 #       define _CRT_SECURE_NO_WARNINGS
 #   endif
@@ -779,7 +782,7 @@ struct MDBX_env {
   } me_dbgeo;      /* */
 
 #if defined(_WIN32) || defined(_WIN64)
-  SRWLOCK me_remap_guard;
+  MDBX_srwlock me_remap_guard;
   /* Workaround for LockFileEx and WriteFile multithread bug */
   CRITICAL_SECTION me_windowsbug_lock;
 #else
