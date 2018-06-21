@@ -356,7 +356,9 @@ template <> inline int64_t betoh<int64_t>(int64_t value) {
 #ifdef CMAKE_HAVE_PTHREAD_H
 #include <pthread.h>
 
-typedef struct fpta_rwl { pthread_rwlock_t prwl; } fpta_rwl_t;
+typedef struct fpta_rwl {
+  pthread_rwlock_t prwl;
+} fpta_rwl_t;
 
 static int __inline fpta_rwl_init(fpta_rwl_t *rwl) {
   return pthread_rwlock_init(&rwl->prwl, NULL);
@@ -378,7 +380,9 @@ static int __inline fpta_rwl_destroy(fpta_rwl_t *rwl) {
   return pthread_rwlock_destroy(&rwl->prwl);
 }
 
-typedef struct fpta_mutex { pthread_mutex_t ptmx; } fpta_mutex_t;
+typedef struct fpta_mutex {
+  pthread_mutex_t ptmx;
+} fpta_mutex_t;
 
 static int __inline fpta_mutex_init(fpta_mutex_t *mutex) {
   return pthread_mutex_init(&mutex->ptmx, NULL);
@@ -405,7 +409,7 @@ static int __inline fpta_mutex_destroy(fpta_mutex_t *mutex) {
 #pragma warning(disable : 4514) /* 'xyz': unreferenced inline function         \
                                    has been removed */
 #pragma warning(disable : 4127) /* conditional expression is constant          \
-                                   */
+                                 */
 
 #pragma warning(push, 1)
 #pragma warning(disable : 4530) /* C++ exception handler used, but             \
@@ -503,7 +507,9 @@ static int __inline fpta_rwl_destroy(fpta_rwl_t *rwl) {
   return FPTA_SUCCESS;
 }
 
-typedef struct fpta_mutex { CRITICAL_SECTION cs; } fpta_mutex_t;
+typedef struct fpta_mutex {
+  CRITICAL_SECTION cs;
+} fpta_mutex_t;
 
 static int __inline fpta_mutex_init(fpta_mutex_t *mutex) {
   if (!mutex)

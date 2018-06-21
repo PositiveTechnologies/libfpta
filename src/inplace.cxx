@@ -204,7 +204,9 @@ template <fptu_type type> struct saturated {
     const fast addend = confine_value(value, (fast)0, upper);
     if (unlikely(!field)) {
       if (addend == 0 && lower > 0)
-        return false /* не допускаем появления не-нулевого значения при добавлении нуля к пустоте */;
+        return false /* не допускаем появления не-нулевого значения при
+                        добавлении нуля к пустоте */
+            ;
       result = confine_value(value, lower, upper);
       return true;
     }
@@ -233,7 +235,9 @@ template <fptu_type type> struct saturated {
     const fast subtrahend = confine_value(value, (fast)0, upper);
     if (unlikely(!field)) {
       if (subtrahend == 0 && lower > 0)
-        return false /* не допускаем появления не-нулевого значения при вычитании нуля из пустоты */;
+        return false /* не допускаем появления не-нулевого значения при
+                        вычитании нуля из пустоты */
+            ;
       result = (traits::has_native_saturation || subtrahend + lower < 0)
                    ? 0 - subtrahend
                    : lower;

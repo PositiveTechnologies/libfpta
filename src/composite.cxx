@@ -252,9 +252,9 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     if (likely(!tersely)) {
       /* for variable-length columns, add one of present-markers,
        * but only if TERSELY is OFF */
-      concat_bytes(key, iov.iov_len ? &prefix_present_nonempty
-                                    : &prefix_present_empty,
-                   1);
+      concat_bytes(
+          key, iov.iov_len ? &prefix_present_nonempty : &prefix_present_empty,
+          1);
     }
 
     /* don't need byteorder conversion for string/binary data */

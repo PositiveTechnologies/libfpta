@@ -433,8 +433,8 @@ struct keygen : public keygen_base<index, type> {
   static fpta_value make(int order, int const N) {
     (void)N;
     SCOPED_TRACE("FIXME: make(), type " + std::to_string(type) + ", index " +
-                 std::to_string(index) + ", " __FILE__
-                                         ": " FPT_STRINGIFY(__LINE__));
+                 std::to_string(index) +
+                 ", " __FILE__ ": " FPT_STRINGIFY(__LINE__));
     (void)order;
     ADD_FAILURE();
     return fpta_value_end();
