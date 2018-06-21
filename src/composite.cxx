@@ -52,7 +52,7 @@ static int __hot concat_unordered(fpta_key &key, const bool unused_tersely,
   } else {
     const struct iovec iov = fptu_field_as_iovec(field);
     /* add value to resulting hash */
-    *hash = t1ha1_le(iov.iov_base, iov.iov_len, *hash + field->ct);
+    *hash = t1ha2_atonce(iov.iov_base, iov.iov_len, *hash + field->ct);
   }
 
   return FPTA_SUCCESS;
@@ -68,32 +68,33 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
     const size_t left = fpta_max_keylen - key.mdbx.iov_len;
     const size_t chunk = (left >= length) ? length : left;
 
-    if (obverse) {
-      /* append bytes to the key */
-      uint8_t *obverse_append =
-          ((uint8_t *)&key.place.longkey_obverse.head) + key.mdbx.iov_len;
-      memcpy(obverse_append, data, chunk);
-      /* update pointer to the end of a chunk */
-      data = (const uint8_t *)data + chunk;
-    } else {
-      /* put bytes ahead of the key */
-      uint8_t *reverse_ahead = ((uint8_t *)&key.place.longkey_reverse.tail) +
-                               sizeof(key.place.longkey_reverse.tail) -
-                               key.mdbx.iov_len;
-      memcpy(reverse_ahead - chunk, (const uint8_t *)data + length - chunk,
-             chunk);
-    }
+    if (likely(chunk > 0)) {
+      if (obverse) {
+        /* append bytes to the key */
+        uint8_t *obverse_append =
+            ((uint8_t *)&key.place.longkey_obverse.head) + key.mdbx.iov_len;
+        memcpy(obverse_append, data, chunk);
+        /* update pointer to the end of a chunk */
+        data = (const uint8_t *)data + chunk;
+      } else {
+        /* put bytes ahead of the key */
+        uint8_t *reverse_ahead = ((uint8_t *)&key.place.longkey_reverse.tail) +
+                                 sizeof(key.place.longkey_reverse.tail) -
+                                 key.mdbx.iov_len;
+        memcpy(reverse_ahead - chunk, (const uint8_t *)data + length - chunk,
+               chunk);
+      }
 
-    length -= chunk;
-    if (length == 0) {
-      key.mdbx.iov_len += chunk;
-      return FPTA_SUCCESS;
-    } else {
-      /* Limit for key-size reached,
-       * continue hashing all of the rest.
-       * Initialize hash value */
-      *hash = 0;
+      length -= chunk;
+      if (length == 0) {
+        key.mdbx.iov_len += chunk;
+        return FPTA_SUCCESS;
+      }
     }
+    /* Limit for key-size reached,
+     * continue hashing all of the rest.
+     * Initialize hash value */
+    *hash = 0;
 
     /* Now key includes hash-value. */
     key.mdbx.iov_len = sizeof(key.place);
@@ -101,7 +102,7 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
 
   assert(key.mdbx.iov_len == fpta_max_keylen + 8);
   /* add bytes to hash */
-  *hash = t1ha1_le(data, length, *hash);
+  *hash = t1ha2_atonce(data, length, *hash);
   return FPTA_SUCCESS;
 }
 
@@ -252,9 +253,9 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     if (likely(!tersely)) {
       /* for variable-length columns, add one of present-markers,
        * but only if TERSELY is OFF */
-      concat_bytes(key, iov.iov_len ? &prefix_present_nonempty
-                                    : &prefix_present_empty,
-                   1);
+      concat_bytes(
+          key, iov.iov_len ? &prefix_present_nonempty : &prefix_present_empty,
+          1);
     }
 
     /* don't need byteorder conversion for string/binary data */

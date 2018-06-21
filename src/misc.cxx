@@ -440,8 +440,9 @@ __cold string to_string(const fpta_name *id) {
 
   const fpta_index_type index = fpta_name_colindex(id);
   const fptu_type type = fpta_name_coltype(id);
-  return partial + fptu::format(", col#%i, @%" PRIx64 ".%p, ", id->column.num,
-                                table_id->shove, table_id) +
+  return partial +
+         fptu::format(", col#%i, @%" PRIx64 ".%p, ", id->column.num,
+                      table_id->shove, table_id) +
          to_string(index) + "." + to_string(type) +
          fptu::format(", dbi-hint#%u}",
                       table_def->handle_cache(id->column.num));
@@ -531,7 +532,7 @@ __cold string to_string(const fpta_cursor *cursor) {
   }
   return result + "}";
 }
-}
+} // namespace std
 
 int_fast32_t mrand64(void) {
   static uint_fast64_t state;

@@ -4,9 +4,16 @@ jobs:
     docker:
       - image: circleci/buildpack-deps:bionic
     steps:
+      - run: sudo apt update -q && sudo apt install cmake libgtest-dev clang-format-6.0
       - checkout
-      - run: make all
-      - run: ulimit -c unlimited && make check
+      - run: git fetch --unshallow || true
+      - run: git fetch --tags --prune
+      - run: c++ --version
+      - run: cmake --version
+      - run: cmake .
+      - run: make --keep-going all
+      - run: ulimit -c unlimited && make --keep-going test
+      - run: test/fptu_c_mode
       - run:
           command: |
             mkdir -p /tmp/artifacts

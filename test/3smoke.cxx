@@ -1002,8 +1002,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +
@@ -1052,8 +1052,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +
@@ -1117,8 +1117,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +
@@ -1202,8 +1202,8 @@ TEST_F(SmokeCRUD, none) {
     for (int m = 0; m < 8; ++m) {
       const auto n = mesh_order4update(nn++, NNN);
       SCOPED_TRACE("item " + std::to_string(n) + " of [0.." +
-                   std::to_string(NNN) + "), change-mask: " +
-                   std::to_string(m));
+                   std::to_string(NNN) +
+                   "), change-mask: " + std::to_string(m));
       crud_item *item = container[n].get();
       SCOPED_TRACE("row-src: pk " + std::to_string(item->pk_uint) + ", str \"" +
                    item->se_str + "\", real " + std::to_string(item->se_real) +
@@ -3944,9 +3944,11 @@ TEST(Smoke, Migration) {
       SCOPED_TRACE("record #" + std::to_string(n));
       // добавляем значения
       EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_a, fpta_value_sint(n)));
-      if (n & 1)
+      if (n & 1) {
         EXPECT_EQ(FPTA_OK,
                   fpta_upsert_column(pt1, &col_b, fpta_value_uint(n + 10000)));
+      }
+
       // вставляем запись
       ASSERT_STREQ(nullptr, fptu_check(pt1));
       fptu_ro taken_noshrink = fptu_take_noshrink(pt1);

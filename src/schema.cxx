@@ -189,8 +189,8 @@ static bool fpta_check_indextype(const fpta_index_type index_type) {
 
   case fpta_primary_withdups_unordered:
   case fpta_primary_withdups_unordered_nullable_obverse:
-  /* fpta_primary_withdups_unordered_nullable_reverse = НЕДОСТУПЕН,
-   * так как битовая коминация совпадает с fpta_noindex_nullable */
+    /* fpta_primary_withdups_unordered_nullable_reverse = НЕДОСТУПЕН,
+     * так как битовая коминация совпадает с fpta_noindex_nullable */
 
   case fpta_secondary_withdups_ordered_obverse:
   case fpta_secondary_withdups_ordered_obverse_nullable:

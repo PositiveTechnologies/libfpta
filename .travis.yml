@@ -10,13 +10,14 @@ env:
 
 addons:
   apt:
+    update: true
     sources:
       - ubuntu-toolchain-r-test
     packages:
       - cmake
       - libgtest-dev
       - valgrind
-      - clang-format-3.8
+#      - clang-format-6.0
 
   coverity_scan:
     project:
@@ -45,7 +46,7 @@ script: >
     git submodule foreach --recursive git fetch --unshallow --tags --prune &&
     cmake --version &&
     cmake . &&
-    make reformat && (if [[ -n $(git diff) ]];
+    (if which clang-format-6.0 > /dev/null && make reformat && [[ -n $(git diff) ]];
       then
         echo "You must run 'make reformat' before submitting a pull request";
         echo "";
