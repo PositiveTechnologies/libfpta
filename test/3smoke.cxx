@@ -3944,9 +3944,11 @@ TEST(Smoke, Migration) {
       SCOPED_TRACE("record #" + std::to_string(n));
       // добавляем значения
       EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_a, fpta_value_sint(n)));
-      if (n & 1)
+      if (n & 1) {
         EXPECT_EQ(FPTA_OK,
                   fpta_upsert_column(pt1, &col_b, fpta_value_uint(n + 10000)));
+      }
+
       // вставляем запись
       ASSERT_STREQ(nullptr, fptu_check(pt1));
       fptu_ro taken_noshrink = fptu_take_noshrink(pt1);
