@@ -17,7 +17,7 @@ addons:
       - cmake
       - libgtest-dev
       - valgrind
-      - clang-format-6.0
+#      - clang-format-6.0
 
   coverity_scan:
     project:
