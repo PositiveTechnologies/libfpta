@@ -349,7 +349,7 @@ template <typename T> std::string to_hex(const T &v) {
   stream << std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex << v;
   return stream.str();
 }
-}
+} // namespace std
 
 TEST(Trivia, time_grain) {
   for (int grain = -32; grain < 0; ++grain) {

@@ -41,8 +41,8 @@
 FPTU_API int __hot __attribute__((weak))
 mdbx_e2k_memcmp_bug_workaround(const void *s1, const void *s2, size_t n) {
   if (unlikely(n > 42
-               /* LY: align followed access if reasonable possible */ &&
-               (((uintptr_t)s1) & 7) != 0 &&
+               /* LY: align followed access if reasonable possible */
+               && (((uintptr_t)s1) & 7) != 0 &&
                (((uintptr_t)s1) & 7) == (((uintptr_t)s2) & 7))) {
     if (((uintptr_t)s1) & 1) {
       const int diff = *(uint8_t *)s1 - *(uint8_t *)s2;
