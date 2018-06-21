@@ -52,7 +52,7 @@ static int __hot concat_unordered(fpta_key &key, const bool unused_tersely,
   } else {
     const struct iovec iov = fptu_field_as_iovec(field);
     /* add value to resulting hash */
-    *hash = t1ha1_le(iov.iov_base, iov.iov_len, *hash + field->ct);
+    *hash = t1ha2_atonce(iov.iov_base, iov.iov_len, *hash + field->ct);
   }
 
   return FPTA_SUCCESS;
@@ -102,7 +102,7 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
 
   assert(key.mdbx.iov_len == fpta_max_keylen + 8);
   /* add bytes to hash */
-  *hash = t1ha1_le(data, length, *hash);
+  *hash = t1ha2_atonce(data, length, *hash);
   return FPTA_SUCCESS;
 }
 
