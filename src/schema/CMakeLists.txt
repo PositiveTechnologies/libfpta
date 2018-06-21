@@ -47,7 +47,7 @@ if(Boost_FILESYSTEM_FOUND AND Boost_IOSTREAMS_FOUND
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lexer.cxx
     MAIN_DEPENDENCY lexer.re2c
     DEPENDS bomstrip
-    COMMAND ${CMAKE_COMMAND} -E remove -f lexer.re2c -o lexer.cxx
+    COMMAND ${CMAKE_COMMAND} -E remove -f lexer.re lexer.cxx
     COMMAND bomstrip < ${CMAKE_CURRENT_SOURCE_DIR}/lexer.re2c > ${CMAKE_CURRENT_BINARY_DIR}/lexer.re
     COMMAND ${RE2C} -W -Werror --utf-8 --bit-vectors -i ${CMAKE_CURRENT_BINARY_DIR}/lexer.re -o lexer.cxx
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
