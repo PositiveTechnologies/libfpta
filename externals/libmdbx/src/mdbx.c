@@ -1134,7 +1134,7 @@ const char *__cold mdbx_strerror(int errnum) {
   const char *msg = __mdbx_strerr(errnum);
   if (!msg) {
 #ifdef _MSC_VER
-    static __thread char buffer[1024];
+    static char buffer[1024];
     size_t size = FormatMessageA(
         FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
         errnum, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), buffer,
@@ -1142,6 +1142,13 @@ const char *__cold mdbx_strerror(int errnum) {
     if (size)
       msg = buffer;
 #else
+    if (errnum < 0) {
+      static char buffer[32];
+      int rc = snprintf(buffer, sizeof(buffer) - 1, "unknown error %d", errnum);
+      assert(rc > 0);
+      (void)rc;
+      return buffer;
+    }
     msg = strerror(errnum);
 #endif
   }
@@ -4593,11 +4600,10 @@ static MDBX_page *__cold mdbx_init_metas(const MDBX_env *env, void *buffer) {
   MDBX_page *page1 = mdbx_meta_model(env, page0, 0);
   MDBX_page *page2 = mdbx_meta_model(env, page1, 1);
   mdbx_meta_model(env, page2, 2);
-  page2->mp_meta.mm_datasync_sign = MDBX_DATASIGN_WEAK;
   mdbx_assert(env, !mdbx_meta_eq(env, &page0->mp_meta, &page1->mp_meta));
   mdbx_assert(env, !mdbx_meta_eq(env, &page1->mp_meta, &page2->mp_meta));
   mdbx_assert(env, !mdbx_meta_eq(env, &page2->mp_meta, &page0->mp_meta));
-  return page1;
+  return page2;
 }
 
 static int mdbx_sync_locked(MDBX_env *env, unsigned flags,
@@ -7715,6 +7721,7 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
         offset = env->me_psize - (unsigned)olddata.iov_len;
         flags |= F_DUPDATA | F_SUBDATA;
         dummy.md_root = mp->mp_pgno;
+        dummy.md_seq = dummy.md_merkle = 0;
         sub_root = mp;
       }
       if (mp != fp) {
