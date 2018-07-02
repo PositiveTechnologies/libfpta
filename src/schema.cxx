@@ -870,8 +870,17 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
   if (!fpta_schema_validate(schema_key, data))
     return FPTA_SCHEMA_CORRUPTED;
 
-  const fpta_table_stored_schema *const stored_schema =
+  const fpta_table_stored_schema *stored_schema =
       (const fpta_table_stored_schema *)data.iov_base;
+
+  rc = mdbx_is_dirty(txn->mdbx_txn, stored_schema);
+  if (unlikely(rc == MDBX_RESULT_TRUE)) {
+    stored_schema = (const fpta_table_stored_schema *)memcpy(
+        alloca(data.iov_len), data.iov_base, data.iov_len);
+  } else {
+    assert(rc == MDBX_RESULT_FALSE);
+  }
+
   for (size_t i = 0; i < stored_schema->count; ++i) {
     const auto shove = stored_schema->columns[i];
     if (!fpta_is_indexed(shove))
