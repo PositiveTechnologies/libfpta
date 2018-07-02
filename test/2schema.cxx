@@ -785,6 +785,118 @@ TEST(Schema, NonUniqPrimary_with_Secondary) {
   EXPECT_EQ(FPTA_EINVAL, fpta_column_set_destroy(&def));
 }
 
+//----------------------------------------------------------------------------
+
+TEST(Schema, FailingDrop) {
+  /* Сценарий:
+   *  - открываем базу в режиме изменяемой схемы.
+   *  - создаем три таблицы, две с одной primary-колонкой,
+   *    третью с двумя неиндексируемыми и одной composite-колонкой.
+   *  - в новой транзакции проверяем, что в базе есть три таблицы,
+   *    и последовательно удаляем их.
+   *
+   * Результат:
+   *  - на удалении table_2 срабатывает ассерт index_id < fpta_max_indexes
+   *    (details.h:176)
+   *  - если порядок удаления поменять на table_2, table_1, table_3,
+   *    ассерт срабатывает на удалении table_1
+   *  - если table_3 удалять не последней, тест успешно завершается
+   *  - если не удалять одну из table_1, table_2, тест успешно завершается */
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db *db = nullptr;
+  /* открываем базу с возможностью изменять схему */
+  EXPECT_EQ(FPTA_SUCCESS,
+            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
+                         true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // формируем описание колонок для первой таблицы
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("field", fptu_cstr,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  // формируем описание колонок для второй таблицы
+  fpta_column_set def2;
+  fpta_column_set_init(&def2);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("field", fptu_cstr,
+                                 fpta_primary_unique_ordered_obverse, &def2));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def2));
+
+  // формируем описание колонок для третьей таблицы
+  fpta_column_set def3;
+  fpta_column_set_init(&def3);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("part_1", fptu_cstr, fpta_index_none, &def3));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("part_2", fptu_cstr, fpta_index_none, &def3));
+  EXPECT_EQ(FPTA_OK, fpta_describe_composite_index_va(
+                         "field", fpta_primary_unique_ordered_obverse, &def3,
+                         "part_1", "part_2", nullptr));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def3));
+
+  //------------------------------------------------------------------------
+  // создаем таблицы в транзакции
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_1", &def));
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_2", &def2));
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_3", &def3));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def2));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def2));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def3));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def3));
+
+  //------------------------------------------------------------------------
+  // в отдельной транзакции удаляем таблицы
+  fpta_schema_info schema_info;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(3u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+
+  // удаляем первую таблицу
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table_1"));
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(2u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+
+  // удаляем вторую таблицу
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table_2"));
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(1u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+
+  // удаляем третью таблицу
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table_3"));
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(0u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
