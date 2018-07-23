@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
 
   size_t nread = fread(buf, 1, sizeof(utf8bom), stdin);
   if (nread > 0) {
-    if (nread != sizeof(utf8bom) || strcmp(buf, utf8bom) != 0)
+    if (nread != sizeof(utf8bom) || memcmp(buf, utf8bom, sizeof(utf8bom)) != 0)
       fwrite(buf, 1, nread, stdout);
     for (;;) {
       nread = fread(buf, 1, sizeof buf, stdin);
