@@ -48,8 +48,8 @@ if(Boost_FILESYSTEM_FOUND AND Boost_IOSTREAMS_FOUND
     MAIN_DEPENDENCY lexer.re2c
     DEPENDS bomstrip
     COMMAND ${CMAKE_COMMAND} -E remove -f lexer.re lexer.cxx
-    COMMAND bomstrip < ${CMAKE_CURRENT_SOURCE_DIR}/lexer.re2c > ${CMAKE_CURRENT_BINARY_DIR}/lexer.re
-    COMMAND ${RE2C} -W -Werror --utf-8 --bit-vectors -i ${CMAKE_CURRENT_BINARY_DIR}/lexer.re -o lexer.cxx
+    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bomstrip < ${CMAKE_CURRENT_SOURCE_DIR}/lexer.re2c > lexer.re
+    COMMAND ${RE2C} -W -Werror --utf-8 --bit-vectors -i lexer.re -o lexer.cxx
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generate schema-lexer by ${RE2C}"
     )
@@ -59,8 +59,8 @@ if(Boost_FILESYSTEM_FOUND AND Boost_IOSTREAMS_FOUND
     MAIN_DEPENDENCY grammar.lemon
     DEPENDS bomstrip
     COMMAND ${CMAKE_COMMAND} -E remove -f grammar.c grammar.h grammar.y parser.cxx
-    COMMAND bomstrip < ${CMAKE_CURRENT_SOURCE_DIR}/grammar.lemon > ${CMAKE_CURRENT_BINARY_DIR}/grammar.y
-    COMMAND ${LEMON} -l -s ${CMAKE_CURRENT_BINARY_DIR}/grammar.y
+    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/bomstrip < ${CMAKE_CURRENT_SOURCE_DIR}/grammar.lemon > grammar.y
+    COMMAND ${LEMON} -l -s grammar.y
     COMMAND ${CMAKE_COMMAND} -E rename grammar.c parser.cxx
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generate schema-parser by ${LEMON}"
