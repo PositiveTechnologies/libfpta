@@ -41,7 +41,7 @@ namespace Compiler {
 
 /* Реализация сравнения узла и полного имени типа на уровне AST. */
 int Node::compare(const Node *node, const BaseName &fqtn) {
-  int r = node->deep_ - fqtn.size();
+  int r = (int)(node->deep_ - fqtn.size());
   BaseName::const_reverse_iterator i = fqtn.rbegin();
 
   while (!r && node) {

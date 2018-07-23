@@ -151,8 +151,8 @@ struct Ident : public Token {
   Ident(const Token &name, const Token &tag) : Token(name), tag(tag) {}
 };
 
-class NodeList;
-class Node;
+struct NodeList;
+struct Node;
 
 std::string fqtn(const BaseName *);
 std::string fqtn(const Node *);

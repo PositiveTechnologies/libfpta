@@ -87,7 +87,7 @@
     value = ~0u;
   }
 
-  static inline void destroy(Token &token) {
+  static __maybe_unused inline void destroy(Token &token) {
     token.text = nullptr;
     token.length = 0;
   }
