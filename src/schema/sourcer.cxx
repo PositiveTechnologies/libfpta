@@ -40,26 +40,27 @@ namespace fptu {
 namespace Schema {
 namespace Compiler {
 
-typedef std::basic_string<Symbol> string;
-
-static string slurp(const std_filesystem::path &filename) {
-  string result;
-  std::basic_ifstream<Symbol> sink;
+static std::string slurp(const std_filesystem::path &filename) {
+  std::string result;
+  std::ifstream sink;
   sink.exceptions(std::ios::failbit | std::ios::badbit);
+  sink.imbue(std::locale::classic());
   sink.open(filename);
-  std::getline(sink, result,
-               string::traits_type::to_char_type(string::traits_type::eof()));
+
+  std::getline(
+      sink, result,
+      std::string::traits_type::to_char_type(std::string::traits_type::eof()));
   sink.close();
   return result;
 }
 
 /* Простейщая реализация ISource средствами std. */
-class Sourcer final : protected string, public ISourcer {
+class Sourcer final : protected std::string, public ISourcer {
 protected:
   /* При обновлении указывает на первый НЕ записанный символ. */
   const Symbol *tail_;
 
-  std::basic_ofstream<Symbol> sink_;
+  std::ofstream sink_;
 
   std_filesystem::path temporary(bool finally = false) const {
     std_filesystem::path path = filename_;
@@ -68,7 +69,8 @@ protected:
 
 public:
   Sourcer(const std_filesystem::path &filename)
-      : string(slurp(filename)), ISourcer(filename, data(), data() + size()),
+      : std::string(slurp(filename)),
+        ISourcer(filename, char2symbol(data()), char2symbol(data()) + size()),
         tail_(nullptr) {}
 
   /* Начинает процесс обновления. */
@@ -93,7 +95,7 @@ public:
         std_filesystem::remove(temporary());
       } else {
         if (tail_ < ISourcer::end())
-          sink_.write(tail_, ISourcer::end() - tail_);
+          sink_.write(symbol2char(tail_), ISourcer::end() - tail_);
 
         sink_.close();
         if (std_filesystem::exists(save))
