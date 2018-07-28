@@ -32,9 +32,39 @@
 ##
 
 find_program(RE2C re2c)
+if(RE2C AND NOT RE2C_VERSION)
+  execute_process(COMMAND ${RE2C} --version
+    OUTPUT_VARIABLE re2c_version_output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE rc)
+  if(rc EQUAL 0)
+    string(REGEX MATCH "^re2c ([0-9]+\\.[0-9]+(\\.[0-9]+)*)" re2c_version_valid ${re2c_version_output})
+    if(re2c_version_valid)
+      set(RE2C_VERSION ${CMAKE_MATCH_1})
+      message(STATUS "Found ${RE2C} version ${RE2C_VERSION}")
+    endif()
+  endif()
+endif()
+
 find_program(LEMON lemon)
+if(LEMON AND NOT LEMON_VERSION)
+  execute_process(COMMAND ${LEMON} -x
+    OUTPUT_VARIABLE lemon_version_output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE rc)
+  if(rc EQUAL 0)
+    string(REGEX MATCH "^Lemon version ([0-9]+\\.[0-9]+(\\.[0-9]+)*)" lemon_version_valid ${lemon_version_output})
+    if(lemon_version_valid)
+      set(LEMON_VERSION ${CMAKE_MATCH_1})
+      message(STATUS "Found ${LEMON} version ${LEMON_VERSION}")
+    endif()
+  endif()
+endif()
+
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
-if(RE2C AND LEMON AND HAS_CXX17 GREATER -1)
+if(RE2C AND RE2C_VERSION VERSION_GREATER_EQUAL 1.0
+    AND LEMON AND LEMON_VERSION VERSION_GREATER_EQUAL 1.0
+    AND HAS_CXX17 GREATER -1)
   add_executable(bomstrip bomstrip.cxx)
   include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
@@ -82,5 +112,5 @@ if(RE2C AND LEMON AND HAS_CXX17 GREATER -1)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 else()
-  message(STATUS "Schema compiler will be disabled because not all components available: C++17, re2c, lemon")
+  message(STATUS "Schema compiler will be disabled because not all components available: C++17, re2c >= 1.0, lemon >= 1.0")
 endif()
