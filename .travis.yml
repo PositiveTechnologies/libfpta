@@ -14,6 +14,8 @@ addons:
       - cmake
       - libgtest-dev
 #      - clang-format-6.0
+      - re2c
+      - lemon
 
   coverity_scan:
     project:
