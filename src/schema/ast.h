@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2017 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -42,6 +42,7 @@
 #include <vector>
 
 #include "fast_positive/schema.h"
+#include "filesystem.h"
 
 namespace fptu {
 namespace Schema {
@@ -49,6 +50,23 @@ namespace Compiler {
 
 /* Символ, с которыми работают лексер и парсер. */
 typedef unsigned char Symbol;
+
+inline const Symbol *char2symbol(const unsigned char *c_str) {
+  static_assert(sizeof(unsigned char) == sizeof(Symbol), "sizeof(Symbol)?");
+  return c_str;
+}
+inline const Symbol *char2symbol(const signed char *c_str) {
+  static_assert(sizeof(signed char) == sizeof(Symbol), "sizeof(Symbol)?");
+  return reinterpret_cast<const Symbol *>(c_str);
+}
+inline const Symbol *char2symbol(const char *c_str) {
+  static_assert(sizeof(char) == sizeof(Symbol), "sizeof(Symbol)?");
+  return reinterpret_cast<const Symbol *>(c_str);
+}
+inline const char *symbol2char(const Symbol *symbol) {
+  static_assert(sizeof(char) == sizeof(Symbol), "sizeof(Symbol)?");
+  return reinterpret_cast<const char *>(symbol);
+}
 
 /* Идентификатор токенов. */
 typedef unsigned TokenId;
@@ -66,30 +84,28 @@ struct Token {
   const Symbol *begin() const { return text; }
   const Symbol *end() const { return text + length; }
 
-  std::string string() const {
-    static_assert(sizeof(char) == sizeof(Symbol), "sizeof(Symbol)?");
-    return std::string((const char *)text, length);
-  }
+  std::string string() const { return std::string(symbol2char(text), length); }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Token &text) {
-  return os.write((const char *)text.text, text.length * sizeof(Symbol));
+  return os.write(symbol2char(text.text), text.length * sizeof(Symbol));
 }
 
 /* Локация (строка, позиция) в исходном тексте схемы. */
 struct Location {
-  const char *filename;
+  const std_filesystem::path *filename;
   unsigned line;
   unsigned position;
 
-  Location(const char *_filename, unsigned _line, unsigned _position)
+  Location(const std_filesystem::path *_filename, unsigned _line,
+           unsigned _position)
       : filename(_filename), line(_line), position(_position) {}
 
-  Location() : Location("unknown", 0, 0) {}
+  Location() : Location(nullptr, 0, 0) {}
 };
 
 inline unsigned length(const Symbol *str) {
-  return ::strlen((const char *)str);
+  return (unsigned)::strlen(symbol2char(str));
 }
 
 class exception : public std::exception {
@@ -107,8 +123,9 @@ public:
   virtual ~exception() {}
 };
 
-void Throw_InvalidTypenameLength(const Token &token, const char *reason);
-void Throw_InvalidTypeIdValue(const Token &token);
+[[noreturn]] void Throw_InvalidTypenameLength(const Token &token,
+                                              const char *reason);
+[[noreturn]] void Throw_InvalidTypeIdValue(const Token &token);
 
 /* Имя базового типа - это имя уже определенного типа при обращении к нему.
  * Например при декларации поля или производного типа. */

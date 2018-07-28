@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2017 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -32,6 +32,7 @@
  */
 
 #include "ast.h"
+#include "filesystem.h"
 
 namespace fptu {
 namespace Schema {
@@ -48,9 +49,9 @@ struct Options {
   bool verbose;
 
   /* Базовое имя для продуктов компиляции */
-  std::string output_basename;
+  std_filesystem::path output_basename;
 
-  std::vector<std::string> sources; /*  имена исходных файлов */
+  std::vector<std_filesystem::path> sources; /*  имена исходных файлов */
 
   Options() : update(false), reset(false), verbose(false) {}
 };
@@ -80,9 +81,9 @@ class ISourcer : public IPure {
 protected:
   const Symbol *const begin_;
   const Symbol *const end_;
-  const std::string filename_;
+  const std_filesystem::path filename_;
 
-  ISourcer(const char *const filename, const Symbol *const begin,
+  ISourcer(const std_filesystem::path &filename, const Symbol *const begin,
            const Symbol *const end)
       : begin_(begin), end_(end), filename_(filename) {}
 
@@ -93,7 +94,7 @@ public:
   /* Для лексера - конец исходного кода. */
   const Symbol *end() const { return end_; }
 
-  const char *filename() const { return filename_.c_str(); }
+  const std_filesystem::path *filename() const { return &filename_; }
 
   /* Начинает процесс обновления. */
   virtual void Start() = 0;
@@ -105,7 +106,7 @@ public:
   virtual Location Where(const Symbol *) const = 0;
 
   /* Статическая фабрика */
-  static ISourcer *Create(const char *filename);
+  static ISourcer *Create(const std_filesystem::path &filename);
 };
 
 /* Интерфейс лексера для использования компилятором.
@@ -175,9 +176,9 @@ public:
   virtual void Append(std::unique_ptr<NodeList> &&list) = 0;
   virtual void Import(std::unique_ptr<BaseName> &&name) = 0;
   virtual void Commit() = 0;
-  virtual void Load(const char *filename) = 0;
+  virtual void Load(const std_filesystem::path &filename) = 0;
   virtual void Update() = 0;
-  virtual void Product(const std::string &basename) = 0;
+  virtual void Product(const std_filesystem::path &basename) = 0;
 
   IFrontend() : ok_(true), need_update_(false) {}
   virtual void Error(const char *, ...);

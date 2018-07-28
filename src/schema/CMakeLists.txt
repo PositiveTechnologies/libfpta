@@ -31,17 +31,12 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
-set(Boost_DETAILED_FAILURE_MSG ON)
-# set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost 1.44 COMPONENTS filesystem iostreams program_options system)
 find_program(RE2C re2c)
 find_program(LEMON lemon)
-if(Boost_FILESYSTEM_FOUND AND Boost_IOSTREAMS_FOUND
-    AND Boost_PROGRAM_OPTIONS_FOUND AND Boost_SYSTEM_FOUND
-    AND RE2C AND LEMON)
-
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+if(RE2C AND LEMON AND HAS_CXX17 GREATER -1)
   add_executable(bomstrip bomstrip.cxx)
-  include_directories(${CMAKE_CURRENT_BINARY_DIR} ${Boost_INCLUDE_DIR})
+  include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lexer.cxx
@@ -78,10 +73,8 @@ if(Boost_FILESYSTEM_FOUND AND Boost_IOSTREAMS_FOUND
     backend.cxx
     main.cxx
     )
-  target_link_libraries(ptsc
-    ${Boost_FILESYSTEM_LIBRARY} ${Boost_IOSTREAMS_LIBRARY}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SYSTEM_LIBRARY}
-    fptu)
+  target_compile_features(ptsc PRIVATE cxx_std_17)
+  target_link_libraries(ptsc fptu ${LIBCXX_FILESYSTEM})
 
   add_test(NAME SchemaCompiler
     COMMAND ptsc
@@ -89,5 +82,5 @@ if(Boost_FILESYSTEM_FOUND AND Boost_IOSTREAMS_FOUND
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 else()
-  message(STATUS "Schema compiler will be disabled because not all components available: re2c, lemon, boost-libraries")
+  message(STATUS "Schema compiler will be disabled because not all components available: C++17, re2c, lemon")
 endif()

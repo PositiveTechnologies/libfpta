@@ -32,10 +32,12 @@
  */
 
 #include "ast.h"
+#include "fast_positive/defs.h"
+#include "filesystem.h"
 #include "interfaces.h"
 
-#include <boost/program_options.hpp>
 #include <cstdarg>
+#include <cstdio>
 #include <iostream>
 
 namespace fptu {
@@ -48,58 +50,126 @@ Options options;
 } /* namespace Schema */
 } /* namespace fptu */
 
+using namespace fptu::Schema::Compiler;
+static std::unique_ptr<IFrontend> engine;
+
+static void usage() {
+  std::cout
+      << "Usage: %s [OPTIONS]... SOURCE-FILE...\n"
+         "\n"
+         "fptu Scheme Compiler options:\n"
+         "  -h, --help         display this help and exit\n"
+         "      --version      output version information and exit\n"
+         "      --verbose      turn verbose mode\n"
+         "  -u, --update       update source for ID's injection\n"
+         "  -r, --reset        reset all ID's assignation\n"
+         "  -o, --output       basename for place output to files\n"
+         "\n"
+         "Copyright 2016-2017 libfptu authors: please see AUTHORS file at "
+         "https://github.com/leo-yuriev/libfptu.\n"
+         "\n"
+         "License GPLv3+: GNU GPL version 3 or later "
+         "<http://gnu.org/licenses/gpl.html>.\n"
+         "This is free software: you are free to change and redistribute it.\n"
+         "There is NO WARRANTY, to the extent permitted by law.\n"
+         "\n"
+         "Written by Leonid V. Yuriev.\n"
+         "\n";
+}
+
+static bool parse_option(int argc, char *const argv[], int &narg,
+                         const char option_short, const char *option_long,
+                         const char **value = nullptr) {
+  assert(narg < argc);
+  const char *current = argv[narg];
+  const size_t optlen = strlen(option_long);
+
+  if (option_short && current[0] == '-' && current[1] == option_short &&
+      current[2] == '\0') {
+    if (value) {
+      if (narg + 1 >= argc || argv[narg + 1][0] == '-') {
+        engine->Error("No value given for '-%c' option\n", option_short);
+        exit(EXIT_FAILURE);
+      }
+      *value = argv[narg + 1];
+      ++narg;
+    }
+    return true;
+  }
+
+  if (strncmp(current, "--", 2) || strncmp(current + 2, option_long, optlen))
+    return false;
+
+  if (!value) {
+    if (current[optlen + 2] == '=') {
+      engine->Error("Option '--%s' doen't accept any value\n", option_long);
+      exit(EXIT_FAILURE);
+    }
+    return true;
+  }
+
+  if (current[optlen + 2] == '=') {
+    *value = &current[optlen + 3];
+    return true;
+  }
+
+  if (narg + 1 >= argc || argv[narg + 1][0] == '-') {
+    engine->Error("No value given for '--%s' option\n", option_long);
+    exit(EXIT_FAILURE);
+  }
+
+  *value = argv[narg + 1];
+  ++narg;
+  return true;
+}
+
 int main(int argc, char *argv[]) {
-  using namespace fptu::Schema::Compiler;
-  namespace po = boost::program_options;
+  engine.reset(IFrontend::Create());
 
-  po::options_description options_desc("fptu Scheme Compiler options");
-  options_desc.add_options()("help,h", "produce help message");
-  options_desc.add_options()("version,v", "print version information");
-  options_desc.add_options()("verbose,V", "turn verbose mode");
-  options_desc.add_options()("update,u", "update source for ID's injection");
-  options_desc.add_options()("reset,r", "reset all ID's assignation");
-  options_desc.add_options()("output,o",
-                             po::value<std::string>(&options.output_basename),
-                             "a basename for place output to files");
-  options_desc.add_options()(
-      "source-file", po::value<std::vector<std::string>>(), "source file");
+  std::vector<std_filesystem::path> sources;
+  for (int narg = 1; narg < argc; ++narg) {
+    const char *value = nullptr;
 
-  po::positional_options_description positional_options;
-  positional_options.add("source-file", -1);
+    if (parse_option(argc, argv, narg, 'h', "help")) {
+      usage();
+      return EXIT_SUCCESS;
+    }
+    if (parse_option(argc, argv, narg, '\0', "version")) {
+      std::cout << "Version 0.0, " << __DATE__ " " __TIME__ << std::endl;
+      return EXIT_SUCCESS;
+    }
+    if (parse_option(argc, argv, narg, '\0', "verbose")) {
+      options.verbose = true;
+      continue;
+    }
+    if (parse_option(argc, argv, narg, 'u', "update")) {
+      options.update = true;
+      continue;
+    }
+    if (parse_option(argc, argv, narg, 'r', "reset")) {
+      options.update = true;
+      continue;
+    }
+    if (parse_option(argc, argv, narg, 'o', "output", &value)) {
+      if (!options.output_basename.empty())
+        engine->Error("Basename for output files already set\n");
+      options.output_basename = value;
+      if (options.output_basename.empty())
+        engine->Error("Invalid value '%s' for output files basename\n", value);
+      continue;
+    }
 
-  po::variables_map options_mapping;
-  po::store(po::command_line_parser(argc, argv)
-                .options(options_desc)
-                .positional(positional_options)
-                .run(),
-            options_mapping);
-  po::notify(options_mapping);
+    if (argv[narg][0] == '-') {
+      engine->Error("Unknown option '%s'\n", argv[narg]);
+      return EXIT_FAILURE;
+    }
 
-  if (options_mapping.count("help")) {
-    std::cout << options_desc << std::endl;
-    return EXIT_SUCCESS;
+    sources.push_back(argv[narg]);
   }
 
-  if (options_mapping.count("version")) {
-    std::cout << "Version 0.0, " << __DATE__ " " __TIME__ << std::endl;
-    return EXIT_SUCCESS;
-  }
-
-  if (options_mapping.count("verbose"))
-    options.verbose = true;
-
-  if (options_mapping.count("update"))
-    options.update = true;
-
-  if (options_mapping.count("reset"))
-    options.reset = true;
-
-  std::unique_ptr<IFrontend> engine(IFrontend::Create());
-
-  if (options_mapping.count("source-file")) {
-    std::vector<std::string> sources =
-        options_mapping["source-file"].as<std::vector<std::string>>();
-
+  if (sources.empty())
+    engine->Error("No source file(s)\n");
+  else {
     for (const auto &item : sources)
       engine->Load(item.c_str());
 
@@ -113,8 +183,7 @@ int main(int argc, char *argv[]) {
       else
         engine->Product(options.output_basename);
     }
-  } else
-    engine->Error("no input files");
+  }
 
   return engine->Ok() ? EXIT_SUCCESS : EXIT_FAILURE;
 }

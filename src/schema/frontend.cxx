@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2017 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -36,13 +36,12 @@
 
 #include <map>
 #include <set>
+#include <stack>
 #include <stdarg.h>
 #include <stdio.h>
 #include <vector>
 
-#include <boost/filesystem.hpp>
-#include <boost/iostreams/device/file.hpp>
-#include <boost/iostreams/stream.hpp>
+#include "filesystem.h"
 #include <sstream>
 
 namespace fptu {
@@ -101,9 +100,9 @@ public:
 
   void Import(std::unique_ptr<BaseName> &&name);
   void Commit();
-  void Load(const char *filename);
+  void Load(const std_filesystem::path &filename);
   void Update();
-  void Product(const std::string &basename);
+  void Product(const std_filesystem::path &basename);
   Location Where(const Token &) const;
   void HandleException(const std::exception *trouble);
 };
@@ -185,13 +184,13 @@ void Engine::Commit() {}
 
 /* Импорт (загрузка) части схемы из файла по директиве 'import'. */
 void Engine::Import(std::unique_ptr<BaseName> &&name) {
-  boost::filesystem::path filename(
-      boost::filesystem::path(stack_.top()).parent_path());
+  std_filesystem::path filename(
+      std_filesystem::path(stack_.top()).parent_path());
 
   for (BaseName::iterator i = name->begin(), e = name->end(); i != e; ++i)
     filename /= i->string();
 
-  Load(boost::filesystem::change_extension(filename, ".pts").string().c_str());
+  Load(filename.replace_extension(".pts"));
 }
 
 /* Штатный костыль на отсутствие finally в C++. */
@@ -207,18 +206,18 @@ public:
 };
 
 /* Загрузка описания схемы из исходного файла. */
-void Engine::Load(const char *filename) {
-  boost::filesystem::file_status status(boost::filesystem::status(filename));
+void Engine::Load(const std_filesystem::path &filename) {
+  std_filesystem::file_status status(std_filesystem::status(filename));
 
-  if (!boost::filesystem::exists(status))
-    Error("the file '%s' is not exists.", filename);
-  else if (!boost::filesystem::is_regular_file(status))
-    Error("the file '%s' is not a regular file.", filename);
-  else if (!boost::filesystem::file_size(filename))
-    Warning("the file '%s' is empty.", filename);
+  if (!std_filesystem::exists(status))
+    Error("the file '%s' is not exists.", filename.c_str());
+  else if (!std_filesystem::is_regular_file(status))
+    Error("the file '%s' is not a regular file.", filename.c_str());
+  else if (!std_filesystem::file_size(filename))
+    Warning("the file '%s' is empty.", filename.c_str());
   else {
     const size_t before = scheme_.size();
-    current_filename_ = filename;
+    current_filename_ = filename.c_str();
 
     try {
       std::unique_ptr<ISourcer> sourcer(ISourcer::Create(filename));
@@ -227,7 +226,7 @@ void Engine::Load(const char *filename) {
       sources_[key] = std::move(sourcer);
       std::unique_ptr<ILexer> lexer(ILexer::Create(this, ptr));
       std::unique_ptr<IParser> parser(IParser::Create(this));
-      raii_stacker<const char *> guard(stack_, filename);
+      raii_stacker<const char *> guard(stack_, current_filename_);
       while (true) {
         ILexer::Result token = lexer->Scan();
         if (options.verbose) {
@@ -245,7 +244,7 @@ void Engine::Load(const char *filename) {
     current_filename_ = stack_.empty() ? nullptr : stack_.top();
 
     if (before == scheme_.size())
-      Warning("no definitions in the file '%s'.", filename);
+      Warning("no definitions in the file '%s'.", filename.c_str());
   }
 }
 
@@ -257,12 +256,12 @@ void Engine::Update() { current_filename_ = nullptr; }
 
 /* Формирование продуктов компиляции (бинарного справочника схемы и
  * h-файла с определениями). */
-void Engine::Product(const std::string &basename) {
-  std::string filename;
+void Engine::Product(const std_filesystem::path &basename) {
+  std_filesystem::path filename(basename);
   //  std::ofstream file;
   //  file.exceptions(std::ios::failbit | std::ios::badbit);
 
-  filename = basename + "-scheme.h";
+  filename += "-scheme.h";
   current_filename_ = filename.c_str();
   //  file.open(current_filename_, std::ios::out | std::ios::trunc);
   //  builder_.todo(file);

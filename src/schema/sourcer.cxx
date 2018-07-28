@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2017 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -34,36 +34,42 @@
 #include "ast.h"
 #include "fast_positive/tuples_internal.h"
 #include "interfaces.h"
-
-#include <boost/filesystem.hpp>
-#include <boost/iostreams/device/file.hpp>
-#include <boost/iostreams/device/mapped_file.hpp>
-#include <boost/iostreams/stream.hpp>
+#include <fstream>
 
 namespace fptu {
 namespace Schema {
 namespace Compiler {
 
-/* Простейщая реализация ISource средствами boost. */
-class Sourcer : protected boost::iostreams::mapped_file_source,
-                public ISourcer {
+typedef std::basic_string<Symbol> string;
+
+static string slurp(const std_filesystem::path &filename) {
+  string result;
+  std::basic_ifstream<Symbol> sink;
+  sink.exceptions(std::ios::failbit | std::ios::badbit);
+  sink.open(filename);
+  std::getline(sink, result,
+               string::traits_type::to_char_type(string::traits_type::eof()));
+  sink.close();
+  return result;
+}
+
+/* Простейщая реализация ISource средствами std. */
+class Sourcer final : protected string, public ISourcer {
 protected:
   /* При обновлении указывает на первый НЕ записанный символ. */
   const Symbol *tail_;
 
-  boost::iostreams::stream<boost::iostreams::file_sink> sink_;
+  std::basic_ofstream<Symbol> sink_;
 
-  std::string temporary(bool finally = false) const {
-    return boost::filesystem::change_extension(filename_, finally ? ".pts-old"
-                                                                  : ".pts-new")
-        .string();
+  std_filesystem::path temporary(bool finally = false) const {
+    std_filesystem::path path = filename_;
+    return path.replace_extension(finally ? ".pts-old" : ".pts-new");
   }
 
 public:
-  Sourcer(const char *filename)
-      : boost::iostreams::mapped_file_source(filename),
-        ISourcer(filename, (Symbol *)data(), (Symbol *)(data() + size())),
-        tail_(0) {}
+  Sourcer(const std_filesystem::path &filename)
+      : string(slurp(filename)), ISourcer(filename, data(), data() + size()),
+        tail_(nullptr) {}
 
   /* Начинает процесс обновления. */
   void Start() {
@@ -78,24 +84,24 @@ public:
 
   /* Завершает, либо откатывает изменения. */
   void Done(bool commit) {
-    std::string save = temporary(true);
-    std::string temp = temporary(false);
+    std_filesystem::path save = temporary(true);
+    std_filesystem::path temp = temporary(false);
 
     if (sink_.is_open()) {
       if (!commit) {
         sink_.close();
-        boost::filesystem::remove(temporary());
+        std_filesystem::remove(temporary());
       } else {
         if (tail_ < ISourcer::end())
-          sink_.write((const char *)tail_, ISourcer::end() - tail_);
+          sink_.write(tail_, ISourcer::end() - tail_);
 
         sink_.close();
-        if (boost::filesystem::exists(save))
-          boost::filesystem::remove(save);
+        if (std_filesystem::exists(save))
+          std_filesystem::remove(save);
 
-        boost::filesystem::rename(filename_, save);
-        boost::filesystem::rename(temp, filename_);
-        boost::filesystem::remove(save);
+        std_filesystem::rename(filename_, save);
+        std_filesystem::rename(temp, filename_);
+        std_filesystem::remove(save);
       }
     }
   }
@@ -111,6 +117,7 @@ public:
       case '\n':
         ++line;
         column = 1;
+        [[fallthrough]];
       case '\r':
         continue;
       default:
@@ -123,7 +130,7 @@ public:
   ~Sourcer() { Done(false); }
 };
 
-ISourcer *ISourcer::Create(const char *filename) {
+ISourcer *ISourcer::Create(const std_filesystem::path &filename) {
   return new Sourcer(filename);
 }
 
