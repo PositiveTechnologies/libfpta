@@ -90,90 +90,6 @@ endif()
 unset(tmp_lxx_probe_version)
 unset(tmp_lxx_probe_result)
 
-#
-# Check supported standards
-#
-if((NOT HAVE_STD_C11 AND NOT HAVE_STD_C99 AND NOT HAVE_STD_GNU99 AND NOT HAVE_STD_GNU11) OR
-    (NOT HAVE_STD_CXX11 AND NOT HAVE_STD_GNUXX0X))
-  set(CMAKE_REQUIRED_FLAGS "-std=c11")
-  check_c_source_compiles("
-    #if __STDC_VERSION__ < 201112L
-    #   error C11 not available
-    #endif
-    /*
-    * FreeBSD 10 ctype.h header fail to compile on gcc4.8 in c11 mode.
-    * Make sure we aren't affected.
-    */
-    #include <ctype.h>
-    int main(void) { return 0; }
-    " HAVE_STD_C11)
-
-  set(CMAKE_REQUIRED_FLAGS "-std=gnu11")
-  check_c_source_compiles("
-    #if __STDC_VERSION__ < 201112L
-    #   error GNU C11 not available
-    #endif
-    /*
-    * FreeBSD 10 ctype.h header fail to compile on gcc4.8 in c11 mode.
-    * Make sure we aren't affected.
-    */
-    #include <ctype.h>
-    /* Check for GNU C extension for VA_ARGS */
-    static inline void probe(int anchor, ...) { (void) anchor; }
-    #define PROBE(...) probe(42, ##__VA_ARGS__)
-    int main(void) {
-    PROBE(); PROBE(1); PROBE(2,2); PROBE(3,3,3);
-    return 0;
-    }
-    " HAVE_STD_GNU11)
-
-  set(CMAKE_REQUIRED_FLAGS "-std=c99")
-  check_c_source_compiles("
-    #if (__STDC_VERSION__ < 199901L) && (_MSC_FULL_VER < 180040629)
-    #   error C99 not available
-    #endif
-    int main(void) { return 0; }
-    " HAVE_STD_C99)
-
-  set(CMAKE_REQUIRED_FLAGS "-std=gnu99")
-  check_c_source_compiles("
-    #if __STDC_VERSION__ < 199901L
-    #   error C99 not available
-    #endif
-    /* Check for GNU C extension for VA_ARGS */
-    static inline void probe(int anchor, ...) { (void) anchor; }
-    #define PROBE(...) probe(42, ##__VA_ARGS__)
-    int main(void) {
-    PROBE(); PROBE(1); PROBE(2,2); PROBE(3,3,3);
-    return 0;
-    }
-    " HAVE_STD_GNU99)
-
-  set(CMAKE_REQUIRED_FLAGS "-std=c++11")
-  check_cxx_source_compiles("
-    #if (__cplusplus < 201103L) && (_MSC_FULL_VER < 180040629)
-    #   error C++11 not available
-    #endif
-    int main(void) { return 0; }
-    " HAVE_STD_CXX11)
-  set(CMAKE_REQUIRED_FLAGS "-std=gnu++0x")
-
-  check_cxx_source_compiles("
-    #if __cplusplus < 201103L && !defined(__GXX_EXPERIMENTAL_CXX0X__)
-    #   error GNU C++0x not available
-    #endif
-    int main(void) { return 0; }
-    " HAVE_STD_GNUXX0X)
-  set(CMAKE_REQUIRED_FLAGS "")
-endif()
-if((NOT HAVE_STD_C11 AND NOT HAVE_STD_C99 AND NOT HAVE_STD_GNU99) OR
-    (NOT HAVE_STD_CXX11 AND NOT HAVE_STD_GNUXX0X))
-  message(FATAL_ERROR
-    "${CMAKE_C_COMPILER} should support -std=c11 or -std=c99. "
-    "${CMAKE_CXX_COMPILER} should support -std=c++11 or -std=gnu++0x. "
-    "Please consider upgrade to gcc 4.5+ or clang 3.2+.")
-endif()
-
 if(MSVC)
   check_c_compiler_flag("/WX" CC_HAS_WERROR)
 else()
@@ -478,40 +394,16 @@ macro(setup_compile_flags)
     endif()
   endif()
 
-  # Set standard
-  if(HAVE_STD_GNU11)
-    add_compile_flags("C" "-std=gnu11")
-  elseif(HAVE_STD_C11)
-    add_compile_flags("C" "-std=c11")
-  elseif(HAVE_STD_GNU99)
-    add_compile_flags("C" "-std=gnu99")
-  elseif(HAVE_STD_C99 AND NOT MSVC)
-    add_compile_flags("C" "-std=c99")
-  endif()
-
-  if(HAVE_STD_CXX11 AND NOT MSVC)
-    add_compile_flags("CXX" "-std=c++11")
-  elseif(HAVE_STD_GNUXX0X)
-    add_compile_flags("CXX" "-std=gnu++0x")
-    add_definitions("-Doverride=")
-  endif()
-
   if(MSVC)
-    if(NOT MSVC_VERSION LESS 1900)
-      add_compile_flags("C;CXX" "/utf-8")
+    add_compile_flags("C;CXX" "/W4")
+    add_compile_flags("C;CXX" "/utf-8")
+  else()
+    if(CC_HAS_WALL)
+      add_compile_flags("C;CXX" "-Wall")
     endif()
-    if(MSVC_VERSION EQUAL 1910)
-      # LY: avoid /Wall for Visual Studio 2017, otherwise due a bug we could lost the control
-      #     and get a lot of junk warnings from compiler's and SDK headers.
-      add_compile_flags("C;CXX" "/W4")
-    else()
-      add_compile_flags("C;CXX" "/Wall")
+    if(CC_HAS_WEXTRA)
+      add_compile_flags("C;CXX" "-Wextra")
     endif()
-  elseif(CC_HAS_WALL)
-    add_compile_flags("C;CXX" "-Wall")
-  endif()
-  if(CC_HAS_WEXTRA)
-    add_compile_flags("C;CXX" "-Wextra")
   endif()
 
   if(CMAKE_COMPILER_IS_GNUCXX
@@ -530,7 +422,7 @@ macro(setup_compile_flags)
   if(CC_HAS_WERROR AND (CI OR CMAKE_CONFIGURATION_TYPES OR CMAKE_BUILD_TYPE STREQUAL "Debug"))
     if(MSVC)
       add_compile_flags("C;CXX" "/WX")
-    elseif(HAVE_STD_C11 AND HAVE_STD_CXX11)
+    else()
       add_compile_flags("C;CXX" "-Werror")
     endif()
   endif()

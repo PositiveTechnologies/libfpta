@@ -76,6 +76,7 @@ set_target_properties(fptu PROPERTIES
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   )
 
+target_compile_features(fptu PUBLIC cxx_std_14)
 target_link_libraries(fptu ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
 
 if(UNIX AND NOT APPLE)
