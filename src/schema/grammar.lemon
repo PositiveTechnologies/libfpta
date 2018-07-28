@@ -98,6 +98,7 @@
   }
 
   template<class T> static inline void move(T* &target, T* &source) {
+    assert(source);
     assert(! target);
     destroy(target);
     target = source;
@@ -105,6 +106,7 @@
   }
 
   template<class T> static inline std::unique_ptr<T> get(T* &source) {
+    assert(source);
     std::unique_ptr<T> result(source);
     source = nullptr;
     return result;
@@ -197,7 +199,8 @@
 // Схема состоит из импорта и списка деклараций
 scheme ::= version import top_list(LIST) designation EOF. {
   try {
-    frontend->Append(get(LIST));
+    if (LIST)
+      frontend->Append(get(LIST));
   } catch (const std::exception &trouble) {
     frontend->HandleException(&trouble);
   }
@@ -224,13 +227,12 @@ import ::= import IMPORT name(NAME) SEMICOLON. {
 %type top_declaration {Node *}
 top_list(OUT) ::= . { OUT = nullptr; }
 top_list(OUT) ::= top_list(LIST) top_declaration(NODE). {
-  OUT = nullptr;
+  OUT = LIST;
   try {
-    if (NODE) {
-      OUT = LIST ? LIST : new NodeList();
-      LIST = nullptr;
+    if (! OUT)
+      OUT = new NodeList();
+    if (NODE)
       OUT->Append(get(NODE));
-    }
   } catch (const std::exception &trouble) {
     frontend->HandleException(&trouble);
   }
@@ -239,15 +241,14 @@ top_list(OUT) ::= top_list(LIST) top_declaration(NODE). {
 // Вложенный список деклараций, добавляются объявления полей
 %type inner_list {NodeList *}
 %type inner_declaration {Node *}
-inner_list ::= .
+inner_list(OUT) ::= . { OUT = nullptr; }
 inner_list(OUT) ::= inner_list(LIST) inner_declaration(NODE). {
-  OUT = nullptr;
+  OUT = LIST;
   try {
-    if (NODE) {
-      OUT = LIST ? LIST : new NodeList();
-      LIST = nullptr;
+    if (! OUT)
+      OUT = new NodeList();
+    if (NODE)
       OUT->Append(get(NODE));
-    }
   } catch (const std::exception &trouble) {
     frontend->HandleException(&trouble);
   }
@@ -353,9 +354,10 @@ name(R) ::= WORD(W). {
   }
 }
 name(R) ::= name(N) DOT WORD(W). {
+  assert(N);
   R = nullptr;
   try {
-    move (R, N);
+    move(R, N);
     R->Append(W);
   } catch (const std::exception &trouble) {
     frontend->HandleException(&trouble);

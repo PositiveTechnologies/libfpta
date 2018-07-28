@@ -245,6 +245,7 @@ struct NodeList : public std::deque<std::unique_ptr<Node>> {
 
   NodeList() {}
   Node *Append(std::unique_ptr<Node> &&node) {
+    assert(node);
     push_back(std::move(node));
     return back().get();
   }
@@ -261,6 +262,7 @@ struct DesignationList : public std::deque<std::unique_ptr<Designation>> {
   DesignationList(const DesignationList &) = delete;
   DesignationList() {}
   Designation *Append(std::unique_ptr<Designation> &&designation) {
+    assert(designation);
     push_back(std::move(designation));
     return back().get();
   }
