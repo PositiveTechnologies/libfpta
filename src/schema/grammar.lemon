@@ -224,7 +224,7 @@ import ::= import IMPORT name(NAME) SEMICOLON. {
 %type top_declaration {Node *}
 top_list(OUT) ::= . { OUT = nullptr; }
 top_list(OUT) ::= top_list(LIST) top_declaration(NODE). {
-  assert(!OUT);
+  OUT = nullptr;
   try {
     if (NODE) {
       OUT = LIST ? LIST : new NodeList();
@@ -241,7 +241,7 @@ top_list(OUT) ::= top_list(LIST) top_declaration(NODE). {
 %type inner_declaration {Node *}
 inner_list ::= .
 inner_list(OUT) ::= inner_list(LIST) inner_declaration(NODE). {
-  assert(!OUT);
+  OUT = nullptr;
   try {
     if (NODE) {
       OUT = LIST ? LIST : new NodeList();
@@ -325,6 +325,7 @@ opt_deprecated(OPT) ::= DEPRECATED. { OPT = Node::deprecated; }
 // Имя определяемого типа/поля
 %type ident {Ident *}
 ident(IDENT) ::= WORD(NAME). {
+  IDENT = nullptr;
   try {
     IDENT = new Ident(NAME);
   } catch (const std::exception &trouble) {
@@ -333,6 +334,7 @@ ident(IDENT) ::= WORD(NAME). {
 }
 // Опционально с тэгом для привязки к внешним справочникам (локализация и т.д.)
 ident(IDENT) ::= WORD(NAME) AT WORD(TAG). {
+  IDENT = nullptr;
   try {
     IDENT = new Ident(NAME, TAG);
   } catch (const std::exception &trouble) {
@@ -343,6 +345,7 @@ ident(IDENT) ::= WORD(NAME) AT WORD(TAG). {
 // Отсылка к имени типа. Может быть одним словом или FQTN
 %type name {BaseName *}
 name(R) ::= WORD(W). {
+  R = nullptr;
   try {
     R = new BaseName(W);
   } catch (const std::exception &trouble) {
@@ -350,8 +353,9 @@ name(R) ::= WORD(W). {
   }
 }
 name(R) ::= name(N) DOT WORD(W). {
-  move (R, N);
+  R = nullptr;
   try {
+    move (R, N);
     R->Append(W);
   } catch (const std::exception &trouble) {
     frontend->HandleException(&trouble);
