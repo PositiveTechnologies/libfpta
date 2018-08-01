@@ -68,11 +68,19 @@ static int mdbx_lck_op(mdbx_filehandle_t fd, int op, int lck, off_t offset,
   }
 }
 
-static __inline int mdbx_lck_exclusive(int lfd) {
+static __inline int mdbx_lck_exclusive(int lfd, bool fallback2shared) {
   assert(lfd != INVALID_HANDLE_VALUE);
   if (flock(lfd, LOCK_EX | LOCK_NB))
     return errno;
-  return mdbx_lck_op(lfd, F_SETLK, F_WRLCK, 0, 1);
+  int rc = mdbx_lck_op(lfd, F_SETLK, F_WRLCK, 0, 1);
+  if (rc != 0 && fallback2shared) {
+    while (flock(lfd, LOCK_SH)) {
+      int rc = errno;
+      if (rc != EINTR)
+        return rc;
+    }
+  }
+  return rc;
 }
 
 static __inline int mdbx_lck_shared(int lfd) {
@@ -88,8 +96,6 @@ static __inline int mdbx_lck_shared(int lfd) {
 int mdbx_lck_downgrade(MDBX_env *env, bool complete) {
   return complete ? mdbx_lck_shared(env->me_lfd) : MDBX_SUCCESS;
 }
-
-int mdbx_lck_upgrade(MDBX_env *env) { return mdbx_lck_exclusive(env->me_lfd); }
 
 int mdbx_rpid_set(MDBX_env *env) {
   return mdbx_lck_op(env->me_lfd, F_SETLK, F_WRLCK, env->me_pid, 1);
@@ -159,7 +165,7 @@ bailout:
 void mdbx_lck_destroy(MDBX_env *env) {
   if (env->me_lfd != INVALID_HANDLE_VALUE) {
     /* try get exclusive access */
-    if (env->me_lck && mdbx_lck_exclusive(env->me_lfd) == 0) {
+    if (env->me_lck && mdbx_lck_exclusive(env->me_lfd, false) == 0) {
       mdbx_info("%s: got exclusive, drown mutexes", mdbx_func_);
       int rc = pthread_mutex_destroy(&env->me_lck->mti_rmutex);
       if (rc == 0)
@@ -227,7 +233,7 @@ static int internal_seize_lck(int lfd) {
   assert(lfd != INVALID_HANDLE_VALUE);
 
   /* try exclusive access */
-  int rc = mdbx_lck_exclusive(lfd);
+  int rc = mdbx_lck_exclusive(lfd, false);
   if (rc == 0)
     /* got exclusive */
     return MDBX_RESULT_TRUE;
@@ -236,7 +242,7 @@ static int internal_seize_lck(int lfd) {
     rc = mdbx_lck_shared(lfd);
     if (rc == 0) {
       /* got shared, try exclusive again */
-      rc = mdbx_lck_exclusive(lfd);
+      rc = mdbx_lck_exclusive(lfd, true);
       if (rc == 0)
         /* now got exclusive */
         return MDBX_RESULT_TRUE;
