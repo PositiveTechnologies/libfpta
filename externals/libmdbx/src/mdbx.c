@@ -501,6 +501,7 @@ __cold void mdbx_rthc_remove(const mdbx_thread_key_t key) {
  * Allocates memory for an PNL of the given size.
  * Returns PNL on success, NULL on failure. */
 static MDBX_PNL mdbx_pnl_alloc(size_t size) {
+  assert(size <= MDBX_PNL_MAX);
   MDBX_PNL pl = malloc((size + 2) * sizeof(pgno_t));
   if (likely(pl)) {
     *pl++ = (pgno_t)size;
@@ -536,12 +537,15 @@ static void mdbx_txl_free(MDBX_TXL list) {
 
 /* Append ID to PNL. The PNL must be big enough. */
 static __inline void mdbx_pnl_xappend(MDBX_PNL pl, pgno_t id) {
-  assert(pl[0] + (size_t)1 < MDBX_PNL_ALLOCLEN(pl));
+  assert(pl[0] + (size_t)1 <= MDBX_PNL_ALLOCLEN(pl));
   pl[pl[0] += 1] = id;
 }
 
-static bool mdbx_pnl_check(MDBX_PNL pl) {
+static bool mdbx_pnl_check(MDBX_PNL pl, bool allocated) {
   if (pl) {
+    if (allocated) {
+      assert(pl[0] <= MDBX_PNL_MAX && pl[0] <= pl[-1]);
+    }
     for (const pgno_t *ptr = pl + pl[0]; --ptr > pl;) {
       assert(MDBX_PNL_ORDERED(ptr[0], ptr[1]));
       assert(ptr[0] >= NUM_METAS);
@@ -555,6 +559,7 @@ static bool mdbx_pnl_check(MDBX_PNL pl) {
 /* Sort an PNL.
  * [in,out] pnl The PNL to sort. */
 static void __hot mdbx_pnl_sort(MDBX_PNL pnl) {
+  assert(pnl[0] <= MDBX_PNL_MAX && pnl[0] <= pnl[-1]);
   /* Max possible depth of int-indexed tree * 2 items/level */
   int istack[sizeof(int) * CHAR_BIT * 2];
   int i, j, k, l, ir, jstack;
@@ -629,7 +634,7 @@ static void __hot mdbx_pnl_sort(MDBX_PNL pnl) {
   }
 #undef PNL_SMALL
 #undef PNL_SWAP
-  assert(mdbx_pnl_check(pnl));
+  assert(mdbx_pnl_check(pnl, true));
 }
 
 /* Search for an ID in an PNL.
@@ -637,7 +642,7 @@ static void __hot mdbx_pnl_sort(MDBX_PNL pnl) {
  * [in] id The ID to search for.
  * Returns The index of the first ID greater than or equal to id. */
 static unsigned __hot mdbx_pnl_search(MDBX_PNL pnl, pgno_t id) {
-  assert(mdbx_pnl_check(pnl));
+  assert(mdbx_pnl_check(pnl, true));
 
   /* binary search of id in pl
    * if found, returns position of id
@@ -687,18 +692,23 @@ static void mdbx_pnl_shrink(MDBX_PNL *ppl) {
 /* Grow an PNL.
  * Return the PNL to the size growed by given number.
  * [in,out] ppl Address of the PNL to grow. */
-static int mdbx_pnl_grow(MDBX_PNL *ppl, size_t num) {
+static int __must_check_result mdbx_pnl_grow(MDBX_PNL *ppl, size_t num) {
   MDBX_PNL idn = *ppl - 1;
+  assert(idn[0] <= MDBX_PNL_MAX && idn[0] <= idn[-1]);
+  assert(num <= MDBX_PNL_MAX);
+  num += *idn;
+  if (unlikely(num > MDBX_PNL_MAX))
+    return MDBX_TXN_FULL;
   /* grow it */
-  idn = realloc(idn, (*idn + num + 2) * sizeof(pgno_t));
+  idn = realloc(idn, (num + 2) * sizeof(pgno_t));
   if (unlikely(!idn))
     return MDBX_ENOMEM;
   *idn++ += (pgno_t)num;
   *ppl = idn;
-  return 0;
+  return MDBX_SUCCESS;
 }
 
-static int mdbx_txl_grow(MDBX_TXL *ptr, size_t num) {
+static int __must_check_result mdbx_txl_grow(MDBX_TXL *ptr, size_t num) {
   MDBX_TXL list = *ptr - 1;
   /* grow it */
   list = realloc(list, ((size_t)*list + num + 2) * sizeof(txnid_t));
@@ -706,85 +716,96 @@ static int mdbx_txl_grow(MDBX_TXL *ptr, size_t num) {
     return MDBX_ENOMEM;
   *list++ += num;
   *ptr = list;
-  return 0;
+  return MDBX_SUCCESS;
 }
 
 /* Make room for num additional elements in an PNL.
  * [in,out] ppl Address of the PNL.
  * [in] num Number of elements to make room for.
  * Returns 0 on success, MDBX_ENOMEM on failure. */
-static int mdbx_pnl_need(MDBX_PNL *ppl, size_t num) {
+static int __must_check_result mdbx_pnl_need(MDBX_PNL *ppl, size_t num) {
   MDBX_PNL pl = *ppl;
+  assert(pl[0] <= MDBX_PNL_MAX && pl[0] <= pl[-1]);
+  assert(num <= MDBX_PNL_MAX);
   num += pl[0];
   if (unlikely(num > pl[-1])) {
-    num = (num + num / 4 + (256 + 2)) & -256;
+    if (unlikely(num > MDBX_PNL_MAX))
+      return MDBX_TXN_FULL;
+    num = (num + num / 4 + (256 + 2)) & ~255u;
+    num = (num < MDBX_PNL_MAX + 2) ? num : MDBX_PNL_MAX + 2;
     pl = realloc(pl - 1, num * sizeof(pgno_t));
     if (unlikely(!pl))
       return MDBX_ENOMEM;
     *pl++ = (pgno_t)num - 2;
     *ppl = pl;
   }
-  return 0;
+  return MDBX_SUCCESS;
 }
 
 /* Append an ID onto an PNL.
  * [in,out] ppl Address of the PNL to append to.
  * [in] id The ID to append.
  * Returns 0 on success, MDBX_ENOMEM if the PNL is too large. */
-static int mdbx_pnl_append(MDBX_PNL *ppl, pgno_t id) {
+static int __must_check_result mdbx_pnl_append(MDBX_PNL *ppl, pgno_t id) {
   MDBX_PNL pl = *ppl;
   /* Too big? */
   if (unlikely(pl[0] >= pl[-1])) {
-    if (mdbx_pnl_grow(ppl, MDBX_PNL_UM_MAX))
-      return MDBX_ENOMEM;
+    int rc = mdbx_pnl_grow(ppl, MDBX_PNL_UM_MAX);
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
     pl = *ppl;
   }
   pl[0]++;
   pl[pl[0]] = id;
-  return 0;
+  return MDBX_SUCCESS;
 }
 
-static int mdbx_txl_append(MDBX_TXL *ptr, txnid_t id) {
+static int __must_check_result mdbx_txl_append(MDBX_TXL *ptr, txnid_t id) {
   MDBX_TXL list = *ptr;
   /* Too big? */
   if (unlikely(list[0] >= list[-1])) {
-    if (mdbx_txl_grow(ptr, (size_t)list[0]))
-      return MDBX_ENOMEM;
+    int rc = mdbx_txl_grow(ptr, (size_t)list[0]);
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
     list = *ptr;
   }
   list[0]++;
   list[list[0]] = id;
-  return 0;
+  return MDBX_SUCCESS;
 }
 
 /* Append an PNL onto an PNL.
  * [in,out] ppl Address of the PNL to append to.
  * [in] app The PNL to append.
  * Returns 0 on success, MDBX_ENOMEM if the PNL is too large. */
-static int mdbx_pnl_append_list(MDBX_PNL *ppl, MDBX_PNL app) {
+static int __must_check_result mdbx_pnl_append_list(MDBX_PNL *ppl,
+                                                    MDBX_PNL app) {
   MDBX_PNL pnl = *ppl;
   /* Too big? */
   if (unlikely(pnl[0] + app[0] >= pnl[-1])) {
-    if (mdbx_pnl_grow(ppl, app[0]))
-      return MDBX_ENOMEM;
+    int rc = mdbx_pnl_grow(ppl, app[0]);
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
     pnl = *ppl;
   }
   memcpy(&pnl[pnl[0] + 1], &app[1], app[0] * sizeof(pgno_t));
   pnl[0] += app[0];
-  return 0;
+  return MDBX_SUCCESS;
 }
 
-static int mdbx_txl_append_list(MDBX_TXL *ptr, MDBX_TXL append) {
+static int __must_check_result mdbx_txl_append_list(MDBX_TXL *ptr,
+                                                    MDBX_TXL append) {
   MDBX_TXL list = *ptr;
   /* Too big? */
   if (unlikely(list[0] + append[0] >= list[-1])) {
-    if (mdbx_txl_grow(ptr, (size_t)append[0]))
-      return MDBX_ENOMEM;
+    int rc = mdbx_txl_grow(ptr, (size_t)append[0]);
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
     list = *ptr;
   }
   memcpy(&list[list[0] + 1], &append[1], (size_t)append[0] * sizeof(txnid_t));
   list[0] += append[0];
-  return 0;
+  return MDBX_SUCCESS;
 }
 
 /* Append an ID range onto an PNL.
@@ -792,27 +813,29 @@ static int mdbx_txl_append_list(MDBX_TXL *ptr, MDBX_TXL append) {
  * [in] id The lowest ID to append.
  * [in] n Number of IDs to append.
  * Returns 0 on success, MDBX_ENOMEM if the PNL is too large. */
-static int mdbx_pnl_append_range(MDBX_PNL *ppl, pgno_t id, size_t n) {
+static int __must_check_result mdbx_pnl_append_range(MDBX_PNL *ppl, pgno_t id,
+                                                     size_t n) {
   pgno_t *pnl = *ppl, len = pnl[0];
   /* Too big? */
   if (unlikely(len + n > pnl[-1])) {
-    if (mdbx_pnl_grow(ppl, n | MDBX_PNL_UM_MAX))
-      return MDBX_ENOMEM;
+    int rc = mdbx_pnl_grow(ppl, n | MDBX_PNL_UM_MAX);
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
     pnl = *ppl;
   }
   pnl[0] = len + (pgno_t)n;
   pnl += len;
   while (n)
     pnl[n--] = id++;
-  return 0;
+  return MDBX_SUCCESS;
 }
 
 /* Merge an PNL onto an PNL. The destination PNL must be big enough.
  * [in] pl The PNL to merge into.
  * [in] merge The PNL to merge. */
 static void __hot mdbx_pnl_xmerge(MDBX_PNL pnl, MDBX_PNL merge) {
-  assert(mdbx_pnl_check(pnl));
-  assert(mdbx_pnl_check(merge));
+  assert(mdbx_pnl_check(pnl, true));
+  assert(mdbx_pnl_check(merge, false));
   pgno_t old_id, merge_id, i = merge[0], j = pnl[0], k = i + j, total = k;
   pnl[0] =
       MDBX_PNL_ASCENDING ? 0 : ~(pgno_t)0; /* delimiter for pl scan below */
@@ -824,7 +847,7 @@ static void __hot mdbx_pnl_xmerge(MDBX_PNL pnl, MDBX_PNL merge) {
     pnl[k--] = merge_id;
   }
   pnl[0] = total;
-  assert(mdbx_pnl_check(pnl));
+  assert(mdbx_pnl_check(pnl, true));
 }
 
 /* Search for an ID in an ID2L.
@@ -873,45 +896,45 @@ static unsigned __hot mdbx_mid2l_search(MDBX_ID2L pnl, pgno_t id) {
  * [in,out] pnl The ID2L to insert into.
  * [in] id The ID2 to insert.
  * Returns 0 on success, -1 if the ID was already present in the ID2L. */
-static int mdbx_mid2l_insert(MDBX_ID2L pnl, MDBX_ID2 *id) {
+static int __must_check_result mdbx_mid2l_insert(MDBX_ID2L pnl, MDBX_ID2 *id) {
   unsigned x = mdbx_mid2l_search(pnl, id->mid);
   if (unlikely(x < 1))
-    return /* internal error */ -2;
+    return /* internal error */ MDBX_PROBLEM;
 
   if (x <= pnl[0].mid && pnl[x].mid == id->mid)
-    return /* duplicate */ -1;
+    return /* duplicate */ MDBX_PROBLEM;
 
   if (unlikely(pnl[0].mid >= MDBX_PNL_UM_MAX))
-    return /* too big */ -2;
+    return /* too big */ MDBX_TXN_FULL;
 
   /* insert id */
   pnl[0].mid++;
   for (unsigned i = (unsigned)pnl[0].mid; i > x; i--)
     pnl[i] = pnl[i - 1];
   pnl[x] = *id;
-  return 0;
+  return MDBX_SUCCESS;
 }
 
 /* Append an ID2 into a ID2L.
  * [in,out] pnl The ID2L to append into.
  * [in] id The ID2 to append.
  * Returns 0 on success, -2 if the ID2L is too big. */
-static int mdbx_mid2l_append(MDBX_ID2L pnl, MDBX_ID2 *id) {
+static int __must_check_result mdbx_mid2l_append(MDBX_ID2L pnl, MDBX_ID2 *id) {
 #if MDBX_DEBUG
   for (unsigned i = pnl[0].mid; i > 0; --i) {
     assert(pnl[i].mid != id->mid);
     if (unlikely(pnl[i].mid == id->mid))
-      return -1;
+      return MDBX_PROBLEM;
   }
 #endif
 
   /* Too big? */
   if (unlikely(pnl[0].mid >= MDBX_PNL_UM_MAX))
-    return -2;
+    return /* too big */ MDBX_TXN_FULL;
 
   pnl[0].mid++;
   pnl[pnl[0].mid] = *id;
-  return 0;
+  return MDBX_SUCCESS;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1974,7 +1997,7 @@ static txnid_t mdbx_find_oldest(MDBX_txn *txn) {
 }
 
 /* Add a page to the txn's dirty list */
-static void mdbx_page_dirty(MDBX_txn *txn, MDBX_page *mp) {
+static int __must_check_result mdbx_page_dirty(MDBX_txn *txn, MDBX_page *mp) {
   MDBX_ID2 mid;
   int rc, (*insert)(MDBX_ID2L, MDBX_ID2 *);
 
@@ -1986,8 +2009,12 @@ static void mdbx_page_dirty(MDBX_txn *txn, MDBX_page *mp) {
   mid.mid = mp->mp_pgno;
   mid.mptr = mp;
   rc = insert(txn->mt_rw_dirtylist, &mid);
-  mdbx_tassert(txn, rc == 0);
+  if (unlikely(rc != MDBX_SUCCESS)) {
+    txn->mt_flags |= MDBX_TXN_ERROR;
+    return rc;
+  }
   txn->mt_dirtyroom--;
+  return MDBX_SUCCESS;
 }
 
 static int mdbx_mapresize(MDBX_env *env, const pgno_t size_pgno,
@@ -2171,7 +2198,7 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
     }
   }
 
-  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
   pgno_t pgno, *repg_list = env->me_reclaimed_pglist;
   unsigned repg_pos = 0, repg_len = repg_list ? repg_list[0] : 0;
   txnid_t oldest = 0, last = 0;
@@ -2191,7 +2218,7 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
 
       /* Seek a big enough contiguous page range.
        * Prefer pages with lower pgno. */
-      mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+      mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
       if (likely(flags & MDBX_ALLOC_CACHE) && repg_len > wanna_range &&
           (!(flags & MDBX_COALESCE) || op == MDBX_FIRST)) {
 #if MDBX_PNL_ASCENDING
@@ -2305,7 +2332,7 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
       pgno_t *re_pnl = (pgno_t *)data.iov_base;
       mdbx_tassert(txn, re_pnl[0] == 0 ||
                             data.iov_len == (re_pnl[0] + 1) * sizeof(pgno_t));
-      mdbx_tassert(txn, mdbx_pnl_check(re_pnl));
+      mdbx_tassert(txn, mdbx_pnl_check(re_pnl, false));
       repg_pos = re_pnl[0];
       if (!repg_list) {
         if (unlikely(!(env->me_reclaimed_pglist = repg_list =
@@ -2375,7 +2402,7 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
           mdbx_info("refunded %" PRIaPGNO " pages: %" PRIaPGNO " -> %" PRIaPGNO,
                     tail - txn->mt_next_pgno, tail, txn->mt_next_pgno);
           txn->mt_next_pgno = tail;
-          mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+          mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
         }
       }
 
@@ -2485,7 +2512,7 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
     }
 
   fail:
-    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
     if (mp) {
       *mp = NULL;
       txn->mt_flags |= MDBX_TXN_ERROR;
@@ -2516,7 +2543,7 @@ done:
     repg_list[0] = repg_len -= num;
     for (unsigned i = repg_pos - num; i < repg_len;)
       repg_list[++i] = repg_list[++repg_pos];
-    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
   } else {
     txn->mt_next_pgno = pgno + num;
     mdbx_assert(env, txn->mt_next_pgno <= txn->mt_end_pgno);
@@ -2530,10 +2557,12 @@ done:
   np->mp_leaf2_ksize = 0;
   np->mp_flags = 0;
   np->mp_pages = num;
-  mdbx_page_dirty(txn, np);
+  rc = mdbx_page_dirty(txn, np);
+  if (unlikely(rc != MDBX_SUCCESS))
+    goto fail;
   *mp = np;
 
-  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
   return MDBX_SUCCESS;
 }
 
@@ -2568,7 +2597,8 @@ static void mdbx_page_copy(MDBX_page *dst, MDBX_page *src, unsigned psize) {
  * [in] mp    the page being referenced. It must not be dirty.
  * [out] ret  the writable page, if any.
  *            ret is unchanged if mp wasn't spilled. */
-static int mdbx_page_unspill(MDBX_txn *txn, MDBX_page *mp, MDBX_page **ret) {
+static int __must_check_result mdbx_page_unspill(MDBX_txn *txn, MDBX_page *mp,
+                                                 MDBX_page **ret) {
   MDBX_env *env = txn->mt_env;
   const MDBX_txn *tx2;
   unsigned x;
@@ -2607,7 +2637,10 @@ static int mdbx_page_unspill(MDBX_txn *txn, MDBX_page *mp, MDBX_page **ret) {
       } /* otherwise, if belonging to a parent txn, the
          * page remains spilled until child commits */
 
-      mdbx_page_dirty(txn, np);
+      int rc = mdbx_page_dirty(txn, np);
+      if (unlikely(rc != MDBX_SUCCESS))
+        return rc;
+
       np->mp_flags |= P_DIRTY;
       *ret = np;
       break;
@@ -2669,8 +2702,8 @@ static int mdbx_page_touch(MDBX_cursor *mc) {
                      " in the dirtylist[%d], expecting %p",
                      dl[x].mptr, pgno, x, mp);
           mc->mc_flags &= ~(C_INITIALIZED | C_EOF);
-          txn->mt_flags |= MDBX_TXN_ERROR;
-          return MDBX_PROBLEM;
+          rc = MDBX_PROBLEM;
+          goto fail;
         }
         return MDBX_SUCCESS;
       }
@@ -2680,12 +2713,15 @@ static int mdbx_page_touch(MDBX_cursor *mc) {
     mdbx_cassert(mc, dl[0].mid < MDBX_PNL_UM_MAX);
     /* No - copy it */
     np = mdbx_page_malloc(txn, 1);
-    if (unlikely(!np))
-      return MDBX_ENOMEM;
+    if (unlikely(!np)) {
+      rc = MDBX_ENOMEM;
+      goto fail;
+    }
     mid.mid = pgno;
     mid.mptr = np;
     rc = mdbx_mid2l_insert(dl, &mid);
-    mdbx_cassert(mc, rc == 0);
+    if (unlikely(rc))
+      goto fail;
   } else {
     return MDBX_SUCCESS;
   }
@@ -3510,14 +3546,14 @@ static int mdbx_freelist_save(MDBX_txn *txn) {
       (env->me_flags & (MDBX_NOMEMINIT | MDBX_WRITEMAP)) ? SSIZE_MAX
                                                          : env->me_maxfree_1pg;
 
-  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
 again_on_freelist_change:
-  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
   while (1) {
     /* Come back here after each Put() in case freelist changed */
     MDBX_val key, data;
 
-    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
     if (!lifo) {
       /* If using records from freeDB which we have not yet deleted,
        * now delete them and any we reserved for me_reclaimed_pglist. */
@@ -3560,7 +3596,7 @@ again_on_freelist_change:
       }
     }
 
-    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
     if (txn->mt_loose_pages) {
       /* Return loose page numbers to me_reclaimed_pglist,
        * though usually none are left at this point.
@@ -3613,7 +3649,7 @@ again_on_freelist_change:
       txn->mt_loose_count = 0;
     }
 
-    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
     if (env->me_reclaimed_pglist) {
       /* Refund suitable pages into "unallocated" space */
       pgno_t tail = txn->mt_next_pgno;
@@ -3641,7 +3677,7 @@ again_on_freelist_change:
         mdbx_info("refunded %" PRIaPGNO " pages: %" PRIaPGNO " -> %" PRIaPGNO,
                   tail - txn->mt_next_pgno, tail, txn->mt_next_pgno);
         txn->mt_next_pgno = tail;
-        mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+        mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
       }
     }
 
@@ -3682,7 +3718,7 @@ again_on_freelist_change:
       continue;
     }
 
-    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
     const intptr_t rpl_len =
         (env->me_reclaimed_pglist ? env->me_reclaimed_pglist[0] : 0) +
         txn->mt_loose_count;
@@ -3760,7 +3796,7 @@ again_on_freelist_change:
     key.iov_base = &head_id;
     data.iov_len = (head_room + 1) * sizeof(pgno_t);
     rc = mdbx_cursor_put(&mc, &key, &data, MDBX_RESERVE);
-    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+    mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
     if (unlikely(rc))
       goto bailout;
 
@@ -3780,7 +3816,7 @@ again_on_freelist_change:
 
   /* Fill in the reserved me_reclaimed_pglist records */
   rc = MDBX_SUCCESS;
-  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist));
+  mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
   if (env->me_reclaimed_pglist && env->me_reclaimed_pglist[0]) {
     MDBX_val key, data;
     key.iov_len = data.iov_len = 0; /* avoid MSVC warning */
@@ -3831,11 +3867,11 @@ again_on_freelist_change:
       data.iov_base = rpl_end;
       pgno_t save = rpl_end[0];
       rpl_end[0] = (pgno_t)chunk_len;
-      mdbx_tassert(txn, mdbx_pnl_check(rpl_end));
+      mdbx_tassert(txn, mdbx_pnl_check(rpl_end, false));
       mc.mc_flags |= C_RECLAIMING;
       rc = mdbx_cursor_put(&mc, &key, &data, MDBX_CURRENT);
       mc.mc_flags ^= C_RECLAIMING;
-      mdbx_tassert(txn, mdbx_pnl_check(rpl_end));
+      mdbx_tassert(txn, mdbx_pnl_check(rpl_end, false));
       mdbx_tassert(
           txn, cleanup_reclaimed_pos ==
                    (txn->mt_lifo_reclaimed ? txn->mt_lifo_reclaimed[0] : 0));
@@ -7831,7 +7867,10 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
             id2.mptr = np;
             /* Note - this page is already counted in parent's dirtyroom */
             rc2 = mdbx_mid2l_insert(mc->mc_txn->mt_rw_dirtylist, &id2);
-            mdbx_cassert(mc, rc2 == 0);
+            if (unlikely(rc2 != MDBX_SUCCESS)) {
+              rc = rc2;
+              goto fail;
+            }
 
             /* Currently we make the page look as with put() in the
              * parent txn, in case the user peeks at MDBX_RESERVEd
@@ -8022,6 +8061,7 @@ new_sub:
     /* should not happen, we deleted that item */
     rc = MDBX_PROBLEM;
   }
+fail:
   mc->mc_txn->mt_flags |= MDBX_TXN_ERROR;
   return rc;
 }
@@ -10922,10 +10962,10 @@ int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
   }
 
   unsigned dbflag = DB_FRESH | DB_VALID | DB_USRVALID;
+  MDBX_db db_dummy;
   if (unlikely(rc)) {
     /* MDBX_NOTFOUND and MDBX_CREATE: Create new DB */
     assert(rc == MDBX_NOTFOUND);
-    MDBX_db db_dummy;
     memset(&db_dummy, 0, sizeof(db_dummy));
     db_dummy.md_root = P_INVALID;
     db_dummy.md_flags = user_flags & PERSISTENT_FLAGS;
