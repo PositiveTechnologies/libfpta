@@ -52,6 +52,8 @@ TEST(SmokeIndex, Primary) {
    *     - проверяем кол-во записей и дубликатов, eof для курсора.
    *  5. Завершаем операции и освобождаем ресурсы.
    */
+  if (GTEST_IS_EXECUTION_TIMEOUT())
+    return;
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -310,6 +312,8 @@ TEST(SmokeIndex, Secondary) {
    *     - проверяем кол-во записей и дубликатов, eof для курсора.
    *  5. Завершаем операции и освобождаем ресурсы.
    */
+  if (GTEST_IS_EXECUTION_TIMEOUT())
+    return;
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -621,6 +625,7 @@ struct crud_item {
 
 class SmokeCRUD : public ::testing::Test {
 public:
+  bool skipped;
   scoped_db_guard db_quard;
   scoped_txn_guard txn_guard;
   scoped_cursor_guard cursor_guard;
@@ -726,6 +731,10 @@ public:
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_time, "time"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_str, "str"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_real, "real"));
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
 
     // чистим
     if (REMOVE_FILE(testdb_name) != 0) {
@@ -862,6 +871,9 @@ TEST_F(SmokeCRUD, none) {
    *       последняя, туда-сюда), при этом читаем и сверяем значения.
    *  6. Завершаем операции и освобождаем ресурсы.
    */
+
+  if (skipped)
+    return;
 
   // начинаем транзакцию для вставки данных
   fpta_txn *txn = nullptr;
@@ -1532,7 +1544,7 @@ public:
   fpta_name table, col_1, col_2;
   fpta_index_type index;
   fpta_cursor_options ordering;
-  bool valid_ops;
+  bool valid_ops, skipped;
 
   unsigned count_value_3;
   virtual void SetUp() {
@@ -1551,7 +1563,8 @@ public:
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_1, "col_1"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_2, "col_2"));
 
-    if (!valid_ops)
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (!valid_ops || skipped)
       return;
 
     if (REMOVE_FILE(testdb_name) != 0) {
@@ -1670,12 +1683,11 @@ TEST_P(SmokeSelect, Range) {
    *
    *  4. Завершаем операции и освобождаем ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
   SCOPED_TRACE("index " + std::to_string(index) + ", ordering " +
                std::to_string(ordering) +
                (valid_ops ? ", (valid case)" : ", (invalid case)"));
 
-  if (!valid_ops)
+  if (!valid_ops || skipped)
     return;
 
   // открываем простейщий курсор БЕЗ диапазона
@@ -1882,12 +1894,11 @@ TEST_P(SmokeSelect, Filter) {
    *
    *  4. Завершаем операции и освобождаем ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
   SCOPED_TRACE("index " + std::to_string(index) + ", ordering " +
                std::to_string(ordering) +
                (valid_ops ? ", (valid case)" : ", (invalid case)"));
 
-  if (!valid_ops)
+  if (!valid_ops || skipped)
     return;
 
   // открываем простейщий курсор БЕЗ фильтра
@@ -2053,7 +2064,10 @@ TEST(SmokeSelect, GoogleTestCombine_IS_NOT_Supported_OnThisPlatform) {}
 
 //----------------------------------------------------------------------------
 
-TEST(SmoceCrud, OneRowOneColumn) {
+TEST(SmokeCrud, OneRowOneColumn) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -2160,6 +2174,9 @@ TEST(Smoke, DirectDirtyDeletions) {
    *
    *  4. Завершаем операции и освобождаем ресурсы.
    */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -2390,6 +2407,9 @@ TEST(Smoke, UpdateViolateUnique) {
    *
    *  4. Завершаем операции и освобождаем ресурсы.
    */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -2499,6 +2519,7 @@ public:
   scoped_txn_guard txn_guard;
   scoped_cursor_guard cursor_guard;
   scoped_ptrw_guard ptrw_guard;
+  bool skipped;
 
   fpta_name table, c0_uint64, c1_date, c2_str, c3_int64, c4_uint32, c5_ip4,
       c6_sha1, c7_fp32, c8_enum, c9_fp64;
@@ -2612,6 +2633,10 @@ public:
   }
 
   virtual void SetUp() {
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
+
     SCOPED_TRACE("setup");
     // инициализируем идентификаторы таблицы и её колонок
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "xyz"));
@@ -2779,6 +2804,8 @@ TEST_F(SmokeNullable, AllNILs) {
    *
    *  5. Повторяем пункт 4 для курсора по каждой колонке.
    */
+  if (skipped)
+    return;
 
   // формируем строку без колонок
   fptu_ro allNILs = MakeRow(-1);
@@ -2838,6 +2865,8 @@ TEST_F(SmokeNullable, Base) {
    *
    *  4. Добавляем и удаляем полностью заполненную строку.
    */
+  if (skipped)
+    return;
 
   //--------------------------------------------------------------------------
   for (int nilcol = 0; nilcol < 10; ++nilcol) {
@@ -2878,6 +2907,10 @@ TEST_F(SmokeNullable, Base) {
 //----------------------------------------------------------------------------
 
 TEST(Smoke, ReOpenAfterAbort) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
@@ -2974,6 +3007,10 @@ TEST(Smoke, Kamerades) {
    *  3. Через хэндл "коммандера" получаем сведения о таблице.
    *  4. Завершаем операции и освобождаем ресурсы.
    */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -3138,7 +3175,9 @@ TEST(Smoke, OverchargeOnCommit) {
    *  3. Параметры подобраны так, чтобы переполнение случилось при фиксации
    *     транзакции (при добавлении записи в garbage-таблицу  внутри libmdbx).
    */
-
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -3276,6 +3315,9 @@ TEST(Smoke, AsyncSchemaChange) {
    *
    *  4. Еще раз вставляем данные из контекста "коррелятора".
    */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
 
   // создаем исходную базу
   {
@@ -3524,6 +3566,10 @@ TEST(Smoke, FilterAndRange) {
    *
    *  4. Освобождаем ресурсы.
    */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -3657,6 +3703,10 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
    *  - создаем/инициализируем описание колонок.
    *  - пробуем добавить кортеж без записи
    */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   fpta_txn *txn = (fpta_txn *)&txn;
   fpta_db *db = nullptr;
 

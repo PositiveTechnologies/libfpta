@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -49,6 +49,7 @@ public:
   fpta_cursor_options ordering;
   bool valid_index_ops;
   bool valid_cursor_ops;
+  bool skipped;
 
   scoped_db_guard db_quard;
   scoped_txn_guard txn_guard;
@@ -219,6 +220,10 @@ public:
     ordering = GTEST_TUPLE_NAMESPACE_::get<2>(GetParam());
     valid_index_ops = is_valid4primary(type, index);
     valid_cursor_ops = is_valid4cursor(index, ordering);
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
 
     SCOPED_TRACE(
         "type " + std::to_string(type) + ", index " + std::to_string(index) +
@@ -487,8 +492,7 @@ TEST_P(CursorPrimary, basicMoves) {
    *
    *  6. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops)
+  if (!valid_index_ops || !valid_cursor_ops || skipped)
     return;
 
   SCOPED_TRACE("type " + std::to_string(type) + ", index " +
@@ -673,8 +677,8 @@ TEST_P(CursorPrimaryDups, dupMoves) {
    *
    *  6. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops || fpta_index_is_unique(index))
+  if (!valid_index_ops || !valid_cursor_ops || skipped ||
+      fpta_index_is_unique(index))
     return;
 
   SCOPED_TRACE("type " + std::to_string(type) + ", index " +
@@ -1052,8 +1056,7 @@ TEST_P(CursorPrimary, locate_and_delele) {
    *
    *  6. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops)
+  if (!valid_index_ops || !valid_cursor_ops || skipped)
     return;
 
   SCOPED_TRACE("type " + std::to_string(type) + ", index " +
@@ -1369,8 +1372,7 @@ TEST_P(CursorPrimary, update_and_KeyMismatch) {
    *    При наличии дубликатов, измененные строки ищутся по значению
    *    колонки "dup_id".
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops)
+  if (!valid_index_ops || !valid_cursor_ops || skipped)
     return;
 
   SCOPED_TRACE("type " + std::to_string(type) + ", index " +

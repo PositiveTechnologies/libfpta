@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -110,8 +110,8 @@ TEST_P(CursorSecondaryDups, dupMoves) {
    *
    *  6. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops || fpta_index_is_unique(se_index))
+  if (!valid_index_ops || !valid_cursor_ops || skipped ||
+      fpta_index_is_unique(se_index))
     return;
 
   SCOPED_TRACE("pk_type " + std::to_string(pk_type) + ", pk_index " +

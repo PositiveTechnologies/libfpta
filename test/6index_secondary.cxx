@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -52,6 +52,7 @@ public:
 
   bool valid_pk;
   bool valid_se;
+  bool skipped;
   scoped_db_guard db_quard;
   scoped_txn_guard txn_guard;
   scoped_cursor_guard cursor_guard;
@@ -157,6 +158,10 @@ public:
   }
 
   virtual void SetUp() {
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
+
     // нужно простое число, иначе сломается переупорядочивание
     ASSERT_TRUE(isPrime(NNN));
     // иначе не сможем проверить fptu_uint16
@@ -396,8 +401,7 @@ TEST_P(IndexSecondary, basic) {
    *
    *  5. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_pk || !valid_se)
+  if (!valid_pk || !valid_se || skipped)
     return;
 
   SCOPED_TRACE("pk_type " + std::to_string(pk_type) + ", pk_index " +
