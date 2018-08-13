@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -32,6 +32,7 @@ public:
 
   bool valid_index_ops;
   bool valid_cursor_ops;
+  bool skipped;
   scoped_db_guard db_quard;
   scoped_txn_guard txn_guard;
   scoped_cursor_guard cursor_guard;
@@ -224,6 +225,10 @@ public:
     bool valid_se = is_valid4secondary(pk_type, pk_index, se_type, se_index);
     valid_index_ops = valid_pk && valid_se;
     valid_cursor_ops = is_valid4cursor(se_index, ordering);
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
 
     SCOPED_TRACE(
         "pk_type " + std::to_string(pk_type) + ", pk_index " +
@@ -535,8 +540,7 @@ TEST_P(CursorSecondary, basicMoves) {
    *
    *  6. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops)
+  if (!valid_index_ops || !valid_cursor_ops || skipped)
     return;
 
   SCOPED_TRACE("pk_type " + std::to_string(pk_type) + ", pk_index " +
@@ -725,8 +729,7 @@ TEST_P(CursorSecondary, locate_and_delele) {
    *
    *  6. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops)
+  if (!valid_index_ops || !valid_cursor_ops || skipped)
     return;
 
   SCOPED_TRACE("pk_type " + std::to_string(pk_type) + ", pk_index " +
@@ -1054,8 +1057,7 @@ TEST_P(CursorSecondary, update_and_KeyMismatch) {
    * 6. Выполняется проверка всех строк, как исходных, так и измененных.
    *    Измененные строки ищутся по значению колонки "dup_id".
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
-  if (!valid_index_ops || !valid_cursor_ops)
+  if (!valid_index_ops || !valid_cursor_ops || skipped)
     return;
 
   SCOPED_TRACE("pk_type " + std::to_string(pk_type) + ", pk_index " +

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -78,7 +78,10 @@ template <fptu_type type, fpta_index_type index> void TestPrimary() {
    *
    *  5. Завершаются операции и освобождаются ресурсы.
    */
-  CHECK_RUNTIME_LIMIT_OR_SKIP();
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   const bool valid = is_valid4primary(type, index);
   scoped_db_guard db_quard;
   scoped_txn_guard txn_guard;

@@ -1,5 +1,5 @@
-/*
- * Copyright 2017-2018 libfpta authors: please see AUTHORS file.
+﻿/*
+ * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
  *
@@ -18,6 +18,15 @@
  */
 
 #include "fpta_test.h"
+
+/* Ограничитель по времени выполнения.
+ * Нужен для предотвращения таумаута тестов в CI. Предполагается, что он
+ * используется вместе с установкой GTEST_SHUFFLE=1, что в сумме дает
+ * выполнение части тестов в случайном порядке, пока не будет превышен лимит
+ * заданный через переменную среды окружения GTEST_RUNTIME_LIMIT. */
+runtime_limiter ci_runtime_limiter;
+
+//------------------------------------------------------------------------------
 
 #if defined(_WIN32) || defined(_WIN64)
 

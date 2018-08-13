@@ -1,4 +1,4 @@
-##
+﻿##
 ##  Copyright 2016-2018 libfpta authors: please see AUTHORS file.
 ##
 ##  This file is part of libfpta, aka "Fast Positive Tables".
@@ -46,7 +46,7 @@ add_library(testutils STATIC
   keygen.hpp
   fpta_test.h
   tools.hpp
-  crutch4windows.cxx)
+  tools.cxx)
 target_link_libraries(testutils ${UT_LIBRARIES})
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
