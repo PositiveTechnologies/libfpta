@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -116,7 +116,9 @@ static void write_thread_proc(fpta_db *db, const int thread_num,
 }
 
 TEST(Threaded, SimpleConcurence) {
-  fpta_db *db = nullptr;
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
 
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
@@ -126,6 +128,7 @@ TEST(Threaded, SimpleConcurence) {
     ASSERT_EQ(ENOENT, errno);
   }
 
+  fpta_db *db = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
                                   true, &db));
   ASSERT_NE(db, (fpta_db *)nullptr);
@@ -242,7 +245,9 @@ static void read_thread_proc(fpta_db *db,
 }
 
 TEST(Threaded, SimpleSelect) {
-  fpta_db *db = nullptr;
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
 
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
@@ -252,6 +257,7 @@ TEST(Threaded, SimpleSelect) {
     ASSERT_EQ(ENOENT, errno);
   }
 
+  fpta_db *db = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
                                   true, &db));
   ASSERT_NE(db, (fpta_db *)nullptr);
@@ -487,6 +493,10 @@ static void visitor_thread_proc(fpta_db *db,
 }
 
 TEST(Threaded, SimpleVisitor) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }

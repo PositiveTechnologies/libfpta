@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -28,6 +28,7 @@ class CrudSimple
     : public ::testing::TestWithParam<
           GTEST_TUPLE_NAMESPACE_::tuple<bool, int, int, int, int>> {
 public:
+  bool skipped;
   bool secondary;
   int order_key;
   int order_val;
@@ -52,6 +53,10 @@ public:
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk, "pk_str_uniq"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_se, "se_opaque_dups"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_val, "col_int"));
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
 
     // чистим
     if (REMOVE_FILE(testdb_name) != 0) {
@@ -173,6 +178,8 @@ TEST_P(CrudSimple, Nulls) {
    *       количество дубликатов с построенной картой.
    *  4. Завершаем операции и освобождаем ресурсы.
    */
+  if (skipped)
+    return;
 
   fpta_value empty_string = fpta_value_cstr("");
   ASSERT_EQ(0u, empty_string.binary_length);
@@ -332,6 +339,9 @@ TEST(Nullable, AsyncSchemaChange) {
    *
    *  5. Переходим к следующей итерации или освобождаем ресурсы.
    */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
 
   // создаем исходную базу
   fpta_db *db_commander = nullptr;
@@ -814,6 +824,9 @@ TEST(Nullable, AsyncSchemaChange) {
 
 TEST(Nullable, SchemaReloadAfterAbort) {
   /* FIXME: Описание сценария теста */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
 
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
@@ -1054,6 +1067,9 @@ static std::string random_string(int len) {
 
 TEST(CRUD, DISABLED_ExtraOps) {
   /* FIXME: Описание сценария теста */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
 
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
@@ -1192,6 +1208,9 @@ TEST(CRUD, DISABLED_ExtraOps) {
 
 TEST(Nullable, SchemaReload) {
   /* FIXME: Описание сценария теста */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
 
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
