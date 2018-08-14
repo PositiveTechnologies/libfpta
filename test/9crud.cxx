@@ -48,15 +48,15 @@ public:
     order_key = GTEST_TUPLE_NAMESPACE_::get<3>(GetParam());
     order_val = GTEST_TUPLE_NAMESPACE_::get<4>(GetParam());
 
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
+
     // инициализируем идентификаторы таблицы и её колонок
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk, "pk_str_uniq"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_se, "se_opaque_dups"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_val, "col_int"));
-
-    skipped = GTEST_IS_EXECUTION_TIMEOUT();
-    if (skipped)
-      return;
 
     // чистим
     if (REMOVE_FILE(testdb_name) != 0) {
@@ -120,6 +120,9 @@ public:
   }
 
   virtual void TearDown() {
+    if (skipped)
+      return;
+
     // разрушаем привязанные идентификаторы
     fpta_name_destroy(&table);
     fpta_name_destroy(&col_pk);

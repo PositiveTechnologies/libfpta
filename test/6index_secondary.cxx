@@ -158,10 +158,6 @@ public:
   }
 
   virtual void SetUp() {
-    skipped = GTEST_IS_EXECUTION_TIMEOUT();
-    if (skipped)
-      return;
-
     // нужно простое число, иначе сломается переупорядочивание
     ASSERT_TRUE(isPrime(NNN));
     // иначе не сможем проверить fptu_uint16
@@ -179,6 +175,10 @@ public:
         std::to_string(pk_index) + ", se_type " + std::to_string(se_type) +
         ", se_index " + std::to_string(se_index) +
         (valid_se && valid_pk ? ", (valid case)" : ", (invalid case)"));
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
 
     // создаем пять колонок: primary_key, secondary_key, order, t1ha и dup_id
     fpta_column_set def;
@@ -332,6 +332,9 @@ public:
   }
 
   virtual void TearDown() {
+    if (skipped)
+      return;
+
     // разрушаем привязанные идентификаторы
     fpta_name_destroy(&table);
     fpta_name_destroy(&col_pk);
