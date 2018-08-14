@@ -221,10 +221,6 @@ public:
     valid_index_ops = is_valid4primary(type, index);
     valid_cursor_ops = is_valid4cursor(index, ordering);
 
-    skipped = GTEST_IS_EXECUTION_TIMEOUT();
-    if (skipped)
-      return;
-
     SCOPED_TRACE(
         "type " + std::to_string(type) + ", index " + std::to_string(index) +
         (valid_index_ops ? ", (valid index case)" : ", (invalid index case)"));
@@ -233,6 +229,10 @@ public:
                  std::to_string(index) +
                  (valid_cursor_ops ? ", (valid cursor case)"
                                    : ", (invalid cursor case)"));
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
 
     // инициализируем идентификаторы колонок
     ASSERT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
@@ -417,6 +417,9 @@ public:
   }
 
   virtual void TearDown() {
+    if (skipped)
+      return;
+
     // разрушаем привязанные идентификаторы
     fpta_name_destroy(&table);
     fpta_name_destroy(&col_pk);
