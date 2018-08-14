@@ -725,16 +725,16 @@ public:
 
   virtual void SetUp() {
     SCOPED_TRACE("setup");
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
+
     // инициализируем идентификаторы таблицы и её колонок
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table_crud"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_uint, "uint"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_time, "time"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_str, "str"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_real, "real"));
-
-    skipped = GTEST_IS_EXECUTION_TIMEOUT();
-    if (skipped)
-      return;
 
     // чистим
     if (REMOVE_FILE(testdb_name) != 0) {
@@ -785,7 +785,10 @@ public:
   }
 
   virtual void TearDown() {
+    if (skipped)
+      return;
     SCOPED_TRACE("teardown");
+
     // разрушаем привязанные идентификаторы
     fpta_name_destroy(&table);
     fpta_name_destroy(&col_uint);
@@ -1558,14 +1561,14 @@ public:
                  std::to_string(ordering) +
                  (valid_ops ? ", (valid case)" : ", (invalid case)"));
 
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (!valid_ops || skipped)
+      return;
+
     // инициализируем идентификаторы таблицы и её колонок
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_1, "col_1"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_2, "col_2"));
-
-    skipped = GTEST_IS_EXECUTION_TIMEOUT();
-    if (!valid_ops || skipped)
-      return;
 
     if (REMOVE_FILE(testdb_name) != 0) {
       ASSERT_EQ(ENOENT, errno);
@@ -1645,6 +1648,8 @@ public:
   }
 
   virtual void TearDown() {
+    if (skipped)
+      return;
     SCOPED_TRACE("teardown");
 
     // разрушаем привязанные идентификаторы
@@ -2633,11 +2638,11 @@ public:
   }
 
   virtual void SetUp() {
+    SCOPED_TRACE("setup");
     skipped = GTEST_IS_EXECUTION_TIMEOUT();
     if (skipped)
       return;
 
-    SCOPED_TRACE("setup");
     // инициализируем идентификаторы таблицы и её колонок
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "xyz"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &c0_uint64, "c0_uint64"));
@@ -2757,7 +2762,10 @@ public:
   }
 
   virtual void TearDown() {
+    if (skipped)
+      return;
     SCOPED_TRACE("teardown");
+
     // разрушаем привязанные идентификаторы
     fpta_name_destroy(&table);
     fpta_name_destroy(&c0_uint64);
