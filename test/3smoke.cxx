@@ -3788,6 +3788,12 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
   // фиксируем изменения
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
 
+  // разрушаем созданный кортеж
+  // на всякий случай предварительно проверяя их
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  free(pt1);
+  pt1 = nullptr;
+
   // разрушаем привязанные идентификаторы
   fpta_name_destroy(&table);
   fpta_name_destroy(&some_field);
@@ -4261,6 +4267,15 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
 
   EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt1)));
   EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt2)));
+
+  // разрушаем созданные кортежи
+  // на всякий случай предварительно проверяя их
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  free(pt1);
+  pt1 = nullptr;
+  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  free(pt2);
+  pt2 = nullptr;
 
   // фиксируем изменения
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
