@@ -6747,6 +6747,9 @@ mapped:
   p = pgno2page(env, pgno);
 
 done:
+  if (unlikely(p->mp_pgno != pgno))
+    return MDBX_CORRUPTED;
+
   if (unlikely(p->mp_upper < p->mp_lower ||
                PAGEHDRSZ + p->mp_upper > env->me_psize) &&
       !IS_OVERFLOW(p))
@@ -7711,8 +7714,10 @@ int mdbx_cursor_get(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
       return MDBX_INCOMPATIBLE;
   /* FALLTHRU */
   case MDBX_SET:
+#ifndef SLAPD_LMDB_LEGACY
     if (op == MDBX_SET && unlikely(data != NULL))
       return MDBX_EINVAL;
+#endif /* SLAPD_LMDB_LEGACY */
   /* FALLTHRU */
   case MDBX_SET_KEY:
   case MDBX_SET_RANGE:
@@ -8348,7 +8353,8 @@ new_sub:
   } else {
     /* There is room already in this leaf page. */
     if (IS_LEAF2(mc->mc_pg[mc->mc_top])) {
-      mdbx_cassert(mc, nflags == 0 && rdata->iov_len == 0);
+      mdbx_cassert(mc, (nflags & (F_BIGDATA | F_SUBDATA | F_DUPDATA)) == 0 &&
+                           rdata->iov_len == 0);
       rc = mdbx_node_add_leaf2(mc, mc->mc_ki[mc->mc_top], key);
     } else
       rc = mdbx_node_add_leaf(mc, mc->mc_ki[mc->mc_top], key, rdata, nflags);
@@ -10794,16 +10800,17 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
     mc->mc_ki[mc->mc_top] = 0;
     switch (PAGETYPE(rp)) {
     case P_BRANCH: {
-      mdbx_cassert(mc, nflags == 0);
+      mdbx_cassert(mc, (nflags & (F_BIGDATA | F_SUBDATA | F_DUPDATA)) == 0);
+      mdbx_cassert(mc, newpgno != 0 || newpgno != P_INVALID);
       rc = mdbx_node_add_branch(mc, 0, newkey, newpgno);
     } break;
     case P_LEAF: {
-      mdbx_cassert(mc, newpgno == 0);
+      mdbx_cassert(mc, newpgno == 0 || newpgno == P_INVALID);
       rc = mdbx_node_add_leaf(mc, 0, newkey, newdata, nflags);
     } break;
     case P_LEAF | P_LEAF2: {
-      mdbx_cassert(mc, nflags == 0);
-      mdbx_cassert(mc, newpgno == 0);
+      mdbx_cassert(mc, (nflags & (F_BIGDATA | F_SUBDATA | F_DUPDATA)) == 0);
+      mdbx_cassert(mc, newpgno == 0 || newpgno == P_INVALID);
       rc = mdbx_node_add_leaf2(mc, 0, newkey);
     } break;
     default:
@@ -10857,7 +10864,7 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
         rc = mdbx_node_add_leaf(mc, n, &rkey, rdata, flags);
       } break;
       /* case P_LEAF | P_LEAF2: {
-        mdbx_cassert(mc, 0 == (uint16_t)flags);
+        mdbx_cassert(mc, (nflags & (F_BIGDATA | F_SUBDATA | F_DUPDATA)) == 0);
         mdbx_cassert(mc, gno == 0);
         rc = mdbx_node_add_leaf2(mc, n, &rkey);
       } break; */
@@ -12561,8 +12568,6 @@ static int __cold mdbx_env_walk(mdbx_walk_ctx_t *ctx, const char *dbi,
   int rc = mdbx_page_get(&mc, pgno, &mp, NULL);
   if (rc)
     return rc;
-  if (pgno != mp->mp_pgno)
-    return MDBX_CORRUPTED;
 
   const int nkeys = NUMKEYS(mp);
   size_t header_size = IS_LEAF2(mp) ? PAGEHDRSZ : PAGEHDRSZ + mp->mp_lower;
@@ -12623,9 +12628,6 @@ static int __cold mdbx_env_walk(mdbx_walk_ctx_t *ctx, const char *dbi,
       rc = mdbx_page_get(&mc, large_pgno, &op, NULL);
       if (rc)
         return rc;
-
-      if (large_pgno != op->mp_pgno)
-        return MDBX_CORRUPTED;
 
       /* LY: Don't use mask here, e.g bitwise
        * (P_BRANCH|P_LEAF|P_LEAF2|P_META|P_OVERFLOW|P_SUBP).
