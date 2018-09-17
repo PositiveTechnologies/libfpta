@@ -355,7 +355,7 @@ unsigned fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
       dbi_flags |= MDBX_DUPFIXED;
     if ((pk_type < fptu_96 && pk_type != /* composite */ fptu_null) ||
         !fpta_index_is_ordered(pk_index))
-      dbi_flags |= MDBX_INTEGERDUP;
+      dbi_flags |= MDBX_INTEGERDUP | MDBX_DUPFIXED;
     else if (fpta_index_is_reverse(pk_index) &&
              (pk_type >= fptu_96 || pk_type == /* composite */ fptu_null))
       dbi_flags |= MDBX_REVERSEDUP;
