@@ -778,7 +778,7 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     int err = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i],
                             dbi_flags, shove, data_shove);
     if (err != MDBX_NOTFOUND)
-      return FPTA_EEXIST;
+      return (err == MDBX_SUCCESS) ? (int)FPTA_EEXIST : err;
   }
 
   for (size_t i = 0; i < column_set->count; ++i) {
