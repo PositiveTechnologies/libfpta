@@ -2408,7 +2408,7 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
                          last, txn->mt_dbs[FREE_DBI].md_root, repg_pos);
         unsigned i;
         for (i = repg_pos; i; i--)
-          mdbx_debug_extra_print(" %" PRIaPGNO "", re_pnl[i]);
+          mdbx_debug_extra_print(" %" PRIaPGNO, re_pnl[i]);
         mdbx_debug_extra_print("\n");
       }
 
@@ -2511,7 +2511,7 @@ static int mdbx_page_alloc(MDBX_cursor *mc, unsigned num, MDBX_page **mp,
          * just for resume reclaiming only, not for data consistency. */
 
         mdbx_debug("kick-gc: head %" PRIaTXN "-%s, tail %" PRIaTXN
-                   "-%s, oldest %" PRIaTXN "",
+                   "-%s, oldest %" PRIaTXN,
                    mdbx_meta_txnid_stable(env, head), mdbx_durable_str(head),
                    mdbx_meta_txnid_stable(env, steady),
                    mdbx_durable_str(steady), oldest);
@@ -3576,7 +3576,7 @@ static int mdbx_prep_backlog(MDBX_txn *txn, MDBX_cursor *mc) {
 /* Count all the pages in each DB and in the freelist and make sure
  * it matches the actual number of pages being used.
  * All named DBs must be open for a correct count. */
-static int mdbx_audit(MDBX_txn *txn, unsigned befree_stored) {
+static __cold int mdbx_audit(MDBX_txn *txn, unsigned befree_stored) {
   MDBX_val key, data;
 
   const pgno_t pending =
@@ -3674,12 +3674,30 @@ static int mdbx_update_gc(MDBX_txn *txn) {
   (void)dbg_prefix_mode;
   mdbx_trace("\n>>> @%" PRIaTXN, txn->mt_txnid);
 
+  unsigned befree_stored = 0, loop = 0;
   MDBX_cursor mc;
   int rc = mdbx_cursor_init(&mc, txn, FREE_DBI);
   if (unlikely(rc != MDBX_SUCCESS))
-    return rc;
+    goto bailout;
 
-  unsigned befree_stored = 0, loop = 0;
+  txnid_t reclaiming_head_id = env->me_last_reclaimed;
+  if (unlikely(reclaiming_head_id == 0)) {
+    reclaiming_head_id = mdbx_find_oldest(txn) - 1;
+    MDBX_val key;
+    rc = mdbx_cursor_get(&mc, &key, NULL, MDBX_FIRST);
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      if (rc != MDBX_NOTFOUND)
+        goto bailout;
+    } else if (unlikely(key.iov_len != sizeof(txnid_t))) {
+      rc = MDBX_CORRUPTED;
+      goto bailout;
+    } else {
+      txnid_t first_pg;
+      memcpy(&first_pg, key.iov_base, sizeof(txnid_t));
+      if (reclaiming_head_id >= first_pg)
+        reclaiming_head_id = first_pg - 1;
+    }
+  }
 
 retry:
   mdbx_trace(" >> restart");
@@ -3688,7 +3706,7 @@ retry:
            filled_gc_slot = ~0u;
   txnid_t cleaned_gc_id = 0, head_gc_id = env->me_last_reclaimed
                                               ? env->me_last_reclaimed
-                                              : ~(txnid_t)0;
+                                              : reclaiming_head_id;
 
   if (unlikely(/* paranoia */ ++loop > 42)) {
     mdbx_error("too more loops %u, bailout", loop);
@@ -3762,6 +3780,11 @@ retry:
 
     // handle loose pages - put ones into the reclaimed- or befree-list
     mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
+    if (mdbx_audit_enabled()) {
+      rc = mdbx_audit(txn, befree_stored);
+      if (unlikely(rc != MDBX_SUCCESS))
+        goto bailout;
+    }
     if (txn->mt_loose_pages) {
       /* Return loose page numbers to me_reclaimed_pglist,
        * though usually none are left at this point.
@@ -3772,7 +3795,7 @@ retry:
          * since unable to return them to me_reclaimed_pglist. */
         if (unlikely((rc = mdbx_pnl_need(&txn->mt_befree_pages,
                                          txn->mt_loose_count)) != 0))
-          return rc;
+          goto bailout;
         for (MDBX_page *mp = txn->mt_loose_pages; mp; mp = NEXT_LOOSE_PAGE(mp))
           mdbx_pnl_xappend(txn->mt_befree_pages, mp->mp_pgno);
         mdbx_trace("%s: append %u loose-pages to befree-pages", dbg_prefix_mode,
@@ -3851,6 +3874,11 @@ retry:
 
       txn->mt_loose_pages = NULL;
       txn->mt_loose_count = 0;
+      if (mdbx_audit_enabled()) {
+        rc = mdbx_audit(txn, befree_stored);
+        if (unlikely(rc != MDBX_SUCCESS))
+          goto bailout;
+      }
     }
 
     // handle reclaimed pages - return suitable into unallocated space
@@ -3884,6 +3912,11 @@ retry:
             dbg_prefix_mode, txn->mt_next_pgno - tail, tail, txn->mt_next_pgno);
         txn->mt_next_pgno = tail;
         mdbx_tassert(txn, mdbx_pnl_check(env->me_reclaimed_pglist, true));
+        if (mdbx_audit_enabled()) {
+          rc = mdbx_audit(txn, befree_stored);
+          if (unlikely(rc != MDBX_SUCCESS))
+            goto bailout;
+        }
       }
     }
 
@@ -3920,7 +3953,7 @@ retry:
                          " num %u, PNL",
                          txn->mt_txnid, txn->mt_dbs[FREE_DBI].md_root, i);
         for (; i; i--)
-          mdbx_debug_extra_print(" %" PRIaPGNO "", txn->mt_befree_pages[i]);
+          mdbx_debug_extra_print(" %" PRIaPGNO, txn->mt_befree_pages[i]);
         mdbx_debug_extra_print("\n");
       }
       continue;
@@ -3931,6 +3964,11 @@ retry:
     mdbx_tassert(txn, txn->mt_loose_count == 0);
 
     mdbx_trace(" >> reserving");
+    if (mdbx_audit_enabled()) {
+      rc = mdbx_audit(txn, befree_stored);
+      if (unlikely(rc != MDBX_SUCCESS))
+        goto bailout;
+    }
     const unsigned amount =
         env->me_reclaimed_pglist ? MDBX_PNL_SIZE(env->me_reclaimed_pglist) : 0;
     const unsigned left = amount - settled;
@@ -3944,7 +3982,7 @@ retry:
     if (0 >= (int)left)
       break;
 
-    const unsigned max_spread = 10;
+    const unsigned prefer_max_scatter = 257;
     txnid_t reservation_gc_id;
     if (lifo) {
       assert(txn->mt_lifo_reclaimed != NULL);
@@ -3957,7 +3995,7 @@ retry:
       }
 
       if (head_gc_id > 1 &&
-          MDBX_PNL_SIZE(txn->mt_lifo_reclaimed) < max_spread &&
+          MDBX_PNL_SIZE(txn->mt_lifo_reclaimed) < prefer_max_scatter &&
           left > ((unsigned)MDBX_PNL_SIZE(txn->mt_lifo_reclaimed) -
                   reused_gc_slots) *
                      env->me_maxgc_ov1page) {
@@ -3976,7 +4014,7 @@ retry:
         /* LY: freedb is empty, will look any free txn-id in high2low order. */
         do {
           --head_gc_id;
-          assert(MDBX_PNL_LAST(txn->mt_lifo_reclaimed) > head_gc_id);
+          mdbx_assert(env, MDBX_PNL_LAST(txn->mt_lifo_reclaimed) > head_gc_id);
           rc = mdbx_txl_append(&txn->mt_lifo_reclaimed, head_gc_id);
           if (unlikely(rc != MDBX_SUCCESS))
             goto bailout;
@@ -3986,7 +4024,7 @@ retry:
                      " to lifo-reclaimed, cleaned-gc-slot = %u",
                      dbg_prefix_mode, head_gc_id, cleaned_gc_slot);
         } while (head_gc_id > 1 &&
-                 MDBX_PNL_SIZE(txn->mt_lifo_reclaimed) < max_spread &&
+                 MDBX_PNL_SIZE(txn->mt_lifo_reclaimed) < prefer_max_scatter &&
                  left > ((unsigned)MDBX_PNL_SIZE(txn->mt_lifo_reclaimed) -
                          reused_gc_slots) *
                             env->me_maxgc_ov1page);
@@ -4026,7 +4064,10 @@ retry:
         if (chunk < env->me_maxgc_ov1page * 2)
           chunk /= 2;
         else {
-          const unsigned threshold = env->me_maxgc_ov1page * avail_gs_slots;
+          const unsigned threshold =
+              env->me_maxgc_ov1page * ((avail_gs_slots < prefer_max_scatter)
+                                           ? avail_gs_slots
+                                           : prefer_max_scatter);
           if (left < threshold)
             chunk = env->me_maxgc_ov1page;
           else {
@@ -4052,7 +4093,7 @@ retry:
 
             chunk = (avail >= tail) ? tail - span
                                     : (avail_gs_slots > 3 &&
-                                       reused_gc_slots < max_spread - 3)
+                                       reused_gc_slots < prefer_max_scatter - 3)
                                           ? avail - span
                                           : tail;
           }
@@ -4093,6 +4134,14 @@ retry:
     settled += chunk;
     mdbx_trace("%s.settled %u (+%u), continue", dbg_prefix_mode, settled,
                chunk);
+
+    if (txn->mt_lifo_reclaimed &&
+        unlikely(amount < MDBX_PNL_SIZE(env->me_reclaimed_pglist))) {
+      mdbx_notice("** restart: reclaimed-list growth %u -> %u", amount,
+                  (unsigned)MDBX_PNL_SIZE(env->me_reclaimed_pglist));
+      goto retry;
+    }
+
     continue;
   }
 
@@ -4213,6 +4262,11 @@ retry:
                  (unsigned)(to - env->me_reclaimed_pglist), to[-1], fill_gc_id);
 
       left -= chunk;
+      if (mdbx_audit_enabled()) {
+        rc = mdbx_audit(txn, befree_stored + amount - left);
+        if (unlikely(rc != MDBX_SUCCESS))
+          goto bailout;
+      }
       if (left == 0) {
         rc = MDBX_SUCCESS;
         break;
@@ -4240,11 +4294,12 @@ retry:
     goto retry;
   }
 
+  mdbx_tassert(txn,
+               txn->mt_lifo_reclaimed == NULL ||
+                   cleaned_gc_slot == MDBX_PNL_SIZE(txn->mt_lifo_reclaimed));
+
 bailout:
   if (txn->mt_lifo_reclaimed) {
-    mdbx_tassert(txn,
-                 rc != MDBX_SUCCESS ||
-                     cleaned_gc_slot == MDBX_PNL_SIZE(txn->mt_lifo_reclaimed));
     MDBX_PNL_SIZE(txn->mt_lifo_reclaimed) = 0;
     if (txn != env->me_txn0) {
       mdbx_txl_free(txn->mt_lifo_reclaimed);
@@ -4328,7 +4383,7 @@ static int mdbx_page_flush(MDBX_txn *txn, pgno_t keep) {
       wpos = pos;
       wsize = 0;
     }
-    mdbx_debug("committing page %" PRIaPGNO "", pgno);
+    mdbx_debug("committing page %" PRIaPGNO, pgno);
     next_pos = pos + size;
     iov[n].iov_len = size;
     iov[n].iov_base = (char *)dp;
@@ -6289,15 +6344,15 @@ int __cold mdbx_env_open(MDBX_env *env, const char *path, unsigned flags,
 
     mdbx_debug("opened database version %u, pagesize %u",
                (uint8_t)meta->mm_magic_and_version, env->me_psize);
-    mdbx_debug("using meta page %" PRIaPGNO ", txn %" PRIaTXN "",
+    mdbx_debug("using meta page %" PRIaPGNO ", txn %" PRIaTXN,
                container_of(meta, MDBX_page, mp_data)->mp_pgno,
                mdbx_meta_txnid_fluid(env, meta));
     mdbx_debug("depth: %u", db->md_depth);
-    mdbx_debug("entries: %" PRIu64 "", db->md_entries);
-    mdbx_debug("branch pages: %" PRIaPGNO "", db->md_branch_pages);
-    mdbx_debug("leaf pages: %" PRIaPGNO "", db->md_leaf_pages);
-    mdbx_debug("overflow pages: %" PRIaPGNO "", db->md_overflow_pages);
-    mdbx_debug("root: %" PRIaPGNO "", db->md_root);
+    mdbx_debug("entries: %" PRIu64, db->md_entries);
+    mdbx_debug("branch pages: %" PRIaPGNO, db->md_branch_pages);
+    mdbx_debug("leaf pages: %" PRIaPGNO, db->md_leaf_pages);
+    mdbx_debug("overflow pages: %" PRIaPGNO, db->md_overflow_pages);
+    mdbx_debug("root: %" PRIaPGNO, db->md_root);
   }
 #endif
 
@@ -6576,7 +6631,7 @@ static MDBX_node *__hot mdbx_node_search(MDBX_cursor *mc, MDBX_val *key,
 
   const unsigned nkeys = NUMKEYS(mp);
 
-  mdbx_debug("searching %u keys in %s %spage %" PRIaPGNO "", nkeys,
+  mdbx_debug("searching %u keys in %s %spage %" PRIaPGNO, nkeys,
              IS_LEAF(mp) ? "leaf" : "branch", IS_SUBP(mp) ? "sub-" : "",
              mp->mp_pgno);
 
@@ -6779,7 +6834,7 @@ static int mdbx_page_search_root(MDBX_cursor *mc, MDBX_val *key, int flags) {
      * while in the process of rebalancing a FreeDB branch page; we must
      * let that proceed. ITS#8336 */
     mdbx_cassert(mc, !mc->mc_dbi || NUMKEYS(mp) > 1);
-    mdbx_debug("found index 0 to page %" PRIaPGNO "", NODEPGNO(NODEPTR(mp, 0)));
+    mdbx_debug("found index 0 to page %" PRIaPGNO, NODEPGNO(NODEPTR(mp, 0)));
 
     if (flags & (MDBX_PS_FIRST | MDBX_PS_LAST)) {
       i = 0;
@@ -7115,6 +7170,41 @@ int mdbx_get(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key, MDBX_val *data) {
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
   return mdbx_cursor_set(&cx.outer, key, data, MDBX_SET, &exact);
+}
+
+int mdbx_get2(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key, MDBX_val *data) {
+  int exact = 0;
+  DKBUF;
+
+  mdbx_debug("===> get db %u key [%s]", dbi, DKEY(key));
+
+  if (unlikely(!key || !data || !txn))
+    return MDBX_EINVAL;
+
+  if (unlikely(txn->mt_signature != MDBX_MT_SIGNATURE))
+    return MDBX_EBADSIGN;
+
+  if (unlikely(txn->mt_owner != mdbx_thread_self()))
+    return MDBX_THREAD_MISMATCH;
+
+  if (unlikely(!TXN_DBI_EXIST(txn, dbi, DB_USRVALID)))
+    return MDBX_EINVAL;
+
+  if (unlikely(txn->mt_flags & MDBX_TXN_BLOCKED))
+    return MDBX_BAD_TXN;
+
+  MDBX_cursor_couple cx;
+  int rc = mdbx_cursor_init(&cx.outer, txn, dbi);
+  if (unlikely(rc != MDBX_SUCCESS))
+    return rc;
+
+  const int op =
+      (txn->mt_dbs[dbi].md_flags & MDBX_DUPSORT) ? MDBX_GET_BOTH : MDBX_SET_KEY;
+  rc = mdbx_cursor_set(&cx.outer, key, data, op, &exact);
+  if (unlikely(rc != MDBX_SUCCESS))
+    return rc;
+
+  return exact ? MDBX_SUCCESS : MDBX_RESULT_TRUE;
 }
 
 /* Find a sibling for a page.
@@ -7714,11 +7804,6 @@ int mdbx_cursor_get(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
       return MDBX_INCOMPATIBLE;
   /* FALLTHRU */
   case MDBX_SET:
-#ifndef SLAPD_LMDB_LEGACY
-    if (op == MDBX_SET && unlikely(data != NULL))
-      return MDBX_EINVAL;
-#endif /* SLAPD_LMDB_LEGACY */
-  /* FALLTHRU */
   case MDBX_SET_KEY:
   case MDBX_SET_RANGE:
     if (unlikely(key == NULL))
@@ -8840,7 +8925,7 @@ static int __must_check_result mdbx_node_add_leaf(MDBX_cursor *mc,
     int rc = mdbx_page_new(mc, P_OVERFLOW, ovpages, &largepage);
     if (unlikely(rc != MDBX_SUCCESS))
       return rc;
-    mdbx_debug("allocated overflow page %" PRIaPGNO "", largepage->mp_pgno);
+    mdbx_debug("allocated overflow page %" PRIaPGNO, largepage->mp_pgno);
     flags |= F_BIGDATA;
     node_size += sizeof(pgno_t);
     mdbx_cassert(mc, mdbx_leaf_size(mc->mc_txn->mt_env, key, data) ==
@@ -8906,131 +8991,6 @@ static int __must_check_result mdbx_node_add_leaf(MDBX_cursor *mc,
   return MDBX_SUCCESS;
 }
 
-#if 0
-/* Add a node to the page pointed to by the cursor.
- * Set MDBX_TXN_ERROR on failure.
- *
- * [in] mc    The cursor for this operation.
- * [in] indx  The index on the page where the new node should be added.
- * [in] key   The key for the new node.
- * [in] data  The data for the new node, if any.
- * [in] pgno  The page number, if adding a branch node.
- * [in] flags Flags for the node.
- *
- * Returns 0 on success, non-zero on failure. Possible errors are:
- *
- * MDBX_ENOMEM    - failed to allocate overflow pages for the node.
- * MDBX_PAGE_FULL  - there is insufficient room in the page. This error
- *                  should never happen since all callers already calculate
- *                  the page's free space before calling this function. */
-static int mdbx_node_add(MDBX_cursor *mc, unsigned indx, const MDBX_val *key,
-                         MDBX_val *data, pgno_t pgno, unsigned flags) {
-  unsigned i;
-  size_t node_size = NODESIZE;
-  intptr_t room;
-  MDBX_node *node;
-  MDBX_page *mp = mc->mc_pg[mc->mc_top];
-  MDBX_page *ofp = NULL; /* overflow page */
-  void *ndata;
-
-  mdbx_cassert(mc, mp->mp_upper >= mp->mp_lower);
-
-  DKBUF;
-  mdbx_debug("add to %s %spage %" PRIaPGNO " index %i, data size %" PRIuPTR
-             " key size %" PRIuPTR " [%s]",
-             IS_LEAF(mp) ? "leaf" : "branch", IS_SUBP(mp) ? "sub-" : "",
-             mp->mp_pgno, indx, data ? data->iov_len : 0,
-             key ? key->iov_len : 0, DKEY(key));
-
-  room = (intptr_t)SIZELEFT(mp) - (intptr_t)sizeof(indx_t);
-  if (key != NULL)
-    node_size += key->iov_len;
-  if (IS_LEAF(mp)) {
-    mdbx_cassert(mc, key && data);
-    if (unlikely(F_ISSET(flags, F_BIGDATA))) {
-      /* Data already on overflow page. */
-      node_size += sizeof(pgno_t);
-    } else if (unlikely(node_size + data->iov_len >
-                        mc->mc_txn->mt_env->me_nodemax)) {
-      pgno_t ovpages = OVPAGES(mc->mc_txn->mt_env, data->iov_len);
-      int rc;
-      /* Put data on overflow page. */
-      mdbx_debug("data size is %" PRIuPTR ", node would be %" PRIuPTR
-                 ", put data on overflow page",
-                 data->iov_len, node_size + data->iov_len);
-      node_size = EVEN(node_size + sizeof(pgno_t));
-      if ((intptr_t)node_size > room)
-        goto full;
-      if ((rc = mdbx_page_new(mc, P_OVERFLOW, ovpages, &ofp)))
-        return rc;
-      mdbx_debug("allocated overflow page %" PRIaPGNO "", ofp->mp_pgno);
-      flags |= F_BIGDATA;
-      goto update;
-    } else {
-      node_size += data->iov_len;
-    }
-  }
-  node_size = EVEN(node_size);
-  if (unlikely((intptr_t)node_size > room))
-    goto full;
-
-update:
-  /* Move higher pointers up one slot. */
-  for (i = NUMKEYS(mp); i > indx; i--)
-    mp->mp_ptrs[i] = mp->mp_ptrs[i - 1];
-
-  /* Adjust free space offsets. */
-  size_t ofs = mp->mp_upper - node_size;
-  mdbx_cassert(mc, ofs >= mp->mp_lower + sizeof(indx_t));
-  mdbx_cassert(mc, ofs <= UINT16_MAX);
-  mp->mp_ptrs[indx] = (uint16_t)ofs;
-  mp->mp_upper = (uint16_t)ofs;
-  mp->mp_lower += sizeof(indx_t);
-
-  /* Write the node data. */
-  node = NODEPTR(mp, indx);
-  node->mn_ksize = (key == NULL) ? 0 : (uint16_t)key->iov_len;
-  node->mn_flags = (uint16_t)flags;
-  if (IS_LEAF(mp))
-    SETDSZ(node, data->iov_len);
-  else
-    SETPGNO(node, pgno);
-
-  if (key)
-    memcpy(NODEKEY(node), key->iov_base, key->iov_len);
-
-  if (IS_LEAF(mp)) {
-    ndata = NODEDATA(node);
-    if (likely(ofp == NULL)) {
-      if (unlikely(F_ISSET(flags, F_BIGDATA)))
-        memcpy(ndata, data->iov_base, sizeof(pgno_t));
-      else if (F_ISSET(flags, MDBX_RESERVE))
-        data->iov_base = ndata;
-      else if (likely(ndata != data->iov_base))
-        memcpy(ndata, data->iov_base, data->iov_len);
-    } else {
-      memcpy(ndata, &ofp->mp_pgno, sizeof(pgno_t));
-      ndata = PAGEDATA(ofp);
-      if (F_ISSET(flags, MDBX_RESERVE))
-        data->iov_base = ndata;
-      else if (likely(ndata != data->iov_base))
-        memcpy(ndata, data->iov_base, data->iov_len);
-    }
-  }
-
-  return MDBX_SUCCESS;
-
-full:
-  mdbx_debug("not enough room in page %" PRIaPGNO ", got %u ptrs", mp->mp_pgno,
-             NUMKEYS(mp));
-  mdbx_debug("upper-lower = %u - %u = %" PRIiPTR "", mp->mp_upper, mp->mp_lower,
-             room);
-  mdbx_debug("node size = %" PRIuPTR "", node_size);
-  mc->mc_txn->mt_flags |= MDBX_TXN_ERROR;
-  return MDBX_PAGE_FULL;
-}
-#endif
-
 /* Delete the specified node from a page.
  * [in] mc Cursor pointing to the node to delete.
  * [in] ksize The size of a node. Only used if the page is
@@ -9042,7 +9002,7 @@ static void mdbx_node_del(MDBX_cursor *mc, size_t ksize) {
   MDBX_node *node;
   char *base;
 
-  mdbx_debug("delete node %u on %s page %" PRIaPGNO "", indx,
+  mdbx_debug("delete node %u on %s page %" PRIaPGNO, indx,
              IS_LEAF(mp) ? "leaf" : "branch", mp->mp_pgno);
   numkeys = NUMKEYS(mp);
   mdbx_cassert(mc, indx < numkeys);
@@ -9213,7 +9173,7 @@ static int mdbx_xcursor_init1(MDBX_cursor *mc, MDBX_node *node) {
         mx->mx_db.md_flags |= MDBX_INTEGERKEY;
     }
   }
-  mdbx_debug("Sub-db -%u root page %" PRIaPGNO "", mx->mx_cursor.mc_dbi,
+  mdbx_debug("Sub-db -%u root page %" PRIaPGNO, mx->mx_cursor.mc_dbi,
              mx->mx_db.md_root);
   mx->mx_dbflag = DB_VALID | DB_USRVALID | DB_DUPDATA;
   /* FIXME: #if UINT_MAX < SIZE_MAX
@@ -9251,7 +9211,7 @@ static int mdbx_xcursor_init2(MDBX_cursor *mc, MDBX_xcursor *src_mx,
   }
   mx->mx_db = src_mx->mx_db;
   mx->mx_cursor.mc_pg[0] = src_mx->mx_cursor.mc_pg[0];
-  mdbx_debug("Sub-db -%u root page %" PRIaPGNO "", mx->mx_cursor.mc_dbi,
+  mdbx_debug("Sub-db -%u root page %" PRIaPGNO, mx->mx_cursor.mc_dbi,
              mx->mx_db.md_root);
   return MDBX_SUCCESS;
 }
@@ -9481,8 +9441,8 @@ static int mdbx_update_key(MDBX_cursor *mc, const MDBX_val *key) {
     char kbuf2[DKBUF_MAXKEYSIZE * 2 + 1];
     k2.iov_base = NODEKEY(node);
     k2.iov_len = node->mn_ksize;
-    mdbx_debug("update key %u (ofs %u) [%s] to [%s] on page %" PRIaPGNO "",
-               indx, ptr, mdbx_dkey(&k2, kbuf2, sizeof(kbuf2)), DKEY(key),
+    mdbx_debug("update key %u (ofs %u) [%s] to [%s] on page %" PRIaPGNO, indx,
+               ptr, mdbx_dkey(&k2, kbuf2, sizeof(kbuf2)), DKEY(key),
                mp->mp_pgno);
   }
 
@@ -9817,7 +9777,7 @@ static int mdbx_page_merge(MDBX_cursor *csrc, MDBX_cursor *cdst) {
   MDBX_page *const psrc = csrc->mc_pg[csrc->mc_top];
   MDBX_page *const pdst = cdst->mc_pg[cdst->mc_top];
 
-  mdbx_debug("merging page %" PRIaPGNO " into %" PRIaPGNO "", psrc->mp_pgno,
+  mdbx_debug("merging page %" PRIaPGNO " into %" PRIaPGNO, psrc->mp_pgno,
              pdst->mp_pgno);
 
   mdbx_cassert(csrc, PAGETYPE(psrc) == PAGETYPE(pdst));
@@ -10545,7 +10505,7 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
   if ((rc = mdbx_page_new(mc, mp->mp_flags, 1, &rp)))
     return rc;
   rp->mp_leaf2_ksize = mp->mp_leaf2_ksize;
-  mdbx_debug("new right sibling: page %" PRIaPGNO "", rp->mp_pgno);
+  mdbx_debug("new right sibling: page %" PRIaPGNO, rp->mp_pgno);
 
   /* Usually when splitting the root page, the cursor
    * height is 1. But when called from mdbx_update_key,
@@ -10563,7 +10523,7 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
     mc->mc_pg[0] = pp;
     mc->mc_ki[0] = 0;
     mc->mc_db->md_root = pp->mp_pgno;
-    mdbx_debug("root split! new root = %" PRIaPGNO "", pp->mp_pgno);
+    mdbx_debug("root split! new root = %" PRIaPGNO, pp->mp_pgno);
     foliage = mc->mc_db->md_depth++;
 
     /* Add left (implicit) pointer. */
@@ -10581,7 +10541,7 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
     ptop = 0;
   } else {
     ptop = mc->mc_top - 1;
-    mdbx_debug("parent branch page is %" PRIaPGNO "", mc->mc_pg[ptop]->mp_pgno);
+    mdbx_debug("parent branch page is %" PRIaPGNO, mc->mc_pg[ptop]->mp_pgno);
   }
 
   mdbx_cursor_copy(mc, &mn);
@@ -11726,6 +11686,20 @@ int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
   if (unlikely(!txn || !dbi || (user_flags & ~VALID_FLAGS) != 0))
     return MDBX_EINVAL;
 
+  switch (user_flags &
+          (MDBX_INTEGERDUP | MDBX_DUPFIXED | MDBX_DUPSORT | MDBX_REVERSEDUP)) {
+  default:
+    return MDBX_EINVAL;
+  case MDBX_DUPSORT:
+  case MDBX_DUPSORT | MDBX_REVERSEDUP:
+  case MDBX_DUPSORT | MDBX_DUPFIXED:
+  case MDBX_DUPSORT | MDBX_DUPFIXED | MDBX_REVERSEDUP:
+  case MDBX_DUPSORT | MDBX_DUPFIXED | MDBX_INTEGERDUP:
+  case MDBX_DUPSORT | MDBX_DUPFIXED | MDBX_INTEGERDUP | MDBX_REVERSEDUP:
+  case 0:
+    break;
+  }
+
   if (unlikely(txn->mt_signature != MDBX_MT_SIGNATURE))
     return MDBX_EBADSIGN;
 
@@ -12352,7 +12326,7 @@ int __cold mdbx_reader_check0(MDBX_env *env, int rdt_locked, int *dead) {
     /* clean it */
     for (unsigned j = i; j < snap_nreaders; j++) {
       if (lck->mti_readers[j].mr_pid == pid) {
-        mdbx_debug("clear stale reader pid %" PRIuPTR " txn %" PRIaTXN "",
+        mdbx_debug("clear stale reader pid %" PRIuPTR " txn %" PRIaTXN,
                    (size_t)pid, lck->mti_readers[j].mr_txnid);
         lck->mti_readers[j].mr_pid = 0;
         lck->mti_readers_refresh_flag = true;
@@ -12958,7 +12932,7 @@ int mdbx_replace(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key, MDBX_val *new_data,
     rc = mdbx_cursor_get(&cx.outer, &present_key, &present_data, MDBX_SET_KEY);
     if (unlikely(rc != MDBX_SUCCESS)) {
       old_data->iov_base = NULL;
-      old_data->iov_len = rc;
+      old_data->iov_len = 0;
       if (rc != MDBX_NOTFOUND || (flags & MDBX_CURRENT))
         goto bailout;
     } else if (flags & MDBX_NOOVERWRITE) {
