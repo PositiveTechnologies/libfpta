@@ -3180,7 +3180,7 @@ TEST(Smoke, OverchargeOnCommit) {
    *     пока не закончится место или не случится еще что-то плохое.
    *
    *  3. Параметры подобраны так, чтобы переполнение случилось при фиксации
-   *     транзакции (при добавлении записи в garbage-таблицу  внутри libmdbx).
+   *     транзакции (при добавлении записи в garbage-таблицу внутри libmdbx).
    */
   const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
   if (skipped)
@@ -3280,11 +3280,13 @@ TEST(Smoke, OverchargeOnCommit) {
     EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &last_changed, now));
 
     err = fpta_probe_and_upsert_row(txn, &table_id, fptu_take(tuple));
-    EXPECT_EQ(FPTA_OK, err);
-
     if (err != FPTA_OK) {
       // отменяем если была ошибка
-      ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
+      ASSERT_EQ(FPTA_DB_FULL, err);
+      err = fpta_transaction_end(txn, true);
+      if (err != FPTA_OK) {
+        ASSERT_EQ(FPTA_TXN_CANCELLED, err);
+      }
     } else {
       // коммитим и ожидаем ошибку переполнения здесь
       err = fpta_transaction_end(txn, false);
