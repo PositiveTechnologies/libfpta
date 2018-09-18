@@ -29,6 +29,7 @@ int fpta_cursor_close(fpta_cursor *cursor) {
   if (likely(rc == FPTA_SUCCESS) || rc == FPTA_TXN_CANCELLED) {
     mdbx_cursor_close(cursor->mdbx_cursor);
     fpta_cursor_free(cursor->db, cursor);
+    rc = FPTA_SUCCESS;
   }
 
   return rc;
