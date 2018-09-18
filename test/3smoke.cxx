@@ -24,8 +24,9 @@
 #include "fpta_test.h"
 #include "tools.hpp"
 
-static const char testdb_name[] = "ut_smoke.fpta";
-static const char testdb_name_lck[] = "ut_smoke.fpta" MDBX_LOCK_SUFFIX;
+static const char testdb_name[] = TEST_DB_DIR "ut_smoke.fpta";
+static const char testdb_name_lck[] =
+    TEST_DB_DIR "ut_smoke.fpta" MDBX_LOCK_SUFFIX;
 
 TEST(SmokeIndex, Primary) {
   /* Smoke-проверка жизнеспособности первичных индексов.

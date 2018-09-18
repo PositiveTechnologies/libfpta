@@ -19,8 +19,9 @@
 
 #include "fpta_test.h"
 
-static const char testdb_name[] = "ut_schema.fpta";
-static const char testdb_name_lck[] = "ut_schema.fpta" MDBX_LOCK_SUFFIX;
+static const char testdb_name[] = TEST_DB_DIR "ut_schema.fpta";
+static const char testdb_name_lck[] =
+    TEST_DB_DIR "ut_schema.fpta" MDBX_LOCK_SUFFIX;
 
 TEST(Schema, Trivia) {
   /* Тривиальный тест создания/заполнения описания колонок таблицы.

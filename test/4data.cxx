@@ -23,8 +23,9 @@
 #pragma diag_suppress float_to_float_conversion
 #endif
 
-static const char testdb_name[] = "ut_data.fpta";
-static const char testdb_name_lck[] = "ut_data.fpta" MDBX_LOCK_SUFFIX;
+static const char testdb_name[] = TEST_DB_DIR "ut_data.fpta";
+static const char testdb_name_lck[] =
+    TEST_DB_DIR "ut_data.fpta" MDBX_LOCK_SUFFIX;
 
 static const uint8_t pattern[256] = {
     /* clang-format off */
