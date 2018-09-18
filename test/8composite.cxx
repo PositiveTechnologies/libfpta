@@ -343,12 +343,8 @@ TEST(SmokeComposite, Primary) {
 
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -742,12 +738,8 @@ TEST(SmokeIndex, Secondary) {
 
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------

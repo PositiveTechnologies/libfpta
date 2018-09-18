@@ -25,13 +25,6 @@ static const char testdb_name[] = TEST_DB_DIR "ut_thread.fpta";
 static const char testdb_name_lck[] =
     TEST_DB_DIR "ut_thread.fpta" MDBX_LOCK_SUFFIX;
 
-#ifdef CI
-#define REMOVE_DB_FILES true
-#else
-// пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-#define REMOVE_DB_FILES false
-#endif
-
 using namespace std;
 
 static std::string random_string(int len, int seed) {
@@ -182,11 +175,8 @@ TEST(Threaded, SimpleConcurence) {
 
   SCOPED_TRACE("All threads are stopped");
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
-
-  if (REMOVE_DB_FILES) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //------------------------------------------------------------------------------
@@ -369,11 +359,8 @@ TEST(Threaded, SimpleSelect) {
 
   SCOPED_TRACE("All threads are stopped");
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
-
-  if (REMOVE_DB_FILES) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //------------------------------------------------------------------------------
@@ -568,11 +555,8 @@ TEST(Threaded, SimpleVisitor) {
 
   SCOPED_TRACE("All threads are stopped");
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
-
-  if (REMOVE_DB_FILES) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //------------------------------------------------------------------------------

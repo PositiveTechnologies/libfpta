@@ -385,11 +385,8 @@ TEST(Schema, Base) {
   fpta_name_destroy(&col_y);
 
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 TEST(Schema, TriviaWithNullable) {
@@ -896,6 +893,8 @@ TEST(Schema, FailingDrop) {
   txn = nullptr;
 
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 int main(int argc, char **argv) {

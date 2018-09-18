@@ -280,12 +280,8 @@ TEST(SmokeIndex, Primary) {
 
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 TEST(SmokeIndex, Secondary) {
@@ -525,12 +521,8 @@ TEST(SmokeIndex, Secondary) {
 
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -2159,6 +2151,8 @@ TEST(SmokeCrud, OneRowOneColumn) {
 
   // закрываем базу
   ASSERT_EQ(FPTA_OK, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -3000,6 +2994,8 @@ TEST(Smoke, ReOpenAfterAbort) {
   // закрываем базу
   fpta_name_destroy(&table_id);
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -3307,6 +3303,8 @@ TEST(Smoke, OverchargeOnCommit) {
 
   // закрываем базу
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -3559,6 +3557,8 @@ TEST(Smoke, AsyncSchemaChange) {
   fpta_name_destroy(&table_id_);
 
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_correlator));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -3804,12 +3804,8 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
   db = nullptr;
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -4110,16 +4106,8 @@ TEST(Smoke, Migration) {
   // закрываем базу в корреляторе
   ASSERT_EQ(FPTA_SUCCESS, fpta_db_close(correlator_db));
   correlator_db = nullptr;
-
-  // пока не удялем файлы чтобы можно было запустить mdbx_chk
-  if (false) {
-    if (REMOVE_FILE(testdb_name) != 0) {
-      ASSERT_EQ(ENOENT, errno);
-    }
-    if (REMOVE_FILE(testdb_name_lck) != 0) {
-      ASSERT_EQ(ENOENT, errno);
-    }
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -4305,12 +4293,8 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
   fpta_name_destroy(&col_composite);
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -4502,12 +4486,8 @@ TEST(SmokeFilter, ChoppedLookup) {
 
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
   db = nullptr;
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
