@@ -103,10 +103,6 @@
 
 /*----------------------------------------------------------------------------*/
 
-#if !defined(__thread) && (defined(_MSC_VER) || defined(__DMC__))
-#   define __thread __declspec(thread)
-#endif /* __thread */
-
 #ifndef __alwaysinline
 #   if defined(__GNUC__) || __has_attribute(always_inline)
 #       define __alwaysinline __inline __attribute__((always_inline))
@@ -329,6 +325,13 @@
 #   define mdbx_func_ __FUNCTION__
 #else
 #   define mdbx_func_ "<mdbx_unknown>"
+#endif
+
+#if defined(__GNUC__) || __has_attribute(format)
+#define __printf_args(format_index, first_arg)                                 \
+  __attribute__((format(printf, format_index, first_arg)))
+#else
+#define __printf_args(format_index, first_arg)
 #endif
 
 /*----------------------------------------------------------------------------*/

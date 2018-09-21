@@ -100,6 +100,7 @@ typedef DWORD mdbx_tid_t;
 #define MDBX_EIO ERROR_WRITE_FAULT
 #define MDBX_EPERM ERROR_INVALID_FUNCTION
 #define MDBX_EINTR ERROR_CANCELLED
+#define MDBX_ENOFILE ERROR_FILE_NOT_FOUND
 
 #else
 
@@ -120,6 +121,8 @@ typedef pthread_t mdbx_tid_t;
 #define MDBX_EIO EIO
 #define MDBX_EPERM EPERM
 #define MDBX_EINTR EINTR
+#define MDBX_ENOFILE ENOENT
+
 #endif
 
 #ifdef _MSC_VER
@@ -165,7 +168,7 @@ typedef pthread_t mdbx_tid_t;
 /*--------------------------------------------------------------------------*/
 
 #define MDBX_VERSION_MAJOR 0
-#define MDBX_VERSION_MINOR 1
+#define MDBX_VERSION_MINOR 2
 
 #if defined(LIBMDBX_EXPORTS)
 #define LIBMDBX_API __dll_export
@@ -202,6 +205,24 @@ typedef struct mdbx_build_info {
 
 extern LIBMDBX_API const mdbx_version_info mdbx_version;
 extern LIBMDBX_API const mdbx_build_info mdbx_build;
+
+#if defined(_WIN32) || defined(_WIN64)
+
+/* Dll initialization callback for ability to dynamically load MDBX DLL by
+ * LoadLibrary() on Windows versions before Windows Vista. This function MUST be
+ * called once from DllMain() for each reason (DLL_PROCESS_ATTACH,
+ * DLL_PROCESS_DETACH, DLL_THREAD_ATTACH and DLL_THREAD_DETACH). Do this
+ * carefully and ONLY when actual Windows version don't support initialization
+ * via "TLS Directory" (e.g .CRT$XL[A-Z] sections in executable or dll file). */
+
+#ifndef MDBX_CONFIG_MANUAL_TLS_CALLBACK
+#define MDBX_CONFIG_MANUAL_TLS_CALLBACK 0
+#endif
+#if MDBX_CONFIG_MANUAL_TLS_CALLBACK
+void LIBMDBX_API NTAPI mdbx_dll_callback(PVOID module, DWORD reason,
+                                         PVOID reserved);
+#endif /* MDBX_CONFIG_MANUAL_TLS_CALLBACK */
+#endif /* Windows */
 
 /* The name of the lock file in the DB environment */
 #define MDBX_LOCKNAME "/mdbx.lck"
@@ -270,9 +291,8 @@ typedef int(MDBX_cmp_func)(const MDBX_val *a, const MDBX_val *b);
 #define MDBX_MAPASYNC 0x100000u
 /* tie reader locktable slots to MDBX_txn objects instead of to threads */
 #define MDBX_NOTLS 0x200000u
-/* don't do any locking, caller must manage their own locks
- * WARNING: libmdbx don't support this mode. */
-#define MDBX_NOLOCK__UNSUPPORTED 0x400000u
+/* open DB in exclusive/monopolistic mode. */
+#define MDBX_EXCLUSIVE 0x400000u
 /* don't do readahead */
 #define MDBX_NORDAHEAD 0x800000u
 /* don't initialize malloc'd memory before writing to datafile */
@@ -468,7 +488,7 @@ typedef struct MDBX_envinfo {
     uint64_t lower;   /* lower limit for datafile size */
     uint64_t upper;   /* upper limit for datafile size */
     uint64_t current; /* current datafile size */
-    uint64_t shrink;  /* shrink theshold for datafile */
+    uint64_t shrink;  /* shrink threshold for datafile */
     uint64_t grow;    /* growth step for datafile */
   } mi_geo;
   uint64_t mi_mapsize;             /* Size of the data memory map */
@@ -652,8 +672,6 @@ LIBMDBX_API int mdbx_env_create(MDBX_env **penv);
  *   - MDBX_EAGAIN   - the environment was locked by another process. */
 LIBMDBX_API int mdbx_env_open(MDBX_env *env, const char *path, unsigned flags,
                               mode_t mode);
-LIBMDBX_API int mdbx_env_open_ex(MDBX_env *env, const char *path,
-                                 unsigned flags, mode_t mode, int *exclusive);
 
 /* Copy an MDBX environment to the specified path, with options.
  *
@@ -680,7 +698,8 @@ LIBMDBX_API int mdbx_env_open_ex(MDBX_env *env, const char *path,
  *      NOTE: Currently it fails if the environment has suffered a page leak.
  *
  * Returns A non-zero error value on failure and 0 on success. */
-LIBMDBX_API int mdbx_env_copy(MDBX_env *env, const char *path, unsigned flags);
+LIBMDBX_API int mdbx_env_copy(MDBX_env *env, const char *dest_path,
+                              unsigned flags);
 
 /* Copy an MDBX environment to the specified file descriptor,
  * with options.
@@ -900,7 +919,6 @@ LIBMDBX_API int mdbx_env_set_maxdbs(MDBX_env *env, MDBX_dbi dbs);
  *
  * Returns The maximum size of a key we can write. */
 LIBMDBX_API int mdbx_env_get_maxkeysize(MDBX_env *env);
-LIBMDBX_API int mdbx_get_maxkeysize(size_t pagesize);
 
 /* Set application information associated with the MDBX_env.
  *
@@ -1228,6 +1246,8 @@ LIBMDBX_API int mdbx_drop(MDBX_txn *txn, MDBX_dbi dbi, int del);
  *  - MDBX_EINVAL   - an invalid parameter was specified. */
 LIBMDBX_API int mdbx_get(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key,
                          MDBX_val *data);
+LIBMDBX_API int mdbx_get2(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key,
+                          MDBX_val *data);
 
 /* Store items into a database.
  *
@@ -1630,10 +1650,22 @@ typedef void MDBX_debug_func(int type, const char *function, int line,
 
 LIBMDBX_API int mdbx_setup_debug(int flags, MDBX_debug_func *logger);
 
-typedef int MDBX_pgvisitor_func(uint64_t pgno, unsigned pgnumber, void *ctx,
-                                const char *dbi, const char *type,
-                                size_t nentries, size_t payload_bytes,
-                                size_t header_bytes, size_t unused_bytes);
+typedef enum {
+  MDBX_page_void,
+  MDBX_page_meta,
+  MDBX_page_large,
+  MDBX_page_branch,
+  MDBX_page_leaf,
+  MDBX_page_dupfixed_leaf,
+  MDBX_subpage_leaf,
+  MDBX_subpage_dupfixed_leaf
+} MDBX_page_type_t;
+
+typedef int MDBX_pgvisitor_func(uint64_t pgno, unsigned number, void *ctx,
+                                int deep, const char *dbi, size_t page_size,
+                                MDBX_page_type_t type, size_t nentries,
+                                size_t payload_bytes, size_t header_bytes,
+                                size_t unused_bytes);
 LIBMDBX_API int mdbx_env_pgwalk(MDBX_txn *txn, MDBX_pgvisitor_func *visitor,
                                 void *ctx);
 
@@ -1672,6 +1704,13 @@ LIBMDBX_API int mdbx_is_dirty(const MDBX_txn *txn, const void *ptr);
 
 LIBMDBX_API int mdbx_dbi_sequence(MDBX_txn *txn, MDBX_dbi dbi, uint64_t *result,
                                   uint64_t increment);
+
+LIBMDBX_API int mdbx_limits_pgsize_min(void);
+LIBMDBX_API int mdbx_limits_pgsize_max(void);
+LIBMDBX_API intptr_t mdbx_limits_dbsize_min(intptr_t pagesize);
+LIBMDBX_API intptr_t mdbx_limits_dbsize_max(intptr_t pagesize);
+LIBMDBX_API intptr_t mdbx_limits_keysize_max(intptr_t pagesize);
+LIBMDBX_API intptr_t mdbx_limits_txnsize_max(intptr_t pagesize);
 
 /*----------------------------------------------------------------------------*/
 /* attribute support functions for Nexenta */
