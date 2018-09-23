@@ -211,7 +211,7 @@ void Lexer::unexpected(bool tab) {
   const Location location = WhereNow();
   frontend_->Error("%s, file '%s', line %u, position %u",
                    tab ? "Tab symbol is not allowed" : "Unexpected symbol",
-                   location.filename, location.line, location.position);
+                   location.filename ? location.filename->c_str() : "<unknown>", location.line, location.position);
 
   /* Пропускаем символы до конца строки */
   while (head_ != end_) {

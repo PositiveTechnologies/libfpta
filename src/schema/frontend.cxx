@@ -291,9 +291,11 @@ void Engine::HandleException(const std::exception *trouble) {
     const Location location = Where(trouble_with_token->token());
     if (location.line || location.position)
       Error("%s, file '%s', line %u, position %u", trouble->what(),
-            location.filename, location.line, location.position);
+            location.filename ? location.filename->c_str() : "<unknown>",
+            location.line, location.position);
     else
-      Error("%s, file '%s'", trouble_with_token->what(), location.filename);
+      Error("%s, file '%s'", trouble_with_token->what(),
+            location.filename ? location.filename->c_str() : "<unknown>");
   } else if (current_filename_) {
     Error("exception %s, file '%s'", trouble->what(), current_filename_);
   } else {
@@ -303,7 +305,8 @@ void Engine::HandleException(const std::exception *trouble) {
 
 void IFrontend::SyntaxError(const Token &token) {
   const Location location = Where(token);
-  Error("Syntax at file '%s', line %u, position %u", location.filename,
+  Error("Syntax at file '%s', line %u, position %u",
+        location.filename ? location.filename->c_str() : "<unknown>",
         location.line, location.position);
 }
 
