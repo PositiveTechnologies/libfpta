@@ -1,4 +1,4 @@
-﻿/* LICENSE AND COPYRUSTING *****************************************************
+/* LICENSE AND COPYRUSTING *****************************************************
  *
  * Copyright 2015-2018 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
@@ -165,7 +165,7 @@ typedef pthread_t mdbx_tid_t;
 /*--------------------------------------------------------------------------*/
 
 #define MDBX_VERSION_MAJOR 0
-#define MDBX_VERSION_MINOR 0
+#define MDBX_VERSION_MINOR 1
 
 #if defined(LIBMDBX_EXPORTS)
 #define LIBMDBX_API __dll_export
@@ -468,7 +468,7 @@ typedef struct MDBX_envinfo {
     uint64_t lower;   /* lower limit for datafile size */
     uint64_t upper;   /* upper limit for datafile size */
     uint64_t current; /* current datafile size */
-    uint64_t shrink;  /* shrink theshold for datafile */
+    uint64_t shrink;  /* shrink threshold for datafile */
     uint64_t grow;    /* growth step for datafile */
   } mi_geo;
   uint64_t mi_mapsize;             /* Size of the data memory map */
@@ -900,7 +900,7 @@ LIBMDBX_API int mdbx_env_set_maxdbs(MDBX_env *env, MDBX_dbi dbs);
  *
  * Returns The maximum size of a key we can write. */
 LIBMDBX_API int mdbx_env_get_maxkeysize(MDBX_env *env);
-LIBMDBX_API int mdbx_get_maxkeysize(size_t pagesize);
+LIBMDBX_API int mdbx_get_maxkeysize(intptr_t pagesize);
 
 /* Set application information associated with the MDBX_env.
  *
@@ -981,6 +981,15 @@ LIBMDBX_API int mdbx_txn_begin(MDBX_env *env, MDBX_txn *parent, unsigned flags,
  *
  * [in] txn  A transaction handle returned by mdbx_txn_begin() */
 LIBMDBX_API MDBX_env *mdbx_txn_env(MDBX_txn *txn);
+
+/* Return the transaction's flags.
+ *
+ * This returns the flags associated with this transaction.
+ *
+ * [in] txn A transaction handle returned by mdbx_txn_begin()
+ *
+ * Returns A transaction flags, valid if input is an active transaction. */
+LIBMDBX_API int mdbx_txn_flags(MDBX_txn *txn);
 
 /* Return the transaction's ID.
  *
@@ -1664,6 +1673,11 @@ LIBMDBX_API int mdbx_is_dirty(const MDBX_txn *txn, const void *ptr);
 LIBMDBX_API int mdbx_dbi_sequence(MDBX_txn *txn, MDBX_dbi dbi, uint64_t *result,
                                   uint64_t increment);
 
+LIBMDBX_API int mdbx_limits_pgsize_min(void);
+LIBMDBX_API int mdbx_limits_pgsize_max(void);
+LIBMDBX_API intptr_t mdbx_limits_dbsize_min(intptr_t pagesize);
+LIBMDBX_API intptr_t mdbx_limits_dbsize_max(intptr_t pagesize);
+
 /*----------------------------------------------------------------------------*/
 /* attribute support functions for Nexenta */
 typedef uint_fast64_t mdbx_attr_t;
@@ -1819,6 +1833,42 @@ LIBMDBX_API int mdbx_cursor_get_attr(MDBX_cursor *mc, MDBX_val *key,
  *  - MDBX_EINVAL   - an invalid parameter was specified. */
 LIBMDBX_API int mdbx_get_attr(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key,
                               MDBX_val *data, mdbx_attr_t *attrptr);
+
+/*----------------------------------------------------------------------------*/
+/* LY: temporary workaround for Elbrus's memcmp() bug. */
+#ifndef __GLIBC_PREREQ
+#if defined(__GLIBC__) && defined(__GLIBC_MINOR__)
+#define __GLIBC_PREREQ(maj, min)                                               \
+  ((__GLIBC__ << 16) + __GLIBC_MINOR__ >= ((maj) << 16) + (min))
+#else
+#define __GLIBC_PREREQ(maj, min) (0)
+#endif
+#endif /* __GLIBC_PREREQ */
+#if defined(__e2k__) && !__GLIBC_PREREQ(2, 24)
+LIBMDBX_API int mdbx_e2k_memcmp_bug_workaround(const void *s1, const void *s2,
+                                               size_t n);
+LIBMDBX_API int mdbx_e2k_strcmp_bug_workaround(const char *s1, const char *s2);
+LIBMDBX_API int mdbx_e2k_strncmp_bug_workaround(const char *s1, const char *s2,
+                                                size_t n);
+LIBMDBX_API size_t mdbx_e2k_strlen_bug_workaround(const char *s);
+LIBMDBX_API size_t mdbx_e2k_strnlen_bug_workaround(const char *s,
+                                                   size_t maxlen);
+#include <string.h>
+#include <strings.h>
+#undef memcmp
+#define memcmp mdbx_e2k_memcmp_bug_workaround
+#undef bcmp
+#define bcmp mdbx_e2k_memcmp_bug_workaround
+#undef strcmp
+#define strcmp mdbx_e2k_strcmp_bug_workaround
+#undef strncmp
+#define strncmp mdbx_e2k_strncmp_bug_workaround
+#undef strlen
+#define strlen mdbx_e2k_strlen_bug_workaround
+#undef strnlen
+#define strnlen mdbx_e2k_strnlen_bug_workaround
+
+#endif /* Elbrus's memcmp() bug. */
 
 #ifdef __cplusplus
 }

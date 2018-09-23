@@ -46,11 +46,12 @@ enum loglevel {
 const char *level2str(const loglevel level);
 void setup(loglevel level, const std::string &prefix);
 void setup(const std::string &prefix);
+void setlevel(loglevel level);
 
 bool output(const loglevel priority, const char *format, va_list ap);
 bool __printf_args(2, 3)
     output(const loglevel priority, const char *format, ...);
-bool feed(const char *format, va_list ap);
+bool feed_ap(const char *format, va_list ap);
 bool __printf_args(1, 2) feed(const char *format, ...);
 
 class local_suffix {
@@ -81,6 +82,7 @@ void __printf_args(1, 2) log_warning(const char *msg, ...);
 void __printf_args(1, 2) log_error(const char *msg, ...);
 
 void log_trouble(const char *where, const char *what, int errnum);
+void log_flush(void);
 bool log_enabled(const logging::loglevel priority);
 
 #ifdef _DEBUG

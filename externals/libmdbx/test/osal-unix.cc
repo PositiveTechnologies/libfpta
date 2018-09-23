@@ -182,6 +182,9 @@ void osal_killall_actors(void) {
 }
 
 int osal_actor_poll(mdbx_pid_t &pid, unsigned timeout) {
+  struct timespec ts;
+  ts.tv_nsec = 0;
+  ts.tv_sec = timeout;
 retry:
   int status, options = WNOHANG;
 #ifdef WUNTRACED
@@ -209,9 +212,16 @@ retry:
   }
 
   if (pid == 0) {
-    if (timeout && sleep(timeout))
+    /* child still running */
+    if (ts.tv_sec == 0 && ts.tv_nsec == 0)
+      ts.tv_nsec = 1;
+    if (nanosleep(&ts, &ts) == 0) {
+      /* timeout and no signal fomr child */
+      pid = 0;
+      return 0;
+    }
+    if (errno == EINTR)
       goto retry;
-    return 0;
   }
 
   switch (errno) {
@@ -272,3 +282,22 @@ void osal_udelay(unsigned us) {
 }
 
 bool osal_istty(int fd) { return isatty(fd) == 1; }
+
+std::string osal_tempdir(void) {
+  const char *tempdir = getenv("TMPDIR");
+  if (!tempdir)
+    tempdir = getenv("TMP");
+  if (!tempdir)
+    tempdir = getenv("TEMPDIR");
+  if (!tempdir)
+    tempdir = getenv("TEMP");
+  if (tempdir) {
+    std::string dir(tempdir);
+    if (!dir.empty() && dir.at(dir.length() - 1) != '/')
+      dir.append("/");
+    return dir;
+  }
+  if (access("/dev/shm/", R_OK | W_OK | X_OK) == 0)
+    return "/dev/shm/";
+  return "";
+}

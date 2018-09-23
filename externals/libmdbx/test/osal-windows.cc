@@ -53,7 +53,7 @@ void osal_wait4barrier(void) {
   }
 }
 
-static HANDLE make_inharitable(HANDLE hHandle) {
+static HANDLE make_inheritable(HANDLE hHandle) {
   assert(hHandle != NULL && hHandle != INVALID_HANDLE_VALUE);
   if (!DuplicateHandle(GetCurrentProcess(), hHandle, GetCurrentProcess(),
                        &hHandle, 0, TRUE,
@@ -71,7 +71,7 @@ void osal_setup(const std::vector<actor_config> &actors) {
     HANDLE hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (!hEvent)
       failure_perror("CreateEvent()", GetLastError());
-    hEvent = make_inharitable(hEvent);
+    hEvent = make_inheritable(hEvent);
     log_trace("osal_setup: event %" PRIuPTR " -> %p", i, hEvent);
     events[i] = hEvent;
   }
@@ -79,12 +79,12 @@ void osal_setup(const std::vector<actor_config> &actors) {
   hBarrierSemaphore = CreateSemaphore(NULL, 0, (LONG)actors.size(), NULL);
   if (!hBarrierSemaphore)
     failure_perror("CreateSemaphore(BarrierSemaphore)", GetLastError());
-  hBarrierSemaphore = make_inharitable(hBarrierSemaphore);
+  hBarrierSemaphore = make_inheritable(hBarrierSemaphore);
 
   hBarrierEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
   if (!hBarrierEvent)
     failure_perror("CreateEvent(BarrierEvent)", GetLastError());
-  hBarrierEvent = make_inharitable(hBarrierEvent);
+  hBarrierEvent = make_inheritable(hBarrierEvent);
 }
 
 void osal_broadcast(unsigned id) {
@@ -168,6 +168,90 @@ bool actor_config::osal_deserialize(const char *str, const char *end,
 typedef std::pair<HANDLE, actor_status> child;
 static std::unordered_map<mdbx_pid_t, child> childs;
 
+static void ArgvQuote(std::string &CommandLine, const std::string &Argument,
+                      bool Force = false)
+
+/*++
+
+https://blogs.msdn.microsoft.com/twistylittlepassagesallalike/2011/04/23/everyone-quotes-command-line-arguments-the-wrong-way/
+
+Routine Description:
+
+    This routine appends the given argument to a command line such
+    that CommandLineToArgvW will return the argument string unchanged.
+    Arguments in a command line should be separated by spaces; this
+    function does not add these spaces.
+
+Arguments:
+
+    Argument - Supplies the argument to encode.
+
+    CommandLine - Supplies the command line to which we append the encoded
+argument string.
+
+    Force - Supplies an indication of whether we should quote
+            the argument even if it does not contain any characters that would
+            ordinarily require quoting.
+
+Return Value:
+
+    None.
+
+Environment:
+
+    Arbitrary.
+
+--*/
+
+{
+  //
+  // Unless we're told otherwise, don't quote unless we actually
+  // need to do so --- hopefully avoid problems if programs won't
+  // parse quotes properly
+  //
+
+  if (Force == false && Argument.empty() == false &&
+      Argument.find_first_of(" \t\n\v\"") == Argument.npos) {
+    CommandLine.append(Argument);
+  } else {
+    CommandLine.push_back('"');
+
+    for (auto It = Argument.begin();; ++It) {
+      unsigned NumberBackslashes = 0;
+
+      while (It != Argument.end() && *It == '\\') {
+        ++It;
+        ++NumberBackslashes;
+      }
+
+      if (It == Argument.end()) {
+        //
+        // Escape all backslashes, but let the terminating
+        // double quotation mark we add below be interpreted
+        // as a metacharacter.
+        //
+        CommandLine.append(NumberBackslashes * 2, '\\');
+        break;
+      } else if (*It == L'"') {
+        //
+        // Escape all backslashes and the following
+        // double quotation mark.
+        //
+        CommandLine.append(NumberBackslashes * 2 + 1, '\\');
+        CommandLine.push_back(*It);
+      } else {
+        //
+        // Backslashes aren't special here.
+        //
+        CommandLine.append(NumberBackslashes, '\\');
+        CommandLine.push_back(*It);
+      }
+    }
+
+    CommandLine.push_back('"');
+  }
+}
+
 int osal_actor_start(const actor_config &config, mdbx_pid_t &pid) {
   if (childs.size() == MAXIMUM_WAIT_OBJECTS)
     failure("Could't manage more that %u actors on Windows\n",
@@ -178,13 +262,23 @@ int osal_actor_start(const actor_config &config, mdbx_pid_t &pid) {
   STARTUPINFOA StartupInfo;
   GetStartupInfoA(&StartupInfo);
 
-  char exename[_MAX_PATH];
+  char exename[_MAX_PATH + 1];
   DWORD exename_size = sizeof(exename);
   if (!QueryFullProcessImageNameA(GetCurrentProcess(), 0, exename,
                                   &exename_size))
     failure_perror("QueryFullProcessImageName()", GetLastError());
 
-  std::string cmdline = "test_mdbx.child " + thunk_param(config);
+  if (exename[1] != ':') {
+    exename_size = GetModuleFileName(NULL, exename, sizeof(exename));
+    if (exename_size >= sizeof(exename))
+      return ERROR_BAD_LENGTH;
+  }
+
+  std::string cmdline = "$ ";
+  ArgvQuote(cmdline, thunk_param(config));
+
+  if (cmdline.size() >= 32767)
+    return ERROR_BAD_LENGTH;
 
   PROCESS_INFORMATION ProcessInformation;
   if (!CreateProcessA(exename, const_cast<char *>(cmdline.c_str()),
@@ -195,7 +289,7 @@ int osal_actor_start(const actor_config &config, mdbx_pid_t &pid) {
                       NULL, // Inherit the parent's environment.
                       NULL, // Inherit the parent's current directory.
                       &StartupInfo, &ProcessInformation))
-    return GetLastError();
+    failure_perror(exename, GetLastError());
 
   CloseHandle(ProcessInformation.hThread);
   pid = ProcessInformation.dwProcessId;
@@ -305,3 +399,9 @@ void osal_udelay(unsigned us) {
 }
 
 bool osal_istty(int fd) { return _isatty(fd) != 0; }
+
+std::string osal_tempdir(void) {
+  char buf[MAX_PATH + 1];
+  DWORD len = GetTempPathA(sizeof(buf), buf);
+  return std::string(buf, len);
+}

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2017-2018 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
@@ -68,31 +68,6 @@ const char *keygencase2str(const keygen_case keycase) {
 
 //-----------------------------------------------------------------------------
 
-static void mdbx_logger(int type, const char *function, int line,
-                        const char *msg, va_list args) {
-  logging::loglevel level = logging::info;
-  if (type & MDBX_DBG_EXTRA)
-    level = logging::extra;
-  if (type & MDBX_DBG_TRACE)
-    level = logging::trace;
-  if (type & MDBX_DBG_PRINT)
-    level = logging::verbose;
-
-  if (!function)
-    function = "unknown";
-  if (type & MDBX_DBG_ASSERT) {
-    log_error("mdbx: assertion failure: %s, %d", function, line);
-    level = logging::failure;
-  }
-
-  if (logging::output(
-          level,
-          strncmp(function, "mdbx_", 5) == 0 ? "%s: " : "mdbx: %s: ", function))
-    logging::feed(msg, args);
-  if (type & MDBX_DBG_ASSERT)
-    abort();
-}
-
 int testcase::oom_callback(MDBX_env *env, int pid, mdbx_tid_t tid, uint64_t txn,
                            unsigned gap, int retry) {
 
@@ -117,16 +92,8 @@ void testcase::db_prepare() {
   log_trace(">> db_prepare");
   assert(!db_guard);
 
-  int mdbx_dbg_opts = MDBX_DBG_ASSERT | MDBX_DBG_JITTER | MDBX_DBG_DUMP;
-  if (config.params.loglevel <= logging::trace)
-    mdbx_dbg_opts |= MDBX_DBG_TRACE;
-  if (config.params.loglevel <= logging::verbose)
-    mdbx_dbg_opts |= MDBX_DBG_PRINT;
-  int rc = mdbx_setup_debug(mdbx_dbg_opts, mdbx_logger);
-  log_info("set mdbx debug-opts: 0x%02x", rc);
-
   MDBX_env *env = nullptr;
-  rc = mdbx_env_create(&env);
+  int rc = mdbx_env_create(&env);
   if (unlikely(rc != MDBX_SUCCESS))
     failure_perror("mdbx_env_create()", rc);
 
@@ -149,7 +116,10 @@ void testcase::db_prepare() {
   if (unlikely(rc != MDBX_SUCCESS))
     failure_perror("mdbx_env_set_oomfunc()", rc);
 
-  rc = mdbx_env_set_mapsize(env, (size_t)config.params.size);
+  rc = mdbx_env_set_geometry(
+      env, config.params.size_lower, config.params.size_now,
+      config.params.size_upper, config.params.growth_step,
+      config.params.shrink_threshold, config.params.pagesize);
   if (unlikely(rc != MDBX_SUCCESS))
     failure_perror("mdbx_env_set_mapsize()", rc);
 
@@ -204,6 +174,7 @@ void testcase::txn_end(bool abort) {
     if (unlikely(rc != MDBX_SUCCESS))
       failure_perror("mdbx_txn_abort()", rc);
   } else {
+    txn_inject_writefault(txn);
     int rc = mdbx_txn_commit(txn);
     if (unlikely(rc != MDBX_SUCCESS))
       failure_perror("mdbx_txn_commit()", rc);
@@ -216,6 +187,27 @@ void testcase::txn_restart(bool abort, bool readonly, unsigned flags) {
   if (txn_guard)
     txn_end(abort);
   txn_begin(readonly, flags);
+}
+
+void testcase::txn_inject_writefault(void) {
+  if (txn_guard)
+    txn_inject_writefault(txn_guard.get());
+}
+
+void testcase::txn_inject_writefault(MDBX_txn *txn) {
+  if (config.params.inject_writefaultn && txn) {
+    if (config.params.inject_writefaultn <= nops_completed &&
+        (mdbx_txn_flags(txn) & MDBX_RDONLY) == 0) {
+      log_info("== txn_inject_writefault(): got %u nops or more, inject FAULT",
+               config.params.inject_writefaultn);
+      log_flush();
+#if defined(_WIN32) || defined(_WIN64) || defined(_WINDOWS)
+      TerminateProcess(GetCurrentProcess(), 42);
+#else
+      raise(SIGKILL);
+#endif
+    }
+  }
 }
 
 bool testcase::wait4start() {
