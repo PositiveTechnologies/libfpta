@@ -181,8 +181,8 @@ public:
   virtual void Product(const std_filesystem::path &basename) = 0;
 
   IFrontend() : ok_(true), need_update_(false) {}
-  virtual void Error(const char *, ...);
-  virtual void Warning(const char *, ...);
+  __printf_args(2, 3) virtual void Error(const char *, ...);
+  __printf_args(2, 3) virtual void Warning(const char *, ...);
   virtual bool Ok() const { return ok_; }
   virtual bool NeedUpdate() const { return need_update_; }
   virtual void HandleException(const std::exception *trouble) = 0;
