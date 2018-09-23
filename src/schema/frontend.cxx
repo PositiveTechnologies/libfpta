@@ -78,7 +78,7 @@ protected:
 
   std::unique_ptr<IBackend> builder_;
   typedef std::map<const Symbol *, std::unique_ptr<ISourcer>,
-                   std::greater_equal<const Symbol *>>
+                   std::greater<const Symbol *>>
       sources_list;
 
   /* Все исходники отсортированные по адресам токенов */
