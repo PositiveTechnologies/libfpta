@@ -1,15 +1,12 @@
-add_definitions(-Dfptu_EXPORTS=1)
+﻿add_definitions(-Dfptu_EXPORTS)
 add_subdirectory(libfptu/src)
 add_subdirectory(libfptu/test)
 
 ###############################################################################
 
-add_library(t1ha STATIC
-  t1ha/src/t1ha1.c
-  t1ha/src/t1ha2.c
-  )
+add_library(t1ha STATIC t1ha/src/t1ha2.c)
 
-target_compile_definitions(t1ha PRIVATE T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>)
+target_compile_definitions(t1ha PRIVATE t1ha_EXPORTS T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>)
 
 set_target_properties(t1ha PROPERTIES
   PROJECT_LABEL "Fast Positive Hash"
@@ -34,7 +31,7 @@ add_library(mdbx STATIC
   libmdbx/src/version.c
   )
 
-target_compile_definitions(mdbx PRIVATE MDBX_DEBUG=$<CONFIG:Debug> $<$<BOOL:${ENABLE_VALGRIND}>:ENABLE_VALGRIND>)
+target_compile_definitions(mdbx PRIVATE LIBMDBX_EXPORTS MDBX_DEBUG=$<CONFIG:Debug> $<$<BOOL:${ENABLE_VALGRIND}>:ENABLE_VALGRIND>)
 target_link_libraries(mdbx ${CMAKE_THREAD_LIBS_INIT})
 
 if(UNIX AND NOT APPLE)
