@@ -152,9 +152,8 @@ TEST(Schema, Base) {
 
   fpta_db *db = nullptr;
   /* открываем базу в режиме неизменяемой схемы */
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         false, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, false, &db));
   ASSERT_NE(nullptr, db);
 
   /* пробуем начать транзакцию изменения схемы в базе с неизменяемой схемой */
@@ -166,9 +165,8 @@ TEST(Schema, Base) {
   //------------------------------------------------------------------------
 
   /* повторно открываем базу с возможностью изменять схему */
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // формируем описание колонок для первой таблицы
@@ -780,6 +778,8 @@ TEST(Schema, NonUniqPrimary_with_Secondary) {
   EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
   EXPECT_EQ(FPTA_EINVAL, fpta_column_set_destroy(&def));
 }
+
+//----------------------------------------------------------------------------
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);

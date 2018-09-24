@@ -63,9 +63,8 @@ TEST(SmokeIndex, Primary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками и одним PK
@@ -323,9 +322,8 @@ TEST(SmokeIndex, Secondary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками,
@@ -689,7 +687,7 @@ public:
                 fpta_cursor_open(txn_guard.get(), &col_uint, fpta_value_begin(),
                                  fpta_value_end(), nullptr,
                                  fpta_unsorted_dont_fetch, &cursor));
-      ASSERT_NE(cursor, nullptr);
+      ASSERT_NE(nullptr, cursor);
       guard.reset(cursor);
       ASSERT_NO_FATAL_FAILURE(Check(cursor));
     }
@@ -703,7 +701,7 @@ public:
                 fpta_cursor_open(txn_guard.get(), &col_str, fpta_value_begin(),
                                  fpta_value_end(), nullptr,
                                  fpta_unsorted_dont_fetch, &cursor));
-      ASSERT_NE(cursor, nullptr);
+      ASSERT_NE(nullptr, cursor);
       guard.reset(cursor);
       ASSERT_NO_FATAL_FAILURE(Check(cursor));
     }
@@ -717,7 +715,7 @@ public:
                 fpta_cursor_open(txn_guard.get(), &col_real, fpta_value_begin(),
                                  fpta_value_end(), nullptr,
                                  fpta_unsorted_dont_fetch, &cursor));
-      ASSERT_NE(cursor, nullptr);
+      ASSERT_NE(nullptr, cursor);
       guard.reset(cursor);
       ASSERT_NO_FATAL_FAILURE(Check(cursor));
     }
@@ -747,9 +745,8 @@ public:
 
     // открываем/создаем базульку в 1 мегабайт
     fpta_db *db = nullptr;
-    EXPECT_EQ(FPTA_SUCCESS,
-              fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                           true, &db));
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    0644, 1, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -1579,9 +1576,8 @@ public:
 
     // открываем/создаем базульку в 1 мегабайт
     fpta_db *db = nullptr;
-    EXPECT_EQ(FPTA_SUCCESS,
-              fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                           true, &db));
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    0644, 1, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -2082,9 +2078,8 @@ TEST(SmokeCrud, OneRowOneColumn) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с одним PK
@@ -2191,9 +2186,8 @@ TEST(Smoke, DirectDirtyDeletions) {
 
   // создаем базу
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_sync, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // начинаем транзакцию с добавлениями
@@ -2424,9 +2418,8 @@ TEST(Smoke, UpdateViolateUnique) {
 
   // создаем базу
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_sync, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // начинаем транзакцию с добавлениями
@@ -2666,9 +2659,8 @@ public:
 
     // создаем базу
     fpta_db *db = nullptr;
-    EXPECT_EQ(FPTA_SUCCESS,
-              fpta_db_open(testdb_name, fpta_sync, fpta_regime_default, 0644, 1,
-                           true, &db));
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                    0644, 1, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -2929,9 +2921,9 @@ TEST(Smoke, ReOpenAfterAbort) {
 
   // открываем/создаем базу
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, true, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с одним PK (int64) и колонками (_last_changed,
   // fp64, int64, string, datetime)
@@ -2957,7 +2949,7 @@ TEST(Smoke, ReOpenAfterAbort) {
   // запускам транзакцию и создаем таблицу с обозначенным набором колонок
   fpta_txn *txn = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
-  ASSERT_NE((fpta_txn *)nullptr, txn);
+  ASSERT_NE(nullptr, txn);
   ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "Table", &def));
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   txn = nullptr;
@@ -2967,23 +2959,23 @@ TEST(Smoke, ReOpenAfterAbort) {
   db = nullptr;
 
   // открываем базу
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, false, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
 
   fpta_name table_id;
   EXPECT_EQ(FPTA_OK, fpta_table_init(&table_id, "Table"));
 
   // открываем транзакцию на запись, позже мы ее абортируем
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
-  ASSERT_NE((fpta_txn *)nullptr, txn);
+  ASSERT_NE(nullptr, txn);
   size_t row_count = 0;
   EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table_id, &row_count, nullptr));
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
 
   // открываем еще одну транзакцию на запись
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
-  ASSERT_NE((fpta_txn *)nullptr, txn);
+  ASSERT_NE(nullptr, txn);
 
   // пытаемся сделать поиск
   fpta_name column_id;
@@ -3030,7 +3022,7 @@ TEST(Smoke, Kamerades) {
 
   {
     // открываем/создаем базульку в 1 мегабайт
-    EXPECT_EQ(FPTA_SUCCESS,
+    ASSERT_EQ(FPTA_OK,
               fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
                            true,
                            &commander_db)); // таблица создаётся из "коммандера"
@@ -3071,9 +3063,8 @@ TEST(Smoke, Kamerades) {
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table_1"));
 
     // открываем из коррелятора
-    EXPECT_EQ(FPTA_SUCCESS,
-              fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                           false, &correlator_db));
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    0644, 1, false, &correlator_db));
     ASSERT_NE(nullptr, correlator_db);
 
     // начинаем транзакцию для вставки данных
@@ -3121,11 +3112,12 @@ TEST(Smoke, Kamerades) {
 
     if (!commander_db) {
       // вновь открываем из коммандера
-      EXPECT_EQ(
-          FPTA_SUCCESS,
+      ASSERT_EQ(
+          FPTA_OK,
           fpta_db_open(
               testdb_name, fpta_weak, fpta_regime_default, 0644, 1, false,
               &commander_db)); // теперь пытаемся только читать из "коммандера"
+      ASSERT_NE(nullptr, commander_db);
     }
 
     // и начинаем читающую транзакцию из "коммандера"
@@ -3195,9 +3187,9 @@ TEST(Smoke, OverchargeOnCommit) {
 
   // открываем/создаем базу
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0664, 1, true, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с одним PK
   fpta_column_set def;
@@ -3224,7 +3216,7 @@ TEST(Smoke, OverchargeOnCommit) {
   // запускам транзакцию и создаем таблицу с обозначенным набором колонок
   fpta_txn *txn = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
-  ASSERT_NE((fpta_txn *)nullptr, txn);
+  ASSERT_NE(nullptr, txn);
 
   EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "Table", &def));
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
@@ -3235,9 +3227,9 @@ TEST(Smoke, OverchargeOnCommit) {
   db = nullptr;
 
   // открываем базу
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0664, 1, false, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
 
   fpta_name table_id, primary_key, host, id, last_changed, name, date;
   EXPECT_EQ(FPTA_OK, fpta_table_init(&table_id, "Table"));
@@ -3250,7 +3242,7 @@ TEST(Smoke, OverchargeOnCommit) {
   EXPECT_EQ(FPTA_OK, fpta_column_init(&table_id, &date, "date"));
 
   fptu_rw *tuple = fptu_alloc(6, 1000);
-  ASSERT_NE(tuple, (fptu_rw *)nullptr);
+  ASSERT_NE(nullptr, tuple);
   scoped_ptrw_guard ptrw_guard;
   ptrw_guard.reset(tuple);
 
@@ -3258,7 +3250,7 @@ TEST(Smoke, OverchargeOnCommit) {
   for (uint64_t pk = 0; err == FPTA_OK; ++pk) {
     // открываем транзакцию на запись, записываем данные
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table_id, &primary_key));
     EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table_id, &host));
@@ -3340,9 +3332,9 @@ TEST(Smoke, AsyncSchemaChange) {
     }
 
     fpta_db *db = nullptr;
-    EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                     0644, 1, true, &db));
-    ASSERT_NE(db, (fpta_db *)nullptr);
+    ASSERT_NE(nullptr, db);
 
     // описываем простейшую таблицу с одним PK (int64) и колонками
     // (_last_changed, fp64, int64, string, datetime)
@@ -3369,7 +3361,7 @@ TEST(Smoke, AsyncSchemaChange) {
     // запускам транзакцию и создаем таблицу с обозначенным набором колонок
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
 
     EXPECT_EQ(FPTA_OK, fpta_table_create(
                            txn, "Success_bruteforce_on_host_table", &def1));
@@ -3383,14 +3375,15 @@ TEST(Smoke, AsyncSchemaChange) {
 
   // открываем базу в "корреляторе"
   fpta_db *db_correlator = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, false, &db_correlator));
+  ASSERT_NE(nullptr, db_correlator);
 
   fpta_txn *txn_correlator = nullptr;
   fpta_name table_id_, host, last, id, user;
 
   fptu_rw *tuple = fptu_alloc(4, 1000);
-  ASSERT_NE(tuple, (fptu_rw *)nullptr);
+  ASSERT_NE(nullptr, tuple);
   scoped_ptrw_guard ptrw_guard;
   ptrw_guard.reset(tuple);
 
@@ -3453,13 +3446,14 @@ TEST(Smoke, AsyncSchemaChange) {
   {
     // открываем базу в "командоре"
     fpta_db *db_commander = nullptr;
-    EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                     0644, 1, true, &db_commander));
+    ASSERT_NE(nullptr, db_commander);
 
     fpta_txn *txn_commander = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema,
                                               &txn_commander));
-    ASSERT_NE((fpta_txn *)nullptr, txn_commander);
+    ASSERT_NE(nullptr, txn_commander);
 
     // удаляем существующую таблицу
     EXPECT_EQ(FPTA_OK, fpta_table_drop(txn_commander,
@@ -3472,11 +3466,12 @@ TEST(Smoke, AsyncSchemaChange) {
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_commander));
   db_commander = nullptr;
 
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1, true,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1, true,
                                   &db_commander));
+  ASSERT_NE(nullptr, db_commander);
   EXPECT_EQ(FPTA_OK,
             fpta_transaction_begin(db_commander, fpta_schema, &txn_commander));
-  ASSERT_NE((fpta_txn *)nullptr, txn_commander);
+  ASSERT_NE(nullptr, txn_commander);
 #endif
 
     // описываем новую структуру таблицы
@@ -3589,9 +3584,8 @@ TEST(Smoke, FilterAndRange) {
 
   // создаем базу
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_sync, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // начинаем транзакцию с добавлениями
@@ -3729,9 +3723,8 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
 
   // открываем/создаем базульку в 1 мегабайт
 
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками и одним PK

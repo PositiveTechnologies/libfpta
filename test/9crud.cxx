@@ -68,9 +68,8 @@ public:
 
     // открываем/создаем базульку в 1 мегабайт
     fpta_db *db = nullptr;
-    EXPECT_EQ(FPTA_SUCCESS,
-              fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                           true, &db));
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    0644, 1, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -358,9 +357,9 @@ TEST(Nullable, AsyncSchemaChange) {
       ASSERT_EQ(ENOENT, errno);
     }
 
-    EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                     0644, 1, true, &db_commander));
-    ASSERT_NE(db_commander, (fpta_db *)nullptr);
+    ASSERT_NE(nullptr, db_commander);
 
     // описываем простейшую таблицу с двумя колонками
     fpta_column_set def;
@@ -376,7 +375,7 @@ TEST(Nullable, AsyncSchemaChange) {
     // запускам транзакцию и создаем таблицу с обозначенным набором колонок
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     ASSERT_EQ(FPTA_OK,
               fpta_transaction_versions(txn, &db_initial_version, nullptr));
     ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
@@ -386,16 +385,16 @@ TEST(Nullable, AsyncSchemaChange) {
   // формируем четые строки-кортежа с разным заполнением значениями
   scoped_ptrw_guard pt_guard[4];
   fptu_rw *tuple_empty = fptu_alloc(2, 16);
-  ASSERT_NE(tuple_empty, (fptu_rw *)nullptr);
+  ASSERT_NE(nullptr, tuple_empty);
   pt_guard[0].reset(tuple_empty);
   fptu_rw *tuple_pk_only = fptu_alloc(2, 16);
-  ASSERT_NE(tuple_pk_only, (fptu_rw *)nullptr);
+  ASSERT_NE(nullptr, tuple_pk_only);
   pt_guard[1].reset(tuple_pk_only);
   fptu_rw *tuple_se_only = fptu_alloc(2, 16);
-  ASSERT_NE(tuple_se_only, (fptu_rw *)nullptr);
+  ASSERT_NE(nullptr, tuple_se_only);
   pt_guard[2].reset(tuple_se_only);
   fptu_rw *tuple_both = fptu_alloc(2, 16);
-  ASSERT_NE(tuple_both, (fptu_rw *)nullptr);
+  ASSERT_NE(nullptr, tuple_both);
   pt_guard[3].reset(tuple_both);
 
   // итоговые значения тегов-идентификаторов заведом известны,
@@ -424,7 +423,7 @@ TEST(Nullable, AsyncSchemaChange) {
 
   // открываем базу в "корреляторе"
   fpta_db *db_correlator = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, false, &db_correlator));
 
   // выполняем первое пробное обновление в корреляторе
@@ -464,7 +463,7 @@ TEST(Nullable, AsyncSchemaChange) {
     fpta_txn *txn_commander = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema,
                                               &txn_commander));
-    ASSERT_NE((fpta_txn *)nullptr, txn_commander);
+    ASSERT_NE(nullptr, txn_commander);
 
     // контрольное чтение
     fptu_ro row;
@@ -545,7 +544,7 @@ TEST(Nullable, AsyncSchemaChange) {
     fpta_txn *txn_commander = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema,
                                               &txn_commander));
-    ASSERT_NE((fpta_txn *)nullptr, txn_commander);
+    ASSERT_NE(nullptr, txn_commander);
 
     // контрольное чтение
     fptu_ro row;
@@ -629,7 +628,7 @@ TEST(Nullable, AsyncSchemaChange) {
     fpta_txn *txn_commander = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema,
                                               &txn_commander));
-    ASSERT_NE((fpta_txn *)nullptr, txn_commander);
+    ASSERT_NE(nullptr, txn_commander);
 
     // контрольное чтение
     fptu_ro row;
@@ -714,7 +713,7 @@ TEST(Nullable, AsyncSchemaChange) {
     fpta_txn *txn_commander = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema,
                                               &txn_commander));
-    ASSERT_NE((fpta_txn *)nullptr, txn_commander);
+    ASSERT_NE(nullptr, txn_commander);
 
     // контрольное чтение
     fptu_ro row;
@@ -795,7 +794,7 @@ TEST(Nullable, AsyncSchemaChange) {
     fpta_txn *txn_commander = nullptr;
     EXPECT_EQ(FPTA_OK,
               fpta_transaction_begin(db_commander, fpta_read, &txn_commander));
-    ASSERT_NE((fpta_txn *)nullptr, txn_commander);
+    ASSERT_NE(nullptr, txn_commander);
 
     // контрольное чтение
     fptu_ro row;
@@ -840,14 +839,14 @@ TEST(Nullable, SchemaReloadAfterAbort) {
   }
 
   fpta_db *db_correlator = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, false, &db_correlator));
-  ASSERT_NE(db_correlator, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db_correlator);
 
   fpta_db *db_commander = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, true, &db_commander));
-  ASSERT_NE(db_commander, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db_commander);
 
   { // create table in commander
     fpta_column_set def;
@@ -872,7 +871,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
 
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   }
@@ -891,7 +890,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
 
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_correlator, fpta_write, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
 
     fpta_name_refresh(txn, &table);
     fptu_ro record;
@@ -907,7 +906,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
     EXPECT_EQ(size_t(0), row_count);
 
     fptu_rw *tuple = fptu_alloc(6, 1024);
-    ASSERT_NE(tuple, (fptu_rw *)nullptr);
+    ASSERT_NE(nullptr, tuple);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &host));
     EXPECT_EQ(FPTA_OK,
@@ -948,13 +947,13 @@ TEST(Nullable, SchemaReloadAfterAbort) {
     fpta_name_destroy(&lc);
   }
 
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, true, &db_commander));
-  ASSERT_NE(db_commander, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db_commander);
   { // drop and recreate table in commander
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table"));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
 
@@ -979,7 +978,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
     EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
 
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   }
@@ -998,7 +997,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
 
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_correlator, fpta_write, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &table));
     fptu_ro record;
@@ -1014,7 +1013,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
     EXPECT_EQ(size_t(0), row_count);
 
     fptu_rw *tuple = fptu_alloc(6, 1024);
-    ASSERT_NE(tuple, (fptu_rw *)nullptr);
+    ASSERT_NE(nullptr, tuple);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &host));
     EXPECT_EQ(FPTA_OK,
@@ -1083,9 +1082,9 @@ TEST(CRUD, DISABLED_ExtraOps) {
   }
 
   fpta_db *db_correlator = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 20, true, &db_correlator));
-  ASSERT_NE(db_correlator, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db_correlator);
 
   { // create table
     fpta_column_set def;
@@ -1111,19 +1110,21 @@ TEST(CRUD, DISABLED_ExtraOps) {
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK,
               fpta_transaction_begin(db_correlator, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
 
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 30, false, &db_correlator));
+  ASSERT_NE(nullptr, db_correlator);
+
   int i = 0;
   for (; i < 1500000; ++i) { // try to fill table
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_correlator, fpta_write, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
 
     fpta_name table, uuid, dst_ip, port, date, id, lc;
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
@@ -1164,7 +1165,7 @@ TEST(CRUD, DISABLED_ExtraOps) {
     }
 
     fptu_rw *tuple = fptu_alloc(5, 110);
-    ASSERT_NE(tuple, (fptu_rw *)nullptr);
+    ASSERT_NE(nullptr, tuple);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &uuid));
     EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &uuid, value));
@@ -1224,14 +1225,14 @@ TEST(Nullable, SchemaReload) {
   }
 
   fpta_db *db_correlator = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, false, &db_correlator));
-  ASSERT_NE(db_correlator, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db_correlator);
 
   fpta_db *db_commander = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, true, &db_commander));
-  ASSERT_NE(db_commander, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db_commander);
 
   { // create table in commander
     fpta_column_set def;
@@ -1259,7 +1260,7 @@ TEST(Nullable, SchemaReload) {
 
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   }
@@ -1278,7 +1279,7 @@ TEST(Nullable, SchemaReload) {
 
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_correlator, fpta_write, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
 
     fpta_name_refresh(txn, &table);
     fptu_ro record;
@@ -1294,7 +1295,7 @@ TEST(Nullable, SchemaReload) {
     EXPECT_EQ(size_t(0), row_count);
 
     fptu_rw *tuple = fptu_alloc(6, 1024);
-    ASSERT_NE(tuple, (fptu_rw *)nullptr);
+    ASSERT_NE(nullptr, tuple);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &host));
     EXPECT_EQ(FPTA_OK,
@@ -1335,13 +1336,14 @@ TEST(Nullable, SchemaReload) {
     fpta_name_destroy(&lc);
   }
 
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   0644, 1, true, &db_commander));
-  ASSERT_NE(db_commander, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db_commander);
+
   { // drop and recreate table in commander
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table"));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
 
@@ -1366,7 +1368,7 @@ TEST(Nullable, SchemaReload) {
     EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
 
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_commander, fpta_schema, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   }
@@ -1385,7 +1387,7 @@ TEST(Nullable, SchemaReload) {
 
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db_correlator, fpta_write, &txn));
-    ASSERT_NE((fpta_txn *)nullptr, txn);
+    ASSERT_NE(nullptr, txn);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &table));
     fptu_ro record;
@@ -1401,7 +1403,7 @@ TEST(Nullable, SchemaReload) {
     EXPECT_EQ(size_t(0), row_count);
 
     fptu_rw *tuple = fptu_alloc(6, 1024);
-    ASSERT_NE(tuple, (fptu_rw *)nullptr);
+    ASSERT_NE(nullptr, tuple);
 
     EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &host));
     EXPECT_EQ(FPTA_OK,
