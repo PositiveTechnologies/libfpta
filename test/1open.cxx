@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -40,22 +40,21 @@ TEST(Open, Trivia) {
   ASSERT_TRUE(REMOVE_FILE(testdb_name) != 0 && errno == ENOENT);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) != 0 && errno == ENOENT);
 
-  EXPECT_EQ(FPTA_SUCCESS, fpta_db_open(testdb_name, fpta_sync, fpta_saferam,
-                                       0644, 1, false, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_saferam, 0644, 1,
+                                  false, &db));
   EXPECT_NE(nullptr, db);
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_sync, fpta_frendly4writeback, 0644,
-                         1, true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync,
+                                  fpta_frendly4writeback, 0644, 1, true, &db));
   EXPECT_NE(nullptr, db);
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 
-  EXPECT_EQ(FPTA_SUCCESS,
+  ASSERT_EQ(FPTA_OK,
             fpta_db_open(testdb_name, fpta_lazy, fpta_frendly4compaction, 0644,
                          1, false, &db));
   EXPECT_NE(nullptr, db);
@@ -63,7 +62,7 @@ TEST(Open, Trivia) {
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 
-  EXPECT_EQ(FPTA_SUCCESS,
+  ASSERT_EQ(FPTA_OK,
             fpta_db_open(testdb_name, fpta_weak,
                          fpta_frendly4writeback | fpta_frendly4compaction, 0644,
                          1, false, &db));

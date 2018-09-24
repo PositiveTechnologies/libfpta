@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -59,9 +59,8 @@ TEST(SmokeComposite, Primary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками и одним составным PK
@@ -384,9 +383,8 @@ TEST(SmokeIndex, Secondary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_SUCCESS,
-            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                         true, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками,

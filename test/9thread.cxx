@@ -122,9 +122,9 @@ TEST(Threaded, SimpleConcurence) {
   }
 
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
                                   true, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database opened");
 
   { // create table
@@ -152,9 +152,9 @@ TEST(Threaded, SimpleConcurence) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
                                   false, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
 
   write_thread_proc(db, 42, 50);
@@ -253,9 +253,9 @@ TEST(Threaded, SimpleSelect) {
   }
 
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
                                   true, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database opened");
 
   { // create table
@@ -287,9 +287,9 @@ TEST(Threaded, SimpleSelect) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
                                   false, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
 
   fpta_txn *txn = nullptr;
@@ -497,8 +497,9 @@ TEST(Threaded, SimpleVisitor) {
   }
 
   fpta_db *db = nullptr;
-  fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1, true, &db);
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+                                  true, &db));
+  ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database opened");
 
   { // create table
@@ -528,9 +529,9 @@ TEST(Threaded, SimpleVisitor) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
                                   false, &db));
-  ASSERT_NE(db, (fpta_db *)nullptr);
+  ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
 
 #ifdef CI
