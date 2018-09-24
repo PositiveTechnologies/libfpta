@@ -60,7 +60,7 @@ inline fpta_value order_checksum(int order, fptu_type type,
                                  fpta_index_type index) {
   auto signature = fpta_column_shove(0, type, index);
   return fpta_value_uint(
-      t1ha1_le(&signature, sizeof(signature), (uint64_t)order));
+      t1ha2_atonce(&signature, sizeof(signature), (uint64_t)order));
 }
 
 template <fptu_type data_type, fpta_index_type index_type> struct probe_key {
