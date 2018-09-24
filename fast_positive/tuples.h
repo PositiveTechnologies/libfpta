@@ -43,10 +43,10 @@
 
 #if defined(fptu_EXPORTS)
 #define FPTU_API __dll_export
-#elif LIBFPTU_STATIC
-#define FPTU_API
-#else
+#elif defined(fptu_IMPORTS) || !LIBFPTU_STATIC
 #define FPTU_API __dll_import
+#else
+#define FPTU_API
 #endif /* fptu_EXPORTS */
 
 #ifdef _MSC_VER
