@@ -55,3 +55,8 @@
 #cmakedefine01 FPTA_PROHIBIT_LOSS_PRECISION
 #cmakedefine01 FPTA_ENABLE_RETURN_INTO_RANGE
 #cmakedefine01 FPTA_ENABLE_ABORT_ON_PANIC
+
+#if !LIBFPTA_STATIC && LIBFPTU_STATIC && !defined(fptu_EXPORTS) &&             \
+    !defined(fptu_IMPORTS)
+#define fptu_IMPORTS
+#endif

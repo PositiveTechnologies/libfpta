@@ -6,7 +6,7 @@ add_subdirectory(libfptu/test)
 
 add_library(t1ha STATIC t1ha/src/t1ha1.c)
 
-target_compile_definitions(t1ha PRIVATE
+target_compile_definitions(t1ha PRIVATE t1ha_EXPORTS
   T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>
   T1HA0_DISABLED=1
   T1HA2_DISABLED=1
@@ -35,7 +35,7 @@ add_library(mdbx STATIC
   libmdbx/src/version.c
   )
 
-target_compile_definitions(mdbx PRIVATE MDBX_DEVEL=0 MDBX_DEBUG=$<CONFIG:Debug> $<$<BOOL:${ENABLE_VALGRIND}>:ENABLE_VALGRIND>)
+target_compile_definitions(mdbx PRIVATE LIBMDBX_EXPORTS MDBX_DEVEL=0 MDBX_DEBUG=$<CONFIG:Debug> $<$<BOOL:${ENABLE_VALGRIND}>:ENABLE_VALGRIND>)
 target_link_libraries(mdbx ${CMAKE_THREAD_LIBS_INIT})
 
 if(UNIX AND NOT APPLE)

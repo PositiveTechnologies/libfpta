@@ -81,13 +81,16 @@ set_target_properties(fpta PROPERTIES
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   )
 
-target_link_libraries(fpta
-  fptu mdbx t1ha ${LIB_MATH}
-  ${CMAKE_THREAD_LIBS_INIT}
-  )
-
-if(UNIX AND NOT APPLE)
-  target_link_libraries(fpta rt)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+  target_link_libraries(fpta
+    LINK_PRIVATE fptu mdbx t1ha
+    LINK_PUBLIC ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
+else()
+  target_link_libraries(fpta fptu mdbx t1ha
+    ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
+  if(UNIX AND NOT APPLE)
+    target_link_libraries(fpta rt)
+  endif()
 endif()
 
 if(CC_HAS_VISIBILITY)
@@ -98,9 +101,11 @@ if(CC_HAS_VISIBILITY)
 endif()
 
 if(NOT LIBFPTA_STATIC)
-  target_compile_definitions(fpta PRIVATE "-Dfpta_EXPORTS")
+  target_compile_definitions(fpta
+    PRIVATE -Dfpta_EXPORTS -Dfptu_EXPORTS -Dt1ha_EXPORTS -DLIBMDBX_EXPORTS
+    INTERFACE -Dfpta_IMPORTS -Dfptu_IMPORTS -Dt1ha_IMPORTS -DLIBMDBX_IMPORTS)
 else()
-  target_compile_definitions(fpta PRIVATE "-Dfpta_STATIC")
+  target_compile_definitions(fpta PRIVATE -Dfpta_STATIC)
 endif()
 
 install(TARGETS fpta
