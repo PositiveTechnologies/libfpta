@@ -4471,6 +4471,18 @@ TEST(SmokeFilter, ChoppedLookup) {
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   txn = nullptr;
 
+  // разрушаем привязанные идентификаторы
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&_id);
+  fpta_name_destroy(&date);
+  fpta_name_destroy(&id_str);
+  fpta_name_destroy(&desc);
+  fpta_name_destroy(&score);
+  fpta_name_destroy(&threat);
+  fpta_name_destroy(&sha256);
+  fpta_name_destroy(&sha1);
+  fpta_name_destroy(&md5);
+
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
   db = nullptr;
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
