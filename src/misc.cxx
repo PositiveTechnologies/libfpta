@@ -31,6 +31,11 @@
 
 #define FIXME "FIXME: " __FILE__ ", " FPT_STRINGIFY(__LINE__)
 
+#if __GNUC_PREREQ(8, 0) && !__GNUC_PREREQ(9, 0)
+/* LY: workaround to false-positive warnings about __cold */
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif /* GCC 8.x */
+
 __cold static const char *__fpta_errstr(int errnum) {
 #if defined(_WIN32) || defined(_WIN64)
   static_assert(FPTA_ENOMEM == ERROR_OUTOFMEMORY, "error code mismatch");
