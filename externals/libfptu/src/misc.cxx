@@ -25,6 +25,11 @@
                        deprecation, use _CRT_SECURE_NO_WARNINGS. */
 #endif                          /* _MSC_VER (warnings) */
 
+#if __GNUC_PREREQ(8, 0) && !__GNUC_PREREQ(9, 0)
+/* LY: workaround to false-positive warnings about __cold */
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif /* GCC 8.x */
+
 bool fptu_is_under_valgrind(void) {
 #ifdef RUNNING_ON_VALGRIND
   if (RUNNING_ON_VALGRIND)
