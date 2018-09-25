@@ -819,7 +819,10 @@ TEST(Nullable, AsyncSchemaChange) {
   fpta_name_destroy(&cm_col_pk);
   fpta_name_destroy(&cm_col_se);
   fpta_name_destroy(&cm_table);
+
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_commander));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -1055,6 +1058,8 @@ TEST(Nullable, SchemaReloadAfterAbort) {
   }
 
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -1206,6 +1211,8 @@ TEST(CRUD, DISABLED_ExtraOps) {
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -1445,6 +1452,8 @@ TEST(Nullable, SchemaReload) {
   }
 
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------

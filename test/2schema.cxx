@@ -19,8 +19,9 @@
 
 #include "fpta_test.h"
 
-static const char testdb_name[] = "ut_schema.fpta";
-static const char testdb_name_lck[] = "ut_schema.fpta" MDBX_LOCK_SUFFIX;
+static const char testdb_name[] = TEST_DB_DIR "ut_schema.fpta";
+static const char testdb_name_lck[] =
+    TEST_DB_DIR "ut_schema.fpta" MDBX_LOCK_SUFFIX;
 
 TEST(Schema, Trivia) {
   /* Тривиальный тест создания/заполнения описания колонок таблицы.
@@ -382,11 +383,8 @@ TEST(Schema, Base) {
   fpta_name_destroy(&col_y);
 
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 TEST(Schema, TriviaWithNullable) {
@@ -892,7 +890,11 @@ TEST(Schema, FailingDrop) {
   txn = nullptr;
 
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
+
+//----------------------------------------------------------------------------
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);

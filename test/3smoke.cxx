@@ -24,8 +24,9 @@
 #include "fpta_test.h"
 #include "tools.hpp"
 
-static const char testdb_name[] = "ut_smoke.fpta";
-static const char testdb_name_lck[] = "ut_smoke.fpta" MDBX_LOCK_SUFFIX;
+static const char testdb_name[] = TEST_DB_DIR "ut_smoke.fpta";
+static const char testdb_name_lck[] =
+    TEST_DB_DIR "ut_smoke.fpta" MDBX_LOCK_SUFFIX;
 
 TEST(SmokeIndex, Primary) {
   /* Smoke-проверка жизнеспособности первичных индексов.
@@ -278,12 +279,8 @@ TEST(SmokeIndex, Primary) {
 
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 TEST(SmokeIndex, Secondary) {
@@ -522,12 +519,8 @@ TEST(SmokeIndex, Secondary) {
 
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -2153,6 +2146,8 @@ TEST(SmokeCrud, OneRowOneColumn) {
 
   // закрываем базу
   ASSERT_EQ(FPTA_OK, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -2991,6 +2986,8 @@ TEST(Smoke, ReOpenAfterAbort) {
   // закрываем базу
   fpta_name_destroy(&table_id);
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -3298,6 +3295,8 @@ TEST(Smoke, OverchargeOnCommit) {
 
   // закрываем базу
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -3553,6 +3552,8 @@ TEST(Smoke, AsyncSchemaChange) {
   fpta_name_destroy(&table_id_);
 
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_correlator));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -3796,12 +3797,8 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
   db = nullptr;
-
-  // пока не удялем файлы чтобы можно было посмотреть и натравить mdbx_chk
-  if (false) {
-    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -4098,16 +4095,8 @@ TEST(Smoke, Migration) {
   // закрываем базу в корреляторе
   ASSERT_EQ(FPTA_SUCCESS, fpta_db_close(correlator_db));
   correlator_db = nullptr;
-
-  // пока не удялем файлы чтобы можно было запустить mdbx_chk
-  if (false) {
-    if (REMOVE_FILE(testdb_name) != 0) {
-      ASSERT_EQ(ENOENT, errno);
-    }
-    if (REMOVE_FILE(testdb_name_lck) != 0) {
-      ASSERT_EQ(ENOENT, errno);
-    }
-  }
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
 //----------------------------------------------------------------------------
@@ -4292,6 +4281,198 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
   fpta_name_destroy(&col_composite);
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//----------------------------------------------------------------------------
+
+TEST(SmokeFilter, ChoppedLookup) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // открываем/создаем базульку в 1 мегабайт
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  { // create table
+    fpta_column_set def;
+    fpta_column_set_init(&def);
+
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "_id", fptu_uint64,
+                           fpta_secondary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "_last_changed", fptu_datetime,
+                           fpta_secondary_withdups_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe("id", fptu_cstr,
+                                   fpta_primary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe("description", fptu_cstr,
+                                            fpta_noindex_nullable, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "score", fptu_uint64,
+                           fpta_secondary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "threat_type", fptu_cstr,
+                           fpta_secondary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(
+                  "hash_sha256", fptu_cstr,
+                  fpta_secondary_withdups_ordered_obverse_nullable, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(
+                  "hash_sha1", fptu_cstr,
+                  fpta_secondary_withdups_ordered_obverse_nullable, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(
+                  "hash_md5", fptu_cstr,
+                  fpta_secondary_withdups_ordered_obverse_nullable, &def));
+
+    fpta_txn *txn = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+    ASSERT_NE(nullptr, txn);
+    EXPECT_EQ(FPTA_OK,
+              fpta_table_create(
+                  txn, "repListHashes_nokind_CybsiExperts_without_kind", &def));
+    EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    txn = nullptr;
+
+    // разрушаем описание таблицы
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  }
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+  db = nullptr;
+
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0664, 1,
+                                  false, &db));
+  ASSERT_NE(nullptr, db);
+
+  fpta_name table, _id, date, id_str, desc, score, threat, sha256, sha1, md5;
+  EXPECT_EQ(FPTA_OK,
+            fpta_table_init(&table,
+                            "repListHashes_nokind_CybsiExperts_without_kind"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &_id, "_id"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &date, "_last_changed"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &id_str, "id"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &desc, "description"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &score, "score"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &threat, "threat_type"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &sha256, "hash_sha256"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &sha1, "hash_sha1"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &md5, "hash_md5"));
+
+  // start write-transaction
+  fpta_txn *txn = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  const std::string md5_content(
+      "DA2A486F74498E403B8F28DA7B0D1BD76930BFAFF840C60CA4591340FBECEAF6");
+  {
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &table));
+
+    fptu_rw *tuple = fptu_alloc(9, 2000);
+    ASSERT_NE(nullptr, tuple);
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &_id));
+    uint64_t result = 0;
+    EXPECT_EQ(FPTA_OK, fpta_table_sequence(txn, &table, &result, 1));
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &_id, fpta_value_uint(result)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &date));
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(
+                           tuple, &date, fpta_value_datetime(fptu_now_fine())));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &id_str));
+    const std::string id_str_content("Bad_file");
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &id_str,
+                                          fpta_value_str(id_str_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &desc));
+    const std::string desc_content("bad bad file");
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &desc, fpta_value_str(desc_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &score));
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &score, fpta_value_uint(91)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &threat));
+    std::string threat_content("oooooh so bad file!");
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &threat,
+                                          fpta_value_str(threat_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &sha256));
+    const std::string sha256_content(
+        "BE148EA7ECA5A37AAB92FE2967AE425B8C7D4BC80DEC8099BE25CA5EC309989D");
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &sha256,
+                                          fpta_value_str(sha256_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &sha1));
+    std::string sha1_content("BE148EA7ECA5A37");
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &sha1, fpta_value_str(sha1_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &md5));
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &md5, fpta_value_str(md5_content)));
+
+    EXPECT_EQ(FPTA_OK,
+              fpta_probe_and_upsert_row(txn, &table, fptu_take(tuple)));
+
+    EXPECT_EQ(FPTA_OK, fptu_clear(tuple));
+    free(tuple);
+  }
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // start read transaction
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+  {
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &md5));
+
+    fpta_filter filter;
+    filter.type = fpta_node_eq;
+    filter.node_cmp.left_id = &md5;
+    filter.node_cmp.right_value = fpta_value_str(md5_content);
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn, &md5, fpta_value_begin(), fpta_value_end(),
+                               &filter, fpta_unsorted, &cursor));
+    ASSERT_NE(nullptr, txn);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_eof(cursor));
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+    cursor = nullptr;
+
+    std::string md5_left(md5_content.substr(0, fpta_bits::fpta_max_keylen - 1));
+    std::string md5_right = md5_left;
+    md5_right.back() += 1;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &md5, fpta_value_str(md5_left),
+                                        fpta_value_str(md5_right), &filter,
+                                        fpta_unsorted, &cursor));
+    ASSERT_NE(nullptr, txn);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_eof(cursor));
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+    cursor = nullptr;
+  }
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+  db = nullptr;
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
