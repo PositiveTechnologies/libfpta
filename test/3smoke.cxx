@@ -3788,6 +3788,13 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
   fpta_name_destroy(&table);
   fpta_name_destroy(&some_field);
   fpta_name_destroy(&age);
+
+  // разрушаем созданый кортеж
+  // на всякий случай предварительно проверяя
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  free(pt1);
+  pt1 = nullptr;
+
   // закрываем базульку
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
   db = nullptr;

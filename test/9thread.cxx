@@ -240,6 +240,11 @@ static void read_thread_proc(fpta_db *db, const int thread_num,
     fpta_name_destroy(&column);
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   }
+
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&ip);
+  fpta_name_destroy(&port);
+
   SCOPED_TRACE("Thread " + std::to_string(thread_num) + " finished");
 }
 
