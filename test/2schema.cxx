@@ -896,6 +896,70 @@ TEST(Schema, FailingDrop) {
 
 //----------------------------------------------------------------------------
 
+TEST(Schema, FailingClear) {
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db *db = nullptr;
+  /* открываем базу с возможностью изменять схему */
+  ASSERT_EQ(FPTA_SUCCESS,
+            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
+                         true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // формируем описание колонок для таблицы
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("field_1", fptu_cstr, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("field_2", fptu_int64,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                         "field_3", fptu_cstr,
+                         fpta_secondary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  //------------------------------------------------------------------------
+  // создаем таблицу
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  //------------------------------------------------------------------------
+  // очищаем таблицу
+  fpta_name table;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  ASSERT_EQ(FPTA_OK, fpta_name_refresh(txn, &table));
+
+  EXPECT_EQ(FPTA_OK, fpta_table_clear(txn, &table, true));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  fpta_name_destroy(&table);
+
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
