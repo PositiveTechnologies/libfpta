@@ -303,6 +303,9 @@ int fpta_table_clear(fpta_txn *txn, fpta_name *table_id, bool reset_sequence) {
 
   if (table_def->has_secondary()) {
     for (size_t i = 1; i < table_def->column_count(); ++i) {
+      const fpta_shove_t shove = table_def->column_shove(i);
+      if (!fpta_is_indexed(shove))
+        break;
       rc = mdbx_drop(txn->mdbx_txn, dbi[i], 0);
       if (unlikely(rc != MDBX_SUCCESS))
         return fpta_internal_abort(txn, rc);
