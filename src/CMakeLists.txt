@@ -51,7 +51,6 @@ add_library(fptu ${LIBFPTU_TYPE}
   ../fast_positive/defs.h
   ../fast_positive/tuples.h
   ../fast_positive/tuples_internal.h
-  ../fast_positive/schema.h
   common.cxx
   create.cxx
   check.cxx
@@ -222,5 +221,3 @@ if(NOT BUILD_SHARED_LIBS)
     "       So, libfptu could be STATICALLY LINKED ONLY WITH GPLed software.\n"
     "   **********************************************************************")
 endif()
-
-add_subdirectory(schema)

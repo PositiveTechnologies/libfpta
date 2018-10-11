@@ -1312,8 +1312,6 @@ bool operator<(const fptu_lge &, const fptu_lge &) = delete;
 bool operator<=(const fptu_lge &, const fptu_lge &) = delete;
 #endif /* __cplusplus */
 
-#include "fast_positive/schema.h"
-
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
