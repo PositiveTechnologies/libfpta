@@ -21,16 +21,16 @@
 
 __hot const fptu_field *fptu_first(const fptu_field *begin,
                                    const fptu_field *end, unsigned column,
-                                   int type_or_filter) {
-  if (type_or_filter & fptu_filter) {
+                                   fptu_type_or_filter type_or_filter) {
+  if (is_filter(type_or_filter)) {
     for (const fptu_field *pf = begin; pf < end; ++pf) {
-      if (fptu_ct_match(pf, column, type_or_filter))
+      if (match(pf, column, type_or_filter))
         return pf;
     }
   } else {
-    uint_fast16_t ct = fptu_pack_coltype(column, type_or_filter);
+    uint_fast16_t ct = fptu_make_tag(column, (fptu_type)type_or_filter);
     for (const fptu_field *pf = begin; pf < end; ++pf) {
-      if (pf->ct == ct)
+      if (pf->tag == ct)
         return pf;
     }
   }
@@ -38,7 +38,8 @@ __hot const fptu_field *fptu_first(const fptu_field *begin,
 }
 
 __hot const fptu_field *fptu_next(const fptu_field *from, const fptu_field *end,
-                                  unsigned column, int type_or_filter) {
+                                  unsigned column,
+                                  fptu_type_or_filter type_or_filter) {
   return fptu_first(from + 1, end, column, type_or_filter);
 }
 
@@ -49,7 +50,7 @@ __hot const fptu_field *fptu_first_ex(const fptu_field *begin,
                                       fptu_field_filter filter, void *context,
                                       void *param) {
   for (const fptu_field *pf = begin; pf < end; ++pf) {
-    if (ct_is_dead(pf->ct))
+    if (pf->is_dead())
       continue;
     if (filter(pf, context, param))
       return pf;
@@ -99,8 +100,8 @@ __hot const fptu_field *fptu_end_rw(const fptu_rw *pt) {
 
 //----------------------------------------------------------------------------
 
-size_t fptu_field_count(const fptu_rw *pt, unsigned column,
-                        int type_or_filter) {
+size_t fptu_field_count_rw(const fptu_rw *pt, unsigned column,
+                           fptu_type_or_filter type_or_filter) {
   const fptu_field *end = fptu_end_rw(pt);
   const fptu_field *begin = fptu_begin_rw(pt);
   const fptu_field *pf = fptu_first(begin, end, column, type_or_filter);
@@ -112,7 +113,8 @@ size_t fptu_field_count(const fptu_rw *pt, unsigned column,
   return count;
 }
 
-size_t fptu_field_count_ro(fptu_ro ro, unsigned column, int type_or_filter) {
+size_t fptu_field_count_ro(fptu_ro ro, unsigned column,
+                           fptu_type_or_filter type_or_filter) {
   const fptu_field *end = fptu_end_ro(ro);
   const fptu_field *begin = fptu_begin_ro(ro);
   const fptu_field *pf = fptu_first(begin, end, column, type_or_filter);
@@ -124,8 +126,8 @@ size_t fptu_field_count_ro(fptu_ro ro, unsigned column, int type_or_filter) {
   return count;
 }
 
-size_t fptu_field_count_ex(const fptu_rw *pt, fptu_field_filter filter,
-                           void *context, void *param) {
+size_t fptu_field_count_rw_ex(const fptu_rw *pt, fptu_field_filter filter,
+                              void *context, void *param) {
   const fptu_field *end = fptu_end_rw(pt);
   const fptu_field *begin = fptu_begin_rw(pt);
   const fptu_field *pf = fptu_first_ex(begin, end, filter, context, param);

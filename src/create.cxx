@@ -47,7 +47,7 @@ fptu_rw *fptu_init(void *space, size_t buffer_bytes, size_t items_limit) {
   return pt;
 }
 
-int fptu_clear(fptu_rw *pt) {
+fptu_error fptu_clear(fptu_rw *pt) {
   if (unlikely(pt == nullptr))
     return FPTU_EINVAL;
   if (unlikely(pt->pivot < 1 || pt->pivot > fptu_max_fields + 1 ||
@@ -174,6 +174,19 @@ fptu_rw *fptu_alloc(size_t items_limit, size_t data_bytes) {
 
   fptu_rw *pt = fptu_init(buffer, size, items_limit);
   assert(pt != nullptr);
+
+  return pt;
+}
+
+fptu_rw *fptu_rw::create(size_t items_limit, size_t data_bytes) {
+  if (unlikely(items_limit > fptu_max_fields ||
+               data_bytes > fptu_max_tuple_bytes))
+    throw std::invalid_argument(
+        "fptu::alloc_tuple_c(): items_limit and/or data_bytes is invalid");
+
+  fptu_rw *pt = fptu_alloc(items_limit, data_bytes);
+  if (unlikely(!pt))
+    throw std::bad_alloc();
 
   return pt;
 }

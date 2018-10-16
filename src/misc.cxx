@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -42,6 +42,37 @@ bool fptu_is_under_valgrind(void) {
 }
 
 namespace fptu {
+
+bad_tuple::bad_tuple(const fptu_ro &ro)
+    : std::invalid_argument(
+          format("fptu: Invalid ro-tuple '%s'", fptu_check_ro(ro))) {}
+
+bad_tuple::bad_tuple(const fptu_rw *rw)
+    : std::invalid_argument(
+          format("fptu: Invalid rw-tuple '%s'", fptu_check_rw(rw))) {}
+
+__cold void throw_error(fptu_error err) {
+  assert(err != FPTU_SUCCESS);
+  switch (err) {
+  case FPTU_SUCCESS:
+    return;
+  case FPTU_ENOFIELD:
+    throw std::runtime_error("fptu: No such field");
+  case FPTU_EINVAL:
+    throw std::invalid_argument("fptu: Invalid agrument");
+  case FPTU_ENOSPACE:
+    throw std::runtime_error("fptu: No space for field or value");
+  default:
+    throw std::runtime_error(strerror(err));
+  }
+}
+
+cxx14_constexpr string_view::const_reference
+string_view::at(string_view::size_type pos) const {
+  if (unlikely(pos >= size()))
+    throw std::out_of_range("fptu::string_view::at(): pos >= size()");
+  return str[pos];
+}
 
 __cold std::string format(const char *fmt, va_list ap) {
   va_list ones;
@@ -185,10 +216,10 @@ __cold string to_string(const fptu_error error) {
 
 template <typename native>
 static inline std::string
-array2str_native(uint_fast16_t ct, const fptu_payload *payload,
+array2str_native(uint_fast16_t tag, const fptu_payload *payload,
                  const char *name, const char *comma_fmt) {
   std::string result =
-      fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(ct), name,
+      fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(tag), name,
                    payload->other.varlen.array_length,
                    units2bytes(payload->other.varlen.brutto));
 
@@ -199,11 +230,11 @@ array2str_native(uint_fast16_t ct, const fptu_payload *payload,
   return result + "}";
 }
 
-static std::string array2str_fixbin(uint_fast16_t ct,
+static std::string array2str_fixbin(uint_fast16_t tag,
                                     const fptu_payload *payload,
                                     const char *name, unsigned itemsize) {
   std::string result =
-      fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(ct), name,
+      fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(tag), name,
                    payload->other.varlen.array_length,
                    units2bytes(payload->other.varlen.brutto));
 
@@ -219,103 +250,95 @@ static std::string array2str_fixbin(uint_fast16_t ct,
 }
 
 __cold string to_string(const fptu_field &field) {
-  const auto type = fptu_get_type(field.ct);
-  auto payload = fptu_field_payload(&field);
+  const auto type = field.type();
+  auto payload = field.payload();
   switch ((int /* hush 'not in enumerated' */)type) {
   default:
   case fptu_null:
-    return fptu::format("{%u.%s}", fptu_get_colnum(field.ct),
-                        fptu_type_name(type));
+    return fptu::format("{%u.%s}", field.colnum(), fptu_type_name(type));
   case fptu_uint16:
-    return fptu::format("{%u.%s=%u}", fptu_get_colnum(field.ct),
-                        fptu_type_name(type),
+    return fptu::format("{%u.%s=%u}", field.colnum(), fptu_type_name(type),
                         (unsigned)field.get_payload_uint16());
   case fptu_int32:
-    return fptu::format("{%u.%s=%" PRId32 "}", fptu_get_colnum(field.ct),
+    return fptu::format("{%u.%s=%" PRId32 "}", field.colnum(),
                         fptu_type_name(type), payload->i32);
   case fptu_uint32:
-    return fptu::format("{%u.%s=%" PRIu32 "}", fptu_get_colnum(field.ct),
+    return fptu::format("{%u.%s=%" PRIu32 "}", field.colnum(),
                         fptu_type_name(type), payload->u32);
   case fptu_fp32:
-    return fptu::format("{%u.%s=%g}", fptu_get_colnum(field.ct),
-                        fptu_type_name(type), payload->fp32);
+    return fptu::format("{%u.%s=%g}", field.colnum(), fptu_type_name(type),
+                        payload->fp32);
   case fptu_int64:
-    return fptu::format("{%u.%s=%" PRId64 "}", fptu_get_colnum(field.ct),
+    return fptu::format("{%u.%s=%" PRId64 "}", field.colnum(),
                         fptu_type_name(type), payload->i64);
   case fptu_uint64:
-    return fptu::format("{%u.%s=%" PRIu64 "}", fptu_get_colnum(field.ct),
+    return fptu::format("{%u.%s=%" PRIu64 "}", field.colnum(),
                         fptu_type_name(type), payload->u64);
   case fptu_fp64:
-    return fptu::format("{%u.%s=%.12g}", fptu_get_colnum(field.ct),
-                        fptu_type_name(type), payload->fp64);
+    return fptu::format("{%u.%s=%.12g}", field.colnum(), fptu_type_name(type),
+                        payload->fp64);
 
   case fptu_datetime:
-    return fptu::format("{%u.%s=", fptu_get_colnum(field.ct),
-                        fptu_type_name(type)) +
+    return fptu::format("{%u.%s=", field.colnum(), fptu_type_name(type)) +
            to_string(payload->dt) + '}';
 
   case fptu_96:
-    return fptu::format("{%u.%s=", fptu_get_colnum(field.ct),
-                        fptu_type_name(type)) +
+    return fptu::format("{%u.%s=", field.colnum(), fptu_type_name(type)) +
            fptu::hexadecimal(payload->fixbin, 96 / 8) + '}';
 
   case fptu_128:
-    return fptu::format("{%u.%s=", fptu_get_colnum(field.ct),
-                        fptu_type_name(type)) +
+    return fptu::format("{%u.%s=", field.colnum(), fptu_type_name(type)) +
            fptu::hexadecimal(payload->fixbin, 128 / 8) + '}';
 
   case fptu_160:
-    return fptu::format("{%u.%s=", fptu_get_colnum(field.ct),
-                        fptu_type_name(type)) +
+    return fptu::format("{%u.%s=", field.colnum(), fptu_type_name(type)) +
            fptu::hexadecimal(payload->fixbin, 160 / 8) + '}';
 
   case fptu_256:
-    return fptu::format("{%u.%s=", fptu_get_colnum(field.ct),
-                        fptu_type_name(type)) +
+    return fptu::format("{%u.%s=", field.colnum(), fptu_type_name(type)) +
            fptu::hexadecimal(payload->fixbin, 256 / 8) + '}';
 
   case fptu_cstr:
-    return fptu::format("{%u.%s=%s}", fptu_get_colnum(field.ct),
-                        fptu_type_name(type), payload->cstr);
+    return fptu::format("{%u.%s=%s}", field.colnum(), fptu_type_name(type),
+                        payload->cstr);
 
   case fptu_opaque:
-    return fptu::format("{%u.%s=", fptu_get_colnum(field.ct),
-                        fptu_type_name(type)) +
+    return fptu::format("{%u.%s=", field.colnum(), fptu_type_name(type)) +
            fptu::hexadecimal(payload->other.data,
                              payload->other.varlen.opaque_bytes) +
            '}';
     break;
 
   case fptu_nested:
-    return fptu::format("{%u.%s=", fptu_get_colnum(field.ct),
-                        fptu_type_name(type)) +
+    return fptu::format("{%u.%s=", field.colnum(), fptu_type_name(type)) +
            std::to_string(fptu_field_nested(&field)) + "}";
 
   case fptu_null | fptu_farray:
-    return fptu::format("{%u.invalid-null[%u(%" PRIuPTR ")]}",
-                        fptu_get_colnum(field.ct),
+    return fptu::format("{%u.invalid-null[%u(%" PRIuPTR ")]}", field.colnum(),
                         payload->other.varlen.array_length,
                         units2bytes(payload->other.varlen.brutto));
 
   case fptu_uint16 | fptu_farray:
-    return array2str_native<uint16_t>(field.ct, payload, "uint16", ",%u");
+    return array2str_native<uint16_t>(field.tag, payload, "uint16", ",%u");
   case fptu_int32 | fptu_farray:
-    return array2str_native<int32_t>(field.ct, payload, "int32", ",%" PRId32);
+    return array2str_native<int32_t>(field.tag, payload, "int32", ",%" PRId32);
   case fptu_uint32 | fptu_farray:
-    return array2str_native<uint32_t>(field.ct, payload, "uint32", ",%" PRIu32);
+    return array2str_native<uint32_t>(field.tag, payload, "uint32",
+                                      ",%" PRIu32);
   case fptu_fp32 | fptu_farray:
-    return array2str_native<float>(field.ct, payload, "fp32", ",%g");
+    return array2str_native<float>(field.tag, payload, "fp32", ",%g");
   case fptu_int64 | fptu_farray:
-    return array2str_native<int64_t>(field.ct, payload, "int64", ",%" PRId64);
+    return array2str_native<int64_t>(field.tag, payload, "int64", ",%" PRId64);
   case fptu_uint64 | fptu_farray:
-    return array2str_native<uint64_t>(field.ct, payload, "uint64", ",%" PRIu64);
+    return array2str_native<uint64_t>(field.tag, payload, "uint64",
+                                      ",%" PRIu64);
   case fptu_fp64 | fptu_farray:
-    return array2str_native<double>(field.ct, payload, "fp64", ",%.12g");
+    return array2str_native<double>(field.tag, payload, "fp64", ",%.12g");
 
   case fptu_datetime | fptu_farray: {
     std::string result =
-        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(field.ct),
-                     "datetime", payload->other.varlen.array_length,
+        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", field.colnum(), "datetime",
+                     payload->other.varlen.array_length,
                      units2bytes(payload->other.varlen.brutto));
 
     const fptu_time *array = (const fptu_time *)&payload->other.data[1];
@@ -328,18 +351,18 @@ __cold string to_string(const fptu_field &field) {
   }
 
   case fptu_96 | fptu_farray:
-    return array2str_fixbin(field.ct, payload, "b96", 96 / 8);
+    return array2str_fixbin(field.tag, payload, "b96", 96 / 8);
   case fptu_128 | fptu_farray:
-    return array2str_fixbin(field.ct, payload, "b128", 128 / 8);
+    return array2str_fixbin(field.tag, payload, "b128", 128 / 8);
   case fptu_160 | fptu_farray:
-    return array2str_fixbin(field.ct, payload, "b160", 160 / 8);
+    return array2str_fixbin(field.tag, payload, "b160", 160 / 8);
   case fptu_256 | fptu_farray:
-    return array2str_fixbin(field.ct, payload, "b256", 256 / 8);
+    return array2str_fixbin(field.tag, payload, "b256", 256 / 8);
 
   case fptu_cstr | fptu_farray: {
     std::string result =
-        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(field.ct),
-                     "cstr", payload->other.varlen.array_length,
+        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", field.colnum(), "cstr",
+                     payload->other.varlen.array_length,
                      units2bytes(payload->other.varlen.brutto));
 
     const char *array = (const char *)&payload->other.data[1];
@@ -352,8 +375,8 @@ __cold string to_string(const fptu_field &field) {
 
   case fptu_opaque | fptu_farray: {
     std::string result =
-        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(field.ct),
-                     "opaque", payload->other.varlen.array_length,
+        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", field.colnum(), "opaque",
+                     payload->other.varlen.array_length,
                      units2bytes(payload->other.varlen.brutto));
 
     const fptu_unit *array = (const fptu_unit *)&payload->other.data[1];
@@ -368,8 +391,8 @@ __cold string to_string(const fptu_field &field) {
 
   case fptu_nested | fptu_farray: {
     std::string result =
-        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", fptu_get_colnum(field.ct),
-                     "nested", payload->other.varlen.array_length,
+        fptu::format("{%u.%s[%u(%" PRIuPTR ")]=", field.colnum(), "nested",
+                     payload->other.varlen.array_length,
                      units2bytes(payload->other.varlen.brutto));
 
     const fptu_unit *array = (const fptu_unit *)&payload->other.data[1];
@@ -450,13 +473,13 @@ __cold string to_string(const fptu_lge lge) {
 }
 
 __cold string to_string(const fptu_time &time) {
-  const double scale = exp2(-32);
   char fractional[16];
-  snprintf(fractional, sizeof(fractional), "%.9f",
-           scale * (uint32_t)time.fixedpoint);
+  /* с точностью до наносекунд,
+   * поэтому внутри snprintf() может произойти округление до 1.000 */
+  snprintf(fractional, sizeof(fractional), "%.9f", time.fractional2seconds());
   assert(fractional[0] == '0' || fractional[0] == '1');
 
-  time_t utc_sec = (time_t)(time.fixedpoint >> 32);
+  time_t utc_sec = (time_t)time.utc;
   if (fractional[0] == '1')
     /* учитываем перенос при округлении fractional */
     utc_sec += 1;

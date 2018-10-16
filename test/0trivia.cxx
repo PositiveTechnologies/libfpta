@@ -78,59 +78,63 @@ TEST(Trivia, Apriory) {
   ASSERT_LT(fptu_fr_mask, 1 << fptu_co_shift);
   ASSERT_GT(fptu_limit, fptu_max_cols << fptu_co_shift);
 
-  ASSERT_GT((size_t)fptu_filter, (size_t)fptu_ty_mask);
-  ASSERT_EQ(fptu_filter, fptu_filter & fptu_any);
+  ASSERT_GT((size_t)fptu_ffilter, (size_t)fptu_ty_mask);
+  ASSERT_EQ(fptu_ffilter, fptu_ffilter & fptu_any);
 
-  ASSERT_EQ(0u, ct_elem_size(fptu_null));
-  ASSERT_EQ(0u, ct_elem_size(fptu_uint16));
-  ASSERT_EQ(0u, ct_elem_size(fptu_16));
+  ASSERT_EQ(0u, tag_elem_size(fptu_null));
+  ASSERT_EQ(0u, tag_elem_size(fptu_uint16));
+  ASSERT_EQ(0u, tag_elem_size(fptu_16));
 
-  ASSERT_EQ(4u, ct_elem_size(fptu_int32));
-  ASSERT_EQ(4u, ct_elem_size(fptu_uint32));
-  ASSERT_EQ(4u, ct_elem_size(fptu_fp32));
-  ASSERT_EQ(4u, ct_elem_size(fptu_32));
+  ASSERT_EQ(4u, tag_elem_size(fptu_int32));
+  ASSERT_EQ(4u, tag_elem_size(fptu_uint32));
+  ASSERT_EQ(4u, tag_elem_size(fptu_fp32));
+  ASSERT_EQ(4u, tag_elem_size(fptu_32));
 
-  ASSERT_EQ(8u, ct_elem_size(fptu_int64));
-  ASSERT_EQ(8u, ct_elem_size(fptu_uint64));
-  ASSERT_EQ(8u, ct_elem_size(fptu_fp64));
-  ASSERT_EQ(8u, ct_elem_size(fptu_64));
+  ASSERT_EQ(8u, tag_elem_size(fptu_int64));
+  ASSERT_EQ(8u, tag_elem_size(fptu_uint64));
+  ASSERT_EQ(8u, tag_elem_size(fptu_fp64));
+  ASSERT_EQ(8u, tag_elem_size(fptu_64));
 
-  ASSERT_EQ(12u, ct_elem_size(fptu_96));
-  ASSERT_EQ(16u, ct_elem_size(fptu_128));
-  ASSERT_EQ(20u, ct_elem_size(fptu_160));
-  ASSERT_EQ(8u, ct_elem_size(fptu_datetime));
-  ASSERT_EQ(32u, ct_elem_size(fptu_256));
+  ASSERT_EQ(12u, tag_elem_size(fptu_96));
+  ASSERT_EQ(16u, tag_elem_size(fptu_128));
+  ASSERT_EQ(20u, tag_elem_size(fptu_160));
+  ASSERT_EQ(8u, tag_elem_size(fptu_datetime));
+  ASSERT_EQ(32u, tag_elem_size(fptu_256));
 
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_null)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_null)),
             fptu_internal_map_t2u[fptu_null]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_uint16)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_uint16)),
             fptu_internal_map_t2u[fptu_uint16]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_16)), fptu_internal_map_t2u[fptu_16]);
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_16)),
+            fptu_internal_map_t2u[fptu_16]);
 
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_int32)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_int32)),
             fptu_internal_map_t2u[fptu_int32]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_uint32)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_uint32)),
             fptu_internal_map_t2u[fptu_uint32]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_fp32)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_fp32)),
             fptu_internal_map_t2u[fptu_fp32]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_32)), fptu_internal_map_t2u[fptu_32]);
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_32)),
+            fptu_internal_map_t2u[fptu_32]);
 
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_int64)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_int64)),
             fptu_internal_map_t2u[fptu_int64]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_uint64)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_uint64)),
             fptu_internal_map_t2u[fptu_uint64]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_fp64)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_fp64)),
             fptu_internal_map_t2u[fptu_fp64]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_64)), fptu_internal_map_t2u[fptu_64]);
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_64)),
+            fptu_internal_map_t2u[fptu_64]);
 
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_96)), fptu_internal_map_t2u[fptu_96]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_128)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_96)),
+            fptu_internal_map_t2u[fptu_96]);
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_128)),
             fptu_internal_map_t2u[fptu_128]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_160)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_160)),
             fptu_internal_map_t2u[fptu_160]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_datetime)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_datetime)),
             fptu_internal_map_t2u[fptu_datetime]);
-  ASSERT_EQ(bytes2units(ct_elem_size(fptu_256)),
+  ASSERT_EQ(bytes2units(tag_elem_size(fptu_256)),
             fptu_internal_map_t2u[fptu_256]);
 
   ASSERT_EQ(4u, sizeof(fptu_varlen));
@@ -142,24 +146,24 @@ TEST(Trivia, Apriory) {
 }
 
 TEST(Trivia, ColType) {
-  uint_fast16_t ct;
-  ct = fptu_pack_coltype(0, fptu_null);
-  ASSERT_EQ(0u, ct);
-  ASSERT_GT(fptu_limit, ct);
-  EXPECT_EQ(0u, fptu_get_colnum(ct));
-  EXPECT_EQ(fptu_null, fptu_get_type(ct));
+  uint_fast16_t tag;
+  tag = fptu::make_tag(0, fptu_null);
+  ASSERT_EQ(0u, tag);
+  ASSERT_GT(fptu_limit, tag);
+  EXPECT_EQ(0u, fptu::get_colnum(tag));
+  EXPECT_EQ(fptu_null, fptu::get_type(tag));
 
-  ct = fptu_pack_coltype(42, fptu_int64);
-  ASSERT_NE(0u, ct);
-  ASSERT_GT(fptu_limit, ct);
-  EXPECT_EQ(42u, fptu_get_colnum(ct));
-  EXPECT_EQ(fptu_int64, fptu_get_type(ct));
+  tag = fptu::make_tag(42, fptu_int64);
+  ASSERT_NE(0u, tag);
+  ASSERT_GT(fptu_limit, tag);
+  EXPECT_EQ(42u, fptu::get_colnum(tag));
+  EXPECT_EQ(fptu_int64, fptu::get_type(tag));
 
-  ct = fptu_pack_coltype(fptu_max_cols, fptu_cstr | fptu_farray);
-  ASSERT_NE(0u, ct);
-  ASSERT_GT(fptu_limit, ct);
-  EXPECT_EQ(fptu_max_cols, fptu_get_colnum(ct));
-  EXPECT_EQ(fptu_cstr | fptu_farray, fptu_get_type(ct));
+  tag = fptu::make_tag(fptu_max_cols, fptu_array_cstr);
+  ASSERT_NE(0u, tag);
+  ASSERT_GT(fptu_limit, tag);
+  EXPECT_EQ(fptu_max_cols, fptu::get_colnum(tag));
+  EXPECT_EQ(fptu_cstr | fptu_farray, fptu::get_type(tag));
 }
 
 TEST(Trivia, cmp2int) {

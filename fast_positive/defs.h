@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -136,8 +136,28 @@
 #endif
 
 #if !defined(nullptr) && !defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER))
-#	define nullptr NULL
-#endif
+# define nullptr NULL
+#endif /* nullptr */
+
+#if !defined(constexpr) && !defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER))
+# define constexpr
+#endif /* constexpr */
+
+#if !defined(cxx14_constexpr)
+# if defined(__cplusplus) && __cplusplus >= 201402L
+#   define cxx14_constexpr constexpr
+# else
+#   define cxx14_constexpr
+# endif
+#endif /* cxx14_constexpr */
+
+#if !defined(cxx17_constexpr)
+# if defined(__cplusplus) && __cplusplus >= 201703L
+#   define cxx17_constexpr constexpr
+# else
+#   define cxx17_constexpr
+# endif
+#endif /* cxx17_constexpr */
 
 //----------------------------------------------------------------------------
 
@@ -145,15 +165,15 @@
 #	define __thread __declspec(thread)
 #endif /* __thread */
 
-#ifndef __alwaysinline
+#ifndef __always_inline
 #	if defined(__GNUC__) || __has_attribute(always_inline)
-#		define __alwaysinline __inline __attribute__((always_inline))
+#		define __always_inline __inline __attribute__((always_inline))
 #	elif defined(_MSC_VER)
-#		define __alwaysinline __forceinline
+#		define __always_inline __forceinline
 #	else
-#		define __alwaysinline
+#		define __always_inline
 #	endif
-#endif /* __alwaysinline */
+#endif /* __always_inline */
 
 #ifndef __must_check_result
 #	if defined(__GNUC__) || __has_attribute(warn_unused_result)
@@ -368,3 +388,37 @@
 
 #endif
 #endif /* __BYTE_ORDER__ || __ORDER_LITTLE_ENDIAN__ || __ORDER_BIG_ENDIAN__ */
+
+//----------------------------------------------------------------------------
+
+#ifdef __cplusplus
+// Define operator overloads to enable bit operations on enum values that are
+// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
+// In FPTU we sure to that uint_fast32_t is enough for casting.
+#define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE)                                      \
+  extern "C++" {                                                               \
+  inline ENUMTYPE operator|(ENUMTYPE a, ENUMTYPE b) {                          \
+    return ENUMTYPE(((uint_fast32_t)a) | ((uint_fast32_t)b));                  \
+  }                                                                            \
+  inline ENUMTYPE &operator|=(ENUMTYPE &a, ENUMTYPE b) {                       \
+    return (ENUMTYPE &)(((uint_fast32_t &)a) |= ((uint_fast32_t)b));           \
+  }                                                                            \
+  inline ENUMTYPE operator&(ENUMTYPE a, ENUMTYPE b) {                          \
+    return ENUMTYPE(((uint_fast32_t)a) & ((uint_fast32_t)b));                  \
+  }                                                                            \
+  inline ENUMTYPE &operator&=(ENUMTYPE &a, ENUMTYPE b) {                       \
+    return (ENUMTYPE &)(((uint_fast32_t &)a) &= ((uint_fast32_t)b));           \
+  }                                                                            \
+  inline ENUMTYPE operator~(ENUMTYPE a) {                                      \
+    return ENUMTYPE(~((uint_fast32_t)a));                                      \
+  }                                                                            \
+  inline ENUMTYPE operator^(ENUMTYPE a, ENUMTYPE b) {                          \
+    return ENUMTYPE(((uint_fast32_t)a) ^ ((uint_fast32_t)b));                  \
+  }                                                                            \
+  inline ENUMTYPE &operator^=(ENUMTYPE &a, ENUMTYPE b) {                       \
+    return (ENUMTYPE &)(((uint_fast32_t &)a) ^= ((uint_fast32_t)b));           \
+  }                                                                            \
+  }
+#else                                     /* __cplusplus */
+#define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE) /* nope, C allows these operators */
+#endif                                    /* !__cplusplus */
