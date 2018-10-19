@@ -475,13 +475,19 @@ static void visitor_thread_proc(fpta_db *db, const int thread_num,
       free(tuple);
 
       if (err != FPTA_OK) {
+        EXPECT_EQ(FPTA_DB_FULL, err);
         // отменяем если была ошибка
-        ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
+        err = fpta_transaction_end(txn, true);
+        if (err != FPTA_OK) {
+          ASSERT_EQ(FPTA_TXN_CANCELLED, err);
+          break;
+        }
       } else {
         // коммитим и ожидаем ошибку переполнения здесь
         err = fpta_transaction_end(txn, false);
         if (err != FPTA_OK) {
           ASSERT_EQ(FPTA_DB_FULL, err);
+          break;
         }
       }
     }
