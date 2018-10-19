@@ -447,11 +447,31 @@ enum fpta_error {
     txn should abort */
   ,
 
+  FPTA_BUSY = -30778 /* Another write transaction is running */
+  ,
+
   FPTA_EMULTIVAL = -30421 /* the mdbx_put() or mdbx_replace() was called
     for a key, that has more that one associated value. */
   ,
 
   FPTA_EBADSIGN = -30420 /* wrong signature of a runtime object(s) */,
+
+  /* Database should be recovered, but this could NOT be done automatically
+   * right now (e.g. in readonly mode and so forth). */
+  FPTA_EWANNA_RECOVERY = -30419,
+
+  /* The given key value is mismatched to the current cursor position,
+   * when mdbx_cursor_put() called with MDBX_CURRENT option. */
+  FPTA_EKEYMISMATCH = -30418,
+
+  /* Database is too large for current system,
+   * e.g. could NOT be mapped into RAM. */
+  FPTA_ETOO_LARGE = -30417,
+
+  /* A thread has attempted to use a not owned object,
+   * e.g. a transaction that started by another thread. */
+  FPTA_ETHREAD_MISMATCH = -30416
+
 };
 
 /* Возвращает краткое описание ошибки по её коду.
