@@ -176,7 +176,7 @@ void __cold mdbx_assert_fail(const MDBX_env *env, const char *msg,
 #if defined(_WIN32) || defined(_WIN64)
     char *message = nullptr;
     const int num = mdbx_asprintf(&message, "\r\nMDBX-ASSERTION: %s, %s:%u",
-                                  func ? func : "unknown", line);
+                                  msg, func ? func : "unknown", line);
     if (num < 1 || !message)
       message = "<troubles with assertion-message preparation>";
     OutputDebugStringA(message);
@@ -1071,11 +1071,11 @@ int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size, size_t limit) {
                                    &ReservedSize, MEM_RESERVE, PAGE_NOACCESS);
   if (!NT_SUCCESS(status)) {
     ReservedAddress = NULL;
-    if (status != /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 ||
-        limit == map->length)
+    if (status != /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018)
       goto bailout_ntstatus /* no way to recovery */;
 
-    /* assume we can change base address if mapping size changed */
+    /* assume we can change base address if mapping size changed or prev address
+     * couldn't be used */
     map->address = NULL;
   }
 
@@ -1132,8 +1132,8 @@ retry_mapview:;
 
   if (!NT_SUCCESS(status)) {
     if (status == /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 &&
-        map->address && limit != map->length) {
-      /* try remap at another base address, but only if the limit is changing */
+        map->address) {
+      /* try remap at another base address */
       map->address = NULL;
       goto retry_mapview;
     }
