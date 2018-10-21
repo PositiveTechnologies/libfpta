@@ -152,7 +152,7 @@ TEST(Threaded, SimpleConcurence) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 4,
                                   false, &db));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
@@ -162,10 +162,10 @@ TEST(Threaded, SimpleConcurence) {
 #ifdef CI
   const int reps = 250;
 #else
-  const int reps = 500;
+  const int reps = 5000;
 #endif
 
-  const int threadNum = 2;
+  const int threadNum = 8;
   vector<std::thread> threads;
   for (int16_t i = 1; i <= threadNum; ++i)
     threads.push_back(std::thread(write_thread_proc, db, i, reps));
@@ -346,10 +346,10 @@ TEST(Threaded, SimpleSelect) {
 #ifdef CI
   const int reps = 1000;
 #else
-  const int reps = 100000;
+  const int reps = 10000;
 #endif
 
-  const int threadNum = 16;
+  const int threadNum = 8;
   vector<std::thread> threads;
   for (int i = 0; i < threadNum; ++i)
     threads.push_back(std::thread(read_thread_proc, db, i, reps));
@@ -546,7 +546,7 @@ TEST(Threaded, SimpleVisitor) {
   const int reps = 10000;
 #endif
 
-  const int threadNum = 16;
+  const int threadNum = 8;
   int counters[threadNum] = {0};
   vector<std::thread> threads;
   for (int i = 0; i < threadNum; ++i)
