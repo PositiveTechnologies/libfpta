@@ -28,6 +28,7 @@ TEST(Corny, NameValidate) {
    *  - несколько кейсов для НЕ допустимых имен.
    */
   EXPECT_TRUE(fpta_validate_name("valid"));
+  EXPECT_EQ(UINT64_C(6645237085466628345), t1ha1_le("valid", 5, 42));
   EXPECT_TRUE(fpta_validate_name("valid_valid"));
   EXPECT_TRUE(fpta_validate_name("valid_42"));
 

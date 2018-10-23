@@ -222,20 +222,30 @@ TEST(Schema, Base) {
   EXPECT_EQ(FPTA_EINVAL, fpta_table_column_get(&table, 0, &probe_get));
 
   EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "tAbLe_1"));
+  EXPECT_EQ(UINT64_C(0xdc46fe6c95036500), table.shove);
   EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table_1"));
+  EXPECT_EQ(UINT64_C(0xdc46fe6c95036500), table.shove);
   EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk, "pk_str_uniq"));
+  EXPECT_EQ(UINT64_C(0x17fcd71c48531800), col_pk.shove);
   EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_a, "First_Uint"));
+  EXPECT_EQ(UINT64_C(0x06e71c1becbd7800), col_a.shove);
   EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_b, "second_FP"));
+  EXPECT_EQ(UINT64_C(0x4352c420c55b3800), col_b.shove);
 
   EXPECT_GT(0, fpta_table_column_count(&table));
   EXPECT_EQ(FPTA_EINVAL, fpta_table_column_get(&table, 0, &probe_get));
+  EXPECT_EQ(UINT64_C(0xdc46fe6c95036500), table.shove);
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
   ASSERT_NE(nullptr, txn);
 
   EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_pk));
+  EXPECT_EQ(UINT64_C(0xdc46fe6c95036500), table.shove);
+  EXPECT_EQ(UINT64_C(0x17fcd71c485318ed), col_pk.shove);
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_a));
+  EXPECT_EQ(UINT64_C(0x06e71c1becbd7806), col_a.shove);
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_b));
+  EXPECT_EQ(UINT64_C(0x4352c420c55b3807), col_b.shove);
 
   EXPECT_EQ(3, fpta_table_column_count(&table));
   EXPECT_EQ(FPTA_OK, fpta_table_column_get(&table, 0, &probe_get));
