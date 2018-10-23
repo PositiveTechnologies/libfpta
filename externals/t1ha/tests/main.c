@@ -29,7 +29,7 @@
 
 const unsigned default_option_flags = bench_0 | bench_1 | bench_2 |
                                       bench_xxhash | bench_highwayhash |
-                                      bench_tiny | bench_large;
+                                      bench_stadtx | bench_tiny | bench_large;
 
 const unsigned available_eas_flags =
 #if T1HA0_AESNI_AVAILABLE
@@ -72,9 +72,15 @@ void usage(void) {
       "\n"
       "Functions choices:\n"
       "  --all-funcs               - run benchmark for all functions\n"
+#ifndef T1HA0_DISABLED
       "  --0, --no-0               - include/exclude t1ha0\n"
+#endif
+#ifndef T1HA1_DISABLED
       "  --1, --no-1               - include/exclude t1ha1\n"
+#endif
+#ifndef T1HA2_DISABLED
       "  --2, --no-2               - include/exclude t1ha2\n"
+#endif
       "  --32, --no-32             - include/exclude 32-bit targets,\n"
       "                              i.e t1ha0_32le(), t1ha0_32be()...\n"
       "  --64, --no-64             - include/exclude 64-bit targets,\n"
@@ -87,9 +93,11 @@ void usage(void) {
       "  --aes, --no-aes           - include/exclude AES-NI accelerated,\n"
       "                              i.e. t1ha0_ia32aes_avx(), etc...\n"
 #endif /* T1HA0_AESNI_AVAILABLE */
-      "  --xxhash, --no-xxhash     - include/exclude xxhash32() and xxhash64(),"
       "\n"
-      "                              just for comparison.\n");
+      "Just for comparison:\n"
+      "  --xxhash, --no-xxhash     - include/exclude xxHash32 and xxHash64\n"
+      "  --stadtx, --no-stadtx     - include/exclude StadtX\n"
+      "  --highway, --no-highway   - include/exclude Google's HighwayHash.\n");
 }
 
 static bool option(const char *arg, const char *opt, unsigned flag) {
@@ -174,12 +182,21 @@ int main(int argc, const char *argv[]) {
           option(argv[i], "highway", bench_highwayhash))
         continue;
 
+      if (option(argv[i], "stadtx", bench_stadtx))
+        continue;
+
+#ifndef T1HA0_DISABLED
       if (option(argv[i], "0", bench_0))
         continue;
+#endif
+#ifndef T1HA1_DISABLED
       if (option(argv[i], "1", bench_1))
         continue;
+#endif
+#ifndef T1HA2_DISABLED
       if (option(argv[i], "2", bench_2))
         continue;
+#endif
       if (option(argv[i], "le", bench_le))
         continue;
       if (option(argv[i], "be", bench_be))
@@ -209,7 +226,9 @@ int main(int argc, const char *argv[]) {
       }
     }
     if ((option_flags & bench_funcs_flags) == 0)
-      option_flags |= default_option_flags & bench_funcs_flags;
+      option_flags |= (option_flags & hash_stdin_strings)
+                          ? bench_2
+                          : default_option_flags & bench_funcs_flags;
     if ((option_flags & bench_size_flags) == 0)
       option_flags |= default_option_flags & bench_size_flags;
   } else {
@@ -220,18 +239,21 @@ int main(int argc, const char *argv[]) {
   /*************************************************************************/
 
   bool failed = false;
+#ifndef T1HA2_DISABLED
   /* Stable t1ha2 */
   failed |= verify("t1ha2_atonce", t1ha2_atonce, refval_2atonce);
   failed |= verify("t1ha2_atonce128", thunk_t1ha2_atonce128, refval_2atonce128);
   failed |= verify("t1ha2_stream", thunk_t1ha2_stream, refval_2stream);
   failed |= verify("t1ha2_stream128", thunk_t1ha2_stream128, refval_2stream128);
-
-  /* Stable t1ha1 and t1ha0 */
+#endif
+#ifndef T1HA1_DISABLED
+  /* Stable t1ha1 */
   failed |= verify("t1ha1_64le", t1ha1_le, refval_64le);
   failed |= verify("t1ha1_64be", t1ha1_be, refval_64be);
+#endif
+#ifndef T1HA0_DISABLED
   failed |= verify("t1ha0_32le", t1ha0_32le, refval_32le);
   failed |= verify("t1ha0_32be", t1ha0_32be, refval_32be);
-
 #if T1HA0_AESNI_AVAILABLE
 #ifdef __e2k__
   failed |=
@@ -262,6 +284,7 @@ int main(int argc, const char *argv[]) {
     option_flags &= ~bench_avx2;
 #endif
 #endif /* T1HA0_AESNI_AVAILABLE */
+#endif /* T1HA0_DISABLED */
 
   failed |= HighwayHash64_verify(HighwayHash64_pure_c, "HighwayHash64_pure_c");
   failed |= HighwayHash64_verify(HighwayHash64_Portable,
@@ -272,6 +295,11 @@ int main(int argc, const char *argv[]) {
   if (ia32_cpu_features.extended_7.ebx & 32)
     HighwayHash64_verify(HighwayHash64_AVX2, "HighwayHash64_avx2");
 #endif
+#ifdef __e2k__
+  HighwayHash64_verify(HighwayHash64_SSE41, "HighwayHash64_sse41");
+#endif
+
+  failed |= verify("StadtX", thunk_StadtX, refval_StadtX);
 
   if (failed)
     return EXIT_FAILURE;
@@ -282,15 +310,33 @@ int main(int argc, const char *argv[]) {
     uint64_t (*hash_function)(const void *data, size_t length, uint64_t seed) =
         NULL;
     const char *hash_name = NULL;
-    if (is_selected(bench_64 | bench_2)) {
+
+    if (is_selected(bench_highwayhash)) {
+      hash_function = thunk_HighwayHash64_pure_c;
+      hash_name = "HighwayHash64";
+    } else if (is_selected(bench_64 | bench_xxhash)) {
+      hash_function = XXH64;
+      hash_name = "xxhash64";
+    } else if (is_selected(bench_32 | bench_xxhash)) {
+      hash_function = thunk_XXH32;
+      hash_name = "xxhash32";
+    } else if (is_selected(bench_64 | bench_stadtx)) {
+      hash_function = thunk_StadtX;
+      hash_name = "StadtX";
+#ifndef T1HA2_DISABLED
+    } else if (is_selected(bench_64 | bench_2)) {
       hash_function = t1ha2_atonce;
       hash_name = "t1ha2_atonce";
+#endif
+#ifndef T1HA1_DISABLED
     } else if (is_selected(bench_64 | bench_le | bench_1)) {
       hash_function = t1ha1_le;
       hash_name = "t1ha1_le";
     } else if (is_selected(bench_64 | bench_be | bench_1)) {
       hash_function = t1ha1_be;
       hash_name = "t1ha1_be";
+#endif
+#ifndef T1HA0_DISABLED
     } else if (is_selected(bench_32 | bench_le | bench_0)) {
       hash_function = t1ha0_32le;
       hash_name = "t1ha0_32le";
@@ -300,12 +346,13 @@ int main(int argc, const char *argv[]) {
     } else if (is_selected(bench_0)) {
       hash_function = t1ha0;
       hash_name = "t1ha0";
+#endif
     } else if (is_selected(bench_xxhash)) {
       hash_function = XXH64;
       hash_name = "xxhash64";
     } else {
-      hash_function = t1ha1_le;
-      hash_name = "t1ha-default";
+      fprintf(stderr, "hash-function should be selected explicitly\n");
+      return EXIT_FAILURE;
     }
 
     size_t buffer_size =

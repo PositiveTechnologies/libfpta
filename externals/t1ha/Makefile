@@ -5,14 +5,22 @@
 # So, define it to 0 for calmness if doubt.
 T1HA_USE_FAST_ONESHOT_READ ?=1
 
+# To use the Intel compiler you need something like this
+#CC=/opt/intel/compilers_and_libraries/linux/bin/intel64/icc
+#CXX=/opt/intel/compilers_and_libraries/linux/bin/intel64/icc
+#LD=/opt/intel/compilers_and_libraries/linux/bin/intel64/xild
+#AR=/opt/intel/compilers_and_libraries/linux/bin/intel64/xiar
+#TARGET_ARCH_ia32=yes
+
 CC ?= gcc
 CXX ?= g++
-CFLAGS ?= -std=c99 -O3 -DNDEBUG -D_DEFAULT_SOURCE
+
+CFLAGS ?= -std=c99 -O3 -DNDEBUG -D_DEFAULT_SOURCE -fno-stack-protector
 CXXFLAGS = -std=c++11 $(filter-out -std=c99,$(CFLAGS))
 
-TARGET_ARCH_e2k = $(shell (export LC_ALL=C; ($(CC) --version 2>&1; $(CC) -v 2>&1) | grep -q -i 'e2k' && echo yes || echo no))
-TARGET_ARCH_ia32 = $(shell (export LC_ALL=C; ($(CC) --version 2>&1; $(CC) -v 2>&1) | grep -q -i -e '^Target: \(x86_64\)\|\([iI][3-6]86\)-.*' && echo yes || echo no))
-TARGET_ARCH_ppc = $(shell (export LC_ALL=C; ($(CC) --version 2>&1; $(CC) -v 2>&1) | grep -q -i -e '^Target: powerpc.*' && echo yes || echo no))
+TARGET_ARCH_e2k ?= $(shell (export LC_ALL=C; ($(CC) --version 2>&1; $(CC) -v 2>&1) | grep -q -i 'e2k' && echo yes || echo no))
+TARGET_ARCH_ia32 ?= $(shell (export LC_ALL=C; ($(CC) --version 2>&1; $(CC) -v 2>&1) | grep -q -i -e '^Target: \(x86_64\)\|\([iI][3-6]86\)-.*' && echo yes || echo no))
+TARGET_ARCH_ppc ?= $(shell (export LC_ALL=C; ($(CC) --version 2>&1; $(CC) -v 2>&1) | grep -q -i -e '^Target: powerpc.*' && echo yes || echo no))
 
 OBJ_LIST := t1ha0.o t1ha1.o t1ha2.o
 BENCH_EXTRA := bench.o mera.o test.o 4bench_xxhash.o 4bench_highwayhash_test.o 4bench_highwayhash_pure_c.o 4bench_highwayhash_portable.o
@@ -38,6 +46,9 @@ all: test libt1ha.a libt1ha.so
 
 clean:
 	rm -f test test32 test64 *.i *.bc *.s *.o *.a *.so
+
+reformat:
+	git ls-files | grep -E '\.(c|cxx|cc|cpp|h|hxx|hpp)(\.in)?$$' | xargs -r clang-format-6.0 -i --style=file
 
 t1ha0.o: t1ha.h src/t1ha_bits.h src/t1ha0.c Makefile
 	$(CC) $(CFLAGS_LIB) -c -o $@ src/t1ha0.c
@@ -112,15 +123,17 @@ HIGHWAYHASH_SRC = $(addprefix tests/highwayhash/, \
 		$(HIGHWAYHASH_SRC) tests/common.h Makefile
 	$(CXX) -I tests $(CXXFLAGS_TEST) -Wno-error -c -o $@ tests/highwayhash/4bench_portable.cc
 
+4bench_highwayhash_avx2.o_ARCH_ia32_CFLAGS = -mavx2
 4bench_highwayhash_avx2.o: $(addprefix tests/highwayhash/, \
 		hh_avx2.cc hh_avx2.h 4bench_avx2.cc) \
 		$(HIGHWAYHASH_SRC) tests/common.h Makefile
-	$(CXX) -I tests $(CXXFLAGS_TEST) -mavx2 -Wno-error -c -o $@ tests/highwayhash/4bench_avx2.cc
+	$(CXX) -I tests $(CXXFLAGS_TEST) $($(@)_ARCH_$(TARGET_ARCH)_CFLAGS) -Wno-error -c -o $@ tests/highwayhash/4bench_avx2.cc
 
+4bench_highwayhash_sse41.o_ARCH_ia32_CFLAGS = -msse4.1
 4bench_highwayhash_sse41.o: $(addprefix tests/highwayhash/, \
 		hh_sse41.cc hh_sse41.h 4bench_sse41.cc) \
 		$(HIGHWAYHASH_SRC) tests/common.h Makefile
-	$(CXX) -I tests $(CXXFLAGS_TEST) -msse4.1 -Wno-error -c -o $@ tests/highwayhash/4bench_sse41.cc
+	$(CXX) -I tests $(CXXFLAGS_TEST) $($(@)_ARCH_$(TARGET_ARCH)_CFLAGS) -Wno-error -c -o $@ tests/highwayhash/4bench_sse41.cc
 
 ifeq ($(TARGET_ARCH_ia32),yes)
 BENCH_EXTRA += 4bench_highwayhash_avx2.o 4bench_highwayhash_sse41.o
@@ -135,10 +148,18 @@ ifeq ($(TARGET_ARCH_ppc),yes)
 BENCH_EXTRA += 4bench_highwayhash_vsx.o
 endif
 
+ifeq ($(TARGET_ARCH_e2k),yes)
+BENCH_EXTRA += 4bench_highwayhash_sse41.o
+endif
+
 4bench_highwayhash_test.o: tests/common.h tests/highwayhash/pure_c.h \
 		 tests/highwayhash/verifier.c Makefile
 	$(CC) $(CFLAGS_TEST) -Wno-error -c -o $@ tests/highwayhash/verifier.c
 
+BENCH_EXTRA += 4bench_stadtx.o
+4bench_stadtx.o: tests/common.h tests/stadtx/stadtx_hash.h \
+		tests/stadtx/stadtx_thunk.c Makefile
+	$(CC) $(CFLAGS_TEST) -Wno-error -c -o $@ tests/stadtx/stadtx_thunk.c
 
 test: $(OBJ_LIST) $(BENCH_EXTRA) tests/main.c Makefile \
 		t1ha.h tests/common.h tests/mera.h \
@@ -146,10 +167,10 @@ test: $(OBJ_LIST) $(BENCH_EXTRA) tests/main.c Makefile \
 	@echo "Target-ARCH: $(TARGET_ARCH)" || true
 	$(CC) $(CFLAGS_TEST) -o $@ tests/main.c $(OBJ_LIST) $(BENCH_EXTRA)
 
-bench check: test
+check: test
 	./test
 
-bench-all: test
+bench: test
 	./test --all-funcs --all-sizes
 
 bench-verbose: test

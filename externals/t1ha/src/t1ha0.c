@@ -41,6 +41,7 @@
  * for The 1Hippeus project - zerocopy messaging in the spirit of Sparta!
  */
 
+#ifndef T1HA0_DISABLED
 #include "t1ha_bits.h"
 
 static __maybe_unused __always_inline uint32_t tail32_le_aligned(const void *v,
@@ -108,7 +109,7 @@ tail32_le_unaligned(const void *v, size_t tail) {
   default:
     unreachable();
 /* fall through */
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT && \
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT &&           \
     __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   /* For most CPUs this code is better when not needed
    * copying for alignment or byte reordering. */
@@ -200,7 +201,7 @@ tail32_be_unaligned(const void *v, size_t tail) {
   default:
     unreachable();
 /* fall through */
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT && \
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT &&           \
     __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   /* For most CPUs this code is better when not needed
    * copying for alignment or byte reordering. */
@@ -279,10 +280,10 @@ static const uint32_t prime32_6 = UINT32_C(0xC4BB3575);
       v += 4;                                                                  \
       prefetch(v);                                                             \
                                                                                \
-      const uint32_t c02 = w0 ^ rot32(w2 + c, 11);                             \
       const uint32_t d13 = w1 + rot32(w3 + d, 17);                             \
-      c ^= rot32(b + w1, 7);                                                   \
+      const uint32_t c02 = w0 ^ rot32(w2 + c, 11);                             \
       d ^= rot32(a + w0, 3);                                                   \
+      c ^= rot32(b + w1, 7);                                                   \
       b = prime32_1 * (c02 + w3);                                              \
       a = prime32_0 * (d13 ^ w2);                                              \
     } while (likely(v < detent));                                              \
@@ -325,7 +326,7 @@ uint64_t t1ha0_32le(const void *data, size_t len, uint64_t seed) {
   uint32_t a = rot32((uint32_t)len, 17) + (uint32_t)seed;
   uint32_t b = (uint32_t)len ^ (uint32_t)(seed >> 32);
 
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT
   T1HA0_BODY(le, unaligned);
 #else
   const bool misaligned = (((uintptr_t)data) & (ALIGNMENT_32 - 1)) != 0;
@@ -341,7 +342,7 @@ uint64_t t1ha0_32be(const void *data, size_t len, uint64_t seed) {
   uint32_t a = rot32((uint32_t)len, 17) + (uint32_t)seed;
   uint32_t b = (uint32_t)len ^ (uint32_t)(seed >> 32);
 
-#if T1HA_CONFIG_UNALIGNED_ACCESS == T1HA_CONFIG_UNALIGNED_ACCESS__EFFICIENT
+#if T1HA_SYS_UNALIGNED_ACCESS == T1HA_UNALIGNED_ACCESS__EFFICIENT
   T1HA0_BODY(be, unaligned);
 #else
   const bool misaligned = (((uintptr_t)data) & (ALIGNMENT_32 - 1)) != 0;
@@ -358,7 +359,7 @@ uint64_t t1ha0_32be(const void *data, size_t len, uint64_t seed) {
 #if T1HA0_RUNTIME_SELECT
 
 #if T1HA0_AESNI_AVAILABLE && defined(__ia32__)
-static uint64_t x86_cpu_features(void) {
+static __cold uint64_t x86_cpu_features(void) {
   uint32_t features = 0;
   uint32_t extended = 0;
 #ifdef __GNUC__
@@ -386,11 +387,7 @@ static uint64_t x86_cpu_features(void) {
 }
 #endif /* T1HA0_AESNI_AVAILABLE && __ia32__ */
 
-static
-#if __GNUC_PREREQ(4, 0) || __has_attribute(used)
-    __attribute__((used))
-#endif
-    uint64_t (*t1ha0_resolve(void))(const void *, size_t, uint64_t) {
+__cold t1ha0_function_t t1ha0_resolve(void) {
 
 #if T1HA0_AESNI_AVAILABLE && defined(__ia32__)
   uint64_t features = x86_cpu_features();
@@ -404,14 +401,24 @@ static
 #endif /* T1HA0_AESNI_AVAILABLE && __ia32__ */
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#if UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul
+#if (UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul) &&                \
+    (!defined(T1HA1_DISABLED) || !defined(T1HA2_DISABLED))
+#ifndef T1HA1_DISABLED
   return t1ha1_be;
+#else
+  return t1ha2_atonce;
+#endif /* T1HA1_DISABLED */
 #else
   return t1ha0_32be;
 #endif
 #else /* __BYTE_ORDER__ != __ORDER_BIG_ENDIAN__ */
-#if UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul
+#if (UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul) &&                \
+    (!defined(T1HA1_DISABLED) || !defined(T1HA2_DISABLED))
+#ifndef T1HA1_DISABLED
   return t1ha1_le;
+#else
+  return t1ha2_atonce;
+#endif /* T1HA1_DISABLED */
 #else
   return t1ha0_32le;
 #endif
@@ -435,13 +442,14 @@ __asm("\t.globl\tt1ha0\n\t.type\tt1ha0, "
 
 uint64_t (*t1ha0_funcptr)(const void *, size_t, uint64_t);
 
-static void __attribute__((constructor)) t1ha0_init(void) {
+static __cold void __attribute__((constructor)) t1ha0_init(void) {
   t1ha0_funcptr = t1ha0_resolve();
 }
 
 #else /* T1HA_USE_INDIRECT_FUNCTIONS */
 
-static uint64_t t1ha0_proxy(const void *data, size_t len, uint64_t seed) {
+static __cold uint64_t t1ha0_proxy(const void *data, size_t len,
+                                   uint64_t seed) {
   t1ha0_funcptr = t1ha0_resolve();
   return t1ha0_funcptr(data, len, seed);
 }
@@ -450,3 +458,5 @@ uint64_t (*t1ha0_funcptr)(const void *, size_t, uint64_t) = t1ha0_proxy;
 
 #endif /* !T1HA_USE_INDIRECT_FUNCTIONS */
 #endif /* T1HA0_RUNTIME_SELECT */
+
+#endif /* T1HA0_DISABLED */
