@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -41,6 +41,10 @@ TEST(Upsert, InvalidColumn) {
   EXPECT_EQ(FPTU_EINVAL, fptu_upsert_uint16(pt, inval_col, 0));
   EXPECT_EQ(FPTU_EINVAL, fptu_insert_uint16(pt, inval_col, 0));
   EXPECT_EQ(FPTU_EINVAL, fptu_update_uint16(pt, inval_col, 0));
+
+  EXPECT_EQ(FPTU_EINVAL, fptu_upsert_bool(pt, inval_col, true));
+  EXPECT_EQ(FPTU_EINVAL, fptu_insert_bool(pt, inval_col, false));
+  EXPECT_EQ(FPTU_EINVAL, fptu_update_bool(pt, inval_col, true));
 
   EXPECT_EQ(FPTU_EINVAL, fptu_upsert_uint32(pt, inval_col, 0));
   EXPECT_EQ(FPTU_EINVAL, fptu_insert_uint32(pt, inval_col, 0));
@@ -113,7 +117,8 @@ TEST(Upsert, ZeroSpace) {
 
   // upsert_xyz() expect no-space
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_null(pt, fptu_max_cols));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_uint16(pt, 0, 0));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_uint16(pt, 0, false));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_bool(pt, 0, false));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_uint32(pt, 1, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_int32(pt, 42, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_uint64(pt, 111, 0));
@@ -135,6 +140,7 @@ TEST(Upsert, ZeroSpace) {
 
   // insert_xyz() expect no-space
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_uint16(pt, 0, 0));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_bool(pt, 0, true));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_uint32(pt, 1, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_int32(pt, 42, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_uint64(pt, 111, 0));
@@ -156,6 +162,7 @@ TEST(Upsert, ZeroSpace) {
 
   // update_xyz() expect no-entry
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_uint16(pt, 0, 0));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_bool(pt, 0, false));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_uint32(pt, 1, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_int32(pt, 42, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_uint64(pt, 111, 0));
@@ -339,6 +346,19 @@ TEST(Upsert, Base) {
   EXPECT_EQ(fptu_eq, fptu_cmp_160(ro, 7, _160));
   EXPECT_EQ(now.fixedpoint, fptu_get_datetime(ro, 8, nullptr).fixedpoint);
   EXPECT_EQ(fptu_eq, fptu_cmp_256(ro, fptu_max_cols - 2, _256));
+
+  EXPECT_TRUE(fptu_get_bool(ro, 0, nullptr));
+  EXPECT_FALSE(fptu_get_bool(ro, 42, nullptr));
+  EXPECT_EQ(FPTU_OK, fptu_upsert_uint16(pt, 0, FPTU_DENIL_UINT16));
+  EXPECT_FALSE(fptu_get_bool(ro, 42, nullptr));
+  EXPECT_EQ(FPTU_OK, fptu_upsert_uint16(pt, 0, 42));
+  EXPECT_TRUE(fptu_get_bool(ro, 0, nullptr));
+  EXPECT_EQ(FPTU_OK, fptu_upsert_bool(pt, 0, false));
+  EXPECT_FALSE(fptu_get_bool(ro, 0, nullptr));
+  EXPECT_EQ(0u, fptu_get_uint16(ro, 0, nullptr));
+  EXPECT_EQ(FPTU_OK, fptu_upsert_bool(pt, 0, true));
+  EXPECT_TRUE(fptu_get_bool(ro, 0, nullptr));
+  EXPECT_EQ(1u, fptu_get_uint16(ro, 0, nullptr));
 
   EXPECT_EQ(0u, fptu_space4items(pt));
   EXPECT_EQ(0u, fptu_space4data(pt));

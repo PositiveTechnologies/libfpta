@@ -779,6 +779,11 @@ FPTU_API extern const uint8_t fptu_internal_map_t2u[];
 FPTU_API fptu_error fptu_upsert_null(fptu_rw *pt, unsigned column);
 FPTU_API fptu_error fptu_upsert_uint16(fptu_rw *pt, unsigned column,
                                        uint_fast16_t value);
+static __inline fptu_error fptu_upsert_bool(fptu_rw *pt, unsigned column,
+                                            bool value) {
+  return fptu_upsert_uint16(pt, column, value);
+}
+
 FPTU_API fptu_error fptu_upsert_int32(fptu_rw *pt, unsigned column,
                                       int_fast32_t value);
 FPTU_API fptu_error fptu_upsert_uint32(fptu_rw *pt, unsigned column,
@@ -841,6 +846,10 @@ FPTU_API fptu_error fptu_upsert_nested(fptu_rw *pt, unsigned column,
 // Добавление ещё одного поля, для поддержки коллекций.
 FPTU_API fptu_error fptu_insert_uint16(fptu_rw *pt, unsigned column,
                                        uint_fast16_t value);
+static __inline fptu_error fptu_insert_bool(fptu_rw *pt, unsigned column,
+                                            bool value) {
+  return fptu_insert_uint16(pt, column, value);
+}
 FPTU_API fptu_error fptu_insert_int32(fptu_rw *pt, unsigned column,
                                       int_fast32_t value);
 FPTU_API fptu_error fptu_insert_uint32(fptu_rw *pt, unsigned column,
@@ -901,6 +910,10 @@ FPTU_API fptu_error fptu_insert_nested(fptu_rw *pt, unsigned column,
 // Обновление существующего поля (первого найденного для коллекций).
 FPTU_API fptu_error fptu_update_uint16(fptu_rw *pt, unsigned column,
                                        uint_fast16_t value);
+static __inline fptu_error fptu_update_bool(fptu_rw *pt, unsigned column,
+                                            bool value) {
+  return fptu_update_uint16(pt, column, value);
+}
 FPTU_API fptu_error fptu_update_int32(fptu_rw *pt, unsigned column,
                                       int_fast32_t value);
 FPTU_API fptu_error fptu_update_uint32(fptu_rw *pt, unsigned column,
@@ -1022,6 +1035,11 @@ FPTU_API int fptu_field_column(const fptu_field *pf);
 FPTU_API struct iovec fptu_field_as_iovec(const fptu_field *pf);
 
 FPTU_API uint_fast16_t fptu_field_uint16(const fptu_field *pf);
+static __inline bool fptu_field_bool(const fptu_field *pf) {
+  const uint_fast16_t value = fptu_field_uint16(pf);
+  return value != 0 && value != FPTU_DENIL_UINT16;
+}
+
 FPTU_API int_fast32_t fptu_field_int32(const fptu_field *pf);
 FPTU_API uint_fast32_t fptu_field_uint32(const fptu_field *pf);
 FPTU_API int_fast64_t fptu_field_int64(const fptu_field *pf);
@@ -1038,6 +1056,11 @@ FPTU_API struct iovec fptu_field_opaque(const fptu_field *pf);
 FPTU_API fptu_ro fptu_field_nested(const fptu_field *pf);
 
 FPTU_API uint_fast16_t fptu_get_uint16(fptu_ro ro, unsigned column, int *error);
+static __inline bool fptu_get_bool(fptu_ro ro, unsigned column, int *error) {
+  const uint_fast16_t value = fptu_get_uint16(ro, column, error);
+  return value != 0 && value != FPTU_DENIL_UINT16;
+}
+
 FPTU_API int_fast32_t fptu_get_int32(fptu_ro ro, unsigned column, int *error);
 FPTU_API uint_fast32_t fptu_get_uint32(fptu_ro ro, unsigned column, int *error);
 FPTU_API int_fast64_t fptu_get_int64(fptu_ro ro, unsigned column, int *error);
