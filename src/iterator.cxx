@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -66,6 +66,16 @@ __hot const fptu_field *fptu_next_ex(const fptu_field *from,
 }
 
 //----------------------------------------------------------------------------
+
+__hot bool fptu_is_empty_ro(fptu_ro ro) {
+  if (unlikely(ro.total_bytes < fptu_unit_size))
+    return true;
+  if (unlikely(ro.total_bytes !=
+               fptu_unit_size + units2bytes(ro.units[0].varlen.brutto)))
+    return true;
+
+  return (ro.units[0].varlen.tuple_items & fptu_lt_mask) == 0;
+}
 
 __hot const fptu_field *fptu_begin_ro(fptu_ro ro) {
   if (unlikely(ro.total_bytes < fptu_unit_size))

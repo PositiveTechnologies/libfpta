@@ -754,9 +754,7 @@ FPTU_API int fptu_erase(fptu_rw *pt, unsigned column,
                         fptu_type_or_filter type_or_filter);
 FPTU_API void fptu_erase_field(fptu_rw *pt, fptu_field *pf);
 
-static __inline bool fptu_is_empty_ro(fptu_ro ro) {
-  return ro.total_bytes == 0;
-}
+FPTU_API bool fptu_is_empty_ro(fptu_ro ro);
 
 static __inline bool fptu_is_empty_rw(const fptu_rw *pt) {
   return pt->pivot - pt->head == pt->junk;
