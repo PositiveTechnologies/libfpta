@@ -231,13 +231,13 @@ static __maybe_unused __always_inline void e2k_add64carry_last(unsigned carry,
 
 #elif defined(_MSC_VER)
 
-#if _MSC_FULL_VER < 190024218 && defined(_M_IX86)
+#if _MSC_FULL_VER < 190024234 && defined(_M_IX86)
 #pragma message(                                                               \
-    "For AES-NI at least \"Microsoft C/C++ Compiler\" version 19.00.24218 (Visual Studio 2015 Update 5) is required.")
+    "For AES-NI at least \"Microsoft C/C++ Compiler\" version 19.00.24234 (Visual Studio 2015 Update 3) is required.")
 #endif
-#if _MSC_FULL_VER < 191025019
+#if _MSC_FULL_VER < 191526730
 #pragma message(                                                               \
-    "It is recommended to use \"Microsoft C/C++ Compiler\" version 19.10.25019 (Visual Studio 2017) or newer.")
+    "It is recommended to use \"Microsoft C/C++ Compiler\" version 19.15.26730 (Visual Studio 2017 15.8) or newer.")
 #endif
 #if _MSC_FULL_VER < 180040629
 #error At least "Microsoft C/C++ Compiler" version 18.00.40629 (Visual Studio 2013 Update 5) is required.
@@ -277,7 +277,7 @@ static __maybe_unused __always_inline void e2k_add64carry_last(unsigned carry,
 #pragma intrinsic(__emulu)
 #define mul_32x32_64(a, b) __emulu(a, b)
 
-#if _MSC_FULL_VER >= 190024231 /* LY: workaround for optimizer bug */
+#if _MSC_VER >= 1915 /* LY: workaround for SSA-optimizer bug */
 #pragma intrinsic(_addcarry_u32)
 #define add32carry_first(base, addend, sum) _addcarry_u32(0, base, addend, sum)
 #define add32carry_next(carry, base, addend, sum)                              \
@@ -1200,3 +1200,25 @@ static __always_inline t1ha_uint128_t mul128(t1ha_uint128_t x,
 #endif
   return r;
 }
+
+/***************************************************************************/
+
+#if T1HA0_AESNI_AVAILABLE && defined(__ia32__)
+uint64_t t1ha_ia32cpu_features(void);
+
+static __always_inline bool t1ha_ia32_AESNI_avail(uint64_t ia32cpu_features) {
+  /* check for AES-NI */
+  return (ia32cpu_features & UINT32_C(0x02000000)) != 0;
+}
+
+static __always_inline bool t1ha_ia32_AVX_avail(uint64_t ia32cpu_features) {
+  /* check for any AVX */
+  return (ia32cpu_features & UINT32_C(0x1A000000)) == UINT32_C(0x1A000000);
+}
+
+static __always_inline bool t1ha_ia32_AVX2_avail(uint64_t ia32cpu_features) {
+  /* check for 'Advanced Vector Extensions 2' */
+  return ((ia32cpu_features >> 32) & 32) != 0;
+}
+
+#endif /* T1HA0_AESNI_AVAILABLE && __ia32__ */
