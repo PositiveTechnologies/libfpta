@@ -30,6 +30,7 @@ TEST(Corny, NameValidate) {
   EXPECT_TRUE(fpta_validate_name("valid"));
   EXPECT_TRUE(fpta_validate_name("valid_valid"));
   EXPECT_TRUE(fpta_validate_name("valid_42"));
+  EXPECT_EQ(0, t1ha_selfcheck__t1ha2());
 
   EXPECT_FALSE(fpta_validate_name(""));
   EXPECT_FALSE(fpta_validate_name(nullptr));
