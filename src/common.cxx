@@ -94,6 +94,9 @@ void fpta_cursor_free(fpta_db *db, fpta_cursor *cursor) {
 int fpta_db_open(const char *path, fpta_durability durability,
                  fpta_regime_flags regime_flags, mode_t file_mode,
                  size_t megabytes, bool alterable_schema, fpta_db **pdb) {
+  if (unlikely(t1ha_selfcheck__t1ha2()))
+    return FPTA_EOOPS;
+
   if (unlikely(pdb == nullptr))
     return FPTA_EINVAL;
   *pdb = nullptr;

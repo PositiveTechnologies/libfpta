@@ -4,7 +4,7 @@ add_subdirectory(libfptu/test)
 
 ###############################################################################
 
-add_library(t1ha STATIC t1ha/src/t1ha2.c)
+add_library(t1ha STATIC t1ha/t1ha.h t1ha/src/t1ha2.c t1ha/src/t1ha_selfcheck.c t1ha/src/t1ha2_selfcheck.c)
 
 target_compile_definitions(t1ha PRIVATE t1ha_EXPORTS T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>)
 
