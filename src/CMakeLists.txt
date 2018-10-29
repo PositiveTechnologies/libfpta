@@ -51,6 +51,8 @@ add_library(fptu ${LIBFPTU_TYPE}
   ../fast_positive/defs.h
   ../fast_positive/tuples.h
   ../fast_positive/tuples_internal.h
+  gperf_ECMAScript_keywords.h
+  bitset4tags.h
   common.cxx
   create.cxx
   check.cxx
@@ -64,6 +66,7 @@ add_library(fptu ${LIBFPTU_TYPE}
   sort.cxx
   time.cxx
   data.cxx
+  json_emit.cxx
   ${CMAKE_CURRENT_BINARY_DIR}/version.cxx)
 
 set_target_properties(fptu PROPERTIES

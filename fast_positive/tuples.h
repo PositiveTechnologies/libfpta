@@ -82,6 +82,7 @@
 #include <float.h>  // for FLT_EVAL_METHOD and float_t
 #include <limits.h> // for INT_MAX, etc
 #include <math.h>   // for NaNs
+#include <stdio.h>  // for FILE
 #include <string.h> // for strlen()
 #include <time.h>   // for struct timespec, struct timeval
 
@@ -163,6 +164,7 @@ typedef union fptu_ro fptu_ro;
 typedef struct fptu_rw fptu_rw;
 typedef enum fptu_type fptu_type;
 typedef enum fptu_filter fptu_filter;
+typedef enum fptu_json_options fptu_json_options;
 #endif /* __cplusplus */
 
 /* Внутренний тип для хранения размера полей переменной длины. */
@@ -1216,6 +1218,105 @@ static __inline size_t fptu_array_length(fptu_field *pf) {
   return fptu_get_payload(pf)->other.varlen.array_length;
 }
 
+/* Функция обратного вызова, используемая для трансляции идентификаторов/тегов
+ * полей в символические имена. Функция будет вызываться многократно, при
+ * вывода имени каждого поля кортежа, включая все вложенные кортежи.
+ *
+ * Функция должна возвращать указатель на C-строку, значение которой будет
+ * валидно до возврата из функции сериализации, либо до следующего вызова данной
+ * функции.
+ *
+ * Если функция возвратит NULL, то при выводе соответствующего поля вместо
+ * символического имени будет использован числовой идентификатор.
+ *
+ * Если функция возвратит указатель на пустую строку "", то соответствующее
+ * поле будет пропущено. Таким образом, часть полей можно сделать "скрытыми"
+ * для сериализации. */
+typedef const char *(*fptu_tag2name_func)(const void *schema_ctx, unsigned tag);
+
+/* Функция обратного вызова, используемая для трансляции значений полей типа
+ * fptu_uint16 в символические имена enum-констант, в том числе true и false.
+ * Функция будет вызываться многократно, при вывода каждого значения типа
+ * fptu_uint16, включая все коллекции, массивы и поля вложенных кортежи.
+ *
+ * Функция должна возвращать указатель на C-строку, значение которой будет
+ * валидно до возврата из функции сериализации, либо до следующего вызова данной
+ * функции.
+ *
+ * Если функция возвратит NULL, то при выводе соответствующего значения вместо
+ * символического имени будет использован числовой идентификатор.
+ *
+ * Если функция возвратит указатель на пустую строку "", то enum-значение
+ * будет интерпретировано как bool - для нулевых значений будет
+ * выведено "false", и "true" для отличных от нуля значений. */
+typedef const char *(*fptu_value2enum_func)(const void *schema_ctx,
+                                            unsigned tag, unsigned value);
+
+enum fptu_json_options {
+  fptu_json_default = 0,
+  fptu_json_disable_JSON5 = 1 /* Выключает расширения JSON5 (больше кавычек) */,
+  fptu_json_disable_Collections =
+      2 /* Выключает поддержку коллекций:
+           - При преобразовании в json коллекции НЕ будут выводиться
+             как JSON-массивы, а соответствующие поля будут просто повторяться.
+           - При преобразовании из json JSON-массивы не будут конвертироваться
+             в коллекции, но вместо этого будет генерироваться
+             ошибка несовпадения типов. */
+  ,
+  fptu_json_skip_NULLs = 4 /* TODO: Пропускать DENILs и пустые объекты */,
+  fptu_json_sort_Tags = 8 /* TODO: Сортировать по тегам, иначе выводить в
+                             порядке следования полей */
+};
+FPT_ENUM_FLAG_OPERATORS(fptu_json_options)
+
+/* Функция обратного вызова для выталкивания сериализованных данных.
+ * В случае успеха функция должна возвратить 0 (FPTU_SUCCESS), иначе код
+ * ошибки.
+ *
+ * При преобразовании в JSON используется для вывода генерируемого текстового
+ * представления из fptu_tuple2json(). */
+typedef int (*fptu_emit_func)(void *emiter_ctx, const char *text,
+                              size_t length);
+
+/* Сериализует JSON-представление кортежа в "толкающей" (aka push) модели,
+ * выталкивая генерируемый текст в предоставленную функцию.
+ * Для трансляции идентификаторов/тегов полей и enum-значений (fptu_uint16)
+ * в символические имена используются передаваемые в параметрах функции.
+ *
+ * Параметры output и output_ctx используются для вывода результирующих
+ * текстовых данных, и поэтому обязательны. При вызове output в качестве
+ * первого параметра будет передан output_ctx.
+ *
+ * Параметры indent и depth задают отступ и начальный уровень вложенности.
+ * Оба этих параметра опциональные, т.е. могут быть нулевыми.
+ *
+ * Параметры schema_ctx, tag2name и value2enum используются для трансляции
+ * идентификаторов/тегов и значений в символические имена, т.е. выполняют
+ * роль примитивного справочника схемы. Все три параметра опциональны и могу
+ * быть нулевыми, но при этом вместо символических имен для сериализации будут
+ * использованы числовые идентификаторы.
+ *
+ * В случае успеха возвращает ноль, иначе код ошибки. */
+FPTU_API fptu_error fptu_tuple2json(fptu_ro tuple, fptu_emit_func output,
+                                    void *output_ctx, const char *indent,
+                                    unsigned depth, const void *schema_ctx,
+                                    fptu_tag2name_func tag2name,
+                                    fptu_value2enum_func value2enum,
+                                    const fptu_json_options options);
+
+/* Сериализует JSON-представление кортежа в FILE.
+ *
+ * Назначение параметров indent, depth, schema_ctx, tag2name и value2enum
+ * см в описании функции fptu_tuple2json().
+ *
+ * В случае успеха возвращает ноль, иначе код ошибки, в том числе
+ * значение errno в случае ошибки записи в FILE */
+FPTU_API fptu_error fptu_tuple2json_FILE(fptu_ro tuple, FILE *file,
+                                         const char *indent, unsigned depth,
+                                         const void *schema_ctx,
+                                         fptu_tag2name_func tag2name,
+                                         fptu_value2enum_func value2enum,
+                                         const fptu_json_options options);
 #ifdef __cplusplus
 }
 
@@ -1781,6 +1882,50 @@ static int upsert_number(fptu_rw *pt, unsigned colnum,
     return fptu_upsert_fp64(pt, colnum, (double_t)value);
   }
 }
+
+int tuple2json(const fptu_ro &tuple, fptu_emit_func output, void *output_ctx,
+               const string_view &indent, unsigned depth,
+               const void *schema_ctx, fptu_tag2name_func tag2name,
+               fptu_value2enum_func value2enum,
+               const fptu_json_options options = fptu_json_default);
+
+inline int tuple2json(const fptu_ro &tuple, FILE *file, const char *indent,
+                      unsigned depth, const void *schema_ctx,
+                      fptu_tag2name_func tag2name,
+                      fptu_value2enum_func value2enum,
+                      const fptu_json_options options = fptu_json_default) {
+
+  return fptu_tuple2json_FILE(tuple, file, indent, depth, schema_ctx, tag2name,
+                              value2enum, options);
+}
+
+/* Сериализует JSON-представление кортежа в std::ostream.
+ *
+ * Назначение параметров indent, depth, schema_ctx, tag2name и value2enum
+ * см в описании функции fptu_tuple2json().
+ *
+ * Ошибки std::ostream обрабатываются в соответствии
+ * с установками https://en.cppreference.com/w/cpp/io/basic_ios/exceptions,
+ * если это не приводит к вбросу исключений, то возвращается -1.
+ * При ошибках fptu возвращается соответствующий код ошибки.
+ * При успешном завершении возвращается FPTU_SUCCESS (нуль). */
+FPTU_API int tuple2json(const fptu_ro &tuple, std::ostream &stream,
+                        const string_view &indent, unsigned depth,
+                        const void *schema_ctx, fptu_tag2name_func tag2name,
+                        fptu_value2enum_func value2enum,
+                        const fptu_json_options options = fptu_json_default);
+
+/* Сериализует JSON-представление кортежа в std::string и возвращает результат.
+ *
+ * Назначение параметров indent, depth, schema_ctx, tag2name и value2enum
+ * см в описании функции fptu_tuple2json().
+ *
+ * При ошибках вбрасывает исключения, включая fptu::bad_tuple */
+FPTU_API std::string
+tuple2json(const fptu_ro &tuple, const string_view &indent, unsigned depth,
+           const void *schema_ctx, fptu_tag2name_func tag2name,
+           fptu_value2enum_func value2enum,
+           const fptu_json_options options = fptu_json_default);
 
 } /* namespace fptu */
 
