@@ -586,31 +586,61 @@ FPTU_API fptu_time fptu_now_coarse(void);
 
 //----------------------------------------------------------------------------
 
-#ifdef HAVE_nanf
-#define FPTU_DENIL_FP32 nanf("")
-#elif defined(SNANF)
-#define FPTU_DENIL_FP32 SNANF
-#elif defined(SNAN)
-#define FPTU_DENIL_FP32 ((float)SNAN)
-#elif defined(NANF)
-#define FPTU_DENIL_FP32 (NANF)
-#elif defined(NAN)
-#define FPTU_DENIL_FP32 ((float)NAN)
-#else
-#define FPTU_DENIL_FP32 ((float)(0.0 / 0.0))
-#endif
 #define FPTU_DENIL_FP32_BIN UINT32_C(0xFFFFffff)
+#ifndef _MSC_VER /* MSVC provides invalid nanf(), leave it undefined */
+#define FPTU_DENIL_FP32_MAS "8388607"
+#endif /* ! _MSC_VER */
 
-#ifdef HAVE_nan
-#define FPTU_DENIL_FP64 nan("")
-#elif defined(SNAN)
-#define FPTU_DENIL_FP64 ((float)SNAN)
-#elif defined(NAN)
-#define FPTU_DENIL_FP64 ((double)NAN)
+#if defined(_MSC_VER) && /* obsolete and trouble full */ _MSC_VER < 1910
+static __inline float fptu_fp32_denil(void) {
+  union {
+    uint32_t u32;
+    float fp32;
+  } casting;
+  casting.u32 = FPTU_DENIL_FP32_BIN;
+  return casting.fp32;
 #else
-#define FPTU_DENIL_FP64 ((double)(0.0 / 0.0))
-#endif
+static __inline constexpr float fptu_fp32_denil(void) {
+#if defined(FPTU_DENIL_FP32_MAS) && (__GNUC_PREREQ(3, 3) || __has_builtin(nanf))
+  return -__builtin_nanf(FPTU_DENIL_FP32_MAS);
+#else
+  union {
+    uint32_t u32;
+    float fp32;
+  } const constexpr casting = {FPTU_DENIL_FP32_BIN};
+  return casting.fp32;
+#endif /* FPTU_DENIL_FP32_MAS */
+#endif /* !_MSVC */
+}
+#define FPTU_DENIL_FP32 fptu_fp32_denil()
+
 #define FPTU_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
+#ifndef _MSC_VER /* MSVC provides invalid nan(), leave it undefined */
+#define FPTU_DENIL_FP64_MAS "4503599627370495"
+#endif /* ! _MSC_VER */
+
+#if defined(_MSC_VER) && /* obsolete and trouble full */ _MSC_VER < 1910
+static __inline double fptu_fp64_denil(void) {
+  union {
+    uint64_t u64;
+    double fp64;
+  } casting;
+  casting.u64 = FPTU_DENIL_FP64_BIN;
+  return casting.fp64;
+#else
+static __inline constexpr double fptu_fp64_denil(void) {
+#if defined(FPTU_DENIL_FP64_MAS) && (__GNUC_PREREQ(3, 3) || __has_builtin(nan))
+  return -__builtin_nan(FPTU_DENIL_FP64_MAS);
+#else
+  union {
+    uint64_t u64;
+    double fp64;
+  } const constexpr casting = {FPTU_DENIL_FP64_BIN};
+  return casting.fp64;
+#endif /* FPTU_DENIL_FP64_MAS */
+#endif /* !_MSVC */
+}
+#define FPTU_DENIL_FP64 fptu_fp64_denil()
 
 #define FPTU_DENIL_UINT16 UINT16_MAX
 #define FPTU_DENIL_SINT32 INT32_MIN
@@ -622,12 +652,12 @@ FPTU_API fptu_time fptu_now_coarse(void);
 #ifdef __GNUC__
 #define FPTU_DENIL_TIME                                                        \
   ({                                                                           \
-    const fptu_time __fptu_time_denil = {FPTU_DENIL_TIME_BIN};                 \
+    constexpr const fptu_time __fptu_time_denil = {FPTU_DENIL_TIME_BIN};       \
     __fptu_time_denil;                                                         \
   })
 #else
 static __inline fptu_time fptu_time_denil(void) {
-  const fptu_time denil = {FPTU_DENIL_TIME_BIN};
+  constexpr const fptu_time denil = {FPTU_DENIL_TIME_BIN};
   return denil;
 }
 #define FPTU_DENIL_TIME fptu_time_denil()

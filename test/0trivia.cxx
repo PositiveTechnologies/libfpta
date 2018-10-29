@@ -48,6 +48,46 @@ static void usleep(unsigned usec) {
 
 const auto ms100 = fptu_time::ms2fractional(100);
 
+TEST(Trivia, Denil) {
+  union {
+    double f;
+    uint64_t u;
+  } denil64;
+  denil64 = {FPTU_DENIL_FP64};
+  EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
+  denil64 = {fptu_fp64_denil()};
+  EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
+#ifdef HAVE_nan
+  denil64 = {-nan("4503599627370495")};
+#ifdef FPTU_DENIL_FP64_MAS
+  EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
+#else
+  EXPECT_NE(FPTU_DENIL_FP64_BIN, denil64.u);
+#endif
+#endif /* HAVE_nan */
+  denil64 = {fptu_fp32_denil()};
+  EXPECT_NE(FPTU_DENIL_FP64_BIN, denil64.u);
+
+  union {
+    float f;
+    uint32_t u;
+  } denil32;
+  denil32 = {FPTU_DENIL_FP32};
+  EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
+  denil32 = {fptu_fp32_denil()};
+  EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
+#ifdef HAVE_nanf
+  denil32 = {-nanf("8388607")};
+#ifdef FPTU_DENIL_FP32_MAS
+  EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
+#else
+  EXPECT_NE(FPTU_DENIL_FP32_BIN, denil32.u);
+#endif
+#endif /* HAVE_nanf */
+  denil32 = {static_cast<float>(fptu_fp64_denil())};
+  EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
+}
+
 TEST(Trivia, Apriory) {
   ASSERT_EQ(sizeof(uint16_t) * CHAR_BIT, fptu_bits);
   ASSERT_EQ(fptu_unit_size * CHAR_BIT / 2, fptu_bits);
