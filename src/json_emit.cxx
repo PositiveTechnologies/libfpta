@@ -17,6 +17,8 @@
  * along with libfptu.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "erthink/erthink_u2a.h"
+
 #include "bitset4tags.h"
 #include "fast_positive/tuples_internal.h"
 #include <algorithm> // for std::max, etc
@@ -73,6 +75,11 @@ struct emitter {
   void indent(void);
   void space();
   char *wanna(size_t space);
+
+  void number(uint32_t);
+  void number(int32_t);
+  void number(uint64_t);
+  void number(int64_t i64);
 
   template <size_t LENGTH> void push(const char (&text)[LENGTH]) {
     push(text[LENGTH - 1] ? LENGTH : LENGTH - 1, &text[0]);
@@ -165,6 +172,40 @@ char *emitter::wanna(size_t space) {
   if (space >= sizeof(buffer) - fill)
     flush();
   return buffer + fill;
+}
+
+//----------------------------------------------------------------------------
+
+void emitter::number(uint32_t u32) {
+  // max 10 chars for 4`294`967`295
+  char *const begin = wanna(10);
+  char *const end = erthink::u2a(u32, begin);
+  assert(end > begin && end <= begin + 10);
+  fill += static_cast<unsigned>(end - begin);
+}
+
+void emitter::number(int32_t i32) {
+  // max 11 chars for -2`147`483`648
+  char *const begin = wanna(11);
+  char *const end = erthink::i2a(i32, begin);
+  assert(end > begin && end <= begin + 10);
+  fill += static_cast<unsigned>(end - begin);
+}
+
+void emitter::number(uint64_t u64) {
+  // max 20 digits for 18`446`744`073`709`551`615
+  char *const begin = wanna(20);
+  char *const end = erthink::u2a(u64, begin);
+  assert(end > begin && end <= begin + 20);
+  fill += static_cast<unsigned>(end - begin);
+}
+
+void emitter::number(int64_t i64) {
+  // max 20 chars for -9`223`372`036`854`775`808
+  char *const begin = wanna(20);
+  char *const end = erthink::i2a(i64, begin);
+  assert(end > begin && end <= begin + 20);
+  fill += static_cast<unsigned>(end - begin);
 }
 
 //----------------------------------------------------------------------------
@@ -270,8 +311,14 @@ void json::string(const string_view &str) {
     default:
       if (likely(c >= ' '))
         push(c);
-      else
-        format(8, "\\u%04u", c);
+      else {
+        char *const begin = wanna(6);
+        memcpy(begin, "\\u", 2);
+        char *ptr = erthink::dec4(c, begin + 2, true);
+        assert(ptr - begin == 6);
+        (void)ptr;
+        fill += 6;
+      }
     }
   }
   push('"');
@@ -290,35 +337,35 @@ void json::value_uint16_and_enum(uint_fast16_t colnum,
       else
         push("false");
     } else
-      format(8, "%u", enum_value);
+      number(enum_value);
   } else
     null();
 }
 
 void json::value_sint32(const int32_t &value) {
   if (value != FPTU_DENIL_SINT32)
-    format(12, "%" PRIi32, value);
+    number(value);
   else
     null();
 }
 
 void json::value_uint32(const uint32_t &value) {
   if (value != FPTU_DENIL_UINT32)
-    format(12, "%" PRIu32, value);
+    number(value);
   else
     null();
 }
 
 void json::value_sint64(const int64_t &value) {
   if (value != FPTU_DENIL_SINT64)
-    format(24, "%" PRIi64, value);
+    number(value);
   else
     null();
 }
 
 void json::value_uint64(const uint64_t &value) {
   if (value != FPTU_DENIL_UINT64)
-    format(24, "%" PRIu64, value);
+    number(value);
   else
     null();
 }

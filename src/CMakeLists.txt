@@ -83,6 +83,7 @@ add_library(fptu ${LIBFPTU_TYPE}
   sort.cxx
   time.cxx
   data.cxx
+  erthink/erthink_u2a.h
   json_emit.cxx
   json_parse.cxx
   ${CMAKE_CURRENT_BINARY_DIR}/version.cxx)
