@@ -697,7 +697,65 @@ TEST(Emit, Datetime) {
 
 //------------------------------------------------------------------------------
 
-TEST(Emit, FixbinAndOpacity) { /* TODO */
+TEST(Emit, FixbinAndOpacity) {
+  schema_dict dict;
+  EXPECT_NO_THROW(dict = create_schemaX());
+
+  fptu::tuple_ptr pt(fptu_rw::create(67, 12345));
+  ASSERT_NE(nullptr, pt.get());
+  ASSERT_STREQ(nullptr, fptu::check(pt.get()));
+
+  static const uint8_t zeros[17] = {};
+  static uint8_t sequence[256];
+  for (unsigned i = 0; i < sizeof(sequence); i++)
+    sequence[i] = (uint8_t)~i;
+
+  ASSERT_EQ(FPTU_OK, fptu_upsert_96(pt.get(), 1, zeros));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_96(pt.get(), 2, sequence + 11));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_128(pt.get(), 1, zeros));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_128(pt.get(), 2, sequence + 23));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_160(pt.get(), 1, zeros));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_160(pt.get(), 2, sequence + 47));
+  EXPECT_STREQ("{f1_b96:\"000000000000000000000000\",f2_b96:"
+               "\"f4f3f2f1f0efeeedecebeae9\",f1_b128:"
+               "\"00000000000000000000000000000000\",f2_b128:"
+               "\"e8e7e6e5e4e3e2e1e0dfdedddcdbdad9\",f1_b160:"
+               "\"0000000000000000000000000000000000000000\",f2_b160:"
+               "\"d0cfcecdcccbcac9c8c7c6c5c4c3c2c1c0bfbebd\"}",
+               json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 0, nullptr, 0));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 1, sequence, 1));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 2, sequence + 1, 2));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 3, sequence + 2, 3));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 4, sequence + 3, 4));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 5, sequence + 4, 5));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 6, sequence + 5, 6));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 7, sequence + 6, 7));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 8, sequence + 7, 8));
+  EXPECT_STREQ("{\"@14\":\"\",f1_opaque:\"ff\",f2_opaque:\"fefd\",f3_opaque:"
+               "\"fdfcfb\",f4_opaque:\"fcfbfaf9\",f5_opaque:\"fbfaf9f8f7\",f6_"
+               "opaque:\"faf9f8f7f6f5\",f7_opaque:\"f9f8f7f6f5f4f3\",f8_opaque:"
+               "\"f8f7f6f5f4f3f2f1\"}",
+               json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  ASSERT_EQ(FPTU_OK,
+            fptu_upsert_opaque(pt.get(), 9, sequence, sizeof(sequence)));
+  EXPECT_STREQ(
+      "{f9_opaque:"
+      "\"fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0dfdedd"
+      "dcdbdad9d8d7d6d5d4d3d2d1d0cfcecdcccbcac9c8c7c6c5c4c3c2c1c0bfbebdbcbbbab9"
+      "b8b7b6b5b4b3b2b1b0afaeadacabaaa9a8a7a6a5a4a3a2a1a09f9e9d9c9b9a9998979695"
+      "94939291908f8e8d8c8b8a898887868584838281807f7e7d7c7b7a797877767574737271"
+      "706f6e6d6c6b6a696867666564636261605f5e5d5c5b5a595857565554535251504f4e4d"
+      "4c4b4a494847464544434241403f3e3d3c3b3a393837363534333231302f2e2d2c2b2a29"
+      "2827262524232221201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a0908070605"
+      "0403020100\"}",
+      json(dict, pt));
+
+  ASSERT_STREQ(nullptr, fptu::check(pt.get()));
 }
 
 //------------------------------------------------------------------------------
