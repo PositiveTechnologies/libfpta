@@ -31,6 +31,21 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
+find_program(RE2C re2c)
+if(RE2C AND NOT RE2C_VERSION)
+  execute_process(COMMAND ${RE2C} --version
+    OUTPUT_VARIABLE re2c_version_output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE rc)
+  if(rc EQUAL 0)
+    string(REGEX MATCH "^re2c ([0-9]+\\.[0-9]+(\\.[0-9]+)*)" re2c_version_valid ${re2c_version_output})
+    if(re2c_version_valid)
+      set(RE2C_VERSION ${CMAKE_MATCH_1})
+      message(STATUS "Found ${RE2C} version ${RE2C_VERSION}")
+    endif()
+  endif()
+endif()
+
 #
 # Get version
 if(HAVE_FPTU_VERSIONINFO)
@@ -67,6 +82,7 @@ add_library(fptu ${LIBFPTU_TYPE}
   time.cxx
   data.cxx
   json_emit.cxx
+  json_parse.cxx
   ${CMAKE_CURRENT_BINARY_DIR}/version.cxx)
 
 set_target_properties(fptu PROPERTIES
