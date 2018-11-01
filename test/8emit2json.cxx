@@ -621,7 +621,78 @@ TEST(Emit, FloatAndDouble) {
 
 //------------------------------------------------------------------------------
 
-TEST(Emit, Datetime) { /* TODO */
+TEST(Emit, Datetime) {
+  schema_dict dict;
+  EXPECT_NO_THROW(dict = create_schemaX());
+
+  fptu::tuple_ptr pt(fptu_rw::create(67, 12345));
+  ASSERT_NE(nullptr, pt.get());
+  ASSERT_STREQ(nullptr, fptu::check(pt.get()));
+
+  // несколько разных полей datetime включая DENIL
+  fptu_time datetime;
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, FPTU_DENIL_TIME));
+  datetime.fixedpoint =
+      1 /* 1970-01-01 00:00:00.0000000002328306436538696289 */;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ("{f1_datetime:[null,\"1970-01-01_00:00:00."
+               "0000000002328306436538696289\"]}",
+               json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  datetime.fixedpoint =
+      2 /* 1970-01-01_00:00:00.0000000004656612873077392578 */;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ(
+      "{f1_datetime:\"1970-01-01_00:00:00.0000000004656612873077392579\"}",
+      json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  datetime.fixedpoint =
+      INT64_MAX -
+      INT32_MAX /* 2038-01-19_03:14:07.5000000000000000000000000000 */;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ("{f1_datetime:\"2038-01-19_03:14:07.5\"}", json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  datetime.fixedpoint =
+      INT64_MAX + UINT32_MAX * UINT64_C(41) + 42 /* 2038-01-19_03:14:49 */;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ("{f1_datetime:\"2038-01-19_03:14:49\"}", json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  datetime.fixedpoint =
+      UINT64_MAX - 2 /* 2106-02-07_06:28:15.9999999993015080690383911133 */;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ("{f1_datetime:\"2106-02-07_06:28:15.999999999301508069\"}",
+               json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  datetime.fixedpoint =
+      UINT64_MAX - 1 /* 2106-02-07_06:28:15.9999999995343387126922607422 */;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ("{f1_datetime:\"2106-02-07_06:28:15.9999999995343387127\"}",
+               json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  datetime.fixedpoint = UINT64_C(
+      803114901978536803) /* 1975-12-05 05:35:59.5556771389674395322799682617 */
+      ;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ("{f1_datetime:\"1975-12-05_05:35:59.5556771389674395323\"}",
+               json(dict, pt));
+
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  datetime.fixedpoint =
+      UINT64_C(6617841065462088288) /* 2018-10-29
+                                       18:03:14.8705483898520469665527343750 */
+      ;
+  ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
+  EXPECT_STREQ("{f1_datetime:\"2018-10-29_18:03:14.8705483898520469666\"}",
+               json(dict, pt));
+
+  ASSERT_STREQ(nullptr, fptu::check(pt.get()));
 }
 
 //------------------------------------------------------------------------------
