@@ -523,7 +523,100 @@ TEST(Emit, String) {
 
 //------------------------------------------------------------------------------
 
-TEST(Emit, FloatAndDouble) { /* TODO */
+TEST(Emit, FloatAndDouble) {
+  /* Кратко о текстовом представлении плавающей точки:
+   *  - Выводится минимальное кол-во цифр достаточное для однозначного
+   *    точного воспроизведения исходного машинного значения.
+   *  - Десятичная точка не используется, а экспонента выводится
+   *    только при ненулевом значении и всегда со знаком.
+   *    Таким образом, в соответствии с традициями JavaScript числа с плавающей
+   *    точкой неотличимы от целых если их значения равны.
+   *    Кроме этого, это немного облегчает/ускоряет как сериализацию,
+   *    так и десериализацию.
+   *  - Ноль сохраняет знак, т.е. может быть отрицательны. Это спорный момент,
+   *    но в большинстве дискуссий читается правильным/ценным сохранять знак.
+   * Кроме этого это соответствует де-факто поведению всех актуальных движков
+   * JavaScript.
+   *  - Infinity и NaN выводятся в соответствии с JSON5, либо как null
+   *    если расширения JSON5 выключены опциями. */
+
+  schema_dict dict;
+  EXPECT_NO_THROW(dict = create_schemaX());
+
+  fptu::tuple_ptr pt(fptu_rw::create(67, 12345));
+  ASSERT_NE(nullptr, pt.get());
+  ASSERT_STREQ(nullptr, fptu::check(pt.get()));
+
+  // несколько разных полей fp32 включая DENIL
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 0, 1));
+  ASSERT_EQ(FPTU_OK,
+            fptu_upsert_fp32(pt.get(), 1, static_cast<float>(DBL_MIN)));
+  ASSERT_EQ(FPTU_OK,
+            fptu_upsert_fp32(pt.get(), 2, static_cast<float>(-DBL_MIN)));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 3, FLT_MAX));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 4, FLT_MIN));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 5, std::nanf("")));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 6, -std::nanf("")));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 7,
+                                      std::numeric_limits<float>::infinity()));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 8,
+                                      -std::numeric_limits<float>::infinity()));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 9, FPTU_DENIL_FP32));
+  EXPECT_STREQ(
+      "{\"@4\":1,f1_fp32:0,f2_fp32:-0,f3_fp32:34028234663852887e+22,f4_fp32:"
+      "11754943508222876e-54,f5_fp32:NaN,f6_fp32:NaN,f7_fp32:+"
+      "Infinity,f8_fp32:-Infinity,f9_fp32:null}",
+      json(dict, pt));
+
+  //---------------------------------------------------------------------------
+
+  // несколько разных полей fp64 включая DENIL
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 0, 42));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 1, DBL_MIN / DBL_MAX));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 2, -DBL_MIN / DBL_MAX));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 3, DBL_MAX));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 4, DBL_MIN));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 5, std::nan("")));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 6, -std::nan("")));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 7,
+                                      std::numeric_limits<double>::infinity()));
+  ASSERT_EQ(
+      FPTU_OK,
+      fptu_upsert_fp64(pt.get(), 8, -std::numeric_limits<double>::infinity()));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_fp64(pt.get(), 9, FPTU_DENIL_FP64));
+  EXPECT_STREQ(
+      "{\"@7\":42,f1_fp64:0,f2_fp64:-0,f3_fp64:17976931348623157e+292,f4_fp64:"
+      "22250738585072014e-324,f5_fp64:NaN,f6_fp64:NaN,f7_fp64:+"
+      "Infinity,f8_fp64:-Infinity,f9_fp64:null}",
+      json(dict, pt));
+
+  //---------------------------------------------------------------------------
+
+  // Теперь NaN и Infinity с выключенным JSON5
+  ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp32(pt.get(), 1, std::nanf("")));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp32(pt.get(), 1, -std::nanf("")));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp32(pt.get(), 1,
+                                      std::numeric_limits<float>::infinity()));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp32(pt.get(), 1,
+                                      -std::numeric_limits<float>::infinity()));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp32(pt.get(), 1, FPTU_DENIL_FP32));
+
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp64(pt.get(), 1, std::nan("")));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp64(pt.get(), 1, -std::nan("")));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp64(pt.get(), 1,
+                                      std::numeric_limits<double>::infinity()));
+  ASSERT_EQ(
+      FPTU_OK,
+      fptu_insert_fp64(pt.get(), 1, -std::numeric_limits<double>::infinity()));
+  ASSERT_EQ(FPTU_OK, fptu_insert_fp64(pt.get(), 1, FPTU_DENIL_FP64));
+  EXPECT_STREQ("{\"f1_fp32\":[null,null,null,null,null],\"f1_fp64\":[null,null,"
+               "null,null,null]}",
+               json(dict, pt, false, fptu_json_disable_JSON5));
+
+  ASSERT_STREQ(nullptr, fptu::check(pt.get()));
 }
 
 //------------------------------------------------------------------------------
