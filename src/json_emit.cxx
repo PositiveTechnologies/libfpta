@@ -18,6 +18,7 @@
  */
 
 #include "erthink/erthink_u2a.h"
+#include "erthink/erthink_d2a.h"
 
 #include "bitset4tags.h"
 #include "fast_positive/tuples_internal.h"
@@ -80,6 +81,7 @@ struct emitter {
   void number(int32_t);
   void number(uint64_t);
   void number(int64_t i64);
+  void number(double);
 
   template <size_t LENGTH> void push(const char (&text)[LENGTH]) {
     push(text[LENGTH - 1] ? LENGTH : LENGTH - 1, &text[0]);
@@ -205,6 +207,14 @@ void emitter::number(int64_t i64) {
   char *const begin = wanna(20);
   char *const end = erthink::i2a(i64, begin);
   assert(end > begin && end <= begin + 20);
+  fill += static_cast<unsigned>(end - begin);
+}
+
+void emitter::number(double value) {
+  // max 24 chars for -2225073.8585072014e-314
+  char *const begin = wanna(24);
+  char *const end = erthink::d2a(value, begin);
+  assert(end > begin && end <= begin + 32);
   fill += static_cast<unsigned>(end - begin);
 }
 
@@ -371,59 +381,51 @@ void json::value_uint64(const uint64_t &value) {
 }
 
 void json::value_fp32(const fptu_payload *payload) {
-  if (payload->u32 != FPTU_DENIL_FP32_BIN) {
+  if (likely(payload->u32 != FPTU_DENIL_FP32_BIN)) {
     switch (std::fpclassify(payload->fp32)) {
     case FP_NAN:
-      if (is_json5())
+      if (is_json5()) {
         push("NaN");
-      else
-        null();
+        return;
+      }
       break;
     case FP_INFINITE:
-      if (is_json5())
-        if (std::signbit(payload->fp32))
-          push("-Infinity");
-        else
-          push("+Infinity");
-      else
-        null();
-      break;
-    case FP_ZERO:
-      push('0');
+      if (is_json5()) {
+        push(std::signbit(payload->fp32) ? '-' : '+');
+        push("Infinity");
+        return;
+      }
       break;
     default:
-      format(20, "%g", payload->fp32);
+      number(payload->fp32);
+      return;
     }
-  } else
-    null();
+  }
+  null();
 }
 
 void json::value_fp64(const fptu_payload *payload) {
-  if (payload->u64 != FPTU_DENIL_FP64_BIN) {
+  if (likely(payload->u64 != FPTU_DENIL_FP64_BIN)) {
     switch (std::fpclassify(payload->fp64)) {
     case FP_NAN:
-      if (is_json5())
+      if (is_json5()) {
         push("NaN");
-      else
-        null();
+        return;
+      }
       break;
     case FP_INFINITE:
-      if (is_json5())
-        if (std::signbit(payload->fp64))
-          push("-Infinity");
-        else
-          push("+Infinity");
-      else
-        null();
-      break;
-    case FP_ZERO:
-      push('0');
+      if (is_json5()) {
+        push(std::signbit(payload->fp64) ? '-' : '+');
+        push("Infinity");
+        return;
+      }
       break;
     default:
-      format(28, "%.9g", payload->fp64);
+      number(payload->fp64);
+      return;
     }
-  } else
-    null();
+  }
+  null();
 }
 
 void json::value_dateime(const fptu_time &value) {
