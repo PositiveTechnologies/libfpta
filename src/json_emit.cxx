@@ -430,28 +430,7 @@ void json::value_fp64(const fptu_payload *payload) {
 
 void json::value_dateime(const fptu_time &value) {
   if (value.fixedpoint != FPTU_DENIL_TIME_BIN) {
-    /* TODO: использовать d2a(). */
-
-    char fractional[32];
-    const int fractional_len =
-        /* с полной точностью (превышающей стоимость младшего разряда), поэтому
-         * внутри snprintf() теоретически НЕ должно быть округления до 1.000
-         * Однако, в MSVC и других глюкалах это НЕ гарантируется,
-         * поэтому далее такое округление "на всякий случай" учитывается. */
-        value.fractional ? snprintf(fractional, sizeof(fractional), "%.28f",
-                                    value.fractional2seconds())
-                         : 0;
-    if (value.fractional) {
-      assert(fractional_len > 2 &&
-             fractional_len < (int)sizeof(fractional) - 1);
-      assert((fractional[0] == '0' || fractional[0] == '1') &&
-             fractional[1] == '.');
-    }
-
-    const time_t utc_sec = (fractional_len && fractional[0] == '1')
-                               /* учитываем перенос при округлении fractional */
-                               ? value.utc + 1
-                               : value.utc;
+    const time_t utc_sec = value.utc;
     struct tm utc_tm;
 #ifdef _MSC_VER
     gmtime_s(&utc_tm, &utc_sec);
@@ -462,8 +441,25 @@ void json::value_dateime(const fptu_time &value) {
     format(24, "\"%04d-%02d-%02d_%02d:%02d:%02d", utc_tm.tm_year + 1900,
            utc_tm.tm_mon + 1, utc_tm.tm_mday, utc_tm.tm_hour, utc_tm.tm_min,
            utc_tm.tm_sec);
-    if (fractional_len > 1)
-      push(fractional_len - 1, fractional + 1);
+    if (value.fractional) {
+      int exponent;
+      char *const begin = wanna(32) + 1;
+      begin[-1] = '.';
+      char *const end = erthink::grisu::convert(
+          erthink::grisu::diy_fp::fixedpoint(value.fractional, -32), begin,
+          exponent);
+      assert(end > begin && end < begin + 31);
+      assert(-exponent >= end - begin);
+      const ptrdiff_t zero_needed = -exponent - (end - begin);
+      assert(zero_needed >= 0 && zero_needed < 31 - (end - begin));
+      if (zero_needed > 0) {
+        memmove(begin + zero_needed, begin, end - begin);
+        memset(begin, '0', zero_needed);
+      }
+      fill +=
+          static_cast<unsigned>(end - begin + zero_needed + /* the dot */ 1);
+      assert(fill < sizeof(buffer));
+    }
     push('"');
   } else
     null();
