@@ -1222,21 +1222,6 @@ static __inline size_t fptu_array_length(fptu_field *pf) {
 //----------------------------------------------------------------------------
 /* Сервисные функции и классы для C++ (будет пополнятся). */
 
-static __inline fptu_error fptu_upsert_string(fptu_rw *pt, unsigned column,
-                                              const std::string &value) {
-  return fptu_upsert_string(pt, column, value.data(), value.size());
-}
-
-static __inline fptu_error fptu_insert_string(fptu_rw *pt, unsigned column,
-                                              const std::string &value) {
-  return fptu_insert_string(pt, column, value.data(), value.size());
-}
-
-static __inline fptu_error fptu_update_string(fptu_rw *pt, unsigned column,
-                                              const std::string &value) {
-  return fptu_update_string(pt, column, value.data(), value.size());
-}
-
 namespace fptu {
 
 #ifdef _MSC_VER
@@ -1798,6 +1783,33 @@ static int upsert_number(fptu_rw *pt, unsigned colnum,
 }
 
 } /* namespace fptu */
+
+static __inline fptu_error fptu_upsert_string(fptu_rw *pt, unsigned column,
+                                              const std::string &value) {
+  return fptu_upsert_string(pt, column, value.data(), value.size());
+}
+
+static __inline fptu_error fptu_insert_string(fptu_rw *pt, unsigned column,
+                                              const std::string &value) {
+  return fptu_insert_string(pt, column, value.data(), value.size());
+}
+
+static __inline fptu_error fptu_update_string(fptu_rw *pt, unsigned column,
+                                              const std::string &value) {
+  return fptu_update_string(pt, column, value.data(), value.size());
+}
+
+#if HAVE_cxx17_std_string_view
+static __inline fptu_error fptu_update_string(fptu_rw *pt, unsigned column,
+                                              const std::string_view &value) {
+  return fptu_update_string(pt, column, value.data(), value.size());
+}
+#endif /* HAVE_cxx17_std_string_view */
+
+static __inline fptu_error fptu_update_string(fptu_rw *pt, unsigned column,
+                                              const fptu::string_view &value) {
+  return fptu_update_string(pt, column, value.data(), value.size());
+}
 
 unsigned fptu_field::colnum() const { return fptu_get_colnum(this->tag); }
 
