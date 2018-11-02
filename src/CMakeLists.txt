@@ -1,4 +1,4 @@
-##
+﻿##
 ##  Copyright 2016-2018 libfptu authors: please see AUTHORS file.
 ##
 ##  This file is part of libfptu, aka "Fast Positive Tuples".
@@ -73,9 +73,12 @@ set_target_properties(fptu PROPERTIES
   PUBLIC_HEADER "../fast_positive/defs.h;../fast_positive/tuples.h;${FAST_POSITIVE_CONFIG_H}"
   PRIVATE_HEADER ../fast_positive/tuples_internal.h
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
+  CXX_STANDARD ${FPTU_CXX_STANDARD}
+  CXX_STANDARD_REQUIRED ON
+  C_STANDARD_REQUIRED 11
   )
 
-target_compile_features(fptu PUBLIC cxx_std_14)
+target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
 target_link_libraries(fptu ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
 
 if(UNIX AND NOT APPLE)
@@ -106,7 +109,7 @@ if(CMAKE_VERSION VERSION_GREATER 2.8.11)
     ARCHIVE DESTINATION lib/static COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
     PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-  )
+    )
 else()
   install(TARGETS fptu
     LIBRARY DESTINATION lib COMPONENT runtime
@@ -114,7 +117,7 @@ else()
     ARCHIVE DESTINATION lib/static COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive COMPONENT devel
     PRIVATE_HEADER DESTINATION include/fast_positive COMPONENT devel
-  )
+    )
 endif()
 
 ###############################################################################
