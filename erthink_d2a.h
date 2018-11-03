@@ -52,7 +52,7 @@ namespace erthink {
 namespace NAMESPACE_ERTHINK_D2A_DETAILS {
 /* low-level routines and bindings to compilers-depended intrinsics */
 
-static constexpr inline int dec_digits(uint32_t n) {
+static inline int dec_digits(uint32_t n) {
   if (n < UINT_E5) {
     if (n < UINT_E1)
       return 1;
@@ -143,7 +143,7 @@ struct diy_fp {
     return diy_fp(value, exp2 - shift);
   }
 
-  static constexpr diy_fp middle(const diy_fp &a, const diy_fp &b) {
+  static diy_fp middle(const diy_fp &a, const diy_fp &b) {
     assert(a.e == b.e);
     const int64_t diff = a.f - b.f;
     return diy_fp(a.f - (diff >> 1), a.e);
@@ -157,7 +157,7 @@ struct diy_fp {
     return *this;
   }
 
-  constexpr diy_fp operator-(const diy_fp &rhs) const {
+  diy_fp operator-(const diy_fp &rhs) const {
     assert(e == rhs.e);
     assert(f >= rhs.f);
     return diy_fp(f - rhs.f, e);
