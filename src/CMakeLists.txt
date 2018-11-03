@@ -31,6 +31,8 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
+add_subdirectory(erthink)
+
 find_program(RE2C re2c)
 if(RE2C AND NOT RE2C_VERSION)
   execute_process(COMMAND ${RE2C} --version
