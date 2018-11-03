@@ -48,8 +48,7 @@ template <typename T> struct branchless_abs {
 };
 
 template <typename TYPE, size_t LENGTH>
-constexpr size_t array_length(const TYPE (&array)[LENGTH]) {
-  (void)array;
+constexpr size_t array_length(const TYPE __maybe_unused (&array)[LENGTH]) {
   return LENGTH;
 }
 

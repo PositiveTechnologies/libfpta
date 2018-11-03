@@ -26,9 +26,9 @@ cmake_minimum_required(VERSION 3.1)
 cmake_policy(SET CMP0054 NEW)
 
 if(DEFINED PROJECT_NAME)
-  set(subproject ON)
+  set(SUBPROJECT ON)
 else()
-  set(subproject OFF)
+  set(SUBPROJECT OFF)
   project(erthink CXX)
 endif()
 
@@ -66,7 +66,24 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
-if(NOT subproject)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
+
+if(NOT DEFINED ERTHINK_CXX_STANDARD)
+  if(SUBPROJECT AND DEFINED CMAKE_CXX_STANDARD)
+    set(ERTHINK_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+  elseif(NOT HAS_CXX17 LESS 0)
+    set(ERTHINK_CXX_STANDARD 17)
+  elseif(NOT HAS_CXX14 LESS 0)
+    set(ERTHINK_CXX_STANDARD 14)
+  else()
+    set(ERTHINK_CXX_STANDARD 11)
+  endif()
+endif()
+
+message(STATUS "Use C++${ERTHINK_CXX_STANDARD} for Erthink")
+
+if(NOT SUBPROJECT)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." OFF)
 
@@ -82,6 +99,10 @@ if(NOT subproject)
       "--trace-children=yes --leak-check=full --track-origins=yes --error-exitcode=42 --error-markers=@ --errors-for-leak-kinds=definite --fair-sched=yes --suppressions=${MEMORYCHECK_SUPPRESSIONS_FILE}"
       CACHE STRING "Valgrind options" FORCE)
     set(VALGRIND_COMMAND_OPTIONS "${MEMORYCHECK_COMMAND_OPTIONS}" CACHE STRING "Valgrind options" FORCE)
+  endif()
+
+  if(NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD ${ERTHINK_CXX_STANDARD})
   endif()
   include(cmake/testing.cmake)
 
@@ -123,7 +144,7 @@ if(NOT subproject)
       COMMAND ${GIT} clean -f -X -d
       COMMENT "Removing all build files from the source directory")
   endif()
-endif(NOT subproject)
+endif(NOT SUBPROJECT)
 
 CHECK_FUNCTION_EXISTS(pow NOT_NEED_LIBM)
 if(NOT_NEED_LIBM)
@@ -157,15 +178,16 @@ add_library(erthink ${LIBERTHINK_TYPE}
 set_target_properties(erthink PROPERTIES
   PROJECT_LABEL "erthink"
   PUBLIC_HEADER "defs.h byteorder.h u2a.h d2a.h"
-  #  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
-  CXX_STANDARD 17
-  CXX_STANDARD_REQUIRED 14
+  # INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
+  CXX_STANDARD ${ERTHINK_CXX_STANDARD}
+  CXX_STANDARD_REQUIRED ON
   C_STANDARD_REQUIRED 11
+  # C_STANDARD_REQUIRED ON
   )
 
-target_compile_features(erthink INTERFACE cxx_std_14)
+target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
 target_link_libraries(erthink ${LIB_MATH})
 
-if(NOT subproject)
+if(NOT SUBPROJECT)
   add_subdirectory(test)
 endif()
