@@ -47,10 +47,17 @@ template <typename T> struct branchless_abs {
   }
 };
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4100) /* unreferenced formal parameter */
+#endif
 template <typename TYPE, size_t LENGTH>
 constexpr size_t array_length(const TYPE __maybe_unused (&array)[LENGTH]) {
   return LENGTH;
 }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 template <typename TYPE, size_t LENGTH>
 constexpr const TYPE *array_end(const TYPE (&array)[LENGTH]) {

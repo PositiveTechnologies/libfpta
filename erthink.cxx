@@ -20,6 +20,10 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
+#ifdef _MSC_VER
+#pragma warning(disable : 4505) /* unreferenced local function... */
+#endif
+
 #include "erthink.h"
 
 #include "erthink_bswap.h"
