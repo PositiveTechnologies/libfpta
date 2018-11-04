@@ -17,8 +17,8 @@
  * along with libfptu.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "erthink/erthink_u2a.h"
 #include "erthink/erthink_d2a.h"
+#include "erthink/erthink_u2a.h"
 
 #include "bitset4tags.h"
 #include "fast_positive/tuples_internal.h"
