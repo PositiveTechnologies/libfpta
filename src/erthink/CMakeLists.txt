@@ -83,9 +83,12 @@ endif()
 
 message(STATUS "Use C++${ERTHINK_CXX_STANDARD} for Erthink")
 
-if(NOT SUBPROJECT)
+if(SUBPROJECT)
+  option(ERTHINK_ENABLE_TESTS "Build erthink tests." OFF)
+else()
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." OFF)
+  option(ERTHINK_ENABLE_TESTS "Build erthink tests." ON)
 
   find_program(VALGRIND valgrind)
   if(VALGRIND)
@@ -144,7 +147,7 @@ if(NOT SUBPROJECT)
       COMMAND ${GIT} clean -f -X -d
       COMMENT "Removing all build files from the source directory")
   endif()
-endif(NOT SUBPROJECT)
+endif(SUBPROJECT)
 
 CHECK_FUNCTION_EXISTS(pow NOT_NEED_LIBM)
 if(NOT_NEED_LIBM)
@@ -188,6 +191,6 @@ set_target_properties(erthink PROPERTIES
 target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
 target_link_libraries(erthink ${LIB_MATH})
 
-if(NOT SUBPROJECT)
+if(ERTHINK_ENABLE_TESTS)
   add_subdirectory(test)
 endif()

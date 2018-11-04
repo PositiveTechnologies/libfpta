@@ -53,7 +53,7 @@ static inline int fallback_clz32(uint32_t v) {
   v >>= s;
   r -= s;
 
-  return r + fallback_clz8(v);
+  return r + fallback_clz8(static_cast<uint8_t>(v));
 }
 
 static inline int fallback_clz64(uint64_t v) {
