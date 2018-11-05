@@ -220,7 +220,7 @@ std::string schema_dict::schema2json() const {
       fptu::throw_error(err);
     if (fptu_get_type(tag) == fptu_enum ||
         fptu_get_type(tag) == fptu_array_enum) {
-      for (unsigned value = 0; value < UINT16_MAX; value++) {
+      for (unsigned value = 0; value <= UINT16_MAX; value++) {
         if (value == FPTU_DENIL_UINT16)
           continue;
         const char *enum_item = value2enum(this, tag, value);
@@ -705,24 +705,37 @@ TEST(Emit, FixbinAndOpacity) {
   ASSERT_NE(nullptr, pt.get());
   ASSERT_STREQ(nullptr, fptu::check(pt.get()));
 
-  static const uint8_t zeros[17] = {};
+  static const uint8_t zeros[32] = {};
   static uint8_t sequence[256];
   for (unsigned i = 0; i < sizeof(sequence); i++)
     sequence[i] = (uint8_t)~i;
 
   ASSERT_EQ(FPTU_OK, fptu_upsert_96(pt.get(), 1, zeros));
-  ASSERT_EQ(FPTU_OK, fptu_upsert_96(pt.get(), 2, sequence + 11));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_96(pt.get(), 2, sequence));
   ASSERT_EQ(FPTU_OK, fptu_upsert_128(pt.get(), 1, zeros));
-  ASSERT_EQ(FPTU_OK, fptu_upsert_128(pt.get(), 2, sequence + 23));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_128(pt.get(), 2, sequence));
   ASSERT_EQ(FPTU_OK, fptu_upsert_160(pt.get(), 1, zeros));
-  ASSERT_EQ(FPTU_OK, fptu_upsert_160(pt.get(), 2, sequence + 47));
-  EXPECT_STREQ("{f1_b96:\"000000000000000000000000\",f2_b96:"
-               "\"f4f3f2f1f0efeeedecebeae9\",f1_b128:"
-               "\"00000000000000000000000000000000\",f2_b128:"
-               "\"e8e7e6e5e4e3e2e1e0dfdedddcdbdad9\",f1_b160:"
-               "\"0000000000000000000000000000000000000000\",f2_b160:"
-               "\"d0cfcecdcccbcac9c8c7c6c5c4c3c2c1c0bfbebd\"}",
-               json(dict, pt));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_160(pt.get(), 2, sequence));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_256(pt.get(), 1, zeros));
+  ASSERT_EQ(FPTU_OK, fptu_upsert_256(pt.get(), 2, sequence));
+  EXPECT_STREQ(
+      "{f1_b96:"
+      "\"000000000000000000000000\","
+      "f2_b96:"
+      "\"fffefdfcfbfaf9f8f7f6f5f4\","
+      "f1_b128:"
+      "\"00000000000000000000000000000000\","
+      "f2_b128:"
+      "\"fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0\","
+      "f1_b160:"
+      "\"0000000000000000000000000000000000000000\","
+      "f2_b160:"
+      "\"fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedec\","
+      "f1_b256:"
+      "\"0000000000000000000000000000000000000000000000000000000000000000\","
+      "f2_b256:"
+      "\"fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0\"}",
+      json(dict, pt));
 
   ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
   ASSERT_EQ(FPTU_OK, fptu_upsert_opaque(pt.get(), 0, nullptr, 0));
