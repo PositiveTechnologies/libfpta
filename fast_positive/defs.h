@@ -145,15 +145,15 @@
 #	define __thread __declspec(thread)
 #endif /* __thread */
 
-#ifndef __alwaysinline
+#ifndef __always_inline
 #	if defined(__GNUC__) || __has_attribute(always_inline)
-#		define __alwaysinline __inline __attribute__((always_inline))
+#		define __always_inline __inline __attribute__((always_inline))
 #	elif defined(_MSC_VER)
-#		define __alwaysinline __forceinline
+#		define __always_inline __forceinline
 #	else
-#		define __alwaysinline
+#		define __always_inline
 #	endif
-#endif /* __alwaysinline */
+#endif /* __always_inline */
 
 #ifndef __must_check_result
 #	if defined(__GNUC__) || __has_attribute(warn_unused_result)
