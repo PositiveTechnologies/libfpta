@@ -44,7 +44,7 @@ static inline int fallback_clz8(uint8_t v) {
 }
 
 static inline int fallback_clz32(uint32_t v) {
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   int r = 24, s = (v > 0xFFFF) << 4;
   v >>= s;
   r -= s;
@@ -61,7 +61,7 @@ static inline int fallback_clz64(uint64_t v) {
   const uint32_t hi = static_cast<uint32_t>(v >> 32);
   return (hi ? 0 : 32) + fallback_clz32(hi ? hi : static_cast<uint32_t>(v));
 #else
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   const int s = (v > UINT32_C(0xFFFFffff)) << 5;
   return 32 - s + fallback_clz32(static_cast<uint32_t>(v >> s));
 #endif

@@ -392,7 +392,7 @@ static __maybe_unused char *
 d2a(const grisu::casting_union &value,
     char *const buffer /* upto 23 chars for -22250738585072014e-324 */) {
   assert(!std::isnan(value.f) && !std::isinf(value.f));
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   *buffer = '-';
   int exponent;
   char *ptr =
@@ -400,7 +400,7 @@ d2a(const grisu::casting_union &value,
   if (exponent != 0) {
     const branchless_abs<int> pair(exponent);
     static char e_with_sign[4] = {'e', '+', 'e', '-'};
-    // LY: strive for branchless
+    // LY: strive to branchless
     memcpy(ptr, e_with_sign + (pair.expanded_sign & 2), 2);
     ptr = dec3(pair.unsigned_abs, ptr + 2);
   }

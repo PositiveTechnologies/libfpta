@@ -87,7 +87,7 @@ static const char digits_00_99[200] = {
 static __always_inline char *dec2(uint_fast32_t v, char *ptr,
                                   size_t force = 0) {
   assert(v < 100u);
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   *ptr = digits_00_99[v << 1];
   ptr += force | (v > 9);
   *ptr = digits_00_99[(v << 1) + 1];
@@ -99,7 +99,7 @@ static __always_inline char *dec3(uint_fast32_t v, char *ptr,
   assert(v < 1000u);
   const uint_fast32_t hi = v / 10u;
   const uint_fast32_t lo = v % 10u;
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   *ptr = digits_00_99[hi << 1];
   ptr += force | (v > 99);
   *ptr = digits_00_99[(hi << 1) + 1];
@@ -113,7 +113,7 @@ static __always_inline char *dec4(uint_fast32_t v, char *ptr,
   assert(v < 10000u);
   const uint_fast32_t hi = v / 100u;
   const uint_fast32_t lo = v % 100u;
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   *ptr = digits_00_99[hi << 1];
   ptr += force | (v > 999);
   *ptr = digits_00_99[(hi << 1) + 1];
@@ -184,7 +184,7 @@ static inline char *
 i2a(int32_t i32, char *const buffer /* upto 11 chars for -2`147`483`648 */) {
   char *ptr = buffer;
   const branchless_abs<int32_t> pair(i32);
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   *ptr = '-';
   ptr = u2a(pair.unsigned_abs, ptr + (pair.expanded_sign & 1));
   assert(ptr - buffer <= 11);
@@ -196,7 +196,7 @@ i2a(int64_t i64,
     char *const buffer /* upto 20 chars for -9`223`372`036`854`775`808 */) {
   char *ptr = buffer;
   const branchless_abs<int64_t> pair(i64);
-  // LY: strive for branchless (SSA-optimizer must solve this)
+  // LY: strive to branchless (SSA-optimizer must solve this)
   *ptr = '-';
   ptr = u2a(pair.unsigned_abs, ptr + (pair.expanded_sign & 1));
   assert(ptr - buffer <= 20);
