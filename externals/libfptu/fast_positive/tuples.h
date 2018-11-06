@@ -197,7 +197,7 @@ typedef union fptu_unit {
  *     требуя взамен аккуратности при вычитании.
  *   - В младшей "дробной" части неполные секунды в 1/2**32 долях.
  *
- * Эта форма унифицирована с "Positive Hyper100re" и одновременно достаточно
+ * Эта форма унифицирована с "Positive Hiper100re" и одновременно достаточно
  * удобна в использовании. Поэтому настоятельно рекомендуется использовать
  * именно её, особенно для хранения и передачи данных. */
 typedef union /*FPTU_API*/ fptu_time {
@@ -364,7 +364,7 @@ typedef enum fptu_type
 {
   // fixed length, without ex-data (descriptor only)
   fptu_null = 0,
-  fptu_uint16 = 1,
+  fptu_uint16 = 1, // including boolean and enums
 
   // fixed length with ex-data (at least 4 byte after the pivot)
   fptu_int32 = 2,
@@ -387,7 +387,7 @@ typedef enum fptu_type
   // with additional length
   fptu_opaque = 14, // opaque octet string
   fptu_nested = 15, // nested tuple
-  fptu_farray = 16, // flag
+  fptu_farray = 16, // flag for array-types
 
   fptu_typeid_max = (INT32_C(1) << fptu_typeid_bits) - 1,
 
