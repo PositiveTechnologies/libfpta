@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -49,8 +49,6 @@ static const char testdb_name_lck[] =
 
 //----------------------------------------------------------------------------
 
-#if defined(GTEST_HAS_COMBINE) && GTEST_HAS_COMBINE
-
 INSTANTIATE_TEST_CASE_P(
     Combine, CursorSecondary,
     ::testing::Combine(
@@ -74,11 +72,6 @@ INSTANTIATE_TEST_CASE_P(
                           fptu_cstr, fptu_opaque
                           /*, fptu_nested, fptu_farray */),
         ::testing::Values(fpta_unsorted, fpta_ascending, fpta_descending)));
-#else
-
-TEST(CursorSecondary, GoogleTestCombine_IS_NOT_Supported_OnThisPlatform) {}
-
-#endif /* GTEST_HAS_COMBINE */
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);

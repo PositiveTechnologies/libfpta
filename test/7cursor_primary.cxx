@@ -1527,8 +1527,6 @@ TEST_P(CursorPrimary, update_and_KeyMismatch) {
 
 //----------------------------------------------------------------------------
 
-#if defined(GTEST_HAS_COMBINE) && GTEST_HAS_COMBINE
-
 INSTANTIATE_TEST_CASE_P(
     Combine, CursorPrimary,
     ::testing::Combine(
@@ -1557,13 +1555,6 @@ INSTANTIATE_TEST_CASE_P(
                           fpta_primary_withdups_ordered_reverse,
                           fpta_primary_withdups_unordered),
         ::testing::Values(fpta_unsorted, fpta_ascending, fpta_descending)));
-
-#else
-
-TEST(CursorPrimary, GoogleTestCombine_IS_NOT_Supported_OnThisPlatform) {}
-TEST(CursorPrimaryDups, GoogleTestCombine_IS_NOT_Supported_OnThisPlatform) {}
-
-#endif /* GTEST_HAS_COMBINE */
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
