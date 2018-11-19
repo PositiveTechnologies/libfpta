@@ -25,8 +25,6 @@ static const char testdb_name[] = TEST_DB_DIR "ut_thread.fpta";
 static const char testdb_name_lck[] =
     TEST_DB_DIR "ut_thread.fpta" MDBX_LOCK_SUFFIX;
 
-using namespace std;
-
 static std::string random_string(int len, int seed) {
   static std::string alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
   std::string result;
@@ -166,7 +164,7 @@ TEST(Threaded, SimpleConcurence) {
 #endif
 
   const int threadNum = 8;
-  vector<std::thread> threads;
+  std::vector<std::thread> threads;
   for (int16_t i = 1; i <= threadNum; ++i)
     threads.push_back(std::thread(write_thread_proc, db, i, reps));
 
@@ -350,7 +348,7 @@ TEST(Threaded, SimpleSelect) {
 #endif
 
   const int threadNum = 8;
-  vector<std::thread> threads;
+  std::vector<std::thread> threads;
   for (int i = 0; i < threadNum; ++i)
     threads.push_back(std::thread(read_thread_proc, db, i, reps));
 
@@ -548,7 +546,7 @@ TEST(Threaded, SimpleVisitor) {
 
   const int threadNum = 8;
   int counters[threadNum] = {0};
-  vector<std::thread> threads;
+  std::vector<std::thread> threads;
   for (int i = 0; i < threadNum; ++i)
     threads.push_back(
         std::thread(visitor_thread_proc, db, i, reps, &counters[i]));
@@ -562,6 +560,99 @@ TEST(Threaded, SimpleVisitor) {
 
   SCOPED_TRACE("All threads are stopped");
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//------------------------------------------------------------------------------
+
+static void info_thread_proc(fpta_db *db) {
+  // начинаем транзакцию fpta_read
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  fpta_name table;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "some_table"));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, nullptr));
+
+  // делаем вызов fpta_table_info
+  fpta_table_stat stat;
+  memset(&stat, 42, sizeof(stat));
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+
+  // завершаем транзакцию
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+
+  fpta_name_destroy(&table);
+
+  SCOPED_TRACE("Thread finished");
+}
+
+TEST(Threaded, ParallelOpen) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db *db = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+                                  true, &db));
+  ASSERT_NE(db, (fpta_db *)nullptr);
+
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+
+  EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                         "some_field", fptu_uint16,
+                         fpta_primary_unique_ordered_obverse_nullable, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "some_table", &def));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  // переоткрываем базу
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+  db = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
+                                  false, &db));
+  ASSERT_NE(db, (fpta_db *)nullptr);
+
+  // начинаем транзакцию fpta_write
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  // запускаем поток и дожидаемся его завершения
+  std::thread thread(info_thread_proc, db);
+  thread.join();
+
+  fpta_name table;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "some_table"));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, nullptr));
+
+  fpta_table_stat stat;
+  memset(&stat, 42, sizeof(stat));
+  // задействуем DBI-хендл уже открытый в другом потоке
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+
+  // завершаем транзакцию
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  fpta_name_destroy(&table);
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }

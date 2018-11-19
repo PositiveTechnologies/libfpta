@@ -81,7 +81,6 @@ add_ut(fpta1_open TIMEOUT ${fpta_small_timeout} SOURCE 1open.cxx LIBRARY fpta te
 add_ut(fpta2_schema TIMEOUT ${fpta_small_timeout} SOURCE 2schema.cxx LIBRARY fpta testutils)
 add_ut(fpta3_smoke TIMEOUT ${fpta3_smoke_timeout} SOURCE 3smoke.cxx LIBRARY fpta testutils)
 add_ut(fpta4_data TIMEOUT ${fpta_small_timeout} SOURCE 4data.cxx LIBRARY fpta testutils)
-
 add_ut(fpta5_key TIMEOUT ${fpta5_key_timeout} SOURCE 5key.cxx LIBRARY fpta testutils)
 add_ut(fpta6_index_primary TIMEOUT ${fpta6_index_primary_timeout} SOURCE 6index_primary.cxx LIBRARY fpta testutils)
 add_ut(fpta6_index_secondary TIMEOUT ${fpta6_index_secondary_timeout} SOURCE 6index_secondary.cxx LIBRARY fpta testutils)
