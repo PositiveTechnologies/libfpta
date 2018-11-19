@@ -2040,8 +2040,6 @@ TEST_P(SmokeSelect, Filter) {
   cursor = nullptr;
 }
 
-#if defined(GTEST_HAS_COMBINE) && GTEST_HAS_COMBINE
-
 INSTANTIATE_TEST_CASE_P(
     Combine, SmokeSelect,
     ::testing::Combine(::testing::Values(fpta_primary_unique_ordered_obverse,
@@ -2050,11 +2048,6 @@ INSTANTIATE_TEST_CASE_P(
                                          fpta_primary_withdups_unordered),
                        ::testing::Values(fpta_unsorted, fpta_ascending,
                                          fpta_descending)));
-#else
-
-TEST(SmokeSelect, GoogleTestCombine_IS_NOT_Supported_OnThisPlatform) {}
-
-#endif /* GTEST_HAS_COMBINE */
 
 //----------------------------------------------------------------------------
 

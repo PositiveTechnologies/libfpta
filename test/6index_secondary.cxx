@@ -498,7 +498,6 @@ TEST_P(IndexSecondary, basic) {
 
 //----------------------------------------------------------------------------
 
-#if defined(GTEST_HAS_COMBINE) && GTEST_HAS_COMBINE
 INSTANTIATE_TEST_CASE_P(
     Combine, IndexSecondary,
     ::testing::Combine(
@@ -524,9 +523,6 @@ INSTANTIATE_TEST_CASE_P(
                           fptu_96, fptu_128, fptu_160, fptu_datetime, fptu_256,
                           fptu_cstr, fptu_opaque
                           /*, fptu_nested, fptu_farray */)));
-#else
-TEST(IndexSecondary, GoogleTestCombine_IS_NOT_Supported_OnThisPlatform) {}
-#endif /* GTEST_HAS_COMBINE */
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
