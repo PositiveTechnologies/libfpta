@@ -453,7 +453,7 @@ int fpta_composite_column_get(const fpta_name *composite_id, unsigned item,
     return rc;
 
   assert(end > begin && end - begin < fpta_max_cols);
-  if (end - begin < item)
+  if (end - begin < (ptrdiff_t)item)
     return FPTA_NODATA;
 
   const unsigned column = begin[item];

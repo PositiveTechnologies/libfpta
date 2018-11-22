@@ -178,7 +178,7 @@ __cold string to_string(const fpta_value *value) {
     return to_string(value->datetime);
 
   case fpta_float_point:
-    return fptu::format("%.10g", value->fp);
+    return fptu::format("%.10Lg", (long double)value->fp);
 
   case fpta_string:
     return fptu::format("\"%.*s\"", value->binary_length,

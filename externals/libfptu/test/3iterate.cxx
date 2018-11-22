@@ -158,7 +158,7 @@ TEST(Iterate, Simple) {
     EXPECT_EQ(0u,
               fptu_field_count_ro_ex(ro, field_filter_none, nullptr, nullptr));
 
-    EXPECT_EQ(2u + n, fptu_end_rw(pt) - fptu_begin_rw(pt));
+    EXPECT_EQ((ptrdiff_t)(2u + n), fptu_end_rw(pt) - fptu_begin_rw(pt));
   }
 }
 

@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
   print_value("ширина хэша имени в битах", fpta_name_hash_bits);
   print_value("сдвиг для получения хэша имени", fpta_name_hash_shift);
 
-  const double_t fpta_name_clash_probab = pow(2.0, -fpta_name_hash_bits / 2.0);
+  const double fpta_name_clash_probab = pow(2.0, -fpta_name_hash_bits / 2.0);
 #if defined(_WIN32) || defined(_WIN64) || defined(_WINDOWS)
   wprintf(L"%-24S = %.2g  // %S\n",
 #else

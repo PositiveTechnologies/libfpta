@@ -347,7 +347,7 @@ static int fpta_schema_sort(fpta_column_set *column_set) {
       const auto renum = std::distance(
           sorted.begin(), std::find(sorted.begin(), sorted.end(),
                                     column_set->shoves[column_number]));
-      if (unlikely(renum < 0 || renum >= column_set->count))
+      if (unlikely(renum < 0 || (unsigned)renum >= column_set->count))
         return FPTA_EOOPS;
 
       fixup.push_back(static_cast<fpta_table_schema::composite_item_t>(renum));
