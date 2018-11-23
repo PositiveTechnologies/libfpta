@@ -19,7 +19,7 @@
 
 #pragma once
 
-struct db_deleter : public std::unary_function<void, fpta_db *> {
+struct db_deleter {
   void operator()(fpta_db *db) const {
     if (db) {
       EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
@@ -27,7 +27,7 @@ struct db_deleter : public std::unary_function<void, fpta_db *> {
   }
 };
 
-struct txn_deleter : public std::unary_function<void, fpta_txn *> {
+struct txn_deleter {
   void operator()(fpta_txn *txn) const {
     if (txn) {
       ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
@@ -35,7 +35,7 @@ struct txn_deleter : public std::unary_function<void, fpta_txn *> {
   }
 };
 
-struct cursor_deleter : public std::unary_function<void, fpta_cursor *> {
+struct cursor_deleter {
   void operator()(fpta_cursor *cursor) const {
     if (cursor) {
       ASSERT_EQ(FPTA_OK, fpta_cursor_close(cursor));
@@ -43,7 +43,7 @@ struct cursor_deleter : public std::unary_function<void, fpta_cursor *> {
   }
 };
 
-struct ptrw_deleter : public std::unary_function<void, fptu_rw *> {
+struct ptrw_deleter {
   void operator()(fptu_rw *ptrw) const { free(ptrw); }
 };
 
