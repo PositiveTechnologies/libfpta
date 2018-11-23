@@ -372,6 +372,17 @@ struct fpta_cursor {
   MDBX_cursor *mdbx_cursor;
   MDBX_val current;
 
+  struct {
+    size_t results;
+    size_t searches;
+    size_t scans;
+    size_t pk_lookups;
+    size_t uniq_checks;
+    size_t upserts;
+    size_t deletions;
+  } metrics;
+  int bring(MDBX_val *key, MDBX_val *data, const MDBX_cursor_op op);
+
   static constexpr void *poor = nullptr;
   bool is_poor() const { return current.iov_base == poor; }
   void set_poor() { current.iov_base = poor; }
