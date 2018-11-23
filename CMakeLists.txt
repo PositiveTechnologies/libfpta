@@ -92,6 +92,21 @@ string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
 option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
 
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
+if(NOT DEFINED FPTA_CXX_STANDARD)
+  if(SUBPROJECT AND DEFINED CMAKE_CXX_STANDARD)
+    set(FPTA_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+  elseif(NOT HAS_CXX17 LESS 0)
+    set(FPTA_CXX_STANDARD 17)
+  elseif(NOT HAS_CXX14 LESS 0)
+    set(FPTA_CXX_STANDARD 14)
+  else()
+    set(FPTA_CXX_STANDARD 11)
+  endif()
+endif()
+message(STATUS "Use C++${FPTA_CXX_STANDARD} for libfpta")
+
 # Define GNU standard installation directories
 include(GNUInstallDirs)
 

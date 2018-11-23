@@ -79,8 +79,12 @@ set_target_properties(fpta PROPERTIES
   PUBLIC_HEADER "../fast_positive/tables.h;${FAST_POSITIVE_CONFIG_H}"
   PRIVATE_HEADER "../fast_positive/tables_internal.h"
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
+  CXX_STANDARD ${FPTA_CXX_STANDARD}
+  CXX_STANDARD_REQUIRED ON
+  C_STANDARD_REQUIRED 11
   )
 
+target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
   target_link_libraries(fpta
     LINK_PRIVATE fptu mdbx t1ha
@@ -119,7 +123,7 @@ if(CMAKE_VERSION VERSION_GREATER 2.8.11)
     ARCHIVE DESTINATION lib/static COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
     PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-  )
+    )
 else()
   install(TARGETS fpta
     LIBRARY DESTINATION lib COMPONENT runtime
@@ -127,7 +131,7 @@ else()
     ARCHIVE DESTINATION lib/static COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive COMPONENT devel
     PRIVATE_HEADER DESTINATION include/fast_positive COMPONENT devel
-  )
+    )
 endif()
 
 ###############################################################################
