@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -240,9 +240,33 @@ int fpta_table_info(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
     stat->leaf_pages = (size_t)mdbx_stat.ms_leaf_pages;
     stat->branch_pages = (size_t)mdbx_stat.ms_branch_pages;
     stat->large_pages = (size_t)mdbx_stat.ms_overflow_pages;
-    stat->total_bytes = (mdbx_stat.ms_leaf_pages + mdbx_stat.ms_branch_pages +
-                         mdbx_stat.ms_overflow_pages) *
-                        (size_t)mdbx_stat.ms_psize;
+
+    if (table_id->table_schema->has_secondary()) {
+      MDBX_dbi dbi[fpta_max_indexes];
+      rc = fpta_open_secondaries(txn, table_id->table_schema, dbi);
+      if (unlikely(rc != FPTA_SUCCESS))
+        return rc;
+      for (size_t i = 1; i < table_id->table_schema->column_count(); ++i) {
+        const auto shove = table_id->table_schema->column_shove(i);
+        if (!fpta_is_indexed(shove))
+          break;
+        rc =
+            mdbx_dbi_stat(txn->mdbx_txn, dbi[i], &mdbx_stat, sizeof(mdbx_stat));
+        if (unlikely(rc != MDBX_SUCCESS))
+          return rc;
+
+        stat->btree_depth = (stat->btree_depth > mdbx_stat.ms_depth)
+                                ? stat->btree_depth
+                                : mdbx_stat.ms_depth;
+        stat->leaf_pages += (size_t)mdbx_stat.ms_leaf_pages;
+        stat->branch_pages += (size_t)mdbx_stat.ms_branch_pages;
+        stat->large_pages += (size_t)mdbx_stat.ms_overflow_pages;
+      }
+    }
+
+    stat->total_bytes =
+        (stat->leaf_pages + stat->branch_pages + stat->large_pages) *
+        mdbx_stat.ms_psize;
   }
 
   if (likely(row_count)) {

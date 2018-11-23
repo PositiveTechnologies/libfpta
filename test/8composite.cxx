@@ -203,7 +203,7 @@ TEST(SmokeComposite, Primary) {
   EXPECT_EQ(1u, stat.btree_depth);
   EXPECT_EQ(0u, stat.large_pages);
   EXPECT_EQ(0u, stat.branch_pages);
-  EXPECT_EQ(1u, stat.leaf_pages);
+  EXPECT_EQ(2u, stat.leaf_pages);
   EXPECT_LE(512u, stat.total_bytes);
 
   // переходим к последней записи
