@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -137,6 +137,7 @@ int fpta_db_open(const char *path, fpta_durability durability,
   fpta_db *db = (fpta_db *)calloc(1, sizeof(fpta_db));
   if (unlikely(db == nullptr))
     return FPTA_ENOMEM;
+  db->regime_flags = regime_flags;
 
   int rc;
   db->alterable_schema = alterable_schema;

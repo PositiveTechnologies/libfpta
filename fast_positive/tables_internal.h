@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -154,6 +154,11 @@ static __inline fpta_index_type fpta_shove2index(fpta_shove_t shove) {
 
 static __inline bool fpta_is_composite(const fpta_shove_t shove) {
   return fpta_shove2type(shove) == /* composite */ fptu_null;
+}
+
+static __inline bool fpta_is_ordinary(const fpta_shove_t shove) {
+  const fptu_type data_type = fpta_shove2type(shove);
+  return data_type > fptu_uint16 && data_type < fptu_cstr;
 }
 
 static __inline fptu_type fpta_id2type(const fpta_name *id) {

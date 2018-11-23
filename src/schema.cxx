@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -750,8 +750,26 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
       FPT_ARRAY_END(column_set->composites), &composites_eof);
   if (rc != FPTA_SUCCESS)
     return rc;
-  const size_t bytes = fpta_schema_stored_size(column_set, composites_eof);
 
+  if ((txn->db->regime_flags & fpta_allow_clumsy) == 0) {
+    if (!fpta_is_ordinary(column_set->shoves[0])) {
+      unsigned clumsy_count = 0;
+      for (size_t i = 1; i < column_set->count; ++i) {
+        const auto shove = column_set->shoves[i];
+        if (!fpta_is_indexed(shove))
+          break;
+        if (fpta_is_ordinary(shove) && !fpta_column_is_nullable(shove))
+          /* primary index costly than secondary */
+          return FPTA_CLUMSY_INDEX;
+
+        if (++clumsy_count > 1)
+          /* too costly, ordinary PK should be used */
+          return FPTA_CLUMSY_INDEX;
+      }
+    }
+  }
+
+  const size_t bytes = fpta_schema_stored_size(column_set, composites_eof);
   rc = fpta_schema_sort(column_set);
   if (rc != FPTA_SUCCESS)
     return rc;

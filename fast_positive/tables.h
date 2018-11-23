@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -344,6 +344,8 @@ enum fpta_error {
   /* Adding index which is similar to one of the existing */,
   FPTA_TARDY_DBI
   /* Another thread still use handle(s) that should be reopened. */,
+  FPTA_CLUMSY_INDEX
+  /* Adding index which is too clumsy */,
 
   FPTA_NODATA = -1 /* No data or EOF was reached */,
   FPTA_DEADBEEF = UINT32_C(0xDeadBeef) /* Pseudo error for results by refs,
@@ -914,6 +916,8 @@ typedef enum fpta_regime_flags {
   fpta_openweakness = 16 /* При открытии базы не производить откат
                           * к сильной точке фиксации. */
   ,
+  fpta_allow_clumsy = 32 /* Требуется для тестов: Позволять неуклюжие индексы
+                          * и прочие явные неоптимальности. */
 } fpta_regime_flags;
 
 /* Открывает базу по заданному пути и в durability режиме.
@@ -2773,8 +2777,8 @@ inline string to_string(const fpta_filter &filter) {
 }
 } // namespace std
 
-inline fpta_regime_flags operator|(const fpta_regime_flags a,
-                                   const fpta_regime_flags b) {
+inline constexpr fpta_regime_flags operator|(const fpta_regime_flags a,
+                                             const fpta_regime_flags b) {
   return (fpta_regime_flags)((unsigned)a | (unsigned)b);
 }
 

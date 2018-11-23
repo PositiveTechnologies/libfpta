@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -102,6 +102,9 @@ __cold static const char *__fpta_errstr(int errnum) {
 
   case FPTA_TARDY_DBI:
     return "FPTA: Another thread still use handle(s) that should be reopened";
+
+  case FPTA_CLUMSY_INDEX:
+    return "FPTA: Adding index which is too clumsy";
 
   case FPTA_NODATA /* -1, EOF */:
     return "FPTA: No data or EOF was reached";

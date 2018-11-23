@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -38,6 +38,7 @@ struct fpta_db {
   MDBX_dbi schema_dbi;
   fpta_rwl_t schema_rwlock;
   uint64_t schema_csn;
+  fpta_regime_flags regime_flags;
 
   fpta_mutex_t dbi_mutex /* TODO: убрать мьютекс и перевести на atomic */;
   fpta_shove_t dbi_shoves[fpta_dbi_cache_size];
