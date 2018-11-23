@@ -59,7 +59,7 @@ TEST(SmokeComposite, Primary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
@@ -383,7 +383,7 @@ TEST(SmokeIndex, Secondary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 

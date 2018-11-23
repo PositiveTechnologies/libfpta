@@ -166,7 +166,7 @@ TEST(Schema, Base) {
   //------------------------------------------------------------------------
 
   /* повторно открываем базу с возможностью изменять схему */
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 

@@ -1228,12 +1228,12 @@ TEST(Nullable, SchemaReload) {
   }
 
   fpta_db *db_correlator = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, false, &db_correlator));
   ASSERT_NE(nullptr, db_correlator);
 
   fpta_db *db_commander = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db_commander));
   ASSERT_NE(nullptr, db_commander);
 
@@ -1339,7 +1339,7 @@ TEST(Nullable, SchemaReload) {
     fpta_name_destroy(&lc);
   }
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db_commander));
   ASSERT_NE(nullptr, db_commander);
 

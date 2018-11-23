@@ -319,7 +319,7 @@ TEST(SmokeIndex, Secondary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
@@ -2909,7 +2909,7 @@ TEST(Smoke, ReOpenAfterAbort) {
 
   // открываем/создаем базу
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
@@ -3323,7 +3323,7 @@ TEST(Smoke, AsyncSchemaChange) {
     }
 
     fpta_db *db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                     0644, 1, true, &db));
     ASSERT_NE(nullptr, db);
 
@@ -3437,7 +3437,7 @@ TEST(Smoke, AsyncSchemaChange) {
   {
     // открываем базу в "командоре"
     fpta_db *db_commander = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                     0644, 1, true, &db_commander));
     ASSERT_NE(nullptr, db_commander);
 
@@ -3457,7 +3457,7 @@ TEST(Smoke, AsyncSchemaChange) {
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_commander));
   db_commander = nullptr;
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1, true,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing, 0644, 1, true,
                                   &db_commander));
   ASSERT_NE(nullptr, db_commander);
   EXPECT_EQ(FPTA_OK,
@@ -4108,7 +4108,7 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
@@ -4294,7 +4294,7 @@ TEST(SmokeFilter, ChoppedLookup) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                                   0644, 1, true, &db));
   ASSERT_NE(nullptr, db);
 
