@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/buildpack-deps:bionic
+      - image: circleci/buildpack-deps:bionic-browsers
     environment:
       GTEST_SHUFFLE: 1
       GTEST_RUNTIME_LIMIT: 142
