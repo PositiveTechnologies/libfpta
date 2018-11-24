@@ -220,6 +220,38 @@ int fpta_secondary_remove(fpta_txn *txn, fpta_table_schema *table_def,
 
 int fpta_table_info(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
                     fpta_table_stat *stat) {
+  return fpta_table_info_ex(txn, table_id, row_count, stat,
+                            offsetof(fpta_table_stat, index_costs));
+}
+
+static void index_stat2cost(MDBX_stat &stat,
+                            fpta_table_stat::index_cost_info &info) {
+  info.btree_depth = stat.ms_depth;
+  info.items = (size_t)stat.ms_entries;
+  info.branch_pages = (size_t)stat.ms_branch_pages;
+  info.leaf_pages = (size_t)stat.ms_leaf_pages;
+  info.large_pages = (size_t)stat.ms_overflow_pages;
+  info.bytes =
+      (info.branch_pages + info.leaf_pages + info.large_pages) * stat.ms_psize;
+
+  info.scan_O1N = (8 * info.bytes + info.items) / (info.items + 1);
+  const size_t records_per_leaf =
+      42 + (info.items + info.leaf_pages) / (info.leaf_pages + 1);
+  const size_t records_per_branch =
+      (info.items + info.branch_pages) / (info.branch_pages + 1);
+  info.search_OlogN =
+      42 + (records_per_leaf + records_per_branch * info.btree_depth + 1) *
+               info.scan_O1N;
+  info.clumsy_factor =
+      (info.btree_depth * info.bytes + info.items) / (info.items + 1);
+}
+
+int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
+                       fpta_table_stat *stat, size_t space4stat) {
+  if (stat != nullptr &&
+      unlikely(space4stat < offsetof(fpta_table_stat, index_costs)))
+    return FPTA_EINVAL;
+
   int rc = fpta_name_refresh_couple(txn, table_id, nullptr);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
@@ -235,12 +267,34 @@ int fpta_table_info(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
     return rc;
 
   if (unlikely(stat)) {
-    stat->row_count = mdbx_stat.ms_entries;
+    const size_t space4costs =
+        (space4stat - offsetof(fpta_table_stat, index_costs)) /
+        sizeof(stat->index_costs[0]);
+
+    stat->total_items = stat->row_count = (size_t)mdbx_stat.ms_entries;
     stat->btree_depth = mdbx_stat.ms_depth;
     stat->leaf_pages = (size_t)mdbx_stat.ms_leaf_pages;
     stat->branch_pages = (size_t)mdbx_stat.ms_branch_pages;
     stat->large_pages = (size_t)mdbx_stat.ms_overflow_pages;
 
+    stat->index_costs_total = 1;
+    stat->index_costs_provided = 0;
+    if (space4costs) {
+      stat->index_costs_provided = 1;
+      index_stat2cost(mdbx_stat, stat->index_costs[0]);
+      stat->index_costs[0].column_shove =
+          table_id->table_schema->column_shove(0);
+    }
+
+    size_t uniq_total_items = 0;
+    size_t uniq_leaf_pages = 0;
+    size_t uniq_branch_pages = 0;
+    size_t uniq_large_pages = 0;
+    size_t uniq_trees = 0;
+    size_t uniq_summary_depth = 0;
+
+    size_t summary_depth = stat->btree_depth;
+    size_t number_of_trees = 1;
     if (table_id->table_schema->has_secondary()) {
       MDBX_dbi dbi[fpta_max_indexes];
       rc = fpta_open_secondaries(txn, table_id->table_schema, dbi);
@@ -250,23 +304,88 @@ int fpta_table_info(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
         const auto shove = table_id->table_schema->column_shove(i);
         if (!fpta_is_indexed(shove))
           break;
+
         rc =
             mdbx_dbi_stat(txn->mdbx_txn, dbi[i], &mdbx_stat, sizeof(mdbx_stat));
         if (unlikely(rc != MDBX_SUCCESS))
           return rc;
 
+        if (fpta_index_is_unique(shove)) {
+          uniq_total_items += (size_t)mdbx_stat.ms_entries;
+          uniq_trees += 1;
+          uniq_summary_depth += mdbx_stat.ms_depth + 1;
+          uniq_leaf_pages += (size_t)mdbx_stat.ms_leaf_pages;
+          uniq_branch_pages += (size_t)mdbx_stat.ms_branch_pages;
+          uniq_large_pages += (size_t)mdbx_stat.ms_overflow_pages;
+        }
+
+        stat->total_items += (size_t)mdbx_stat.ms_entries;
+        number_of_trees += 1;
+        summary_depth += mdbx_stat.ms_depth + 1;
         stat->btree_depth = (stat->btree_depth > mdbx_stat.ms_depth)
                                 ? stat->btree_depth
                                 : mdbx_stat.ms_depth;
         stat->leaf_pages += (size_t)mdbx_stat.ms_leaf_pages;
         stat->branch_pages += (size_t)mdbx_stat.ms_branch_pages;
         stat->large_pages += (size_t)mdbx_stat.ms_overflow_pages;
+
+        stat->index_costs_total = i + 1;
+        if (space4costs >= stat->index_costs_total) {
+          stat->index_costs_provided = i + 1;
+          index_stat2cost(mdbx_stat, stat->index_costs[i]);
+          stat->index_costs[i].column_shove =
+              table_id->table_schema->column_shove(i);
+        }
       }
     }
 
     stat->total_bytes =
         (stat->leaf_pages + stat->branch_pages + stat->large_pages) *
         mdbx_stat.ms_psize;
+
+    /* LY: Исходим из того, что для сканирования всех записей потребуется
+     * прочитать и обработать все страницы */
+    stat->cost_scan_O1N =
+        42 + (8 * stat->total_bytes + stat->row_count) / (stat->row_count + 1);
+
+    /* LY: Поиск одной записи по значению ключа потребует бинарного поиска в
+     * одной странице на каждом уровне дерева. Исходим из того, что стоимость
+     * обработки/сравнения одного ключа при бинарном поиске, примерно
+     * соответствует стоимости обработки одной записи при переборе. Тогда
+     * затраты можно оценить через высоту дерева и плотность укладки ключей
+     * и/или значений в страницы в зависимости от их типов. */
+    const size_t records_per_leaf =
+        (stat->row_count + stat->leaf_pages) / (stat->leaf_pages + 1);
+    const size_t records_per_branch =
+        (stat->row_count + stat->branch_pages) / (stat->branch_pages + 1);
+    stat->cost_search_OlogN =
+        42 + (records_per_leaf + records_per_branch * stat->btree_depth + 1) *
+                 stat->cost_scan_O1N;
+
+    /* LY: При обновлении записи потребуется обновлять дерево отдельно для
+     * каждого индекса, что проще оценить относительно поиска, через количество
+     * деревьев и сумму их высот. Кроме этого, потребуется выделение и
+     * копирование страниц, перебалансировка деревьев, а также обслуживание
+     * списков страниц. */
+    stat->cost_alter_MOlogN = 42 + (records_per_leaf * number_of_trees +
+                                    records_per_branch * summary_depth + 1) *
+                                       stat->cost_scan_O1N * 3;
+
+    /* LY: Аналогично оцениваем амортизационные затраты на поиск при проверке
+     * уникальности для всех вторичных индексов с контролем уникальности. */
+    const size_t uniq_total_bytes =
+        (uniq_leaf_pages + uniq_branch_pages + uniq_large_pages) *
+        mdbx_stat.ms_psize;
+    const size_t uniq_per_leaf =
+        (uniq_total_items + uniq_leaf_pages) / (uniq_leaf_pages + 1);
+    const size_t uniq_per_branch =
+        (uniq_total_items + uniq_branch_pages) / (uniq_branch_pages + 1);
+
+    const size_t uniq_O1N =
+        (8 * uniq_total_bytes + uniq_total_items) / (uniq_total_items + 1);
+    stat->cost_uniq_MOlogN = (uniq_per_leaf * uniq_trees +
+                              uniq_per_branch * uniq_summary_depth + 1) *
+                             uniq_O1N;
   }
 
   if (likely(row_count)) {
