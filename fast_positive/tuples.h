@@ -1522,8 +1522,10 @@ inline unsigned get_colnum(uint_fast16_t tag) { return fptu_get_colnum(tag); }
 
 inline fptu_type get_type(uint_fast16_t tag) { return fptu_get_type(tag); }
 
-inline bool tag_is_fixedsize(uint_fast16_t tag);
-inline bool tag_is_dead(uint_fast16_t tag);
+inline bool tag_is_fixedsize(uint_fast16_t tag) {
+  return fptu_tag_is_fixedsize(tag);
+}
+inline bool tag_is_dead(uint_fast16_t tag) { return fptu_tag_is_dead(tag); }
 
 inline uint_fast16_t make_tag(unsigned column, fptu_type type) {
   return fptu_make_tag(column, type);
