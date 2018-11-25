@@ -110,7 +110,7 @@ struct iovec {
 #endif
 
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -1330,7 +1330,7 @@ FPTU_API fptu_error fptu_tuple2json_FILE(fptu_ro tuple, FILE *file,
                                          fptu_value2enum_func value2enum,
                                          const fptu_json_options options);
 #ifdef __cplusplus
-}
+} /* extern "C" */
 
 //----------------------------------------------------------------------------
 /* Сервисные функции и классы для C++ (будет пополнятся). */
