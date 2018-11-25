@@ -185,7 +185,11 @@ union fptu_varlen {
  *
  * Фактически это дескриптор поля, в котором записаны: тип данных,
  * номер колонки и смещение к данным. */
-union FPTU_API fptu_field {
+union
+#ifdef __cplusplus
+    FPTU_API
+#endif /* __cplusplus */
+        fptu_field {
   struct {
     uint16_t tag;    /* тип и "номер колонки". */
     uint16_t offset; /* смещение к данным относительно заголовка, либо
@@ -206,7 +210,7 @@ union FPTU_API fptu_field {
   inline const void *inner_begin() const;
   inline const void *inner_end() const;
   inline size_t array_length() const;
-#endif
+#endif /* __cplusplus */
 };
 
 /* Внутренний тип соответствующий 32-битной ячейке с данными. */
@@ -227,7 +231,11 @@ union fptu_unit {
  * Эта форма унифицирована с "Positive Hiper100re" и одновременно достаточно
  * удобна в использовании. Поэтому настоятельно рекомендуется использовать
  * именно её, особенно для хранения и передачи данных. */
-union FPTU_API fptu_time {
+union
+#ifdef __cplusplus
+    FPTU_API
+#endif /* __cplusplus */
+        fptu_time {
   uint64_t fixedpoint;
   struct {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -236,7 +244,7 @@ union FPTU_API fptu_time {
 #else
     uint32_t utc;
     uint32_t fractional;
-#endif
+#endif /* byte order */
   };
 
 #ifdef __cplusplus
@@ -278,7 +286,7 @@ union FPTU_API fptu_time {
         ns100 - UINT64_C(/* UTC offset from 1601-01-01 */ 116444736000000000));
   }
 #endif /* _FILETIME_ */
-#endif
+#endif /* __cplusplus */
 };
 
 union fptu_payload {
@@ -325,7 +333,11 @@ union fptu_ro {
  * Является плоским буфером, в начале которого расположены служебные поля.
  *
  * Инициализируется функциями fptu_init(), fptu_alloc() и fptu_fetch(). */
-struct FPTU_API fptu_rw {
+struct
+#ifdef __cplusplus
+    FPTU_API
+#endif /* __cplusplus */
+        fptu_rw {
   unsigned head; /* Индекс дозаписи дескрипторов, растет к началу буфера,
                     указывает на первый занятый элемент. */
   unsigned tail; /* Индекс для дозаписи данных, растет к концу буфера,
