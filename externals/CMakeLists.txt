@@ -1,4 +1,5 @@
-﻿add_definitions(-Dfptu_EXPORTS)
+﻿set(FPTU_CXX_STANDARD ${FPTA_CXX_STANDARD})
+add_definitions(-Dfptu_EXPORTS)
 add_subdirectory(libfptu/src)
 add_subdirectory(libfptu/test)
 
