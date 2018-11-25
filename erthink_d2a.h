@@ -21,24 +21,26 @@
  */
 
 #pragma once
+#include "erthink.h"
+#include "erthink_carryadd.h"
+#include "erthink_clz.h"
+#include "erthink_mul.h"
+#include "erthink_u2a.h"
 
-#include <array>
+#ifdef _MSC_VER
+#pragma warning(push, 1)
+#endif
 #include <cassert>
 #include <cinttypes>
 #include <climits>
 #include <cmath>
 #include <cstddef>
-#include <string.h> // for memcpy()
-
-#include "erthink.h"
-#include "erthink_carryadd.h"
-#include "erthink_mul.h"
-
-#include "erthink_clz.h"
-#include "erthink_u2a.h"
-
+#include <cstring> // for memcpy()
 #if defined(HAVE_IEEE754_H) || __has_include(<ieee754.h>)
 #include <ieee754.h>
+#endif
+#ifdef _MSC_VER
+#pragma warning(pop)
 #endif
 
 //------------------------------------------------------------------------------
@@ -94,8 +96,8 @@ static constexpr uint64_t IEEE754_DOUBLE_EXPONENT_MASK =
     UINT64_C(0x7FF0000000000000);
 static constexpr uint64_t IEEE754_DOUBLE_MANTISSA_MASK =
     UINT64_C(0x000FFFFFFFFFFFFF);
-static constexpr uint64_t IEEE754_DOUBLE_IMPLICIT_LEAD =
-    UINT64_C(0x0010000000000000);
+static constexpr int64_t IEEE754_DOUBLE_IMPLICIT_LEAD =
+    INT64_C(0x0010000000000000);
 
 enum {
 #ifndef IEEE754_DOUBLE_BIAS
@@ -114,6 +116,11 @@ union casting_union {
   constexpr casting_union(int64_t v) : i(v) {}
 };
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4820 /* FOO bytes padding added                      \
+                                  after data member BAR */)
+#endif
 struct diy_fp {
   uint64_t f;
   int e;
@@ -145,8 +152,8 @@ struct diy_fp {
 
   static diy_fp middle(const diy_fp &a, const diy_fp &b) {
     assert(a.e == b.e);
-    const int64_t diff = a.f - b.f;
-    return diy_fp(a.f - (diff >> 1), a.e);
+    const int64_t diff = int64_t(a.f - b.f);
+    return diy_fp(a.f - uint64_t(diff >> 1), a.e);
   }
 
   const diy_fp &operator*=(const diy_fp &rhs) {
@@ -163,6 +170,9 @@ struct diy_fp {
     return diy_fp(f - rhs.f, e);
   }
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 static diy_fp cached_power(const int in_exp2, int &out_exp10) {
   constexpr size_t n_items = (340 + 340) / 8 + 1 /* 10^-340 .. 0 .. 10^340 */;
@@ -173,7 +183,7 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
   constexpr int64_t factor =
       static_cast<int64_t>(IEEE754_DOUBLE_IMPLICIT_LEAD /
                            3.321928094887362347870319 /* log2(10.0) */);
-  const int64_t exp2_rebased = (INT64_C(-61) - in_exp2);
+  const int exp2_rebased = (-61 - in_exp2);
   const int64_t exp10_unbiased_scaled =
       exp2_rebased * factor + 348 * IEEE754_DOUBLE_IMPLICIT_LEAD - 1;
   const unsigned exp10_unbiased = static_cast<unsigned>(
@@ -183,7 +193,7 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
 
   const size_t index = exp10_unbiased >> 3;
   assert(n_items > index);
-  out_exp10 = 340 - (exp10_unbiased & ~7);
+  out_exp10 = int(340 - (exp10_unbiased & ~7));
 
   static constexpr short power10_exp2[] = {
       -1193, -1166, -1140, -1113, -1087, -1060, -1034, -1007, -980, -954, -927,
@@ -259,7 +269,7 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
                                 uint64_t delta, char *const buffer,
                                 int &inout_exp10) {
   assert(delta > 0);
-  const unsigned shift = -upper.e;
+  const unsigned shift = unsigned(-upper.e);
   const uint64_t mask = UINT64_MAX >> (64 - shift);
   char *ptr = buffer;
   const diy_fp gap = upper - v;
@@ -320,7 +330,8 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
     ptr += (digit || ptr > buffer);
     if (left <= delta) {
       inout_exp10 += kappa;
-      round(ptr, delta, left, dec_power(kappa) << shift, gap.f);
+      assert(kappa >= 0);
+      round(ptr, delta, left, dec_power(unsigned(kappa)) << shift, gap.f);
       return ptr;
     }
   }
@@ -345,7 +356,8 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
   }
 
   inout_exp10 += kappa;
-  const uint64_t unit = (kappa > -10 ? dec_power(-kappa) : 0);
+  assert(kappa < 0);
+  const uint64_t unit = (kappa > -10 ? dec_power(unsigned(-kappa)) : 0u);
   round(ptr, delta, tail, mask + 1, gap.f * unit);
   return ptr;
 }
@@ -392,7 +404,7 @@ static __maybe_unused char *
 d2a(const grisu::casting_union &value,
     char *const buffer /* upto 23 chars for -22250738585072014e-324 */) {
   assert(!std::isnan(value.f) && !std::isinf(value.f));
-  // LY: strive to branchless (SSA-optimizer must solve this)
+  // LY: strive for branchless (SSA-optimizer must solve this)
   *buffer = '-';
   int exponent;
   char *ptr =
@@ -400,7 +412,7 @@ d2a(const grisu::casting_union &value,
   if (exponent != 0) {
     const branchless_abs<int> pair(exponent);
     static char e_with_sign[4] = {'e', '+', 'e', '-'};
-    // LY: strive to branchless
+    // LY: strive for branchless
     memcpy(ptr, e_with_sign + (pair.expanded_sign & 2), 2);
     ptr = dec3(pair.unsigned_abs, ptr + 2);
   }
