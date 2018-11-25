@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -783,9 +783,10 @@ TYPED_TEST(Value2Key_AllString, basic) {
 
   constexpr bool is_string = (type == fptu_cstr);
   static const size_t keylen_min =
-      ct_is_fixedsize(type) ? ct_elem_size(type) : 1;
-  static const size_t keylen_max =
-      ct_is_fixedsize(type) ? ct_elem_size(type) : (size_t)fpta_max_keylen;
+      fptu::tag_is_fixedsize(type) ? tag_elem_size(type) : 1;
+  static const size_t keylen_max = fptu::tag_is_fixedsize(type)
+                                       ? tag_elem_size(type)
+                                       : (size_t)fpta_max_keylen;
   const size_t keybuf_len = keylen_max + keylen_min;
 
 #ifdef _MSC_VER /* FIXME: mustdie */
@@ -811,7 +812,7 @@ TYPED_TEST(Value2Key_AllString, basic) {
     EXPECT_EQ(FPTA_ETYPE, value2key(shove, fpta_value_end(), key));
     EXPECT_EQ(FPTA_ETYPE, value2key(shove, fpta_value_null(), key));
 
-    if (ct_is_fixedsize(type)) {
+    if (fptu::tag_is_fixedsize(type)) {
       EXPECT_EQ(
           FPTA_DATALEN_MISMATCH,
           value2key(shove, fpta_value_binary(nullptr, keylen_min - 1), key));
@@ -852,7 +853,7 @@ TYPED_TEST(Value2Key_AllString, basic) {
   ASSERT_TRUE(memcmp(zeros, obverse, keybuf_len) < 0);
   ASSERT_TRUE(memcmp(ones, obverse, keybuf_len) > 0);
 
-  if (!ct_is_fixedsize(type)) {
+  if (!fptu::tag_is_fixedsize(type)) {
     value_left = fpta_value_binstr<type>(nullptr, 0);
     value_right = fpta_value_binstr<type>(zeros, keylen_max);
     expect_lt<type, fpta_primary_unique_ordered_obverse>(value_left,
@@ -969,9 +970,9 @@ TYPED_TEST(Value2Key_AllString, normal_keys) {
   constexpr fptu_type type = TypeParam::type;
   constexpr bool is_string = (type == fptu_cstr);
   static const int keylen_min =
-      ct_is_fixedsize(type) ? (int)ct_elem_size(type) : 1;
+      fptu::tag_is_fixedsize(type) ? (int)tag_elem_size(type) : 1;
   static const int keylen_max =
-      ct_is_fixedsize(type) ? (int)ct_elem_size(type) : fpta_max_keylen;
+      fptu::tag_is_fixedsize(type) ? (int)tag_elem_size(type) : fpta_max_keylen;
   SCOPED_TRACE("type " + std::to_string(type));
 
 #ifdef _MSC_VER /* FIXME: mustdie */
@@ -981,7 +982,7 @@ TYPED_TEST(Value2Key_AllString, normal_keys) {
 #endif
   probe_triplet<type> probe;
 
-  if (!ct_is_fixedsize(type))
+  if (!fptu::tag_is_fixedsize(type))
     probe(fpta_value_binstr<type>(nullptr, 0), -1);
 
   for (int order_lopart = 0; order_lopart < 111;) {

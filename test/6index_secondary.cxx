@@ -64,7 +64,7 @@ public:
   void Fill() {
     fptu_rw *row = fptu_alloc(6, fpta_max_keylen * 42);
     ASSERT_NE(nullptr, row);
-    ASSERT_STREQ(nullptr, fptu_check(row));
+    ASSERT_STREQ(nullptr, fptu::check(row));
     fpta_txn *const txn = txn_guard.get();
 
     coupled_keygen pg(pk_index, pk_type, se_index, se_type);
@@ -74,7 +74,7 @@ public:
 
       // теперь формируем кортеж
       ASSERT_EQ(FPTU_OK, fptu_clear(row));
-      ASSERT_STREQ(nullptr, fptu_check(row));
+      ASSERT_STREQ(nullptr, fptu::check(row));
       fpta_value value_pk = pg.make_primary(order, NNN);
       ASSERT_EQ(FPTA_OK,
                 fpta_upsert_column(row, &col_order, fpta_value_sint(order)));
@@ -153,7 +153,7 @@ public:
     }
 
     // разрушаем кортеж
-    ASSERT_STREQ(nullptr, fptu_check(row));
+    ASSERT_STREQ(nullptr, fptu::check(row));
     free(row);
   }
 
@@ -431,7 +431,7 @@ TEST_P(IndexSecondary, basic) {
                  std::to_string(order));
     fptu_ro tuple;
     EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor, &tuple));
-    ASSERT_STREQ(nullptr, fptu_check_ro(tuple));
+    ASSERT_STREQ(nullptr, fptu::check(tuple));
 
     int error;
     fpta_value key;

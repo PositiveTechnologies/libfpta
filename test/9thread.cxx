@@ -328,7 +328,7 @@ TEST(Threaded, SimpleSelect) {
 
   EXPECT_EQ(FPTA_OK, fpta_probe_and_upsert_row(txn, &table, fptu_take(tuple)));
 
-  EXPECT_EQ(FPTA_OK, fptu_clear(tuple));
+  EXPECT_EQ(FPTU_OK, fptu_clear(tuple));
   free(tuple);
 
   fpta_name_destroy(&table);

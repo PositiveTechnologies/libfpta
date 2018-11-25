@@ -183,7 +183,7 @@ template <fptu_type type, fpta_index_type index> void TestPrimary() {
 
   fptu_rw *row = fptu_alloc(4, fpta_max_keylen * 2 + 4 + 4);
   ASSERT_NE(nullptr, row);
-  ASSERT_STREQ(nullptr, fptu_check(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
 
   any_keygen keygen(type, index);
   unsigned n = 0;
@@ -197,7 +197,7 @@ template <fptu_type type, fpta_index_type index> void TestPrimary() {
 
     // теперь формируем кортеж
     ASSERT_EQ(FPTU_OK, fptu_clear(row));
-    ASSERT_STREQ(nullptr, fptu_check(row));
+    ASSERT_STREQ(nullptr, fptu::check(row));
     ASSERT_EQ(FPTA_OK,
               fpta_upsert_column(row, &col_order, fpta_value_sint(order)));
     ASSERT_EQ(FPTA_OK, fpta_upsert_column(row, &col_pk, value_pk));
@@ -252,7 +252,7 @@ template <fptu_type type, fpta_index_type index> void TestPrimary() {
       // сначала удаляем dup_id, чтобы строка не была полным дублем,
       // т.е. чтобы получить отказ именно из-за дубликата ключа,
       // а не из-за защиты от полных дубликатов.
-      ASSERT_EQ(1, fptu_erase(row, col_dup_id.column.num, fptu_any));
+      ASSERT_EQ(1, fptu::erase(row, col_dup_id.column.num, fptu_any));
       ASSERT_EQ(FPTA_KEYEXIST, fpta_upsert_row(txn, &table, fptu_take(row)));
     }
   }
@@ -262,7 +262,7 @@ template <fptu_type type, fpta_index_type index> void TestPrimary() {
   txn = nullptr;
 
   // разрушаем кортеж
-  ASSERT_STREQ(nullptr, fptu_check(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
   free(row);
 
   //------------------------------------------------------------------------
@@ -328,7 +328,7 @@ template <fptu_type type, fpta_index_type index> void TestPrimary() {
                  std::to_string(order));
     fptu_ro tuple;
     EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor, &tuple));
-    ASSERT_STREQ(nullptr, fptu_check_ro(tuple));
+    ASSERT_STREQ(nullptr, fptu::check(tuple));
 
     int error;
     fpta_value key;

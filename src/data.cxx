@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -34,8 +34,8 @@ static fpta_value fpta_field2value_ex(const fptu_field *field,
   if (unlikely(!field))
     return result;
 
-  const fptu_payload *payload = fptu_field_payload(field);
-  switch (fptu_get_type(field->ct)) {
+  const fptu_payload *payload = field->payload();
+  switch (field->type()) {
   default:
   case fptu_nested:
     result.binary_length = (unsigned)units2bytes(payload->other.varlen.brutto);
@@ -218,7 +218,7 @@ int fpta_get_column(fptu_ro row, const fpta_name *column_id,
     return FPTA_EINVAL;
 
   const fptu_field *field =
-      fptu_lookup_ro(row, column_id->column.num, fpta_name_coltype(column_id));
+      fptu::lookup(row, column_id->column.num, fpta_name_coltype(column_id));
   *value = fpta_field2value_ex(field, fpta_name_colindex(column_id));
   return field ? FPTA_SUCCESS : FPTA_NODATA;
 }
@@ -258,7 +258,7 @@ int fpta_get_column2buffer(fptu_ro row, const fpta_name *column_id,
   }
 
   const fptu_field *field =
-      fptu_lookup_ro(row, column_id->column.num, fpta_name_coltype(column_id));
+      fptu::lookup(row, column_id->column.num, fpta_name_coltype(column_id));
   *value = fpta_field2value_ex(field, fpta_name_colindex(column_id));
   if (unlikely(field == nullptr))
     return FPTA_NODATA;
@@ -514,7 +514,7 @@ denil_catched:
     return FPTA_EVALUE;
 
 erase_field:
-  rc = fptu_erase(pt, colnum, fptu_any);
+  rc = fptu::erase(pt, colnum, fptu_any);
   assert(rc >= 0);
   (void)rc;
   return FPTA_SUCCESS;

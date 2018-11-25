@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -20,9 +20,9 @@
 #include "details.h"
 
 static __hot fptu_lge fpta_cmp_null(const fptu_field *left) {
-  auto payload = fptu_field_payload(left);
+  const auto payload = left->payload();
 
-  switch (fptu_get_type(left->ct)) {
+  switch (left->type()) {
   case fptu_null /* here is/should not a composite column/index */:
     return fptu_eq;
   case fptu_opaque:
@@ -35,9 +35,9 @@ static __hot fptu_lge fpta_cmp_null(const fptu_field *left) {
 }
 
 static __hot fptu_lge fpta_cmp_sint(const fptu_field *left, int64_t right) {
-  auto payload = fptu_field_payload(left);
+  const auto payload = left->payload();
 
-  switch (fptu_get_type(left->ct)) {
+  switch (left->type()) {
   case fptu_uint16:
     return fptu_cmp2lge<int64_t>(left->get_payload_uint16(), right);
 
@@ -67,9 +67,9 @@ static __hot fptu_lge fpta_cmp_sint(const fptu_field *left, int64_t right) {
 }
 
 static __hot fptu_lge fpta_cmp_uint(const fptu_field *left, uint64_t right) {
-  auto payload = fptu_field_payload(left);
+  const auto payload = left->payload();
 
-  switch (fptu_get_type(left->ct)) {
+  switch (left->type()) {
   case fptu_uint16:
     return fptu_cmp2lge<uint64_t>(left->get_payload_uint16(), right);
 
@@ -99,9 +99,9 @@ static __hot fptu_lge fpta_cmp_uint(const fptu_field *left, uint64_t right) {
 }
 
 static __hot fptu_lge fpta_cmp_fp(const fptu_field *left, double right) {
-  auto payload = fptu_field_payload(left);
+  const auto payload = left->payload();
 
-  switch (fptu_get_type(left->ct)) {
+  switch (left->type()) {
   case fptu_uint16:
     return fptu_cmp2lge<double>(left->get_payload_uint16(), right);
 
@@ -131,18 +131,18 @@ static __hot fptu_lge fpta_cmp_fp(const fptu_field *left, double right) {
 static __hot fptu_lge fpta_cmp_datetime(const fptu_field *left,
                                         const fptu_time right) {
 
-  if (unlikely(fptu_get_type(left->ct) != fptu_datetime))
+  if (unlikely(left->type() != fptu_datetime))
     return fptu_ic;
 
-  auto payload = fptu_field_payload(left);
+  const auto payload = left->payload();
   return fptu_cmp2lge(payload->u64, right.fixedpoint);
 }
 
 static __hot fptu_lge fpta_cmp_string(const fptu_field *left, const char *right,
                                       size_t length) {
-  auto payload = fptu_field_payload(left);
+  const auto payload = left->payload();
 
-  switch (fptu_get_type(left->ct)) {
+  switch (left->type()) {
   default:
     return fptu_ic;
 
@@ -158,11 +158,11 @@ static __hot fptu_lge fpta_cmp_string(const fptu_field *left, const char *right,
 static __hot fptu_lge fpta_cmp_binary(const fptu_field *left,
                                       const void *right_data,
                                       size_t right_len) {
-  auto payload = fptu_field_payload(left);
+  const auto payload = left->payload();
   const void *left_data = payload->fixbin;
   size_t left_len;
 
-  switch (fptu_get_type(left->ct)) {
+  switch (left->type()) {
   case fptu_null /* here is/should not a composite column/index */:
     return (right_len == 0) ? fptu_eq : fptu_ic;
 
@@ -273,8 +273,8 @@ tail_recursion:
 
   case fpta_node_fncol:
     return fn->node_fncol.predicate(
-        fptu_lookup_ro(tuple, fn->node_fncol.column_id->column.num,
-                       fpta_id2type(fn->node_fncol.column_id)),
+        fptu::lookup(tuple, fn->node_fncol.column_id->column.num,
+                     fpta_id2type(fn->node_fncol.column_id)),
         fn->node_fncol.arg);
 
   case fpta_node_fnrow:
@@ -283,8 +283,8 @@ tail_recursion:
 
   default:
     int cmp_bits =
-        fpta_filter_cmp(fptu_lookup_ro(tuple, fn->node_cmp.left_id->column.num,
-                                       fpta_id2type(fn->node_cmp.left_id)),
+        fpta_filter_cmp(fptu::lookup(tuple, fn->node_cmp.left_id->column.num,
+                                     fpta_id2type(fn->node_cmp.left_id)),
                         fn->node_cmp.right_value);
 
     return (cmp_bits & fn->type) != 0;

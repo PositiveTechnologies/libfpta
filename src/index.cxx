@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -954,7 +954,7 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
     return fpta_composite_row2key(schema, column, row, key);
   }
 
-  const fptu_field *field = fptu_lookup_ro(row, (unsigned)column, type);
+  const fptu_field *field = fptu::lookup(row, (unsigned)column, type);
   if (unlikely(field == nullptr)) {
     if (!fpta_is_indexed_and_nullable(index))
       return FPTA_COLUMN_MISSING;
@@ -1060,7 +1060,7 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
 #endif
   }
 
-  const fptu_payload *payload = fptu_field_payload(field);
+  const fptu_payload *payload = field->payload();
   switch (type) {
   case fptu_nested:
     // TODO: додумать как лучше преобразовывать кортеж в ключ.

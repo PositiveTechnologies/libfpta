@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -413,7 +413,7 @@ FPTA_API int fpta_column_inplace(fptu_rw *row, const fpta_name *column_id,
   }
 
   const fpta_index_type index = fpta_name_colindex(column_id);
-  fptu_field *field = fptu_lookup(row, colnum, coltype);
+  fptu_field *field = fptu::lookup(row, colnum, coltype);
   switch (coltype) {
   default:
     assert(false);
@@ -494,7 +494,7 @@ FPTA_API int fpta_cursor_inplace(fpta_cursor *cursor, fpta_name *column_id,
 
   const unsigned colnum = column_id->column.num;
   const fpta_index_type index = fpta_name_colindex(column_id);
-  const fptu_field *field = fptu_lookup_ro(source_row, colnum, coltype);
+  const fptu_field *field = fptu::lookup(source_row, colnum, coltype);
 
   switch (coltype) {
   default:

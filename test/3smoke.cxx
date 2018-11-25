@@ -125,7 +125,7 @@ TEST(SmokeIndex, Primary) {
   // создаем кортеж, который станет первой записью в таблице
   fptu_rw *pt1 = fptu_alloc(3, 42);
   ASSERT_NE(nullptr, pt1);
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
 
   // ради проверки пытаемся сделать нехорошее (добавить поля с нарушениями)
   EXPECT_EQ(FPTA_ETYPE, fpta_upsert_column(pt1, &col_pk, fpta_value_uint(12)));
@@ -138,16 +138,16 @@ TEST(SmokeIndex, Primary) {
             fpta_upsert_column(pt1, &col_pk, fpta_value_cstr("pk-string")));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_a, fpta_value_sint(34)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_b, fpta_value_float(56.78)));
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
 
   // создаем еще один кортеж для второй записи
   fptu_rw *pt2 = fptu_alloc(3, 42);
   ASSERT_NE(nullptr, pt2);
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_pk, fpta_value_cstr("zzz")));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_a, fpta_value_sint(90)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_b, fpta_value_float(12.34)));
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
 
   // пытаемся обновить несуществующую запись
   EXPECT_EQ(FPTA_NOTFOUND,
@@ -211,7 +211,7 @@ TEST(SmokeIndex, Primary) {
   // получаем текущую строку, она должна совпадать со вторым кортежем
   fptu_ro row2;
   EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor, &row2));
-  ASSERT_STREQ(nullptr, fptu_check_ro(row2));
+  ASSERT_STREQ(nullptr, fptu::check(row2));
   EXPECT_EQ(fptu_eq, fptu_cmp_tuples(fptu_take_noshrink(pt2), row2));
 
   // позиционируем курсор на конкретное значение ключевого поля
@@ -226,15 +226,15 @@ TEST(SmokeIndex, Primary) {
   // получаем текущую строку, она должна совпадать с первым кортежем
   fptu_ro row1;
   EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor, &row1));
-  ASSERT_STREQ(nullptr, fptu_check_ro(row1));
+  ASSERT_STREQ(nullptr, fptu::check(row1));
   EXPECT_EQ(fptu_eq, fptu_cmp_tuples(fptu_take_noshrink(pt1), row1));
 
   // разрушаем созданные кортежи
   // на всякий случай предварительно проверяя их
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
   free(pt1);
   pt1 = nullptr;
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
   free(pt2);
   pt2 = nullptr;
 
@@ -368,7 +368,7 @@ TEST(SmokeIndex, Secondary) {
   // создаем кортеж, который станет первой записью в таблице
   fptu_rw *pt1 = fptu_alloc(3, 42);
   ASSERT_NE(nullptr, pt1);
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
 
   // ради проверки пытаемся сделать нехорошее (добавить поля с нарушениями)
   EXPECT_EQ(FPTA_ETYPE, fpta_upsert_column(pt1, &col_pk, fpta_value_uint(12)));
@@ -381,16 +381,16 @@ TEST(SmokeIndex, Secondary) {
             fpta_upsert_column(pt1, &col_pk, fpta_value_cstr("pk-string")));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_a, fpta_value_sint(34)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_b, fpta_value_float(56.78)));
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
 
   // создаем еще один кортеж для второй записи
   fptu_rw *pt2 = fptu_alloc(3, 42);
   ASSERT_NE(nullptr, pt2);
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_pk, fpta_value_cstr("zzz")));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_a, fpta_value_sint(90)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_b, fpta_value_float(12.34)));
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
 
   // пытаемся обновить несуществующую запись
   EXPECT_EQ(FPTA_NOTFOUND,
@@ -447,7 +447,7 @@ TEST(SmokeIndex, Secondary) {
   // получаем текущую строку, она должна совпадать со вторым кортежем
   fptu_ro row2;
   EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor, &row2));
-  ASSERT_STREQ(nullptr, fptu_check_ro(row2));
+  ASSERT_STREQ(nullptr, fptu::check(row2));
   EXPECT_EQ(fptu_eq, fptu_cmp_tuples(fptu_take_noshrink(pt2), row2));
 
   // считаем повторы, их не должно быть
@@ -466,15 +466,15 @@ TEST(SmokeIndex, Secondary) {
   // получаем текущую строку, она должна совпадать с первым кортежем
   fptu_ro row1;
   EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor, &row1));
-  ASSERT_STREQ(nullptr, fptu_check_ro(row1));
+  ASSERT_STREQ(nullptr, fptu::check(row1));
   EXPECT_EQ(fptu_eq, fptu_cmp_tuples(fptu_take_noshrink(pt1), row1));
 
   // разрушаем созданные кортежи
   // на всякий случай предварительно проверяя их
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
   free(pt1);
   pt1 = nullptr;
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
   free(pt2);
   pt2 = nullptr;
 
@@ -887,7 +887,7 @@ TEST_F(SmokeCRUD, none) {
   // создаем кортеж, который будем использовать для заполнения таблицы
   fptu_rw *row = fptu_alloc(4, fpta_max_keylen * 2);
   ASSERT_NE(nullptr, row);
-  ASSERT_STREQ(nullptr, fptu_check(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
 
   constexpr int NNN = 42;
   /* создаем достаточно кол-во строк для последующих проверок */ {
@@ -1604,7 +1604,7 @@ public:
     // создаем кортеж, который станет первой записью в таблице
     fptu_rw *pt = fptu_alloc(3, 42);
     ASSERT_NE(nullptr, pt);
-    ASSERT_STREQ(nullptr, fptu_check(pt));
+    ASSERT_STREQ(nullptr, fptu::check(pt));
 
     // делаем привязку к схеме
     fpta_name_refresh_couple(txn, &table, &col_1);
@@ -1617,10 +1617,9 @@ public:
       count_value_3 += (value == 3);
       EXPECT_EQ(FPTA_OK,
                 fpta_upsert_column(pt, &col_2, fpta_value_sint(value)));
-      ASSERT_STREQ(nullptr, fptu_check(pt));
+      ASSERT_STREQ(nullptr, fptu::check(pt));
 
       ASSERT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt)));
-      // EXPECT_EQ(FPTA_OK, fptu_clear(pt));
     }
 
     free(pt);
@@ -2101,12 +2100,12 @@ TEST(SmokeCrud, OneRowOneColumn) {
   // создаем кортеж, который станет первой записью в таблице
   fptu_rw *pt1 = fptu_alloc(1, 42);
   ASSERT_NE(nullptr, pt1);
-  ASSERT_EQ(nullptr, fptu_check(pt1));
+  ASSERT_EQ(nullptr, fptu::check(pt1));
 
   // добавляем значения колонки
   ASSERT_EQ(FPTA_OK,
             fpta_upsert_column(pt1, &col_pk, fpta_value_cstr("login")));
-  ASSERT_EQ(nullptr, fptu_check(pt1));
+  ASSERT_EQ(nullptr, fptu::check(pt1));
 
   // вставляем строку в таблицу
   ASSERT_EQ(FPTA_OK, fpta_upsert_row(txn, &table, fptu_take(pt1)));
@@ -2215,7 +2214,7 @@ TEST(Smoke, DirectDirtyDeletions) {
   // выделяем кортеж и вставляем 11 строк
   fptu_rw *pt = fptu_alloc(3, 8 + 8 + 8);
   ASSERT_NE(nullptr, pt);
-  ASSERT_STREQ(nullptr, fptu_check(pt));
+  ASSERT_STREQ(nullptr, fptu::check(pt));
 
   // 1
   fptu_time datetime;
@@ -2225,9 +2224,9 @@ TEST(Smoke, DirectDirtyDeletions) {
             fpta_upsert_column(pt, &col_date, fpta_value_datetime(datetime)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt, &col_str,
                                         fpta_value_sint(6408824664381050880)));
-  ASSERT_STREQ(nullptr, fptu_check(pt));
+  ASSERT_STREQ(nullptr, fptu::check(pt));
   fptu_ro row = fptu_take_noshrink(pt);
-  ASSERT_STREQ(nullptr, fptu_check_ro(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
   EXPECT_EQ(FPTA_OK, fpta_put(txn, &table, row, fpta_insert));
 
   // 2
@@ -2443,14 +2442,14 @@ TEST(Smoke, UpdateViolateUnique) {
   // выделяем кортеж и вставляем 2 строки
   fptu_rw *pt = fptu_alloc(2, 8 * 2);
   ASSERT_NE(nullptr, pt);
-  ASSERT_STREQ(nullptr, fptu_check(pt));
+  ASSERT_STREQ(nullptr, fptu::check(pt));
 
   // 1
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt, &col_key, fpta_value_sint(1)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt, &col_value, fpta_value_sint(2)));
-  ASSERT_STREQ(nullptr, fptu_check(pt));
+  ASSERT_STREQ(nullptr, fptu::check(pt));
   fptu_ro row = fptu_take_noshrink(pt);
-  ASSERT_STREQ(nullptr, fptu_check_ro(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
   EXPECT_EQ(FPTA_OK, fpta_put(txn, &table, row, fpta_insert));
 
   // 2
@@ -2737,7 +2736,7 @@ public:
     // выделяем кортеж
     fptu_rw *pt = fptu_alloc(10, 8 * 10 + 42);
     ASSERT_NE(nullptr, pt);
-    ASSERT_STREQ(nullptr, fptu_check(pt));
+    ASSERT_STREQ(nullptr, fptu::check(pt));
     ptrw_guard.reset(pt);
   }
 
@@ -3045,7 +3044,7 @@ TEST(Smoke, Kamerades) {
     // создаем кортеж, который станет единственной записью в таблице
     fptu_rw *pt1 = fptu_alloc(1, 8);
     ASSERT_NE(nullptr, pt1);
-    ASSERT_STREQ(nullptr, fptu_check(pt1));
+    ASSERT_STREQ(nullptr, fptu::check(pt1));
 
     // инициализируем идентификаторы таблицы
     fpta_name table, col_pk;
@@ -3069,7 +3068,7 @@ TEST(Smoke, Kamerades) {
 
     // добавляем нормальные значения
     EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_pk, fpta_value_sint(567)));
-    ASSERT_STREQ(nullptr, fptu_check(pt1));
+    ASSERT_STREQ(nullptr, fptu::check(pt1));
     fptu_ro taken_noshrink;
     taken_noshrink = fptu_take_noshrink(pt1);
     EXPECT_EQ(FPTA_OK,
@@ -3618,7 +3617,7 @@ TEST(Smoke, FilterAndRange) {
   // выделяем кортеж и вставляем строку
   fptu_rw *pt = fptu_alloc(3, 8 + 8 + 8);
   ASSERT_NE(nullptr, pt);
-  ASSERT_STREQ(nullptr, fptu_check(pt));
+  ASSERT_STREQ(nullptr, fptu::check(pt));
 
   fptu_time datetime;
   datetime.fixedpoint = 1492170771;
@@ -3627,9 +3626,9 @@ TEST(Smoke, FilterAndRange) {
             fpta_upsert_column(pt, &col_date, fpta_value_datetime(datetime)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt, &col_str,
                                         fpta_value_sint(6408824664381050880)));
-  ASSERT_STREQ(nullptr, fptu_check(pt));
+  ASSERT_STREQ(nullptr, fptu::check(pt));
   fptu_ro row = fptu_take_noshrink(pt);
-  ASSERT_STREQ(nullptr, fptu_check_ro(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
   EXPECT_EQ(FPTA_OK, fpta_put(txn, &table, row, fpta_insert));
 
   // завершаем транзакцию вставки
@@ -3760,7 +3759,7 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
   // создаем кортеж, который должен быть вставлен в таблицу
   fptu_rw *pt1 = fptu_alloc(3, 1000);
   ASSERT_NE(nullptr, pt1);
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
 
   // добавляем нормальные значения
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &some_field,
@@ -3769,7 +3768,7 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
   // EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_a, fpta_value_sint(34)));
   EXPECT_EQ(FPTA_OK,
             fpta_upsert_column(pt1, &age, fpta_value_cstr("some data")));
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
 
   // вставляем
   EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt1)));
@@ -3779,7 +3778,7 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
 
   // разрушаем созданный кортеж
   // на всякий случай предварительно проверяя их
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
   free(pt1);
   pt1 = nullptr;
 
@@ -3879,7 +3878,7 @@ TEST(Smoke, Migration) {
     // создаем кортеж для вставки записей
     fptu_rw *pt1 = fptu_alloc(3, 2048);
     ASSERT_NE(nullptr, pt1);
-    ASSERT_STREQ(nullptr, fptu_check(pt1));
+    ASSERT_STREQ(nullptr, fptu::check(pt1));
 
     // инициализируем идентификаторы
     fpta_name table, col_x, col_y, col_z;
@@ -3914,11 +3913,11 @@ TEST(Smoke, Migration) {
       EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_z, fpta_value_str(str)));
 
       // вставляем запись
-      ASSERT_STREQ(nullptr, fptu_check(pt1));
+      ASSERT_STREQ(nullptr, fptu::check(pt1));
       fptu_ro taken_noshrink;
       taken_noshrink = fptu_take_noshrink(pt1);
       ASSERT_EQ(FPTA_OK, fpta_put(txn, &table, taken_noshrink, fpta_insert));
-      ASSERT_EQ(FPTA_OK, fptu_clear(pt1));
+      ASSERT_EQ(FPTU_OK, fptu_clear(pt1));
 
       // фиксируем изменения из коррелятора
       EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
@@ -3989,7 +3988,7 @@ TEST(Smoke, Migration) {
     // создаем кортеж для вставки записей
     fptu_rw *pt1 = fptu_alloc(2, 42);
     ASSERT_NE(nullptr, pt1);
-    ASSERT_STREQ(nullptr, fptu_check(pt1));
+    ASSERT_STREQ(nullptr, fptu::check(pt1));
 
     for (unsigned n = 0; n < 1111; ++n) {
       SCOPED_TRACE("record #" + std::to_string(n));
@@ -4001,10 +4000,10 @@ TEST(Smoke, Migration) {
       }
 
       // вставляем запись
-      ASSERT_STREQ(nullptr, fptu_check(pt1));
+      ASSERT_STREQ(nullptr, fptu::check(pt1));
       fptu_ro taken_noshrink = fptu_take_noshrink(pt1);
       ASSERT_EQ(FPTA_OK, fpta_put(txn, &table, taken_noshrink, fpta_insert));
-      ASSERT_EQ(FPTA_OK, fptu_clear(pt1));
+      ASSERT_EQ(FPTU_OK, fptu_clear(pt1));
     }
 
     // до завершения транзакции снова открываем базу в "корреляторе"
@@ -4196,7 +4195,7 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
   // создаем кортеж, который станет первой записью в таблице
   fptu_rw *pt1 = fptu_alloc(7, 1000);
   ASSERT_NE(nullptr, pt1);
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
   fptu_time datetime;
   datetime.fixedpoint = 1492170771;
 
@@ -4216,12 +4215,12 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
             fpta_upsert_column(pt1, &col_name,
                                fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
 
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
 
   // создаем еще один кортеж для второй записи
   fptu_rw *pt2 = fptu_alloc(7, 1000);
   ASSERT_NE(nullptr, pt2);
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
   EXPECT_EQ(FPTA_OK,
             fpta_upsert_column(pt2, &col_service_id, fpta_value_sint(1)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_last_changed,
@@ -4235,17 +4234,17 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
   EXPECT_EQ(FPTA_OK,
             fpta_upsert_column(pt2, &col_name,
                                fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
 
   EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt1)));
   EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt2)));
 
   // разрушаем созданные кортежи
   // на всякий случай предварительно проверяя их
-  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  ASSERT_STREQ(nullptr, fptu::check(pt1));
   free(pt1);
   pt1 = nullptr;
-  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  ASSERT_STREQ(nullptr, fptu::check(pt2));
   free(pt2);
   pt2 = nullptr;
 
@@ -4424,7 +4423,7 @@ TEST(SmokeFilter, ChoppedLookup) {
     EXPECT_EQ(FPTA_OK,
               fpta_probe_and_upsert_row(txn, &table, fptu_take(tuple)));
 
-    EXPECT_EQ(FPTA_OK, fptu_clear(tuple));
+    EXPECT_EQ(FPTU_OK, fptu_clear(tuple));
     free(tuple);
   }
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));

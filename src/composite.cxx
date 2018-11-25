@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -43,7 +43,7 @@ static int __hot concat_unordered(fpta_key &key, const bool unused_tersely,
   uint64_t *const hash = (uint64_t *)key.mdbx.iov_base;
   const fpta_shove_t shove = schema->column_shove(column);
   const fptu_type type = fpta_shove2type(shove);
-  const fptu_field *field = fptu_lookup_ro(row, column, type);
+  const fptu_field *field = fptu::lookup(row, column, type);
   if (unlikely(field == nullptr)) {
     if (unlikely(!fpta_column_is_nullable(shove)))
       return FPTA_COLUMN_MISSING;
@@ -52,7 +52,7 @@ static int __hot concat_unordered(fpta_key &key, const bool unused_tersely,
   } else {
     const struct iovec iov = fptu_field_as_iovec(field);
     /* add value to resulting hash */
-    *hash = t1ha2_atonce(iov.iov_base, iov.iov_len, *hash + field->ct);
+    *hash = t1ha2_atonce(iov.iov_base, iov.iov_len, *hash + field->tag);
   }
 
   return FPTA_SUCCESS;
@@ -111,7 +111,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
                                 const fptu_ro &row, unsigned column) {
   const fpta_shove_t shove = schema->column_shove(column);
   const fptu_type type = fpta_shove2type(shove);
-  const fptu_field *field = fptu_lookup_ro(row, column, type);
+  const fptu_field *field = fptu::lookup(row, column, type);
 
   const uint8_t prefix_absent = 0;
   const uint8_t prefix_present_empty = 42;

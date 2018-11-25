@@ -130,7 +130,7 @@ public:
 
     fptu_ro tuple;
     ASSERT_EQ(FPTA_OK, fpta_cursor_get(cursor_guard.get(), &tuple));
-    ASSERT_STREQ(nullptr, fptu_check_ro(tuple));
+    ASSERT_STREQ(nullptr, fptu::check(tuple));
 
     int error;
     fpta_value key;
@@ -162,7 +162,7 @@ public:
   virtual void Fill() {
     fptu_rw *row = fptu_alloc(4, fpta_max_keylen * 2 + 4 + 4);
     ASSERT_NE(nullptr, row);
-    ASSERT_STREQ(nullptr, fptu_check(row));
+    ASSERT_STREQ(nullptr, fptu::check(row));
     fpta_txn *const txn = txn_guard.get();
 
     any_keygen keygen(type, index);
@@ -178,7 +178,7 @@ public:
 
       // теперь формируем кортеж
       ASSERT_EQ(FPTU_OK, fptu_clear(row));
-      ASSERT_STREQ(nullptr, fptu_check(row));
+      ASSERT_STREQ(nullptr, fptu::check(row));
       ASSERT_EQ(FPTA_OK,
                 fpta_upsert_column(row, &col_order, fpta_value_sint(order)));
       ASSERT_EQ(FPTA_OK, fpta_upsert_column(row, &col_pk, value_pk));
@@ -206,7 +206,7 @@ public:
     }
 
     // разрушаем кортеж
-    ASSERT_STREQ(nullptr, fptu_check(row));
+    ASSERT_STREQ(nullptr, fptu::check(row));
     free(row);
   }
 
@@ -382,7 +382,7 @@ public:
     for (int linear = 0; fpta_cursor_eof(cursor) == FPTA_OK; ++linear) {
       fptu_ro tuple;
       EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor_guard.get(), &tuple));
-      ASSERT_STREQ(nullptr, fptu_check_ro(tuple));
+      ASSERT_STREQ(nullptr, fptu::check(tuple));
 
       int error;
       auto tuple_order =
@@ -1418,7 +1418,7 @@ TEST_P(CursorPrimary, update_and_KeyMismatch) {
 
     fptu_ro tuple;
     ASSERT_EQ(FPTA_OK, fpta_cursor_get(cursor_guard.get(), &tuple));
-    ASSERT_STREQ(nullptr, fptu_check_ro(tuple));
+    ASSERT_STREQ(nullptr, fptu::check(tuple));
 
     int error;
     auto tuple_order = (int)fptu_get_sint(tuple, col_order.column.num, &error);
@@ -1434,7 +1434,7 @@ TEST_P(CursorPrimary, update_and_KeyMismatch) {
       uint8_t buffer[(fpta_max_keylen + 4) * 4 + sizeof(fptu_rw)];
       fptu_rw *row = fptu_fetch(tuple, buffer, sizeof(buffer), 1);
       ASSERT_NE(nullptr, row);
-      ASSERT_STREQ(nullptr, fptu_check(row));
+      ASSERT_STREQ(nullptr, fptu::check(row));
 
       // инвертируем знак order и пытаемся обновить строку с изменением ключа
       ASSERT_EQ(FPTA_OK, fpta_upsert_column(row, &col_order,
@@ -1501,7 +1501,7 @@ TEST_P(CursorPrimary, update_and_KeyMismatch) {
     const auto checksum = order_checksum(order, type, index).uint;
     for (;;) {
       ASSERT_EQ(FPTA_OK, fpta_cursor_get(cursor_guard.get(), &tuple));
-      ASSERT_STREQ(nullptr, fptu_check_ro(tuple));
+      ASSERT_STREQ(nullptr, fptu::check(tuple));
 
       auto tuple_checksum = fptu_get_uint(tuple, col_t1ha.column.num, &error);
       ASSERT_EQ(FPTU_OK, error);

@@ -58,7 +58,7 @@ __hot int fpta_check_nonnullable(const fpta_table_schema *table_def,
     if (type == /* composite */ fptu_null)
       continue;
 
-    const fptu_field *field = fptu_lookup_ro(row, (unsigned)i, type);
+    const fptu_field *field = fptu::lookup(row, (unsigned)i, type);
     if (unlikely(field == nullptr))
       return FPTA_COLUMN_MISSING;
   }

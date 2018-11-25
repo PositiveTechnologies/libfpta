@@ -190,7 +190,7 @@ TEST_P(CrudSimple, Nulls) {
 
   fptu_rw *row = fptu_alloc(3, 42);
   ASSERT_NE(nullptr, row);
-  ASSERT_STREQ(nullptr, fptu_check(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
   fpta_txn *txn = txn_guard.get();
   std::unordered_map<int, int> checker;
 
@@ -203,7 +203,7 @@ TEST_P(CrudSimple, Nulls) {
   for (unsigned i = 0; i < nitems; ++i) {
     const int n = ((int)i + shift) % 9;
     ASSERT_EQ(FPTU_OK, fptu_clear(row));
-    ASSERT_STREQ(nullptr, fptu_check(row));
+    ASSERT_STREQ(nullptr, fptu::check(row));
 
     int key_case, val_case;
     if (!secondary) {
@@ -251,7 +251,7 @@ TEST_P(CrudSimple, Nulls) {
                              fpta_value_binary(value.data(), value.length())));
     }
 
-    ASSERT_STREQ(nullptr, fptu_check(row));
+    ASSERT_STREQ(nullptr, fptu::check(row));
     ASSERT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take(row)));
   }
 
@@ -260,7 +260,7 @@ TEST_P(CrudSimple, Nulls) {
   txn = nullptr;
 
   // разрушаем кортеж
-  ASSERT_STREQ(nullptr, fptu_check(row));
+  ASSERT_STREQ(nullptr, fptu::check(row));
   free(row);
 
   //------------------------------------------------------------------------
@@ -287,7 +287,7 @@ TEST_P(CrudSimple, Nulls) {
   for (;;) {
     fptu_ro tuple;
     EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor_guard.get(), &tuple));
-    ASSERT_STREQ(nullptr, fptu_check_ro(tuple));
+    ASSERT_STREQ(nullptr, fptu::check(tuple));
 
     int error;
     auto count_by = (int)fptu_get_sint(tuple, col_val.column.num, &error);
