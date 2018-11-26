@@ -21,15 +21,22 @@
  */
 
 #pragma once
-
 #include "erthink_defs.h"
 
+#ifdef _MSC_VER
+#pragma warning(push, 1)
+#endif
 #if defined(__KERNEL__) || !defined(__cplusplus) || __cplusplus < 201103L
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #else
+#include <climits>
 #include <cstddef>
 #include <cstdint>
+#endif
+#ifdef _MSC_VER
+#pragma warning(pop)
 #endif
 
 #if (UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul)

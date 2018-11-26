@@ -26,7 +26,13 @@
 #include "erthink_defs.h"
 #include "erthink_intrin.h"
 
+#ifdef _MSC_VER
+#pragma warning(push, 1)
+#endif
 #include <cassert>
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 namespace erthink {
 
@@ -86,7 +92,7 @@ template <> inline int clz<uint32_t>(uint32_t v) {
   unsigned long index;
   assert(v > 0);
   _BitScanReverse(&index, v);
-  return 31 - index;
+  return 31 - (int)index;
 }
 
 #ifdef ERTHINK_ARCH64
@@ -95,7 +101,7 @@ template <> inline int clz<uint64_t>(uint64_t v) {
   unsigned long index;
   assert(v > 0);
   _BitScanReverse64(&index, v);
-  return 63 - index;
+  return 63 - (int)index;
 }
 #else
 template <> inline int clz<uint64_t>(uint64_t v) {

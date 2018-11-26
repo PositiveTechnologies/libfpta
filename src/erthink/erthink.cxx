@@ -25,13 +25,11 @@
 #endif
 
 #include "erthink.h"
-
 #include "erthink_bswap.h"
 #include "erthink_carryadd.h"
+#include "erthink_clz.h"
+#include "erthink_d2a.h"
 #include "erthink_intrin.h"
 #include "erthink_mul.h"
 #include "erthink_rot.h"
-
-#include "erthink_clz.h"
-#include "erthink_d2a.h"
 #include "erthink_u2a.h"

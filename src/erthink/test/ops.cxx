@@ -21,10 +21,10 @@
  */
 
 #include "erthink_arch.h"
+#include "erthink_clz.h"
 #include "erthink_defs.h"
 #include "erthink_intrin.h"
 
-#include "erthink_clz.h"
 #include "testing.h"
 
 //----------------------------------------------------------------------------

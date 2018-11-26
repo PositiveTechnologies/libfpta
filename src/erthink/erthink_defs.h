@@ -23,6 +23,9 @@
 #pragma once
 
 #ifdef _MSC_VER
+#if defined(_MSC_VER)
+#define _STL_WARNING_LEVEL 3
+#endif
 #pragma warning(push, 1)
 #pragma warning(disable : 4548) /* expression before comma has no effect;      \
                                    expected expression with side - effect */
@@ -32,13 +35,11 @@
                                    mode specified; termination on exception    \
                                    is not guaranteed. Specify /EHsc */
 #endif
-
 #if defined(__KERNEL__) || !defined(__cplusplus) || __cplusplus < 201103L
 #include <stddef.h>
 #else
 #include <cstddef>
 #endif
-
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif

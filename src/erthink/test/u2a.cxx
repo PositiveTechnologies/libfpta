@@ -168,11 +168,11 @@ TEST(u2a, int64_to_a) {
 }
 
 TEST(u2a, random3e6) {
-  uint64_t prng = time(0);
+  uint64_t prng = uint64_t(time(0));
   SCOPED_TRACE("PRNG seed" + std::to_string(prng));
   for (int i = 0; i < 3000000; ++i) {
     probe<uint64_t, 20>(prng, _u2a);
-    probe<int64_t, 20>(~prng, _i2a);
+    probe<int64_t, 20>(int64_t(~prng), _i2a);
     probe<uint32_t, 10>(static_cast<uint32_t>(prng >> 17), _u2a);
     probe<int32_t, 11>(static_cast<int32_t>(prng >> 23), _i2a);
     prng *= UINT64_C(6364136223846793005);

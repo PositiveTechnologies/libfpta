@@ -25,11 +25,16 @@
 #include "erthink_arch.h"
 #include "erthink_defs.h"
 
-#include <cassert>
+#ifdef _MSC_VER
+#pragma warning(push, 1)
+#endif
 #include <cinttypes>
 #include <climits>
 #include <cstddef>
 #include <type_traits>
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 namespace erthink {
 
@@ -41,23 +46,27 @@ template <typename T> struct branchless_abs {
   constexpr branchless_abs(const T value)
       : expanded_sign(signed_type(value) >>
                       (sizeof(signed_type) * CHAR_BIT - 1)),
-        unsigned_abs((value + expanded_sign) ^ expanded_sign) {
+        unsigned_abs(unsigned_type((signed_type(value) + expanded_sign) ^
+                                   expanded_sign)) {
     static_assert(((INT32_MIN >> 5) >> 29) == -1,
                   "requires arithmetic shift with sign expansion");
   }
+
+  /* MSVC compiler is crazy... */
+  branchless_abs(const branchless_abs &) = delete;
+  branchless_abs &operator=(const branchless_abs &) = delete;
 };
 
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4100) /* unreferenced formal parameter */
+#pragma warning(disable : 4514) /* unreferenced inline function                \
+                                   has been removed */
 #endif
 template <typename TYPE, size_t LENGTH>
 constexpr size_t array_length(const TYPE __maybe_unused (&array)[LENGTH]) {
   return LENGTH;
 }
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 template <typename TYPE, size_t LENGTH>
 constexpr const TYPE *array_end(const TYPE (&array)[LENGTH]) {
@@ -75,5 +84,9 @@ static inline constexpr bool msb(const uint32_t value) {
                 "2-complement representation required");
   return static_cast<int32_t>(value) < 0;
 }
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 } // namespace erthink

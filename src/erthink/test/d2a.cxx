@@ -24,11 +24,20 @@
 #define _USE_MATH_DEFINES
 #endif
 
-#include "erthink_defs.h"
-#include "testing.h"
-
 #include "erthink_d2a.h"
-#include <math.h> // for M_PI, etc
+#include "erthink_defs.h"
+
+#ifdef _MSC_VER
+#pragma warning(push, 1)
+#pragma warning(disable : 4710) /* function not inlined */
+#endif
+#include <cfloat> // for FLT_MAX, etc
+#include <cmath>  // for M_PI, etc
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
+#include "testing.h"
 
 __hot __dll_export __noinline char *_d2a(const double value, char *ptr) {
   return erthink::d2a(value, ptr);

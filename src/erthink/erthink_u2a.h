@@ -20,12 +20,18 @@
 
 #pragma once
 
+#include "erthink.h"
+
+#ifdef _MSC_VER
+#pragma warning(push, 1)
+#endif
 #include <cassert>
 #include <cinttypes>
 #include <climits>
 #include <cstddef>
-
-#include "erthink.h"
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 //------------------------------------------------------------------------------
 
