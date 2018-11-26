@@ -23,6 +23,8 @@
 #include "erthink.h"
 
 #ifdef _MSC_VER
+#pragma warning(disable : 4710) /* function not inlined */
+#pragma warning(disable : 4711) /* function selecte for automatic inline */
 #pragma warning(push, 1)
 #endif
 #include <cassert>
