@@ -24,6 +24,8 @@
 #define _USE_MATH_DEFINES
 #endif
 
+#include "testing.h"
+
 #include "erthink_d2a.h"
 #include "erthink_defs.h"
 
@@ -36,8 +38,6 @@
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
-
-#include "testing.h"
 
 __hot __dll_export __noinline char *_d2a(const double value, char *ptr) {
   return erthink::d2a(value, ptr);
