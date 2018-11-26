@@ -52,6 +52,7 @@ public:
 
   schema_dict() {}
   schema_dict(const schema_dict &) = delete;
+  schema_dict &operator=(const schema_dict &) = default;
   schema_dict(schema_dict &&) = default;
   schema_dict &operator=(schema_dict &&) = default;
 
@@ -74,7 +75,7 @@ public:
        fptu_array_256,    fptu_array_cstr,   fptu_array_opaque,
        fptu_array_nested}};
 #if defined(_MSC_VER) && _MSC_VER < 1910 /* obsolete and trouble full */
-#pragma warning(push)
+#pragma warning(pop)
 #endif /* _MSC_VER < 1910 */
 
 protected:

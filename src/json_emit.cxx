@@ -17,27 +17,29 @@
  * along with libfptu.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _MSC_VER
+#pragma warning(disable : 4710) /* function not inlined */
+#endif
+
 #include "erthink/erthink_d2a.h"
 #include "erthink/erthink_u2a.h"
 
 #include "bitset4tags.h"
 #include "fast_positive/tuples_internal.h"
-#include <algorithm> // for std::max, etc
 
 #ifdef _MSC_VER
+#pragma warning(disable : 4774) /* '_snprintf_s' : format string expected in   \
+                                   argument 4 is not a string literal */
 #pragma warning(push, 1)
-#pragma warning(disable : 4530) /* C++ exception handler used, but             \
-                                   unwind semantics are not enabled. Specify   \
-                                   /EHsc */
-#pragma warning(disable : 4577) /* 'noexcept' used with no exception           \
-                                   handling mode specified; termination on     \
-                                   exception is not guaranteed. Specify /EHsc  \
-                                   */
+#pragma warning(disable : 4530) /* C++ exception handler used, but unwind      \
+                                   semantics are not enabled. Specify /EHsc */
+#pragma warning(disable : 4577) /* 'noexcept' used with no exception handling  \
+                                    mode specified; termination on exception   \
+                                    is not guaranteed. Specify /EHsc */
 #endif                          /* _MSC_VER (warnings) */
-
+#include <algorithm>            // for std::max, etc
 #include <ostream>
 #include <sstream>
-
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -52,6 +54,11 @@ namespace {
 
 /* Basic emitter (no any json specific). This emitter should be reused in the
  * implementation of output to other text format like YAML. */
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4820) /* FOO bytes padding added                     \
+                                   after data member BAR */
+#endif
 struct emitter {
   void *const output_ctx;
   const fptu_emit_func output;
@@ -67,6 +74,8 @@ struct emitter {
           unsigned depth)
       : output_ctx(output_ctx), output(output), indent_str(indent),
         depth(depth), fill(0), err(FPTU_SUCCESS), indented(false) {}
+  emitter(const emitter &) = delete;
+  emitter &operator=(const emitter &) = delete;
 
   fptu_error flush();
   fptu_error push(size_t length, const char *text);
@@ -96,6 +105,9 @@ struct emitter {
     assert(fill < sizeof(buffer) - 1);
   }
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 fptu_error emitter::flush() {
   assert(fill <= sizeof(buffer));
@@ -220,6 +232,12 @@ void emitter::number(double value) {
 
 //----------------------------------------------------------------------------
 /* JSON emitter */
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4820) /* FOO bytes padding added                     \
+                                   after data member BAR */
+#endif
+
 #include "gperf_ECMAScript_keywords.h"
 
 struct json : public emitter {
@@ -235,6 +253,8 @@ struct json : public emitter {
        fptu_value2enum_func value2enum, const fptu_json_options options)
       : emitter(output, output_ctx, indent, depth), schema_ctx(schema_ctx),
         tag2name(tag2name), value2enum(value2enum), options(options) {}
+  json(const json &) = delete;
+  json &operator=(const json &) = delete;
 
   bool is_json5() const {
     return (options & fptu_json_disable_JSON5) ? false : true;
@@ -260,6 +280,9 @@ struct json : public emitter {
                                   const fptu_field *const begin);
   void tuple(const fptu_ro &tuple);
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 void json::comma(bool no_linefeed) {
   push(',');
@@ -273,7 +296,7 @@ bool json::is_valid_ECMAScript_identifier(const string_view &str) {
   if (str.empty())
     return false;
 
-  for (const uint8_t c : str) {
+  for (const char c : str) {
     if (!isalnum(c) && c != '_' && c != '$')
       return false;
   }
@@ -292,7 +315,7 @@ void json::key_name(const string_view &name) {
 
 void json::string(const string_view &str) {
   push('"');
-  for (const uint8_t c : str) {
+  for (const char c : str) {
     if (unlikely(err != FPTU_SUCCESS))
       return;
 
@@ -319,12 +342,12 @@ void json::string(const string_view &str) {
       push("\\t");
       continue;
     default:
-      if (likely(c >= ' '))
+      if (likely((uint8_t)c >= ' '))
         push(c);
       else {
         char *const begin = wanna(6);
         memcpy(begin, "\\u", 2);
-        char *ptr = erthink::dec4(c, begin + 2, true);
+        char *ptr = erthink::dec4((uint8_t)c, begin + 2, true);
         assert(ptr - begin == 6);
         (void)ptr;
         fill += 6;
@@ -453,8 +476,8 @@ void json::value_dateime(const fptu_time &value) {
       const ptrdiff_t zero_needed = -exponent - (end - begin);
       assert(zero_needed >= 0 && zero_needed < 31 - (end - begin));
       if (zero_needed > 0) {
-        memmove(begin + zero_needed, begin, end - begin);
-        memset(begin, '0', zero_needed);
+        memmove(begin + zero_needed, begin, size_t(end - begin));
+        memset(begin, '0', size_t(zero_needed));
       }
       fill +=
           static_cast<unsigned>(end - begin + zero_needed + /* the dot */ 1);
@@ -780,7 +803,7 @@ int tuple2json(const fptu_ro &tuple, fptu_emit_func output, void *output_ctx,
 static int emit2stream(void *emiter_ctx, const char *text, size_t length) {
   assert(strnlen(text, length) == length);
   std::ostream *stream = static_cast<std::ostream *>(emiter_ctx);
-  stream->write(text, length);
+  stream->write(text, static_cast<std::streamsize>(length));
   return stream->good() ? FPTU_SUCCESS : -1;
 }
 

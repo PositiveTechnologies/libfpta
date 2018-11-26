@@ -491,8 +491,8 @@ __cold string to_string(const fptu_time &time) {
   gmtime_r(&utc_sec, &utc_tm);
 #endif
 
-  char datetime[32];
-  snprintf(datetime, sizeof(datetime), "%04d-%02d-%02d_%02d:%02d:%02d",
+  char datetime[64];
+  snprintf(datetime, sizeof(datetime), "%04d-%02d-%02dZ%02d:%02d:%02d",
            utc_tm.tm_year + 1900, utc_tm.tm_mon + 1, utc_tm.tm_mday,
            utc_tm.tm_hour, utc_tm.tm_min, utc_tm.tm_sec);
 

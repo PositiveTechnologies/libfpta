@@ -19,14 +19,16 @@
 
 #pragma once
 
-#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+#ifdef _MSC_VER
+#if !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
 #endif
-
-#include "fast_positive/tuples_internal.h"
-
-#ifdef _MSC_VER
+#define _STL_WARNING_LEVEL 3
+#pragma warning(disable : 4571) /* catch(...) semantics changed since          \
+                                   Visual C++ 7... */
+#pragma warning(disable : 4710) /* function not inlined */
 #pragma warning(push, 1)
+#pragma warning(disable : 4711) /* function selecte for automatic inline */
 #pragma warning(disable : 4530) /* C++ exception handler used, but             \
                                    unwind semantics are not enabled.           \
                                    Specify /EHsc */
@@ -48,6 +50,8 @@
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
+
+#include "fast_positive/tuples_internal.h"
 
 /* LY: reduce test runtime (significantly on Elbrus) */
 #if defined(__LCC__) && defined(NDEBUG) && defined(__OPTIMIZE__) &&            \

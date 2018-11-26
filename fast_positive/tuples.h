@@ -100,6 +100,7 @@ struct iovec {
 #include <cmath>     // for std::ldexp
 #include <limits>    // for numeric_limits<>
 #include <memory>    // for std::uniq_ptr
+#include <ostream>   // for std::ostream
 #include <stdexcept> // for std::invalid_argument
 #include <string>    // for std::string
 #if __cplusplus >= 201703L && __has_include(<string_view>)
@@ -539,7 +540,7 @@ typedef int32_t fptu_type_or_filter;
 #endif /* __cplusplus */
 
 static __inline unsigned fptu_get_colnum(uint_fast16_t tag) {
-  return ((uint16_t)tag) >> fptu_co_shift;
+  return ((unsigned)tag) >> fptu_co_shift;
 }
 
 static __inline fptu_type fptu_get_type(uint_fast16_t tag) {
@@ -1363,11 +1364,11 @@ typedef std::unique_ptr<fptu_rw> tuple_ptr;
 class string_view {
 protected:
   const char *str;
-  int len /* LY: здесь намеренно используется int:
-           *  - тип со знаком чтобы отличать строку нулевой длины от отсутствия
-           *    значения (nullptr), используя len == -1 для nullptr.
-           *  - не ptrdiff_t чтобы упростить оператор сравнения,
-           *    из которго не стоит возвращать ptrdiff_t. */
+  intptr_t len /* LY: здесь намеренно используется intptr_t:
+                   - со знаком для отличия нулевой длины от отсутствия
+                     значения (nullptr), используя len == -1 как DENIL.
+                   - не ptrdiff_t чтобы упростить оператор сравнения,
+                     из которого не стоит возвращать ptrdiff_t. */
       ;
 
 public:
@@ -1377,7 +1378,7 @@ public:
   operator=(const string_view &v) noexcept = default;
 
   constexpr string_view(const char *ptr)
-      : str(ptr), len(ptr ? static_cast<int>(strlen(ptr)) : -1) {
+      : str(ptr), len(ptr ? static_cast<intptr_t>(strlen(ptr)) : -1) {
 #if __cplusplus >= 201402L
     assert(len >= 0 || (len == -1 && !str));
 #endif
@@ -1386,10 +1387,10 @@ public:
    * проблемы reference to temporary object из-за неявного создания string_view
    * из переданной по значению временного экземпляра std::string. */
   explicit string_view(const std::string &s)
-      : str(s.data()), len(static_cast<int>(s.size())) {
+      : str(s.data()), len(static_cast<intptr_t>(s.size())) {
     assert(s.size() < npos);
   }
-  operator std::string() const { return std::string(str, len); }
+  operator std::string() const { return std::string(data(), length()); }
 
 #if HAVE_cxx17_std_string_view
   /* Конструктор из std::string_view:
@@ -1399,7 +1400,7 @@ public:
    *    из переданной по значению временного экземпляра std::string.
    *  - НЕ ДОЛЖЕН быть explicit для бесшовной интеграции с std::string_view. */
   constexpr string_view(const std::string_view &v) noexcept
-      : str(v.data()), len(static_cast<int>(v.size())) {
+      : str(v.data()), len(static_cast<intptr_t>(v.size())) {
     assert(v.size() < npos);
   }
   constexpr operator std::string_view() const noexcept {
@@ -1408,7 +1409,7 @@ public:
   constexpr string_view &operator=(std::string_view &v) noexcept {
     assert(v.size() < npos);
     this->str = v.data();
-    this->len = static_cast<int>(v.size());
+    this->len = static_cast<intptr_t>(v.size());
     return *this;
   }
   constexpr void swap(std::string_view &v) noexcept {
@@ -1449,7 +1450,7 @@ public:
 
   typedef const char *const_iterator;
   constexpr const_iterator cbegin() const { return str; }
-  constexpr const_iterator cend() const { return str + ((len > 0) ? len : 0); }
+  constexpr const_iterator cend() const { return str + length(); }
   typedef const_iterator iterator;
   constexpr iterator begin() const { return cbegin(); }
   constexpr iterator end() const { return cend(); }
@@ -1466,22 +1467,22 @@ public:
   reverse_iterator rend() const { return crend(); }
 
   constexpr const char *data() const { return str; }
-  constexpr size_t length() const { return (len > 0) ? len : 0; }
-  constexpr bool empty() const { return len < 1; }
+  constexpr size_t length() const { return (len >= 0) ? (size_t)len : 0u; }
+  constexpr bool empty() const { return len <= 0; }
   constexpr bool null() const { return len < 0; }
   constexpr size_t size() const { return length(); }
   constexpr size_type max_size() const { return 32767; }
 
   cxx14_constexpr size_t hash_value() const {
     size_t h = (size_t)len * 3977471;
-    for (int i = 0; i < len; ++i)
+    for (intptr_t i = 0; i < len; ++i)
       h = (h ^ str[i]) * 1664525 + 1013904223;
     return h ^ 3863194411 * (h >> 11);
   }
 
-  static cxx14_constexpr int compare(const string_view &a,
-                                     const string_view &b) {
-    const int diff = a.len - b.len;
+  static cxx14_constexpr intptr_t compare(const string_view &a,
+                                          const string_view &b) {
+    const intptr_t diff = a.len - b.len;
     return diff ? diff
                 : (a.str == b.str) ? 0 : memcmp(a.data(), b.data(), a.length());
   }
@@ -1504,10 +1505,10 @@ public:
     return compare(*this, v) != 0;
   }
 
-  static int compare(const std::string &a, const string_view &b) {
+  static intptr_t compare(const std::string &a, const string_view &b) {
     return compare(string_view(a), b);
   }
-  static int compare(const string_view &a, const std::string &b) {
+  static intptr_t compare(const string_view &a, const std::string &b) {
     return compare(a, string_view(b));
   }
   bool operator==(const std::string &s) const { return compare(*this, s) == 0; }

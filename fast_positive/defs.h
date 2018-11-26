@@ -22,6 +22,9 @@
 /* clang-format off */
 
 #ifdef _MSC_VER
+#if defined(_MSC_VER)
+#define _STL_WARNING_LEVEL 3
+#endif
 #pragma warning(push, 1)
 #pragma warning(disable : 4548) /* expression before comma has no effect;      \
                                    expected expression with side - effect */

@@ -91,6 +91,9 @@ struct bitset4tags {
     memset(bitset, 0, params.bytes());
   }
 
+  bitset4tags(const bitset4tags &) = delete;
+  const bitset4tags &operator=(const bitset4tags &) = delete;
+
   void set(uint_fast16_t ct) {
     const auto i = params.map(ct);
     bitset[i.index] |= i.mask;
