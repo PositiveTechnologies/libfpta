@@ -168,51 +168,51 @@ fptu_lge fptu_cmp_96(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(value == nullptr))
     return fptu_ic;
 
-  const fptu_field *pf = fptu_lookup_ro(ro, column, fptu_96);
+  const fptu_field *pf = fptu::lookup(ro, column, fptu_96);
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
-  return cmpbin(fptu_field_payload(pf)->fixbin, value, 12);
+  return cmpbin(pf->payload()->fixbin, value, 12);
 }
 
 fptu_lge fptu_cmp_128(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(value == nullptr))
     return fptu_ic;
 
-  const fptu_field *pf = fptu_lookup_ro(ro, column, fptu_128);
+  const fptu_field *pf = fptu::lookup(ro, column, fptu_128);
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
-  return cmpbin(fptu_field_payload(pf)->fixbin, value, 16);
+  return cmpbin(pf->payload()->fixbin, value, 16);
 }
 
 fptu_lge fptu_cmp_160(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(value == nullptr))
     return fptu_ic;
 
-  const fptu_field *pf = fptu_lookup_ro(ro, column, fptu_160);
+  const fptu_field *pf = fptu::lookup(ro, column, fptu_160);
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
-  return cmpbin(fptu_field_payload(pf)->fixbin, value, 20);
+  return cmpbin(pf->payload()->fixbin, value, 20);
 }
 
 fptu_lge fptu_cmp_256(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(value == nullptr))
     return fptu_ic;
 
-  const fptu_field *pf = fptu_lookup_ro(ro, column, fptu_256);
+  const fptu_field *pf = fptu::lookup(ro, column, fptu_256);
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
-  return cmpbin(fptu_field_payload(pf)->fixbin, value, 32);
+  return cmpbin(pf->payload()->fixbin, value, 32);
 }
 
 //----------------------------------------------------------------------------
 
 fptu_lge fptu_cmp_opaque(fptu_ro ro, unsigned column, const void *value,
                          size_t bytes) {
-  const fptu_field *pf = fptu_lookup_ro(ro, column, fptu_opaque);
+  const fptu_field *pf = fptu::lookup(ro, column, fptu_opaque);
   if (pf == nullptr)
     return bytes ? fptu_ic : fptu_eq;
 
@@ -230,12 +230,12 @@ fptu_lge fptu_cmp_opaque_iov(fptu_ro ro, unsigned column,
 __hot static fptu_lge fptu_cmp_fields_same_type(const fptu_field *left,
                                                 const fptu_field *right) {
   assert(left != nullptr && right != nullptr);
-  assert(fptu_get_type(left->ct) == fptu_get_type(right->ct));
+  assert(left->type() == right->type());
 
-  auto payload_left = fptu_field_payload(left);
-  auto payload_right = fptu_field_payload(right);
+  auto payload_left = left->payload();
+  auto payload_right = right->payload();
 
-  switch (fptu_get_type(left->ct)) {
+  switch (left->type()) {
   case fptu_null:
     return fptu_eq;
 
@@ -290,7 +290,7 @@ fptu_lge fptu_cmp_fields(const fptu_field *left, const fptu_field *right) {
   if (unlikely(right == nullptr))
     return fptu_gt;
 
-  if (likely(fptu_get_type(left->ct) == fptu_get_type(right->ct)))
+  if (likely(left->type() == right->type()))
     return fptu_cmp_fields_same_type(left, right);
 
   // TODO: сравнение с кастингом?
@@ -338,6 +338,10 @@ static __hot fptu_lge fptu_cmp_tuples_slowpath(const fptu_field *const l_begin,
         return fptu_cmp2lge(!left_depleted, !right_depleted);
     }
 
+    // в тегах не должно быть удаленных элементов
+    assert(!fptu_tag_is_dead(*tags_l));
+    assert(!fptu_tag_is_dead(*tags_r));
+
     // если слева и справа разные теги
     if (*tags_l != *tags_r)
       /* "обратный результат", так как `*tags_r > *tags_l` означает, что в
@@ -381,14 +385,14 @@ static __hot fptu_lge fptu_cmp_tuples_slowpath(const fptu_field *const l_begin,
     const fptu_field *field_l = l_end;
     do
       --field_l;
-    while (field_l->ct != tag);
+    while (field_l->tag != tag);
     assert(field_l >= l_begin);
 
     // ищем первое вхождение справа, оно обязано быть
     const fptu_field *field_r = r_end;
     do
       --field_r;
-    while (field_r->ct != tag);
+    while (field_r->tag != tag);
     assert(field_r >= r_begin);
 
     for (;;) {
@@ -398,11 +402,11 @@ static __hot fptu_lge fptu_cmp_tuples_slowpath(const fptu_field *const l_begin,
         return cmp;
 
       // ищем следующее слева
-      while (--field_l >= l_begin && field_l->ct != tag)
+      while (--field_l >= l_begin && field_l->tag != tag)
         ;
 
       // ищем следующее справа
-      while (--field_r >= r_begin && field_r->ct != tag)
+      while (--field_r >= r_begin && field_r->tag != tag)
         ;
 
       // если дошли до конца слева или справа
@@ -434,25 +438,33 @@ static __hot fptu_lge fptu_cmp_tuples_fastpath(const fptu_field *const l_begin,
   assert(fptu_is_ordered(r_begin, r_end));
 
   // идем по полям, которые упорядочены по тегам
-  auto l = l_end, r = r_end;
+  auto l = l_end - 1, r = r_end - 1;
   for (;;) {
-    --l, --r;
-
     // если уперлись в конец слева или справа
     const bool left_depleted = (l < l_begin);
     const bool right_depleted = (r < r_begin);
     if (left_depleted | right_depleted)
       return fptu_cmp2lge(!left_depleted, !right_depleted);
 
+    // не должно быть удаленных элементов
+    assert(!l->is_dead());
+    assert(!r->is_dead());
+
     // если слева и справа у полей разные теги
-    if (l->ct != r->ct)
+    if (l->tag != r->tag)
       /* "обратный результат", так как `r->ct > l->ct` означает, что в
        * `r` отсутствует тэг (поле), которое есть в `l` */
-      return fptu_cmp2lge(r->ct, l->ct);
+      return fptu_cmp2lge(r->tag, l->tag);
 
     fptu_lge cmp = fptu_cmp_fields_same_type(l, r);
     if (cmp != fptu_eq)
       return cmp;
+
+    // пропускаем удаленные элементы
+    while (unlikely((--l)->is_dead()) && l >= l_begin)
+      ;
+    while (unlikely((--r)->is_dead()) && r >= r_begin)
+      ;
   }
 }
 
@@ -465,12 +477,22 @@ __hot fptu_lge fptu_cmp_tuples(fptu_ro left, fptu_ro right) {
 #endif /* NDEBUG */
 
   // начало и конец дескрипторов слева
-  const auto l_begin = fptu_begin_ro(left);
-  const auto l_end = fptu_end_ro(left);
+  auto l_begin = fptu_begin_ro(left);
+  auto l_end = fptu_end_ro(left);
+  // пропускаем удаленные элементы
+  while (likely(l_begin < l_end) && unlikely(l_begin->is_dead()))
+    ++l_begin;
+  while (likely(l_begin < l_end) && unlikely(l_end[-1].is_dead()))
+    --l_end;
 
   // начало и конец дескрипторов справа
-  const auto r_begin = fptu_begin_ro(right);
-  const auto r_end = fptu_end_ro(right);
+  auto r_begin = fptu_begin_ro(right);
+  auto r_end = fptu_end_ro(right);
+  // пропускаем удаленные элементы
+  while (likely(r_begin < r_end) && unlikely(r_begin->is_dead()))
+    ++r_begin;
+  while (likely(r_begin < r_end) && unlikely(r_end[-1].is_dead()))
+    --r_end;
 
   // fastpath если хотя-бы один из кортежей пуст
   if (unlikely(l_begin == l_end || r_begin == r_end))

@@ -20,14 +20,14 @@
 #include "fast_positive/tuples_internal.h"
 
 __hot size_t fptu_field_units(const fptu_field *pf) {
-  unsigned type = fptu_get_type(pf->ct);
+  fptu_type type = pf->type();
   if (likely(type < fptu_cstr)) {
     // fixed length type
     return fptu_internal_map_t2u[type];
   }
 
   // variable length type
-  const fptu_payload *payload = fptu_field_payload(pf);
+  const fptu_payload *payload = pf->payload();
   if (type == fptu_cstr) {
     // length is not stored, but zero terminated
     return bytes2units(strlen(payload->cstr) + 1);
@@ -40,7 +40,7 @@ __hot size_t fptu_field_units(const fptu_field *pf) {
 //----------------------------------------------------------------------------
 
 __hot const fptu_field *fptu_lookup_ro(fptu_ro ro, unsigned column,
-                                       int type_or_filter) {
+                                       fptu_type_or_filter type_or_filter) {
   if (unlikely(ro.total_bytes < fptu_unit_size))
     return nullptr;
   if (unlikely(ro.total_bytes !=
@@ -58,47 +58,47 @@ __hot const fptu_field *fptu_lookup_ro(fptu_ro ro, unsigned column,
     // TODO: support for ordered tuples
   }
 
-  if (type_or_filter & fptu_filter) {
+  if (is_filter(type_or_filter)) {
     for (const fptu_field *pf = begin; pf < end; ++pf) {
-      if (fptu_ct_match(pf, column, type_or_filter))
+      if (match(pf, column, type_or_filter))
         return pf;
     }
   } else {
-    uint_fast16_t ct = fptu_pack_coltype(column, type_or_filter);
+    uint_fast16_t tag = fptu_make_tag(column, (fptu_type)type_or_filter);
     for (const fptu_field *pf = begin; pf < end; ++pf) {
-      if (pf->ct == ct)
+      if (pf->tag == tag)
         return pf;
     }
   }
   return nullptr;
 }
 
-__hot fptu_field *fptu_lookup_ct(fptu_rw *pt, uint_fast16_t ct) {
+__hot fptu_field *fptu_lookup_tag(fptu_rw *pt, uint_fast16_t tag) {
   const fptu_field *begin = &pt->units[pt->head].field;
   const fptu_field *pivot = &pt->units[pt->pivot].field;
   for (const fptu_field *pf = begin; pf < pivot; ++pf) {
-    if (pf->ct == ct)
+    if (pf->tag == tag)
       return (fptu_field *)pf;
   }
   return nullptr;
 }
 
-__hot fptu_field *fptu_lookup(fptu_rw *pt, unsigned column,
-                              int type_or_filter) {
+__hot fptu_field *fptu_lookup_rw(fptu_rw *pt, unsigned column,
+                                 fptu_type_or_filter type_or_filter) {
   if (unlikely(column > fptu_max_cols))
     return nullptr;
 
-  if (type_or_filter & fptu_filter) {
+  if (is_filter(type_or_filter)) {
     const fptu_field *begin = &pt->units[pt->head].field;
     const fptu_field *pivot = &pt->units[pt->pivot].field;
     for (const fptu_field *pf = begin; pf < pivot; ++pf) {
-      if (fptu_ct_match(pf, column, type_or_filter))
+      if (match(pf, column, type_or_filter))
         return (fptu_field *)pf;
     }
     return nullptr;
   }
 
-  return fptu_lookup_ct(pt, fptu_pack_coltype(column, type_or_filter));
+  return fptu_lookup_tag(pt, fptu_make_tag(column, (fptu_type)type_or_filter));
 }
 
 //----------------------------------------------------------------------------

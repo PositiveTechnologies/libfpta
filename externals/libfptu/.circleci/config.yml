@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/buildpack-deps:bionic
+      - image: circleci/buildpack-deps:bionic-browsers
     steps:
       - run: sudo apt update -q && sudo apt install cmake libgtest-dev clang-format-6.0 re2c lemon
       - checkout

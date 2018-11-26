@@ -1,4 +1,4 @@
-##
+﻿##
 ##  Copyright 2016-2018 libfptu authors: please see AUTHORS file.
 ##
 ##  This file is part of libfptu, aka "Fast Positive Tuples".
@@ -34,7 +34,12 @@
 cmake_minimum_required(VERSION 3.1)
 cmake_policy(SET CMP0054 NEW)
 
-project(libfptu C CXX)
+if(DEFINED PROJECT_NAME)
+  set(SUBPROJECT ON)
+else()
+  set(SUBPROJECT OFF)
+  project(libfptu C CXX)
+endif()
 
 if(NOT "$ENV{TEAMCITY_PROCESS_FLOW_ID}" STREQUAL "")
   set(CI TEAMCITY)
@@ -70,13 +75,7 @@ include(FindPackageMessage)
 include(CheckStructHasMember)
 include(CMakeDependentOption)
 
-if(NOT CMAKE_VERSION VERSION_LESS 3.9)
-  cmake_policy(SET CMP0069 NEW)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
-else()
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE FALSE)
-endif()
+option(PROVIDE_VERSIONINFO "Provide library's version information." ON)
 
 #
 # Set default build type to Release. This is to ease a User's life.
@@ -87,7 +86,28 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
-option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
+if(NOT DEFINED FPTU_CXX_STANDARD)
+  if(SUBPROJECT AND DEFINED CMAKE_CXX_STANDARD)
+    set(FPTU_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+  elseif(NOT HAS_CXX17 LESS 0)
+    set(FPTU_CXX_STANDARD 17)
+  elseif(NOT HAS_CXX14 LESS 0)
+    set(FPTU_CXX_STANDARD 14)
+  else()
+    set(FPTU_CXX_STANDARD 11)
+  endif()
+endif()
+message(STATUS "Use C++${FPTU_CXX_STANDARD} for libfptu")
+
+if(NOT CMAKE_VERSION VERSION_LESS 3.9)
+  cmake_policy(SET CMP0069 NEW)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
+else()
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE FALSE)
+endif()
 
 # Define GNU standard installation directories
 include(GNUInstallDirs)
@@ -103,62 +123,6 @@ if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
   message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTU."
     "At least 'Microsoft Visual Studio 2015' is required.")
 endif()
-
-if(CMAKE_CONFIGURATION_TYPES OR NOT CMAKE_BUILD_TYPE_UPPERCASE STREQUAL "DEBUG")
-  set(INTERPROCEDURAL_OPTIMIZATION_DEFAULT ON)
-else()
-  set(INTERPROCEDURAL_OPTIMIZATION_DEFAULT OFF)
-endif()
-
-if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE
-    OR GCC_LTO_AVAILABLE OR MSVC_LTO_AVAILABLE OR CLANG_LTO_AVAILABLE)
-  option(INTERPROCEDURAL_OPTIMIZATION "Enable interprocedural/LTO optimization." ${INTERPROCEDURAL_OPTIMIZATION_DEFAULT})
-endif()
-
-option(PROVIDE_VERSIONINFO "Provide library's version information." ON)
-
-if(INTERPROCEDURAL_OPTIMIZATION)
-  if(GCC_LTO_AVAILABLE)
-    set(LTO_ENABLED TRUE)
-    set(CMAKE_AR ${CMAKE_GCC_AR} CACHE PATH "Path to ar program with LTO-plugin" FORCE)
-    set(CMAKE_NM ${CMAKE_GCC_NM} CACHE PATH "Path to nm program with LTO-plugin" FORCE)
-    set(CMAKE_RANLIB ${CMAKE_GCC_RANLIB} CACHE PATH "Path to ranlib program with LTO-plugin" FORCE)
-    message(STATUS "FPTU indulge Link-Time Optimization by GCC")
-  elseif(CLANG_LTO_AVAILABLE)
-    set(LTO_ENABLED TRUE)
-    set(CMAKE_AR ${CMAKE_CLANG_AR} CACHE PATH "Path to ar program with LTO-plugin" FORCE)
-    set(CMAKE_NM ${CMAKE_CLANG_NM} CACHE PATH "Path to nm program with LTO-plugin" FORCE)
-    set(CMAKE_RANLIB ${CMAKE_CLANG_RANLIB} CACHE PATH "Path to ranlib program with LTO-plugin" FORCE)
-    message(STATUS "FPTU indulge Link-Time Optimization by CLANG")
-  elseif(MSVC_LTO_AVAILABLE)
-    set(LTO_ENABLED TRUE)
-    message(STATUS "FPTU indulge Link-Time Optimization by MSVC")
-  elseif(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
-    message(STATUS "FPTU indulge Interprocedural Optimization by CMake")
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-    set(LTO_ENABLED TRUE)
-  else()
-    message(WARNING "Unable to engage interprocedural/LTO optimization.")
-  endif()
-else()
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
-  set(LTO_ENABLED FALSE)
-endif()
-
-find_program(VALGRIND valgrind)
-if(VALGRIND)
-  # LY: cmake is ugly and nasty.
-  #      - therefore memcheck-options should be defined before including ctest;
-  #      - otherwise ctest may ignore it.
-  set(MEMORYCHECK_SUPPRESSIONS_FILE
-    "${PROJECT_SOURCE_DIR}/test/valgrind_suppress.txt"
-    CACHE FILEPATH "Suppressions file for Valgrind" FORCE)
-  set(MEMORYCHECK_COMMAND_OPTIONS
-    "--trace-children=yes --leak-check=full --track-origins=yes --error-exitcode=42 --error-markers=@ --errors-for-leak-kinds=definite --fair-sched=yes --suppressions=${MEMORYCHECK_SUPPRESSIONS_FILE}"
-    CACHE STRING "Valgrind options" FORCE)
-  set(VALGRIND_COMMAND_OPTIONS "${MEMORYCHECK_COMMAND_OPTIONS}" CACHE STRING "Valgrind options" FORCE)
-endif()
-include(cmake.fptu/testing.cmake)
 
 find_program(ECHO echo)
 find_program(CAT cat)
@@ -190,48 +154,110 @@ CHECK_SYMBOL_EXISTS(nan math.h HAVE_nan)
 CHECK_SYMBOL_EXISTS(nanf math.h HAVE_nanf)
 CHECK_INCLUDE_FILES(ieee754.h HAVE_IEEE754_H)
 
-#
-# Enable 'make tags' target.
-find_program(CTAGS ctags)
-if(CTAGS)
-  add_custom_target(tags COMMAND ${CTAGS} -R -f tags
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-  add_custom_target(ctags DEPENDS tags)
-endif(CTAGS)
+if(NOT SUBPROJECT)
+  option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
+  option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
 
-#
-# Enable 'make reformat' target.
-find_program(CLANG_FORMAT
-  NAMES clang-format-6.0 clang-format-5.0 clang-format-4.0
-  clang-format-3.9 clang-format-3.8 clang-format-3.7 clang-format)
-if(CLANG_FORMAT AND UNIX)
-  add_custom_target(reformat
-    VERBATIM
-    COMMAND
+  if(CMAKE_CONFIGURATION_TYPES OR NOT CMAKE_BUILD_TYPE_UPPERCASE STREQUAL "DEBUG")
+    set(INTERPROCEDURAL_OPTIMIZATION_DEFAULT ON)
+  else()
+    set(INTERPROCEDURAL_OPTIMIZATION_DEFAULT OFF)
+  endif()
+
+  if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE
+      OR GCC_LTO_AVAILABLE OR MSVC_LTO_AVAILABLE OR CLANG_LTO_AVAILABLE)
+    option(INTERPROCEDURAL_OPTIMIZATION "Enable interprocedural/LTO optimization." ${INTERPROCEDURAL_OPTIMIZATION_DEFAULT})
+  endif()
+
+  if(INTERPROCEDURAL_OPTIMIZATION)
+    if(GCC_LTO_AVAILABLE)
+      set(LTO_ENABLED TRUE)
+      set(CMAKE_AR ${CMAKE_GCC_AR} CACHE PATH "Path to ar program with LTO-plugin" FORCE)
+      set(CMAKE_NM ${CMAKE_GCC_NM} CACHE PATH "Path to nm program with LTO-plugin" FORCE)
+      set(CMAKE_RANLIB ${CMAKE_GCC_RANLIB} CACHE PATH "Path to ranlib program with LTO-plugin" FORCE)
+      message(STATUS "FPTU indulge Link-Time Optimization by GCC")
+    elseif(CLANG_LTO_AVAILABLE)
+      set(LTO_ENABLED TRUE)
+      set(CMAKE_AR ${CMAKE_CLANG_AR} CACHE PATH "Path to ar program with LTO-plugin" FORCE)
+      set(CMAKE_NM ${CMAKE_CLANG_NM} CACHE PATH "Path to nm program with LTO-plugin" FORCE)
+      set(CMAKE_RANLIB ${CMAKE_CLANG_RANLIB} CACHE PATH "Path to ranlib program with LTO-plugin" FORCE)
+      message(STATUS "FPTU indulge Link-Time Optimization by CLANG")
+    elseif(MSVC_LTO_AVAILABLE)
+      set(LTO_ENABLED TRUE)
+      message(STATUS "FPTU indulge Link-Time Optimization by MSVC")
+    elseif(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
+      message(STATUS "FPTU indulge Interprocedural Optimization by CMake")
+      set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+      set(LTO_ENABLED TRUE)
+    else()
+      message(WARNING "Unable to engage interprocedural/LTO optimization.")
+    endif()
+  else()
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+    set(LTO_ENABLED FALSE)
+  endif()
+
+  find_program(VALGRIND valgrind)
+  if(VALGRIND)
+    # LY: cmake is ugly and nasty.
+    #      - therefore memcheck-options should be defined before including ctest;
+    #      - otherwise ctest may ignore it.
+    set(MEMORYCHECK_SUPPRESSIONS_FILE
+      "${PROJECT_SOURCE_DIR}/test/valgrind_suppress.txt"
+      CACHE FILEPATH "Suppressions file for Valgrind" FORCE)
+    set(MEMORYCHECK_COMMAND_OPTIONS
+      "--trace-children=yes --leak-check=full --track-origins=yes --error-exitcode=42 --error-markers=@ --errors-for-leak-kinds=definite --fair-sched=yes --suppressions=${MEMORYCHECK_SUPPRESSIONS_FILE}"
+      CACHE STRING "Valgrind options" FORCE)
+    set(VALGRIND_COMMAND_OPTIONS "${MEMORYCHECK_COMMAND_OPTIONS}" CACHE STRING "Valgrind options" FORCE)
+  endif()
+
+  if(NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD ${FPTU_CXX_STANDARD})
+  endif()
+  include(cmake.fptu/testing.cmake)
+
+  #
+  # Enable 'make tags' target.
+  find_program(CTAGS ctags)
+  if(CTAGS)
+    add_custom_target(tags COMMAND ${CTAGS} -R -f tags
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    add_custom_target(ctags DEPENDS tags)
+  endif(CTAGS)
+
+  #
+  # Enable 'make reformat' target.
+  find_program(CLANG_FORMAT
+    NAMES clang-format-6.0 clang-format-5.0 clang-format-4.0
+    clang-format-3.9 clang-format-3.8 clang-format-3.7 clang-format)
+  if(CLANG_FORMAT AND UNIX)
+    add_custom_target(reformat
+      VERBATIM
+      COMMAND
       git ls-files |
       grep -E \\.\(c|cxx|cc|cpp|h|hxx|hpp\)\(\\.in\)?\$ |
       xargs ${CLANG_FORMAT} -i --style=file
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-endif()
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  endif()
 
-include(cmake.fptu/multilib.cmake)
+  include(cmake.fptu/multilib.cmake)
 
-if(NOT "${PROJECT_BINARY_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
-  add_custom_target(distclean)
-  add_custom_command(TARGET distclean
-    COMMAND ${CMAKE_COMMAND} -E remove_directory "${PROJECT_BINARY_DIR}"
-    COMMENT "Removing the build directory and its content")
-elseif(IS_DIRECTORY .git AND GIT)
-  add_custom_target(distclean)
-  add_custom_command(TARGET distclean
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMAND ${GIT} submodule foreach --recursive git clean -f -X -d
-    COMMAND ${GIT} clean -f -X -d
-    COMMENT "Removing all build files from the source directory")
-endif()
+  if(NOT "${PROJECT_BINARY_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
+    add_custom_target(distclean)
+    add_custom_command(TARGET distclean
+      COMMAND ${CMAKE_COMMAND} -E remove_directory "${PROJECT_BINARY_DIR}"
+      COMMENT "Removing the build directory and its content")
+  elseif(IS_DIRECTORY .git AND GIT)
+    add_custom_target(distclean)
+    add_custom_command(TARGET distclean
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+      COMMAND ${GIT} submodule foreach --recursive git clean -f -X -d
+      COMMAND ${GIT} clean -f -X -d
+      COMMENT "Removing all build files from the source directory")
+  endif()
 
-set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
-setup_compile_flags()
+  setup_compile_flags()
+endif(NOT SUBPROJECT)
 
 #######################################################################
 

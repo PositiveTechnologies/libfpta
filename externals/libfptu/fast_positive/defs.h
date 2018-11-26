@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -22,6 +22,9 @@
 /* clang-format off */
 
 #ifdef _MSC_VER
+#if defined(_MSC_VER)
+#define _STL_WARNING_LEVEL 3
+#endif
 #pragma warning(push, 1)
 #pragma warning(disable : 4548) /* expression before comma has no effect;      \
                                    expected expression with side - effect */
@@ -136,8 +139,28 @@
 #endif
 
 #if !defined(nullptr) && !defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER))
-#	define nullptr NULL
-#endif
+# define nullptr NULL
+#endif /* nullptr */
+
+#if !defined(constexpr) && !defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER))
+# define constexpr
+#endif /* constexpr */
+
+#if !defined(cxx14_constexpr)
+# if defined(__cplusplus) && __cplusplus >= 201402L
+#   define cxx14_constexpr constexpr
+# else
+#   define cxx14_constexpr
+# endif
+#endif /* cxx14_constexpr */
+
+#if !defined(cxx17_constexpr)
+# if defined(__cplusplus) && __cplusplus >= 201703L
+#   define cxx17_constexpr constexpr
+# else
+#   define cxx17_constexpr
+# endif
+#endif /* cxx17_constexpr */
 
 //----------------------------------------------------------------------------
 
@@ -368,3 +391,37 @@
 
 #endif
 #endif /* __BYTE_ORDER__ || __ORDER_LITTLE_ENDIAN__ || __ORDER_BIG_ENDIAN__ */
+
+//----------------------------------------------------------------------------
+
+#ifdef __cplusplus
+// Define operator overloads to enable bit operations on enum values that are
+// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
+// In FPTU we sure to that uint_fast32_t is enough for casting.
+#define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE)                                      \
+  extern "C++" {                                                               \
+  inline ENUMTYPE operator|(ENUMTYPE a, ENUMTYPE b) {                          \
+    return ENUMTYPE(((uint_fast32_t)a) | ((uint_fast32_t)b));                  \
+  }                                                                            \
+  inline ENUMTYPE &operator|=(ENUMTYPE &a, ENUMTYPE b) {                       \
+    return (ENUMTYPE &)(((uint_fast32_t &)a) |= ((uint_fast32_t)b));           \
+  }                                                                            \
+  inline ENUMTYPE operator&(ENUMTYPE a, ENUMTYPE b) {                          \
+    return ENUMTYPE(((uint_fast32_t)a) & ((uint_fast32_t)b));                  \
+  }                                                                            \
+  inline ENUMTYPE &operator&=(ENUMTYPE &a, ENUMTYPE b) {                       \
+    return (ENUMTYPE &)(((uint_fast32_t &)a) &= ((uint_fast32_t)b));           \
+  }                                                                            \
+  inline ENUMTYPE operator~(ENUMTYPE a) {                                      \
+    return ENUMTYPE(~((uint_fast32_t)a));                                      \
+  }                                                                            \
+  inline ENUMTYPE operator^(ENUMTYPE a, ENUMTYPE b) {                          \
+    return ENUMTYPE(((uint_fast32_t)a) ^ ((uint_fast32_t)b));                  \
+  }                                                                            \
+  inline ENUMTYPE &operator^=(ENUMTYPE &a, ENUMTYPE b) {                       \
+    return (ENUMTYPE &)(((uint_fast32_t &)a) ^= ((uint_fast32_t)b));           \
+  }                                                                            \
+  }
+#else                                     /* __cplusplus */
+#define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE) /* nope, C allows these operators */
+#endif                                    /* !__cplusplus */

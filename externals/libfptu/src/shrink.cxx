@@ -23,7 +23,9 @@ enum {
   fptu_unordered = 1,
   fptu_junk_header = 2,
   fptu_junk_data = 4,
-  fptu_mesh = 8
+  fptu_mesh = 8,
+  fptu_all_state_flags =
+      fptu_unordered | fptu_junk_header | fptu_junk_data | fptu_mesh
 };
 
 static unsigned fptu_state(const fptu_rw *pt) {
@@ -34,22 +36,21 @@ static unsigned fptu_state(const fptu_rw *pt) {
 
   unsigned state = 0;
   for (const fptu_field *pf = end; --pf >= begin;) {
-    if (pf->ct < prev_ct)
-      state |= fptu_unordered;
-    prev_ct = pf->ct;
-
-    if (ct_is_dead(pf->ct)) {
-      state |= (fptu_get_type(pf->ct) > fptu_uint16)
-                   ? fptu_junk_header | fptu_junk_data
-                   : fptu_junk_header;
-    } else if (fptu_get_type(pf->ct) > fptu_uint16) {
-      const char *payload = (const char *)fptu_field_payload(pf);
-      if (payload < prev_payload)
-        state |= fptu_mesh;
-      prev_payload = payload;
+    if (pf->is_dead()) {
+      state |= (pf->type() > fptu_uint16) ? fptu_junk_header | fptu_junk_data
+                                          : fptu_junk_header;
+    } else {
+      if (pf->tag < prev_ct)
+        state |= fptu_unordered;
+      prev_ct = pf->tag;
+      if (pf->type() > fptu_uint16) {
+        const char *payload = (const char *)pf->payload();
+        if (payload < prev_payload)
+          state |= fptu_mesh;
+        prev_payload = payload;
+      }
     }
-    if (state ==
-        (fptu_unordered | fptu_junk_header | fptu_junk_data | fptu_mesh))
+    if (state >= fptu_all_state_flags)
       break;
   }
   assert(fptu_is_ordered(begin, end) == ((state & fptu_unordered) == 0));
@@ -76,13 +77,13 @@ bool fptu_shrink(fptu_rw *pt) {
   size_t shift;
 
   for (shift = 0; --h >= begin;) {
-    f.header = h->header;
-    if (ct_is_dead(f.ct)) {
+    if (h->is_dead()) {
       shift++;
       continue;
     }
 
-    if (fptu_get_type(f.ct) > fptu_uint16) {
+    f.header = h->header;
+    if (h->type() > fptu_uint16) {
       size_t u = fptu_field_units(h);
       uint32_t *p = (uint32_t *)fptu_field_payload(h);
       assert(t <= p);
