@@ -1469,7 +1469,7 @@ public:
   constexpr const char *data() const { return str; }
   constexpr size_t length() const { return (len >= 0) ? (size_t)len : 0u; }
   constexpr bool empty() const { return len <= 0; }
-  constexpr bool null() const { return len < 0; }
+  constexpr bool nil() const { return len < 0; }
   constexpr size_t size() const { return length(); }
   constexpr size_type max_size() const { return 32767; }
 
