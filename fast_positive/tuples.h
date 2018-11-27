@@ -1377,6 +1377,21 @@ public:
   cxx14_constexpr string_view &
   operator=(const string_view &v) noexcept = default;
 
+  constexpr string_view(const char *str, size_t count)
+      : str(str), len(str ? static_cast<intptr_t>(count) : -1) {
+#if __cplusplus >= 201402L
+    assert(len >= 0 || (len == -1 && !str));
+#endif
+  }
+
+  constexpr string_view(const char *begin, const char *end)
+      : str(begin), len(begin ? static_cast<intptr_t>(end - begin) : -1) {
+#if __cplusplus >= 201402L
+    assert(end >= begin);
+    assert(len >= 0 || (len == -1 && !begin));
+#endif
+  }
+
   constexpr string_view(const char *ptr)
       : str(ptr), len(ptr ? static_cast<intptr_t>(strlen(ptr)) : -1) {
 #if __cplusplus >= 201402L
