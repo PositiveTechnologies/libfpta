@@ -1552,7 +1552,7 @@ FPTU_API std::string format(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)))
 #endif
     ;
-FPTU_API std::string format(const char *fmt, va_list ap);
+FPTU_API std::string format_va(const char *fmt, va_list ap);
 FPTU_API std::string hexadecimal(const void *data, size_t bytes);
 
 inline int erase(fptu_rw *pt, unsigned column, fptu_type type) {
