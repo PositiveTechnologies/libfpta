@@ -43,7 +43,7 @@ bool fptu_is_under_valgrind(void) {
 
 namespace fptu {
 
-__cold std::string format(const char *fmt, va_list ap) {
+__cold std::string format_va(const char *fmt, va_list ap) {
   va_list ones;
   va_copy(ones, ap);
 #ifdef _MSC_VER
@@ -66,7 +66,7 @@ __cold std::string format(const char *fmt, va_list ap) {
 __cold std::string format(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  std::string result = format(fmt, ap);
+  std::string result = format_va(fmt, ap);
   va_end(ap);
   return result;
 }
