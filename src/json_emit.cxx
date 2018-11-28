@@ -461,7 +461,7 @@ void json::value_dateime(const fptu_time &value) {
     gmtime_r(&utc_sec, &utc_tm);
 #endif
 
-    format(24, "\"%04d-%02d-%02d_%02d:%02d:%02d", utc_tm.tm_year + 1900,
+    format(24, "\"%04d-%02d-%02dT%02d:%02d:%02d", utc_tm.tm_year + 1900,
            utc_tm.tm_mon + 1, utc_tm.tm_mday, utc_tm.tm_hour, utc_tm.tm_min,
            utc_tm.tm_sec);
     if (value.fractional) {
