@@ -453,17 +453,28 @@ void json::value_fp64(const fptu_payload *payload) {
 
 void json::value_dateime(const fptu_time &value) {
   if (value.fixedpoint != FPTU_DENIL_TIME_BIN) {
-    const time_t utc_sec = value.utc;
     struct tm utc_tm;
+    time_t utc_sec = value.utc;
+    int year_offset = 1900;
+    for (;;) {
 #ifdef _MSC_VER
-    gmtime_s(&utc_tm, &utc_sec);
+      struct tm *gmtime_result = gmtime_s(&utc_tm, &utc_sec);
 #else
-    gmtime_r(&utc_sec, &utc_tm);
+      struct tm *gmtime_result = gmtime_r(&utc_sec, &utc_tm);
 #endif
+      if (sizeof(time_t) > 4 || (gmtime_result && utc_tm.tm_year > 69))
+        break;
 
-    format(24, "\"%04d-%02d-%02dT%02d:%02d:%02d", utc_tm.tm_year + 1900,
+      year_offset += 28;
+      utc_sec -= (28 * 365 +
+                  ((year_offset < 1978 /* correction for >= 2100 */) ? 7 : 6)) *
+                 24 * 3600;
+    }
+
+    format(24, "\"%04d-%02d-%02dT%02d:%02d:%02d", utc_tm.tm_year + year_offset,
            utc_tm.tm_mon + 1, utc_tm.tm_mday, utc_tm.tm_hour, utc_tm.tm_min,
            utc_tm.tm_sec);
+
     if (value.fractional) {
       int exponent;
       char *const begin = wanna(32) + 1;
