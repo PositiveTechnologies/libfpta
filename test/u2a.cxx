@@ -66,7 +66,7 @@ TEST(u2a, dec2) {
     char *strtol_end = nullptr;
     long probe = strtol(buffer, &strtol_end, 10);
     EXPECT_EQ(u2a_end, strtol_end);
-    EXPECT_EQ(i, probe);
+    EXPECT_EQ((long)i, probe);
   }
 }
 
@@ -81,7 +81,7 @@ TEST(u2a, dec3) {
     char *strtol_end = nullptr;
     long probe = strtol(buffer, &strtol_end, 10);
     EXPECT_EQ(u2a_end, strtol_end);
-    EXPECT_EQ(i, probe);
+    EXPECT_EQ((long)i, probe);
   }
 }
 
@@ -96,13 +96,13 @@ TEST(u2a, dec4) {
     char *strtol_end = nullptr;
     long probe = strtol(buffer, &strtol_end, 10);
     EXPECT_EQ(u2a_end, strtol_end);
-    EXPECT_EQ(i, probe);
+    EXPECT_EQ((long)i, probe);
   }
 }
 
 //----------------------------------------------------------------------------
 
-template <typename T, unsigned MAX>
+template <typename T, ptrdiff_t MAX>
 void probe(const T value, char *(*func)(T, char *)) {
   char buffer[MAX + 1];
   char *u2a_end = func(value, buffer);

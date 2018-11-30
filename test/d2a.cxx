@@ -120,7 +120,7 @@ TEST(d2a, stairwell) {
 
 TEST(d2a, random3e6) {
   char buffer[23 + 1];
-  erthink::grisu::casting_union prng(time(0));
+  erthink::grisu::casting_union prng(uint64_t(time(0)));
   SCOPED_TRACE("PGNG seed" + std::to_string(prng.u));
   for (int i = 0; i < 3000000;) {
     switch (std::fpclassify(prng.f)) {
