@@ -453,23 +453,27 @@ void json::value_fp64(const fptu_payload *payload) {
 
 void json::value_dateime(const fptu_time &value) {
   if (value.fixedpoint != FPTU_DENIL_TIME_BIN) {
-    struct tm utc_tm;
-    time_t utc_sec = value.utc;
     int year_offset = 1900;
-    for (;;) {
+    struct tm utc_tm;
 #ifdef _MSC_VER
-      struct tm *gmtime_result = gmtime_s(&utc_tm, &utc_sec);
+    const __time64_t utc64 = value.utc;
+    const errno_t rc = _gmtime64_s(&utc_tm, &utc64);
+    assert(rc == 0);
+    (void)rc;
 #else
-      struct tm *gmtime_result = gmtime_r(&utc_sec, &utc_tm);
-#endif
-      if (sizeof(time_t) > 4 || (gmtime_result && utc_tm.tm_year > 69))
+    time_t utc_sec = value.utc;
+    for (;;) {
+      const bool gmtime_ok = gmtime_r(&utc_sec, &utc_tm) != nullptr;
+      if (sizeof(time_t) > 4 || (gmtime_ok && utc_tm.tm_year > 69)) {
+        assert(gmtime_ok && utc_tm.tm_year > 69);
         break;
-
+      }
       year_offset += 28;
-      utc_sec -= (28 * 365 +
-                  ((year_offset < 1978 /* correction for >= 2100 */) ? 7 : 6)) *
-                 24 * 3600;
+      utc_sec -= (year_offset < 1978 /* correction for >= 2100 */)
+                     ? (28 * 365 + 7) * 24 * 3600
+                     : (28 * 365 + 6) * 24 * 3600;
     }
+#endif
 
     format(24, "\"%04d-%02d-%02dT%02d:%02d:%02d", utc_tm.tm_year + year_offset,
            utc_tm.tm_mon + 1, utc_tm.tm_mday, utc_tm.tm_hour, utc_tm.tm_min,
