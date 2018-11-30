@@ -251,7 +251,7 @@ enum fpta_bits {
   /* Минимальная длина имени/идентификатора */
   fpta_name_len_min = 1,
   /* Максимальная длина имени/идентификатора */
-  fpta_name_len_max = 512,
+  fpta_name_len_max = 64,
 
   /* Далее внутренние технические детали. */
   fpta_id_bits = 64,
@@ -1330,12 +1330,13 @@ typedef uint64_t fpta_shove_t;
 
 /* Набор колонок для создания таблицы */
 typedef struct fpta_column_set {
-  /* Счетчик заполненных описателей. */
-  unsigned count;
-  /* Упакованные описатели колонок. */
-  fpta_shove_t shoves[fpta_max_cols];
-  /* Информация о составных колонках */
-  uint16_t composites[fpta_max_cols];
+  unsigned signature /* Сигнатура для внутреннего контроля */;
+  unsigned count /* Счетчик заполненных описателей. */;
+  void *dict_ptr /* Указатель на внутренние данные, в том числе словарь
+                    символических имен */
+      ;
+  fpta_shove_t shoves[fpta_max_cols] /* Упакованные описатели колонок. */;
+  uint16_t composites[fpta_max_cols] /* Информация о составных колонках */;
 } fpta_column_set;
 
 /* Вспомогательная функция, проверяет корректность имени */
@@ -1419,35 +1420,15 @@ FPTA_API int fpta_describe_composite_index_va(const char *composite_name,
 
 /* Инициализирует column_set перед заполнением посредством
  * fpta_column_describe(). */
-static __inline void fpta_column_set_init(fpta_column_set *column_set) {
-  column_set->count = 0;
-  column_set->shoves[0] = 0;
-  column_set->composites[0] = 0;
-}
+FPTA_API void fpta_column_set_init(fpta_column_set *column_set);
 
 /* Деструктор fpta_column_set.
  * В случае успеха возвращает ноль, иначе код ошибки. */
-static __inline int fpta_column_set_destroy(fpta_column_set *column_set) {
-  if (column_set != nullptr && column_set->count != FPTA_DEADBEEF) {
-    column_set->count = (unsigned)FPTA_DEADBEEF;
-    column_set->shoves[0] = 0;
-    column_set->composites[0] = INT16_MAX;
-    return FPTA_SUCCESS;
-  }
-
-  return FPTA_EINVAL;
-}
+FPTA_API int fpta_column_set_destroy(fpta_column_set *column_set);
 
 /* Сбрасывает (повторно инициализирует) column_set для повторного заполнения
  * посредством fpta_column_describe(). */
-static __inline int fpta_column_set_reset(fpta_column_set *column_set) {
-  if (column_set != nullptr && column_set->count != FPTA_DEADBEEF) {
-    fpta_column_set_init(column_set);
-    return FPTA_SUCCESS;
-  }
-
-  return FPTA_EINVAL;
-}
+FPTA_API int fpta_column_set_reset(fpta_column_set *column_set);
 
 /* Создание таблицы.
  *
@@ -1919,39 +1900,27 @@ FPTA_API int fpta_composite_column_get(const fpta_name *composite_id,
  * Фактически является массивом содержащим хэшированные имена таблиц,
  * по которым можно получить остальную информацию.
  *
- * В результате успешного вызова fpta_schema_fetch() будет установлено поле
- * tables_count и будут заполнены элементы массива tables_names[], однако
- * не полностью, а как если-бы для этого использовалась функция
- * fpta_table_init().
- *
- * Тем не менее, этого достаточно для доступа к каждой из таблиц, в том числе
- * вызовов fpta_name_refresh() и последующего получения информации о колонках
- * посредством fpta_table_column_count() и fpta_table_column_get().
- *
- * Непосредственно после вызова fpta_schema_fetch() заполненная структура
- * не требует какого-либо разрушения или дополнительного освобождения ресурсов.
- * Однако, после последующих вызовов fpta_name_refresh() для каждого
- * соответствующего элемента массива tables_names[] требуется вызов
- * fpta_name_destroy() для освобождения внутреннего описания колонок.
- * Поэтому рекомендуется абстрагироваться и для разрушения всегда использовать
- * деструктор fpta_schema_destroy(). Накладные расходы при этом минимальны. */
+ * По завершению использования должна быть разрушена посредством
+ * fpta_schema_destroy(). */
 typedef struct fpta_schema_info {
-  uint64_t version;
+  unsigned signature;
   unsigned tables_count;
+  uint64_t version;
+  void *dict_ptr /* Указатель на внутренние данные, в том числе словарь
+                    символических имен */
+      ;
   fpta_name tables_names[fpta_tables_max];
 } fpta_schema_info;
 
 /* Позволяет получить информацию о всех созданных таблицах.
  *
- * Следует отметить, что функция не производит вызовов fpta_name_refresh()
- * внутри себя, хотя и работает в контексте транзакции. Какое поведение
- * позволяет не выполнять лишних операций, в том числе не выделять ресурсов.
- * Подробности см выше в описании структуры fpta_schema_info.
+ * Возвращаемый экземпляр fpta_schema_info, по завершению использования, должен
+ * быть разрушен посредством fpta_schema_destroy().
  *
  * В случае успеха возвращает ноль, иначе код ошибки. */
 FPTA_API int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info);
 
-/* Деструктор экземпляров fpta_schema_info.
+/* Деструктор fpta_schema_info.
  * В случае успеха возвращает ноль, иначе код ошибки. */
 FPTA_API int fpta_schema_destroy(fpta_schema_info *info);
 

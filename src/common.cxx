@@ -344,6 +344,10 @@ cancelled:
   int err = fpta_db_unlock(txn->db, txn->level);
   assert(err == 0);
   (void)err;
+  if (unlikely(txn->schema_info)) {
+    fpta_schema_destroy(txn->schema_info);
+    txn->schema_info = nullptr;
+  }
   fpta_txn_free(txn->db, txn);
 
   return (fpta_error)rc;
