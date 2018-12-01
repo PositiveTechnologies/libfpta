@@ -419,7 +419,7 @@ int fpta_schema_add(fpta_column_set *column_set, const char *id_name,
   column_set->dict_ptr = dict_string;
   if (dict_length) {
     assert(dict_string[dict_length - 1] == '\0');
-    dict_string[dict_length - 1] = trivial_dict::delimiter;
+    dict_string[dict_length - 1] = dict_delim;
   }
   memcpy(dict_string + dict_length, id_name, dict_add_length);
   return FPTA_SUCCESS;

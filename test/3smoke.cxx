@@ -2939,6 +2939,7 @@ TEST(Smoke, ReOpenAfterAbort) {
   ASSERT_NE(nullptr, txn);
   ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "Table", &def));
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   txn = nullptr;
 
   // закрываем базу
@@ -3358,6 +3359,7 @@ TEST(Smoke, AsyncSchemaChange) {
 
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
     txn = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def1));
 
     // закрываем базу
     EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
@@ -3491,6 +3493,7 @@ TEST(Smoke, AsyncSchemaChange) {
                                 "Success_bruteforce_on_host_table", &def1));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_commander, false));
     EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_commander));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def1));
   }
 
   // выполняем контрольное обновление данных после изменения схемы

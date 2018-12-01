@@ -143,6 +143,7 @@ TEST(Threaded, SimpleConcurence) {
     ASSERT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
     ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
     SCOPED_TRACE("Table created");
   }
 
@@ -279,6 +280,7 @@ TEST(Threaded, SimpleSelect) {
 
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "MyTable", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
     SCOPED_TRACE("Table created");
   }
   ASSERT_EQ(FPTA_OK, fpta_db_close(db));
@@ -527,6 +529,7 @@ TEST(Threaded, SimpleVisitor) {
     ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "Counting", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
     SCOPED_TRACE("Table created");
   }
   ASSERT_EQ(FPTA_OK, fpta_db_close(db));

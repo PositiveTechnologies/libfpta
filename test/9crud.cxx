@@ -376,6 +376,7 @@ TEST(Nullable, AsyncSchemaChange) {
               fpta_transaction_versions(txn, &db_initial_version, nullptr));
     ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
 
   // формируем четые строки-кортежа с разным заполнением значениями
@@ -493,6 +494,7 @@ TEST(Nullable, AsyncSchemaChange) {
     // создаем новую таблицу
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn_commander, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_commander, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
 
   // выполняем второе контрольное обновление данных
@@ -578,6 +580,7 @@ TEST(Nullable, AsyncSchemaChange) {
     // создаем новую таблицу
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn_commander, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_commander, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
 
   // выполняем третье контрольное обновление данных
@@ -663,6 +666,7 @@ TEST(Nullable, AsyncSchemaChange) {
     // создаем новую таблицу
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn_commander, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_commander, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
 
   // выполняем контрольное обновление данных после третьего изменения схемы
@@ -744,6 +748,7 @@ TEST(Nullable, AsyncSchemaChange) {
     // создаем новую таблицу
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn_commander, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_commander, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
 
   // выполняем пятое (последнее) пробное обновление в корреляторе
@@ -873,6 +878,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
     ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_commander));
   db_commander = nullptr;
@@ -980,6 +986,7 @@ TEST(Nullable, SchemaReloadAfterAbort) {
     ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_commander));
   db_commander = nullptr;
@@ -1114,6 +1121,7 @@ TEST(CRUD, DISABLED_ExtraOps) {
     ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
 
@@ -1266,6 +1274,7 @@ TEST(Nullable, SchemaReload) {
     ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_commander));
   db_commander = nullptr;
@@ -1374,6 +1383,7 @@ TEST(Nullable, SchemaReload) {
     ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_commander));
   db_commander = nullptr;
