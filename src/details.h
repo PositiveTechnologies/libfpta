@@ -110,8 +110,8 @@ static __inline int fpta_txn_validate(fpta_txn *txn, fpta_level min_level) {
   return FPTA_OK;
 }
 
-static __inline int fpta_id_validate(const fpta_name *id,
-                                     fpta_schema_item schema_item) {
+static constexpr int fpta_id_validate(const fpta_name *id,
+                                      fpta_schema_item schema_item) {
   if (unlikely(id == nullptr))
     return FPTA_EINVAL;
 
@@ -133,7 +133,9 @@ static __inline int fpta_id_validate(const fpta_name *id,
         return FPTA_SCHEMA_CORRUPTED;
       if (unlikely(table_schema->table_shove() != id->shove))
         return FPTA_SCHEMA_CORRUPTED;
+#if __cplusplus >= 201402L
       assert(id->version >= table_schema->version_csn());
+#endif /* C++14 */
     }
     return FPTA_SUCCESS;
 

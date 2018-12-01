@@ -157,20 +157,21 @@ static int fpta_schema_clone(const fpta_shove_t schema_key,
   return FPTA_SUCCESS;
 }
 
-static int index2prio(const fpta_shove_t index) {
+static constexpr int index2prio(const fpta_shove_t index) {
   /* primary, secondary, non-indexed non-nullable, non-indexed nullable */
   if (fpta_is_indexed(index))
     return fpta_index_is_primary(index) ? 0 : 1;
   return (index & fpta_index_fnullable) ? 3 : 2;
 }
 
-static bool compare(const fpta_shove_t &left, const fpta_shove_t &right) {
+static constexpr bool shove_index_compare(const fpta_shove_t &left,
+                                          const fpta_shove_t &right) {
   const auto left_prio = index2prio(left);
   const auto rigth_prio = index2prio(right);
   return left_prio < rigth_prio || (left_prio == rigth_prio && left < right);
 }
 
-static bool fpta_check_indextype(const fpta_index_type index_type) {
+static constexpr bool fpta_check_indextype(const fpta_index_type index_type) {
   switch (index_type) {
   default:
     return false;
@@ -307,7 +308,7 @@ static int fpta_schema_sort(fpta_column_set *column_set) {
          column_set->count <= fpta_max_cols);
   if (std::is_sorted(column_set->shoves, column_set->shoves + column_set->count,
                      [](const fpta_shove_t &left, const fpta_shove_t &right) {
-                       return compare(left, right);
+                       return shove_index_compare(left, right);
                      }))
     return FPTA_SUCCESS;
 
@@ -316,7 +317,7 @@ static int fpta_schema_sort(fpta_column_set *column_set) {
   /* sort descriptions of columns, so that a non-indexed was at the end */
   std::sort(sorted.begin(), sorted.end(),
             [](const fpta_shove_t &left, const fpta_shove_t &right) {
-              return compare(left, right);
+              return shove_index_compare(left, right);
             });
 
   /* fixup composites after sort */
@@ -473,7 +474,7 @@ static bool fpta_schema_validate(const fpta_shove_t schema_key,
 
   if (!std::is_sorted(schema->columns, schema->columns + schema->count,
                       [](const fpta_shove_t &left, const fpta_shove_t &right) {
-                        return compare(left, right);
+                        return shove_index_compare(left, right);
                       }))
     return false;
 
