@@ -704,8 +704,8 @@ int __cold fpta_describe_composite_index(const char *composite_name,
     return FPTA_TOOMANY;
 
   /* add name to column's shoves */
-  rc = fpta_schema_add(column_set, composite_name, /* composite */ fptu_null,
-                       index_type);
+  rc = fpta_column_set_add(column_set, composite_name,
+                           /* composite */ fptu_null, index_type);
   if (rc != FPTA_SUCCESS)
     return rc;
 

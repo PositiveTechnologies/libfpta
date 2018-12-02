@@ -485,8 +485,8 @@ int fpta_secondary_remove(fpta_txn *txn, fpta_table_schema *table_def,
 int fpta_check_nonnullable(const fpta_table_schema *table_def,
                            const fptu_ro &row);
 
-int fpta_schema_add(fpta_column_set *column_set, const char *column_name,
-                    fptu_type data_type, fpta_index_type index_type);
+int fpta_column_set_add(fpta_column_set *column_set, const char *column_name,
+                        fptu_type data_type, fpta_index_type index_type);
 
 int fpta_composite_index_validate(
     const fpta_index_type index_type,
