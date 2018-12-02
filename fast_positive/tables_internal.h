@@ -131,7 +131,7 @@ static constexpr fpta_shove_t fpta_column_shove(fpta_shove_t shove,
 static constexpr bool fpta_shove_eq(fpta_shove_t a, fpta_shove_t b) {
   static_assert(fpta_name_hash_shift > 0, "expect hash/shove is shifted");
   /* A равно B, если отличия только в бладших битах */
-  return (a ^ b) < ((1u << fpta_name_hash_shift) - 1);
+  return (a ^ b) < (1u << fpta_name_hash_shift);
 }
 
 static constexpr fptu_type fpta_shove2type(fpta_shove_t shove) {

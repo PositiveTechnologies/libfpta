@@ -19,21 +19,6 @@
 
 #include "details.h"
 
-__hot fpta_shove_t fpta_shove_name(const char *name,
-                                   enum fpta_schema_item type) {
-  char uppercase[fpta_name_len_max];
-  size_t i, len = strlen(name);
-  assert(len <= fpta_name_len_max);
-
-  for (i = 0; i < len && i < sizeof(uppercase); ++i)
-    uppercase[i] = (char)toupper(name[i]);
-
-  fpta_shove_t shove = t1ha2_atonce(uppercase, i, type) << fpta_name_hash_shift;
-  if (type == fpta_table)
-    shove |= fpta_flag_table;
-  return shove;
-}
-
 template <bool first> static __inline bool is_valid_char4name(char c) {
   if (first ? isalpha(c) : isalnum(c))
     return true;
@@ -45,25 +30,30 @@ template <bool first> static __inline bool is_valid_char4name(char c) {
   return false;
 }
 
-bool fpta_validate_name(const char *name) {
-  if (unlikely(name == nullptr))
-    return false;
+__hot fpta_shove_t fpta_name_validate_and_shove(const fptu::string_view &name) {
+  const auto length = name.length();
+  if (unlikely(length < fpta_name_len_min || length > fpta_name_len_max))
+    return 0;
 
   if (unlikely(!is_valid_char4name<true>(name[0])))
-    return false;
+    return 0;
 
-  size_t i = 1;
-  while (name[i]) {
+  char uppercase[fpta_name_len_max];
+  uppercase[0] = (char)toupper(name[0]);
+  for (size_t i = 1; i < length; ++i) {
     if (unlikely(!is_valid_char4name<false>(name[i])))
-      return false;
-    if (unlikely(++i > fpta_name_len_max))
-      return false;
+      return 0;
+    uppercase[i] = (char)toupper(name[i]);
   }
 
-  if (unlikely(i < fpta_name_len_min))
-    return false;
+  constexpr uint64_t seed = UINT64_C(0x7D7859C1743733) * FPTA_VERSION_MAJOR +
+                            UINT64_C(0xC8E6067A913D) * FPTA_VERSION_MINOR +
+                            1543675803 /* Сб дек  1 17:50:03 MSK 2018 */;
+  return t1ha2_atonce(uppercase, length, seed) << fpta_name_hash_shift;
+}
 
-  return fpta_shove_name(name, fpta_column) > (1 << fpta_name_hash_shift);
+bool fpta_validate_name(const char *name) {
+  return fpta_name_validate_and_shove(fptu::string_view(name)) != 0;
 }
 
 //----------------------------------------------------------------------------
@@ -371,7 +361,9 @@ static int fpta_schema_sort(fpta_column_set *column_set) {
 
 int fpta_schema_add(fpta_column_set *column_set, const char *id_name,
                     fptu_type data_type, fpta_index_type index_type) {
-  assert(id_name != nullptr);
+  const fpta_shove_t name_shove = fpta_shove_name(id_name, fpta_column);
+  if (unlikely(!name_shove))
+    return FPTA_ENAME;
   if (!fpta_check_indextype(index_type))
     return FPTA_EFLAG;
 
@@ -381,10 +373,9 @@ int fpta_schema_add(fpta_column_set *column_set, const char *id_name,
   if (unlikely(column_set == nullptr || column_set->count > fpta_max_cols))
     return FPTA_EINVAL;
 
-  const fpta_shove_t shove = fpta_column_shove(
-      fpta_shove_name(id_name, fpta_column), data_type, index_type);
+  const fpta_shove_t shove =
+      fpta_column_shove(name_shove, data_type, index_type);
   assert(fpta_shove2index(shove) != (fpta_index_type)fpta_flag_table);
-
   for (size_t i = 0; i < column_set->count; ++i) {
     if (fpta_shove_eq(column_set->shoves[i], shove))
       return FPTA_EEXIST;
@@ -567,9 +558,6 @@ int fpta_column_set_reset(fpta_column_set *column_set) {
 int fpta_column_describe(const char *column_name, fptu_type data_type,
                          fpta_index_type index_type,
                          fpta_column_set *column_set) {
-  if (unlikely(!fpta_validate_name(column_name)))
-    return FPTA_ENAME;
-
   if (unlikely(data_type < fptu_uint16 || data_type > fptu_nested))
     return FPTA_ETYPE;
 
@@ -692,21 +680,25 @@ static int fpta_name_init(fpta_name *id, const char *name,
     return FPTA_EINVAL;
 
   memset(id, 0, sizeof(fpta_name));
-  if (unlikely(!fpta_validate_name(name)))
-    return FPTA_ENAME;
-
   switch (schema_item) {
   default:
     return FPTA_EFLAG;
   case fpta_table:
     id->shove = fpta_shove_name(name, fpta_table);
+    if (unlikely(!id->shove))
+      return FPTA_ENAME;
+
     // id->table_schema = nullptr; /* done by memset() */
     assert(id->table_schema == nullptr);
     assert(fpta_id_validate(id, fpta_table) == FPTA_SUCCESS);
     break;
   case fpta_column:
-    id->shove = fpta_column_shove(fpta_shove_name(name, fpta_column), fptu_null,
-                                  fpta_index_none);
+    id->shove = fpta_shove_name(name, fpta_column);
+    if (unlikely(!id->shove))
+      return FPTA_ENAME;
+    id->shove = fpta_column_shove(id->shove, fptu_null, fpta_index_none);
+    if (unlikely(!id->shove))
+      return FPTA_ENAME;
     id->column.num = ~0u;
     id->column.table = id;
     assert(fpta_id_validate(id, fpta_column) == FPTA_SUCCESS);
@@ -839,7 +831,8 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
   int rc = fpta_txn_validate(txn, fpta_schema);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
-  if (!fpta_validate_name(table_name))
+  const fpta_shove_t table_shove = fpta_shove_name(table_name, fpta_table);
+  if (unlikely(!table_shove))
     return FPTA_ENAME;
 
   const void *composites_eof = nullptr;
@@ -882,7 +875,6 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
   std::string schema_dict_string;
   MDBX_dbi dbi[fpta_max_indexes];
   memset(dbi, 0, sizeof(dbi));
-  fpta_shove_t table_shove = fpta_shove_name(table_name, fpta_table);
 
   for (size_t i = 0; i < column_set->count; ++i) {
     const auto shove = column_set->shoves[i];
@@ -915,7 +907,7 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
 
   MDBX_val key, data;
   key.iov_len = sizeof(table_shove);
-  key.iov_base = &table_shove;
+  key.iov_base = (void *)&table_shove;
   data.iov_base = nullptr;
   data.iov_len = bytes;
   rc = mdbx_put(txn->mdbx_txn, db->schema_dbi, &key, &data,
@@ -966,7 +958,8 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
   int rc = fpta_txn_validate(txn, fpta_schema);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
-  if (!fpta_validate_name(table_name))
+  const fpta_shove_t table_shove = fpta_shove_name(table_name, fpta_table);
+  if (unlikely(!table_shove))
     return FPTA_ENAME;
 
   fpta_db *db = txn->db;
@@ -978,7 +971,6 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
 
   MDBX_dbi dbi[fpta_max_indexes];
   memset(dbi, 0, sizeof(dbi));
-  fpta_shove_t schema_key = fpta_shove_name(table_name, fpta_table);
 
   MDBX_val data, key, schema_dict;
   key.iov_len = sizeof(dict_shove);
@@ -991,13 +983,13 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
     schema_dict.iov_len = 0;
   }
 
-  key.iov_len = sizeof(schema_key);
-  key.iov_base = &schema_key;
+  key.iov_len = sizeof(table_shove);
+  key.iov_base = (void *)&table_shove;
   rc = mdbx_get(txn->mdbx_txn, db->schema_dbi, &key, &data);
   if (rc != MDBX_SUCCESS)
     return rc;
 
-  if (!fpta_schema_validate(schema_key, data, schema_dict))
+  if (!fpta_schema_validate(table_shove, data, schema_dict))
     return FPTA_SCHEMA_CORRUPTED;
 
   const fpta_table_stored_schema *stored_schema =
@@ -1019,7 +1011,7 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
 
     const unsigned dbi_flags = fpta_dbi_flags(stored_schema->columns, i);
     const fpta_shove_t data_shove = fpta_data_shove(stored_schema->columns, i);
-    rc = fpta_dbi_open(txn, fpta_dbi_shove(schema_key, i), dbi[i], dbi_flags,
+    rc = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags,
                        shove, data_shove);
     if (rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND)
       return rc;
@@ -1038,7 +1030,7 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
   txn->schema_csn() = txn->db_version;
   for (size_t i = 0; i < stored_schema->count; ++i) {
     if (dbi[i] > 0) {
-      fpta_dbicache_remove(db, fpta_dbi_shove(schema_key, i));
+      fpta_dbicache_remove(db, fpta_dbi_shove(table_shove, i));
       int err = mdbx_drop(txn->mdbx_txn, dbi[i], true);
       if (unlikely(err != MDBX_SUCCESS))
         return fpta_internal_abort(txn, err);

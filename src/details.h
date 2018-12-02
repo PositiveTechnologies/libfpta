@@ -171,7 +171,14 @@ static __inline int fpta_cursor_validate(const fpta_cursor *cursor,
 
 //----------------------------------------------------------------------------
 
-fpta_shove_t fpta_shove_name(const char *name, enum fpta_schema_item type);
+fpta_shove_t fpta_name_validate_and_shove(const fptu::string_view &);
+
+inline fpta_shove_t fpta_shove_name(const char *name,
+                                    enum fpta_schema_item type) {
+  const fpta_shove_t shove =
+      fpta_name_validate_and_shove(fptu::string_view(name));
+  return (shove && type == fpta_table) ? shove | fpta_flag_table : shove;
+}
 
 static __inline fpta_shove_t fpta_dbi_shove(const fpta_shove_t table_shove,
                                             const size_t index_id) {

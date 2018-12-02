@@ -645,9 +645,6 @@ int __cold fpta_describe_composite_index(const char *composite_name,
                                          fpta_column_set *column_set,
                                          const char *const column_names_array[],
                                          size_t column_names_count) {
-  if (unlikely(!fpta_validate_name(composite_name)))
-    return FPTA_ENAME;
-
   if (unlikely(!fpta_is_indexed(index_type)))
     return FPTA_EFLAG;
 
@@ -665,10 +662,9 @@ int __cold fpta_describe_composite_index(const char *composite_name,
   items.reserve(column_names_count);
   for (size_t i = 0; i < column_names_count; ++i) {
     const char *column_name = column_names_array[i];
-    if (unlikely(!fpta_validate_name(column_name)))
-      return FPTA_ENAME;
-
     const fpta_shove_t shove = fpta_shove_name(column_name, fpta_column);
+    if (unlikely(!shove))
+      return FPTA_ENAME;
     for (size_t n = 0; n < column_set->count; ++n) {
       const fpta_shove_t column_shove = column_set->shoves[n];
       if (column_shove == 0 && n == 0)

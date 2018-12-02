@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -74,7 +74,7 @@ TEST(Corny, NameValidate) {
   EXPECT_TRUE(fpta_validate_name("_1nvalid"));
   EXPECT_FALSE(fpta_validate_name("invalid#"));
   EXPECT_FALSE(fpta_validate_name("invalid/"));
-#if !defined(_MSC_VER) || defined(NDEBUG)
+#if /* avoid MSVC toubles */ !defined(_MSC_VER) || defined(NDEBUG)
   EXPECT_FALSE(fpta_validate_name("invalid_ещераз"));
 #endif
 }
