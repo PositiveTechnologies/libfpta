@@ -1,6 +1,5 @@
 language: cpp
-sudo: required
-dist: trusty
+dist: xenial
 
 env:
   global:
