@@ -74,7 +74,7 @@ string_view::at(string_view::size_type pos) const {
   return str[pos];
 }
 
-__cold std::string format(const char *fmt, va_list ap) {
+__cold std::string format_va(const char *fmt, va_list ap) {
   va_list ones;
   va_copy(ones, ap);
 #ifdef _MSC_VER
@@ -97,7 +97,7 @@ __cold std::string format(const char *fmt, va_list ap) {
 __cold std::string format(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  std::string result = format(fmt, ap);
+  std::string result = format_va(fmt, ap);
   va_end(ap);
   return result;
 }
