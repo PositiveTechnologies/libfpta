@@ -258,15 +258,15 @@ public:
 } // namespace
 //----------------------------------------------------------------------------
 
-static constexpr int index2prio(const fpta_shove_t index) {
+static cxx14_constexpr inline int index2prio(const fpta_shove_t index) {
   /* primary, secondary, non-indexed non-nullable, non-indexed nullable */
   if (fpta_is_indexed(index))
     return fpta_index_is_primary(index) ? 0 : 1;
   return (index & fpta_index_fnullable) ? 3 : 2;
 }
 
-static constexpr bool shove_index_compare(const fpta_shove_t &left,
-                                          const fpta_shove_t &right) {
+static cxx14_constexpr inline bool
+shove_index_compare(const fpta_shove_t &left, const fpta_shove_t &right) {
   const auto left_prio = index2prio(left);
   const auto rigth_prio = index2prio(right);
   return left_prio < rigth_prio || (left_prio == rigth_prio && left < right);
@@ -360,7 +360,8 @@ static int fpta_schema_clone(const fpta_shove_t schema_key,
   return FPTA_SUCCESS;
 }
 
-static constexpr bool fpta_check_indextype(const fpta_index_type index_type) {
+static cxx14_constexpr inline bool
+fpta_check_indextype(const fpta_index_type index_type) {
   switch (index_type) {
   default:
     return false;
