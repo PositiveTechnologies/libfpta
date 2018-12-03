@@ -139,27 +139,31 @@
 #endif
 
 #if !defined(nullptr) && !defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER))
-# define nullptr NULL
+#	define nullptr NULL
 #endif /* nullptr */
 
 #if !defined(constexpr) && !defined(__cplusplus) || (__cplusplus < 201103L && !defined(_MSC_VER))
-# define constexpr
+#	define constexpr
 #endif /* constexpr */
 
 #if !defined(cxx14_constexpr)
-# if defined(__cplusplus) && __cplusplus >= 201402L
-#   define cxx14_constexpr constexpr
-# else
-#   define cxx14_constexpr
-# endif
+#	if defined(__cplusplus) && __cplusplus >= 201402L                      \
+			&& (!defined(_MSC_VER) || _MSC_VER >= 1910)            \
+			&& (!defined(__GNUC__) || __GNUC__ >= 6)
+#		define cxx14_constexpr constexpr
+#	else
+#		define cxx14_constexpr
+#	endif
 #endif /* cxx14_constexpr */
 
 #if !defined(cxx17_constexpr)
-# if defined(__cplusplus) && __cplusplus >= 201703L
-#   define cxx17_constexpr constexpr
-# else
-#   define cxx17_constexpr
-# endif
+#	if defined(__cplusplus) && __cplusplus >= 201703L                      \
+			&& (!defined(_MSC_VER) || _MSC_VER >= 1915)            \
+			&& (!defined(__GNUC__) || __GNUC__ >= 7)
+#		define cxx17_constexpr constexpr
+#	else
+#		define cxx17_constexpr
+#	endif
 #endif /* cxx17_constexpr */
 
 //----------------------------------------------------------------------------
