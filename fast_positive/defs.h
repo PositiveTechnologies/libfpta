@@ -147,7 +147,7 @@
 #endif /* constexpr */
 
 #if !defined(cxx14_constexpr)
-# if defined(__cplusplus) && __cplusplus >= 201402L
+# if defined(__cplusplus) && __cplusplus >= 201402L && (!defined(_MSC_VER) || _MSC_VER >= 1910) && (!defined(__GNUC__) || __GNUC__ >= 6)
 #   define cxx14_constexpr constexpr
 # else
 #   define cxx14_constexpr
@@ -155,7 +155,7 @@
 #endif /* cxx14_constexpr */
 
 #if !defined(cxx17_constexpr)
-# if defined(__cplusplus) && __cplusplus >= 201703L
+# if defined(__cplusplus) && __cplusplus >= 201703L && (!defined(_MSC_VER) || _MSC_VER >= 1915) && (!defined(__GNUC__) || __GNUC__ >= 7)
 #   define cxx17_constexpr constexpr
 # else
 #   define cxx17_constexpr
