@@ -457,21 +457,23 @@ void json::value_dateime(const fptu_time &value) {
     struct tm utc_tm;
 #ifdef _MSC_VER
     const __time64_t utc64 = value.utc;
-    const errno_t rc = _gmtime64_s(&utc_tm, &utc64);
-    assert(rc == 0);
-    (void)rc;
+    const errno_t gmtime_rc = _gmtime64_s(&utc_tm, &utc64);
+    assert(gmtime_rc == 0 && utc_tm.tm_year > 69);
+    (void)gmtime_rc;
 #else
     time_t utc_sec = value.utc;
     for (;;) {
-      const bool gmtime_ok = gmtime_r(&utc_sec, &utc_tm) != nullptr;
-      if (sizeof(time_t) > 4 || (gmtime_ok && utc_tm.tm_year > 69)) {
-        assert(gmtime_ok && utc_tm.tm_year > 69);
+      const struct tm *gmtime_rc = gmtime_r(&utc_sec, &utc_tm);
+      assert(gmtime_rc != nullptr);
+      (void)gmtime_rc;
+      if (sizeof(time_t) > 4 || utc_tm.tm_year > 69) {
+        assert(utc_tm.tm_year > 69);
         break;
       }
       year_offset += 28;
-      utc_sec -= (year_offset < 1978 /* correction for >= 2100 */)
+      utc_sec -= (utc_tm.tm_year < 8 || year_offset != 1984)
                      ? (28 * 365 + 7) * 24 * 3600
-                     : (28 * 365 + 6) * 24 * 3600;
+                     : (28 * 365 + 6) * 24 * 3600 /* correction for >= 2100 */;
     }
 #endif
 
