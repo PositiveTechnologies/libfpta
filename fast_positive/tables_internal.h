@@ -240,7 +240,7 @@ struct fpta_table_stored_schema {
   uint64_t checksum;
   uint32_t signature;
   uint32_t count;
-  uint64_t csn;
+  uint64_t version_tsn;
   fpta_shove_t columns[1];
 };
 
@@ -268,7 +268,7 @@ struct fpta_table_schema final {
   constexpr uint64_t checksum() const { return _stored.checksum; }
   constexpr uint32_t signature() const { return _stored.signature; }
   constexpr fpta_shove_t table_shove() const { return _key; }
-  constexpr uint64_t version_csn() const { return _stored.csn; }
+  constexpr uint64_t version_tsn() const { return _stored.version_tsn; }
   constexpr size_t column_count() const { return _stored.count; }
   constexpr fpta_shove_t column_shove(size_t number) const {
 #if __cplusplus >= 201402L
@@ -344,11 +344,11 @@ struct fpta_txn {
   mdbx_canary canary;
   fpta_schema_info *schema_info;
 
-  uint64_t &schema_csn() { return canary.x; }
+  uint64_t &schema_tsn() { return canary.x; }
   uint64_t &db_sequence() { return canary.y; }
   uint64_t &manna() { return canary.z; }
 
-  uint64_t schema_csn() const { return canary.x; }
+  uint64_t schema_tsn() const { return canary.x; }
   uint64_t db_sequence() const { return canary.y; }
   uint64_t manna() const { return canary.z; }
 };

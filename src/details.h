@@ -37,12 +37,12 @@ struct fpta_db {
   bool alterable_schema;
   MDBX_dbi schema_dbi;
   fpta_rwl_t schema_rwlock;
-  uint64_t schema_csn;
+  uint64_t schema_tsn;
   fpta_regime_flags regime_flags;
 
   fpta_mutex_t dbi_mutex /* TODO: убрать мьютекс и перевести на atomic */;
   fpta_shove_t dbi_shoves[fpta_dbi_cache_size];
-  uint64_t dbi_csns[fpta_dbi_cache_size];
+  uint64_t dbi_tsns[fpta_dbi_cache_size];
   MDBX_dbi dbi_handles[fpta_dbi_cache_size];
 };
 
@@ -133,7 +133,7 @@ fpta_id_validate(const fpta_name *id, fpta_schema_item schema_item) {
         return FPTA_SCHEMA_CORRUPTED;
       if (unlikely(table_schema->table_shove() != id->shove))
         return FPTA_SCHEMA_CORRUPTED;
-      assert(id->version >= table_schema->version_csn());
+      assert(id->version_tsn >= table_schema->version_tsn());
     }
     return FPTA_SUCCESS;
 

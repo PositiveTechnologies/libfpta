@@ -399,7 +399,7 @@ __cold string to_string(const fpta_table_schema *def) {
   string result =
       fptu::format("%p={v%" PRIu64 ", $%" PRIx32 "_%" PRIx64 ", @%" PRIx64
                    ", %" PRIuSIZE "=[",
-                   def, def->version_csn(), def->signature(), def->checksum(),
+                   def, def->version_tsn(), def->signature(), def->checksum(),
                    def->table_shove(), def->column_count());
 
   for (size_t i = 0; i < def->column_count(); ++i) {
@@ -422,7 +422,7 @@ __cold string to_string(const fpta_name *id) {
 
   if (is_table) {
     string partial = fptu::format("table.%p{@%" PRIx64 ", v%" PRIu64 ", ", id,
-                                  id->shove, id->version);
+                                  id->shove, id->version_tsn);
     const fpta_table_schema *table_def = id->table_schema;
     if (table_def == nullptr)
       return partial + ", no-schema}";
@@ -435,7 +435,7 @@ __cold string to_string(const fpta_name *id) {
   }
 
   string partial = fptu::format("column.%p{@%" PRIx64 ", v%" PRIu64, id,
-                                id->shove, id->version);
+                                id->shove, id->version_tsn);
 
   const fpta_name *table_id = id->column.table;
   if (table_id == nullptr)

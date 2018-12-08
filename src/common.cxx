@@ -275,10 +275,10 @@ retry:
     goto bailout_abort;
 
   txn->db_version = mdbx_txn_id(txn->mdbx_txn);
-  assert(txn->schema_csn() <=
+  assert(txn->schema_tsn() <=
          ((level > fpta_read) ? txn->db_version - 1 : txn->db_version));
 
-  if (unlikely(db->schema_csn != txn->schema_csn())) {
+  if (unlikely(db->schema_tsn != txn->schema_tsn())) {
     fpta_lock_guard guard;
     if (txn->level < fpta_schema) {
       rc = guard.lock(&db->dbi_mutex);
@@ -286,7 +286,7 @@ retry:
         goto bailout_abort;
     }
 
-    if (db->schema_csn > txn->schema_csn() && level == fpta_read) {
+    if (db->schema_tsn > txn->schema_tsn() && level == fpta_read) {
       rc = mdbx_txn_reset(txn->mdbx_txn);
       if (likely(rc == MDBX_SUCCESS))
         rc = mdbx_txn_renew(txn->mdbx_txn);
@@ -300,7 +300,7 @@ retry:
     if (unlikely(rc != FPTA_SUCCESS))
       goto bailout_abort;
 
-    db->schema_csn = txn->schema_csn();
+    db->schema_tsn = txn->schema_tsn();
   }
 
   *ptxn = txn;
@@ -362,7 +362,7 @@ int fpta_transaction_versions(fpta_txn *txn, uint64_t *db_version,
   if (likely(db_version))
     *db_version = txn->db_version;
   if (likely(schema_version))
-    *schema_version = txn->schema_csn();
+    *schema_version = txn->schema_tsn();
   return FPTA_SUCCESS;
 }
 

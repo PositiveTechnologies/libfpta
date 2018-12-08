@@ -460,7 +460,7 @@ int fpta_composite_column_get(const fpta_name *composite_id, unsigned item,
   column_id->column.table = composite_id->column.table;
   column_id->shove = table_schema->column_shove(column);
   column_id->column.num = column;
-  column_id->version = composite_id->version;
+  column_id->version_tsn = composite_id->version_tsn;
 
   assert(fpta_id_validate(column_id, fpta_column) == FPTA_SUCCESS);
   return FPTA_SUCCESS;

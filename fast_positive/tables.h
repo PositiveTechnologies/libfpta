@@ -1520,7 +1520,8 @@ struct fpta_table_schema;
 
 /* Операционный идентификатор таблицы или колонки. */
 typedef struct fpta_name {
-  uint64_t version; /* версия схемы для кэширования. */
+  uint64_t version_tsn; /* версия схемы для кэширования (номер транзакции, в
+                           которой схема была изменена). */
   fpta_shove_t shove; /* хэш имени и внутренние данные. */
   union {
     /* для таблицы */
@@ -1905,7 +1906,14 @@ FPTA_API int fpta_composite_column_get(const fpta_name *composite_id,
 typedef struct fpta_schema_info {
   unsigned signature;
   unsigned tables_count;
-  uint64_t version;
+  struct {
+    uint64_t tsn /* Transaction Sequence Number.
+                  * Номер транзакции, в которой была изменена схема */
+        ;
+    uint64_t csn /* Change Sequence Number.
+                  * Порядковый номер версии схемы */
+        ;
+  } version;
   void *dict_ptr /* Указатель на внутренние данные, в том числе словарь
                     символических имен */
       ;

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -39,11 +39,11 @@ static void fpta_shove2str(fpta_shove_t shove, fpta_dbi_name *name) {
 static __inline MDBX_dbi fpta_dbicache_peek(const fpta_txn *txn,
                                             const fpta_shove_t shove,
                                             const unsigned cache_hint,
-                                            const uint64_t current_csn) {
+                                            const uint64_t current_tsn) {
   if (likely(cache_hint < fpta_dbi_cache_size)) {
     const fpta_db *db = txn->db;
     if (likely(db->dbi_shoves[cache_hint] == shove &&
-               db->dbi_csns[cache_hint] == current_csn))
+               db->dbi_tsns[cache_hint] == current_tsn))
       return db->dbi_handles[cache_hint];
   }
   return 0;
@@ -71,7 +71,7 @@ static __hot MDBX_dbi fpta_dbicache_lookup(fpta_db *db, fpta_shove_t shove,
 }
 
 static unsigned fpta_dbicache_update(fpta_db *db, const fpta_shove_t shove,
-                                     const MDBX_dbi dbi, const uint64_t csn) {
+                                     const MDBX_dbi dbi, const uint64_t tsn) {
   assert(shove > 0);
 
   const size_t n = shove % fpta_dbi_cache_size;
@@ -80,7 +80,7 @@ static unsigned fpta_dbicache_update(fpta_db *db, const fpta_shove_t shove,
     assert(db->dbi_shoves[i] != shove);
     if (db->dbi_shoves[i] == 0) {
       db->dbi_handles[i] = dbi;
-      db->dbi_csns[i] = csn;
+      db->dbi_tsns[i] = tsn;
       db->dbi_shoves[i] = shove;
       return (unsigned)i;
     }
@@ -147,9 +147,9 @@ static __cold int fpta_dbicache_validate_locked(
              db->dbi_shoves[*cache_hint] == dbi_shove &&
              db->dbi_handles[*cache_hint])) {
 
-    if (likely(db->dbi_csns[*cache_hint] == txn->schema_csn()))
+    if (likely(db->dbi_tsns[*cache_hint] == txn->schema_tsn()))
       return FPTA_SUCCESS;
-    if (db->dbi_csns[*cache_hint] > txn->schema_csn())
+    if (db->dbi_tsns[*cache_hint] > txn->schema_tsn())
       return FPTA_SCHEMA_CHANGED;
 
     MDBX_dbi handle;
@@ -157,7 +157,7 @@ static __cold int fpta_dbicache_validate_locked(
         fpta_dbi_open(txn, dbi_shove, handle, dbi_flags, key_shove, data_shove);
     if (likely(rc == MDBX_SUCCESS)) {
       assert(handle == db->dbi_handles[*cache_hint]);
-      db->dbi_csns[*cache_hint] = txn->schema_csn();
+      db->dbi_tsns[*cache_hint] = txn->schema_tsn();
       return MDBX_SUCCESS;
     }
 
@@ -169,7 +169,7 @@ static __cold int fpta_dbicache_validate_locked(
     if (unlikely(rc != FPTA_SUCCESS))
       return rc;
 
-    if (info.mi_self_latter_reader_txnid < txn->schema_csn())
+    if (info.mi_self_latter_reader_txnid < txn->schema_tsn())
       return FPTA_TARDY_DBI /* handle may be used by other txn */;
 
     rc = mdbx_dbi_close(db->mdbx_env,
@@ -216,7 +216,7 @@ __cold int fpta_dbicache_open(fpta_txn *txn, const fpta_shove_t dbi_shove,
       fpta_dbi_open(txn, dbi_shove, handle, dbi_flags, key_shove, data_shove);
   if (likely(rc == FPTA_SUCCESS))
     *cache_hint =
-        fpta_dbicache_update(db, dbi_shove, handle, txn->schema_csn());
+        fpta_dbicache_update(db, dbi_shove, handle, txn->schema_tsn());
   return rc;
 }
 
@@ -236,11 +236,11 @@ __cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def,
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  const uint64_t tardy_csn =
+  const uint64_t tardy_tsn =
       (info.mi_self_latter_reader_txnid &&
-       info.mi_self_latter_reader_txnid < txn->schema_csn())
+       info.mi_self_latter_reader_txnid < txn->schema_tsn())
           ? info.mi_latter_reader_txnid
-          : txn->schema_csn();
+          : txn->schema_tsn();
 
   if (table_def) {
     rc = fpta_dbicache_validate_locked(
@@ -266,9 +266,9 @@ __cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def,
     }
   }
 
-  if (tardy_csn == txn->schema_csn() && db->schema_csn != txn->schema_csn()) {
+  if (tardy_tsn == txn->schema_tsn() && db->schema_tsn != txn->schema_tsn()) {
     for (size_t i = 0; i < fpta_dbi_cache_size; ++i) {
-      if (!db->dbi_handles[i] || db->dbi_csns[i] >= tardy_csn)
+      if (!db->dbi_handles[i] || db->dbi_tsns[i] >= tardy_tsn)
         continue;
 
       int rc = mdbx_dbi_close(db->mdbx_env, db->dbi_handles[i]);
@@ -290,7 +290,7 @@ int __hot fpta_open_table(fpta_txn *txn, fpta_table_schema *table_def,
       fpta_dbi_flags(table_def->column_shoves_array(), 0);
   const fpta_shove_t dbi_shove = fpta_dbi_shove(table_def->table_shove(), 0);
   handle = fpta_dbicache_peek(txn, dbi_shove, table_def->handle_cache(0),
-                              table_def->version_csn());
+                              table_def->version_tsn());
   if (likely(handle > 0))
     return FPTA_OK;
 
@@ -321,7 +321,7 @@ int __hot fpta_open_column(fpta_txn *txn, fpta_name *column_id,
       fpta_dbi_shove(table_def->table_shove(), column_id->column.num);
   idx_handle = fpta_dbicache_peek(
       txn, dbi_shove, table_def->handle_cache(column_id->column.num),
-      table_def->version_csn());
+      table_def->version_tsn());
   if (likely(idx_handle > 0))
     return FPTA_OK;
 
@@ -346,7 +346,7 @@ int __hot fpta_open_secondaries(fpta_txn *txn, fpta_table_schema *table_def,
     const fpta_shove_t dbi_shove = fpta_dbi_shove(table_def->table_shove(), i);
 
     dbi_array[i] = fpta_dbicache_peek(
-        txn, dbi_shove, table_def->handle_cache(i), table_def->version_csn());
+        txn, dbi_shove, table_def->handle_cache(i), table_def->version_tsn());
     if (unlikely(dbi_array[i] == 0)) {
       rc = fpta_dbicache_open(txn, dbi_shove, dbi_array[i], dbi_flags, shove,
                               table_def->table_pk(),
