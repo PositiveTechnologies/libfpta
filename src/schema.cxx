@@ -34,7 +34,7 @@ template <bool first> static __inline bool is_valid_char4name(char c) {
   return false;
 }
 
-__hot fpta_shove_t fpta_name_validate_and_shove(const fptu::string_view &name) {
+__hot fpta_shove_t fpta_name_validate_and_shove(const fpta::string_view &name) {
   const auto length = name.length();
   if (unlikely(length < fpta_name_len_min || length > fpta_name_len_max))
     return 0;
@@ -57,7 +57,7 @@ __hot fpta_shove_t fpta_name_validate_and_shove(const fptu::string_view &name) {
 }
 
 bool fpta_validate_name(const char *name) {
-  return fpta_name_validate_and_shove(fptu::string_view(name)) != 0;
+  return fpta_name_validate_and_shove(fpta::string_view(name)) != 0;
 }
 
 //----------------------------------------------------------------------------
@@ -87,7 +87,7 @@ class trivial_dict {
     return shove | mask_length;
   }
 
-  static fpta_shove_t internal(const fptu::string_view &name) {
+  static fpta_shove_t internal(const fpta::string_view &name) {
     return internal(fpta_name_validate_and_shove(name), name.length());
   }
 
@@ -99,8 +99,8 @@ class trivial_dict {
     return length(word.first);
   }
 
-  static constexpr fptu::string_view take(const item &word) {
-    return fptu::string_view(word.second, length(word));
+  static constexpr fpta::string_view take(const item &word) {
+    return fpta::string_view(word.second, length(word));
   }
 
   static constexpr bool is_valid(const fpta_shove_t &shove) {
@@ -135,7 +135,7 @@ class trivial_dict {
     }
   };
 
-  void append(size_t anchor, const fptu::string_view &name) {
+  void append(size_t anchor, const fpta::string_view &name) {
     const fpta_shove_t shove = internal(name);
     assert(is_valid(shove));
     assert(anchor <= vector.size());
@@ -161,17 +161,17 @@ public:
 
   trivial_dict() : vector() {}
 
-  trivial_dict(const fptu::string_view &str) : vector() {
-    merge(str, fptu::string_view());
+  trivial_dict(const fpta::string_view &str) : vector() {
+    merge(str, fpta::string_view());
   }
 
   bool empty() const { return vector.empty(); }
 
   bool exists(fpta_shove_t shove) const { return search(shove) >= 0; }
 
-  fptu::string_view lookup(fpta_shove_t shove) const {
+  fpta::string_view lookup(fpta_shove_t shove) const {
     const auto i = search(shove);
-    return (i >= 0) ? take(vector[i]) : fptu::string_view();
+    return (i >= 0) ? take(vector[i]) : fpta::string_view();
   }
 
   bool validate() const {
@@ -187,13 +187,13 @@ public:
 
   bool fetch(const MDBX_val &data) {
     vector.clear();
-    merge(fptu::string_view((const char *)data.iov_base, data.iov_len),
-          fptu::string_view());
+    merge(fpta::string_view((const char *)data.iov_base, data.iov_len),
+          fpta::string_view());
     return validate();
   }
 
-  bool merge(const fptu::string_view &columns_chain,
-             const fptu::string_view &table_name) {
+  bool merge(const fpta::string_view &columns_chain,
+             const fpta::string_view &table_name) {
     assert(validate());
     assert(table_name.end() ==
            std::find(table_name.begin(), table_name.end(), delimiter));
@@ -207,7 +207,7 @@ public:
 
     for (auto *scan = columns_chain.begin(); scan < columns_chain.end();) {
       const auto next = std::find(scan, columns_chain.end(), delimiter);
-      append(anchor, fptu::string_view(scan, next));
+      append(anchor, fpta::string_view(scan, next));
       scan = next + 1;
     }
 
@@ -1141,13 +1141,13 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     if (!dict.fetch(data))
       return FPTA_SCHEMA_CORRUPTED;
 #ifndef NDEBUG
-    dict_string = fptu::string_view((const char *)data.iov_base, data.iov_len);
+    dict_string = fpta::string_view((const char *)data.iov_base, data.iov_len);
 #endif
   } else if (rc != MDBX_NOTFOUND)
     return rc;
 
-  if (dict.merge(fptu::string_view((const char *)column_set->dict_ptr),
-                 fptu::string_view(table_name))) {
+  if (dict.merge(fpta::string_view((const char *)column_set->dict_ptr),
+                 fpta::string_view(table_name))) {
 #ifdef NDEBUG
     const std::string
 #endif

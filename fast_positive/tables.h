@@ -2914,6 +2914,8 @@ inline fpta_value fpta_value_str(const std::string &str) {
 
 namespace fpta {
 
+using fptu::string_view;
+
 template <typename First, typename Second, typename... More>
 inline int
 describe_composite_index(const char *composite_name, fpta_index_type index_type,

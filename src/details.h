@@ -169,12 +169,12 @@ static __inline int fpta_cursor_validate(const fpta_cursor *cursor,
 
 //----------------------------------------------------------------------------
 
-fpta_shove_t fpta_name_validate_and_shove(const fptu::string_view &);
+fpta_shove_t fpta_name_validate_and_shove(const fpta::string_view &);
 
 inline fpta_shove_t fpta_shove_name(const char *name,
                                     enum fpta_schema_item type) {
   const fpta_shove_t shove =
-      fpta_name_validate_and_shove(fptu::string_view(name));
+      fpta_name_validate_and_shove(fpta::string_view(name));
   return (shove && type == fpta_table) ? shove | fpta_flag_table : shove;
 }
 
