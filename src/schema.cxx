@@ -896,10 +896,17 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
   return likely(rc == MDBX_NOTFOUND) ? (int)FPTA_SUCCESS : rc;
 }
 
-int fpta_schema_destroy(fpta_schema_info *info) {
+static int fpta_schema_info_validate(const fpta_schema_info *info) {
   if (unlikely(info == nullptr || info->tables_count == FPTA_DEADBEEF ||
                info->signature != schema_info_signature))
     return FPTA_EINVAL;
+  return FPTA_SUCCESS;
+}
+
+int fpta_schema_destroy(fpta_schema_info *info) {
+  int err = fpta_schema_info_validate(info);
+  if (unlikely(err != FPTA_SUCCESS))
+    return err;
 
   info->signature = ~schema_info_signature;
   delete static_cast<trivial_dict *>(info->dict_ptr);
@@ -1397,5 +1404,38 @@ int fpta_name_reset(fpta_name *name_id) {
     return FPTA_EINVAL;
 
   name_id->version_tsn = 0;
+  return FPTA_SUCCESS;
+}
+
+//----------------------------------------------------------------------------
+
+int fpta_schema_symbol(const fpta_schema_info *info, const fpta_name *id,
+                       fpta_value *symbol_value) {
+  int err = fpta_schema_info_validate(info);
+  if (unlikely(err != FPTA_SUCCESS))
+    return err;
+
+  if (unlikely(id == nullptr || symbol_value == nullptr ||
+               info->dict_ptr == nullptr))
+    return FPTA_EINVAL;
+
+  const bool is_table =
+      fpta_shove2index(id->shove) == (fpta_index_type)fpta_flag_table;
+
+  err = fpta_id_validate(id, is_table ? fpta_table_with_schema
+                                      : fpta_column_with_schema);
+  if (unlikely(err != FPTA_SUCCESS))
+    return err;
+
+  if (unlikely(id->version_tsn > info->version.tsn))
+    return FPTA_SCHEMA_CHANGED;
+
+  const trivial_dict *const dict =
+      static_cast<const trivial_dict *>(info->dict_ptr);
+  const fptu::string_view symbol = dict->lookup(id->shove);
+  if (symbol.empty())
+    return FPTA_ENOENT;
+
+  *symbol_value = fpta_value_string(symbol.data(), symbol.length());
   return FPTA_SUCCESS;
 }

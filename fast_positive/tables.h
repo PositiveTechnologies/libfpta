@@ -541,8 +541,8 @@ typedef struct fpta_value {
     double_t fp;
     fptu_time datetime;
 
-    /* ВАЖНО! К большому сожалению и грандиозному неудобству, строка
-     * здесь НЕ в традиционной для C форме, а БЕЗ терминирующего
+    /* ВАЖНО! К большому сожалению и некоторому неудобству, строка
+     * здесь НЕ в традиционной для языка "C" форме, а БЕЗ терминирующего
      * нуля с явным указанием длины в binary_length.
      *
      * Причины таковы:
@@ -553,7 +553,7 @@ typedef struct fpta_value {
      * Однако, в реальности терминирующий ноль:
      *  - будет на конце строк расположенных внутри
      *    строк таблицы (кортежах);
-     *  - отсутствует в строках от fpta_cursor_key();
+     *  - отсутствует в строках от fpta_cursor_key() и fpta_schema_symbol();
      *  - в остальных случаях - как было подготовлено вашим кодом;
      */
     const char *str;
@@ -1898,11 +1898,13 @@ FPTA_API int fpta_composite_column_get(const fpta_name *composite_id,
 
 /* Описание схемы, заполняется функцией fpta_schema_fetch().
  *
- * Фактически является массивом содержащим хэшированные имена таблиц,
- * по которым можно получить остальную информацию.
+ * Включает массив, содержащий хэшированные имена таблиц, а также внутренний
+ * словарь исходных символических имён схемы. Что в совокупности позволяет
+ * получить остальную информацию, включая полное наглядное/читаемое
+ * представление схемы.
  *
  * По завершению использования должна быть разрушена посредством
- * fpta_schema_destroy(). */
+ * fpta_schema_destroy(), в противном случае будет утечка памяти. */
 typedef struct fpta_schema_info {
   unsigned signature;
   unsigned tables_count;
@@ -1925,8 +1927,27 @@ typedef struct fpta_schema_info {
  * Возвращаемый экземпляр fpta_schema_info, по завершению использования, должен
  * быть разрушен посредством fpta_schema_destroy().
  *
+ * Следует отметить, что формируемый экземпляр fpta_schema_info содержит
+ * внутренний словарь исходных символических имён схемы, который остается
+ * валидным
+ *
  * В случае успеха возвращает ноль, иначе код ошибки. */
 FPTA_API int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info);
+
+/* Позволяет получить исходные символические имена таблиц и колонок.
+ *
+ * Функция производит поиск исходного символического имени для переданного
+ * экземпляра fpta_name, и в случае успеха сохраняет имя в виде ссылки на
+ * последовательность символов в symbol_value.
+ *
+ * Функция использует внутренние данные экземпляра fpta_schema_info, который
+ * предварительно должен быть подготовлен посредством fpta_schema_fetch().
+ *
+ * В случае успеха возвращает ноль, иначе код ошибки. */
+FPTA_API int fpta_schema_symbol(const fpta_schema_info *info,
+                                const fpta_name *id, fpta_value *symbol_value);
+/* FIXME: describe */
+FPTA_API int fpta_schema_render(fpta_schema_info *info, fptu_rw **tuple);
 
 /* Деструктор fpta_schema_info.
  * В случае успеха возвращает ноль, иначе код ошибки. */
@@ -2925,6 +2946,14 @@ describe_composite_index(const char *composite_name, fpta_index_type index_type,
       {first, second, more...}};
   return fpta_describe_composite_index(composite_name, index_type, column_set,
                                        array.data(), array.size());
+}
+
+string_view inline schema_symbol(const fpta_schema_info *info,
+                                 const fpta_name *id, int &error) {
+  fpta_value symbol;
+  error = fpta_schema_symbol(info, id, &symbol);
+  return (error == FPTA_OK) ? string_view(symbol.str, symbol.binary_length)
+                            : string_view();
 }
 
 } // namespace fpta

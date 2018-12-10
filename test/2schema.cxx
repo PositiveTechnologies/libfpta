@@ -176,8 +176,8 @@ TEST(Schema, Base) {
   EXPECT_EQ(FPTA_OK,
             fpta_column_describe("pk_str_uniq", fptu_cstr,
                                  fpta_primary_unique_ordered_obverse, &def));
-  /* LY: было упущение, порядок колонок с одинаковыми индексами/опциями
-   * может отличаться от добавленного */
+  /* LY: было упущение, из-за которого нумерация колонок с одинаковыми
+   * индексами/опциями могла отличаться от порядка добавления */
   EXPECT_EQ(FPTA_OK, fpta_column_describe(
                          "first_uint", fptu_uint64,
                          fpta_secondary_withdups_ordered_obverse, &def));
@@ -280,6 +280,19 @@ TEST(Schema, Base) {
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(1u, schema_info.tables_count);
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &schema_info.tables_names[0]));
+  int err;
+  EXPECT_EQ("table_1",
+            std::string(fpta::schema_symbol(&schema_info, &table, err)));
+  EXPECT_EQ(FPTA_OK, err);
+  EXPECT_EQ("pk_str_uniq",
+            std::string(fpta::schema_symbol(&schema_info, &col_pk, err)));
+  EXPECT_EQ(FPTA_OK, err);
+  EXPECT_EQ("first_uint",
+            std::string(fpta::schema_symbol(&schema_info, &col_a, err)));
+  EXPECT_EQ(FPTA_OK, err);
+  EXPECT_EQ("second_fp",
+            std::string(fpta::schema_symbol(&schema_info, &col_b, err)));
+  EXPECT_EQ(FPTA_OK, err);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
