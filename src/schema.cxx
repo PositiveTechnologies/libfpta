@@ -165,6 +165,8 @@ public:
     merge(str, fpta::string_view());
   }
 
+  void clear() { vector.clear(); }
+
   bool empty() const { return vector.empty(); }
 
   bool exists(fpta_shove_t shove) const { return search(shove) >= 0; }
@@ -185,11 +187,14 @@ public:
     return true;
   }
 
-  bool fetch(const MDBX_val &data) {
+  bool fetch(const fpta::string_view &data) {
     vector.clear();
-    merge(fpta::string_view((const char *)data.iov_base, data.iov_len),
-          fpta::string_view());
+    merge(data, fpta::string_view());
     return validate();
+  }
+
+  bool fetch(const MDBX_val &data) {
+    return fetch(fpta::string_view((const char *)data.iov_base, data.iov_len));
   }
 
   bool merge(const fpta::string_view &columns_chain,
@@ -256,6 +261,23 @@ public:
 };
 
 } // namespace
+
+class fpta_schema_info::dict {
+public:
+  trivial_dict dict;
+  std::string holder;
+  bool latch(const MDBX_val &data) {
+    holder.assign((const char *)data.iov_base, data.iov_len);
+    if (dict.fetch(fpta::string_view(holder))) {
+      assert(dict.string() == holder);
+      return true;
+    }
+    holder.clear();
+    dict.clear();
+    return false;
+  }
+};
+
 //----------------------------------------------------------------------------
 
 static cxx14_constexpr inline int index2prio(const fpta_shove_t index) {
@@ -858,12 +880,13 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
         rc = FPTA_SCHEMA_CORRUPTED;
         break;
       }
-      info->dict_ptr = new trivial_dict() /* FIXME: std::bad_alloc */;
+      static_assert(sizeof(info->dict_ptr) == sizeof(void *), "expect equal");
+      info->dict_ptr = new fpta_schema_info::dict() /* FIXME: std::bad_alloc */;
       if (unlikely(!info->dict_ptr)) {
         rc = FPTA_ENOMEM;
         break;
       }
-      if (unlikely(!static_cast<trivial_dict *>(info->dict_ptr)->fetch(data))) {
+      if (unlikely(!info->dict_ptr->latch(data))) {
         rc = FPTA_SCHEMA_CORRUPTED;
         break;
       }
@@ -881,8 +904,8 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
       if (unlikely(rc != FPTA_SUCCESS))
         break;
 
-      if (unlikely(!fpta_schema_image_validate(
-              id->shove, data, *static_cast<trivial_dict *>(info->dict_ptr)))) {
+      if (unlikely(!fpta_schema_image_validate(id->shove, data,
+                                               info->dict_ptr->dict))) {
         rc = FPTA_SCHEMA_CORRUPTED;
         break;
       }
@@ -909,7 +932,7 @@ int fpta_schema_destroy(fpta_schema_info *info) {
     return err;
 
   info->signature = ~schema_info_signature;
-  delete static_cast<trivial_dict *>(info->dict_ptr);
+  delete info->dict_ptr;
   info->dict_ptr = nullptr;
 
   for (size_t i = 0; i < info->tables_count; i++)
@@ -1430,9 +1453,7 @@ int fpta_schema_symbol(const fpta_schema_info *info, const fpta_name *id,
   if (unlikely(id->version_tsn > info->version.tsn))
     return FPTA_SCHEMA_CHANGED;
 
-  const trivial_dict *const dict =
-      static_cast<const trivial_dict *>(info->dict_ptr);
-  const fptu::string_view symbol = dict->lookup(id->shove);
+  const fpta::string_view symbol = info->dict_ptr->dict.lookup(id->shove);
   if (symbol.empty())
     return FPTA_ENOENT;
 

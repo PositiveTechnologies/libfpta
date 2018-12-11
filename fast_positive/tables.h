@@ -1916,8 +1916,14 @@ typedef struct fpta_schema_info {
                   * Порядковый номер версии схемы */
         ;
   } version;
-  void *dict_ptr /* Указатель на внутренние данные, в том числе словарь
-                    символических имен */
+#ifdef __cplusplus
+  class dict;
+  dict *
+#else
+  void *
+#endif
+      dict_ptr /* Указатель на внутренние данные, в том числе словарь
+                        символических имен */
       ;
   fpta_name tables_names[fpta_tables_max];
 } fpta_schema_info;
