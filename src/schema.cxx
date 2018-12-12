@@ -1460,3 +1460,350 @@ int fpta_schema_symbol(const fpta_schema_info *info, const fpta_name *id,
   *symbol_value = fpta_value_string(symbol.data(), symbol.length());
   return FPTA_SUCCESS;
 }
+
+namespace {
+enum {
+  tag_tbl,
+  tag_tbl_name,
+  tag_col,
+  tag_col_name,
+  tag_col_number,
+  tag_col_datatype,
+  tag_col_is_nullable,
+  tag_col_index,
+  tag_index_is_primary,
+  tag_index_is_composite,
+  tag_index_is_unique,
+  tag_index_is_unordered,
+  tag_index_is_reverse,
+  tag_index_composite_items,
+};
+
+struct tuple4xyz_result {
+  int err;
+  unsigned items;
+  size_t bytes;
+};
+
+static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
+                                            const fpta_name *column_id,
+                                            fptu_rw *out_tuple) {
+  assert(fpta_schema_info_validate(info) == FPTA_OK);
+  tuple4xyz_result r;
+  /* seems be enough for all data, with exclusion of symbolic names */
+  r.bytes = 42;
+  r.items = 12;
+  r.err = fpta_id_validate(column_id, fpta_column_with_schema);
+  if (unlikely(r.err != FPTA_SUCCESS))
+    return r;
+  if (unlikely(column_id->version_tsn > info->version.tsn)) {
+    r.err = FPTA_SCHEMA_CHANGED;
+    return r;
+  }
+
+  const fpta::string_view column_symname =
+      info->dict_ptr->dict.lookup(column_id->shove);
+  if (unlikely(column_symname.empty())) {
+    r.err = FPTA_SCHEMA_CORRUPTED;
+    return r;
+  }
+  r.bytes += column_symname.length() + fptu_unit_size;
+
+  const bool is_composite = fpta_column_is_composite(column_id);
+  if (out_tuple) {
+    r.err = fptu_clear(out_tuple);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+
+    r.err = fptu_upsert_string(out_tuple, tag_col_name, column_symname.begin(),
+                               column_symname.length());
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+    r.err =
+        fptu_upsert_uint16(out_tuple, tag_col_number, column_id->column.num);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+    r.err = fptu_upsert_uint16(out_tuple, tag_col_datatype,
+                               fpta_name_coltype(column_id));
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+    r.err = fptu_upsert_bool(out_tuple, tag_col_is_nullable,
+                             fpta_column_is_nullable(column_id->shove));
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+
+    const fpta_index_type index = fpta_name_colindex(column_id);
+    r.err = fptu_upsert_uint16(out_tuple, tag_col_index, index);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+    if (fpta_is_indexed(index)) {
+      r.err = fptu_upsert_bool(out_tuple, tag_index_is_composite, is_composite);
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+      r.err = fptu_upsert_bool(out_tuple, tag_index_is_primary,
+                               fpta_index_is_primary(index));
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+      r.err = fptu_upsert_bool(out_tuple, tag_index_is_unique,
+                               fpta_index_is_unique(index));
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+      r.err = fptu_upsert_bool(out_tuple, tag_index_is_unordered,
+                               fpta_index_is_ordered(index));
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+      r.err = fptu_upsert_bool(out_tuple, tag_index_is_reverse,
+                               fpta_index_is_reverse(index));
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+    }
+  }
+
+  if (is_composite) {
+    unsigned item_count;
+    r.err = fpta_composite_column_count_ex(column_id, &item_count);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+
+    r.items += item_count;
+    for (size_t k = 0; k < item_count; ++k) {
+      fpta_name item_id;
+      r.err = fpta_composite_column_get(column_id, k, &item_id);
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+      const fpta::string_view item_symname =
+          info->dict_ptr->dict.lookup(item_id.shove);
+      if (unlikely(item_symname.empty())) {
+        r.err = FPTA_SCHEMA_CORRUPTED;
+        return r;
+      }
+
+      r.bytes += item_symname.length() + fptu_unit_size;
+      if (out_tuple) {
+        r.err = fptu_upsert_string(out_tuple, tag_index_composite_items,
+                                   item_symname.begin(), item_symname.length());
+        if (unlikely(r.err != FPTA_SUCCESS))
+          return r;
+      }
+    }
+  }
+
+  r.err = FPTA_SUCCESS;
+  return r;
+}
+
+static __cold tuple4xyz_result tuple4table(const fpta_schema_info *info,
+                                           const fpta_name *table_id,
+                                           fptu_rw *out_tuple) {
+  assert(fpta_schema_info_validate(info) == FPTA_OK);
+  tuple4xyz_result r;
+  r.bytes = sizeof(fptu_varlen);
+  r.items = 1;
+  r.err = fpta_id_validate(table_id, fpta_table_with_schema);
+  if (unlikely(r.err != FPTA_SUCCESS))
+    return r;
+  if (unlikely(table_id->version_tsn > info->version.tsn)) {
+    r.err = FPTA_SCHEMA_CHANGED;
+    return r;
+  }
+
+  const fpta::string_view table_symname =
+      info->dict_ptr->dict.lookup(table_id->shove);
+  if (unlikely(table_symname.empty())) {
+    r.err = FPTA_SCHEMA_CORRUPTED;
+    return r;
+  }
+
+  unsigned total_columns;
+  r.err = fpta_table_column_count_ex(table_id, &total_columns, nullptr);
+  if (unlikely(r.err != FPTA_SUCCESS))
+    return r;
+
+  if (out_tuple) {
+    r.err = fptu_clear(out_tuple);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+
+    r.err = fptu_upsert_string(out_tuple, tag_tbl_name, table_symname.begin(),
+                               table_symname.length());
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+  }
+
+  r.bytes += table_symname.length() + fptu_unit_size;
+  r.items += total_columns;
+
+  fpta_name column_id;
+  for (unsigned i = 0; i < total_columns; ++i) {
+    r.err = fpta_table_column_get(table_id, i, &column_id);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+
+    const tuple4xyz_result t4c = tuple4column(info, &column_id, nullptr);
+    if (unlikely(t4c.err != FPTA_SUCCESS)) {
+      r.err = t4c.err;
+      return r;
+    }
+
+    r.bytes += t4c.bytes + sizeof(fptu_varlen);
+    if (out_tuple) {
+      fptu::tuple_ptr guard(fptu_alloc(t4c.items, t4c.bytes));
+      if (unlikely(!guard)) {
+        r.err = FPTA_ENOMEM;
+        return r;
+      }
+
+      const tuple4xyz_result t4c2 = tuple4column(info, &column_id, guard.get());
+      assert(t4c2.err == FPTA_SUCCESS && t4c2.bytes == t4c.bytes &&
+             t4c2.items == t4c.items);
+      if (unlikely(t4c2.err != FPTA_SUCCESS)) {
+        r.err = t4c2.err;
+        return r;
+      }
+
+      r.err = fptu_upsert_nested(out_tuple, tag_col, fptu_take(guard.get()));
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+    }
+  }
+
+  r.err = FPTA_SUCCESS;
+  return r;
+}
+
+static __cold tuple4xyz_result tuple4whole(const fpta_schema_info *info,
+                                           fptu_rw *out_tuple) {
+  tuple4xyz_result r;
+  r.bytes = sizeof(fptu_varlen);
+  r.items = info->tables_count;
+  r.err = fpta_schema_info_validate(info);
+  if (unlikely(r.err != FPTA_SUCCESS))
+    return r;
+  if (out_tuple) {
+    r.err = fptu_clear(out_tuple);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+  }
+
+  for (size_t i = 0; i < info->tables_count; ++i) {
+    const fpta_name *const table_id = &info->tables_names[i];
+    const tuple4xyz_result t4t = tuple4table(info, table_id, nullptr);
+    if (unlikely(t4t.err != FPTA_SUCCESS)) {
+      r.err = t4t.err;
+      return r;
+    }
+
+    assert(t4t.bytes > 0 && t4t.items > 0);
+    r.bytes += t4t.bytes + sizeof(fptu_varlen);
+    if (out_tuple) {
+
+      fptu::tuple_ptr guard(fptu_alloc(t4t.items, t4t.bytes));
+      if (unlikely(!guard)) {
+        r.err = FPTA_ENOMEM;
+        return r;
+      }
+
+      const tuple4xyz_result t4t2 = tuple4table(info, table_id, guard.get());
+      assert(t4t2.err == FPTA_SUCCESS && t4t2.bytes == t4t.bytes &&
+             t4t2.items == t4t.items);
+      if (unlikely(t4t2.err != FPTA_SUCCESS)) {
+        r.err = t4t2.err;
+        return r;
+      }
+
+      r.err = fptu_upsert_nested(out_tuple, tag_tbl, fptu_take(guard.get()));
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
+    }
+  }
+
+  r.err = FPTA_SUCCESS;
+  return r;
+}
+
+} // namespace
+
+FPTA_API int fpta_schema_render_column(const fpta_schema_info *info,
+                                       const fpta_name *column_id,
+                                       fptu_rw **out) {
+  if (unlikely(out == nullptr))
+    return FPTA_EINVAL;
+
+  int err = fpta_schema_info_validate(info);
+  if (unlikely(err != FPTA_SUCCESS))
+    return err;
+
+  const tuple4xyz_result t4c = tuple4column(info, column_id, nullptr);
+  if (unlikely(t4c.err != FPTA_SUCCESS))
+    return t4c.err;
+
+  assert(t4c.bytes > 0 && t4c.items > 0);
+  fptu::tuple_ptr guard(fptu_alloc(t4c.items, t4c.bytes));
+  if (unlikely(!guard))
+    return FPTA_ENOMEM;
+
+  const tuple4xyz_result t4c2 = tuple4column(info, column_id, guard.get());
+  assert(t4c2.err == FPTA_SUCCESS && t4c2.bytes == t4c.bytes &&
+         t4c2.items == t4c.items);
+  if (unlikely(t4c2.err != FPTA_SUCCESS))
+    return t4c2.err;
+
+  *out = guard.release();
+  return FPTA_SUCCESS;
+}
+
+FPTA_API int fpta_schema_render_table(const fpta_schema_info *info,
+                                      const fpta_name *table_id,
+                                      fptu_rw **out) {
+  if (unlikely(out == nullptr))
+    return FPTA_EINVAL;
+
+  int err = fpta_schema_info_validate(info);
+  if (unlikely(err != FPTA_SUCCESS))
+    return err;
+
+  const tuple4xyz_result t4t = tuple4table(info, table_id, nullptr);
+  if (unlikely(t4t.err != FPTA_SUCCESS))
+    return t4t.err;
+
+  assert(t4t.bytes > 0 && t4t.items > 0);
+  fptu::tuple_ptr guard(fptu_alloc(t4t.items, t4t.bytes));
+  if (unlikely(!guard))
+    return FPTA_ENOMEM;
+
+  const tuple4xyz_result t4t2 = tuple4table(info, table_id, guard.get());
+  assert(t4t2.err == FPTA_SUCCESS && t4t2.bytes == t4t.bytes &&
+         t4t2.items == t4t.items);
+  if (unlikely(t4t2.err != FPTA_SUCCESS))
+    return t4t2.err;
+
+  *out = guard.release();
+  return FPTA_SUCCESS;
+}
+
+FPTA_API int fpta_schema_render_whole(fpta_schema_info *info, fptu_rw **out) {
+  if (unlikely(out == nullptr))
+    return FPTA_EINVAL;
+
+  int err = fpta_schema_info_validate(info);
+  if (unlikely(err != FPTA_SUCCESS))
+    return err;
+
+  const tuple4xyz_result t4w = tuple4whole(info, nullptr);
+  if (unlikely(t4w.err != FPTA_SUCCESS))
+    return t4w.err;
+
+  assert(t4w.bytes > 0 && t4w.items > 0);
+  fptu::tuple_ptr guard(fptu_alloc(t4w.items, t4w.bytes));
+  if (unlikely(!guard))
+    return FPTA_ENOMEM;
+
+  const tuple4xyz_result t4w2 = tuple4whole(info, guard.get());
+  assert(t4w2.err == FPTA_SUCCESS && t4w2.bytes == t4w.bytes &&
+         t4w2.items == t4w.items);
+  if (unlikely(t4w2.err != FPTA_SUCCESS))
+    return t4w2.err;
+
+  *out = guard.release();
+  return FPTA_SUCCESS;
+}

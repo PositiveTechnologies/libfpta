@@ -1216,7 +1216,7 @@ typedef enum fpta_index_type {
   fpta_index_none = 0,
   fpta_noindex_nullable = fpta_index_fnullable,
   fpta_tersely_composite =
-      /* формирование коротких ключей для составных индексов,
+      /* формирование чуть коротких ключей для составных индексов,
        * подробности см. в описании fpta_describe_composite_index()
        */
   fpta_index_fnullable,
@@ -1395,7 +1395,7 @@ FPTA_API int fpta_column_describe(const char *column_name,
  *     замещающих DENIL-значений.
  *   - Если в составной индекс входит много колонок с типами данных переменной
  *     длины (допускающими нулевую длину) и большинство их значений не пустые.
- *     В этом случае fpta_tersely_composite позволяет уменьшить длину ключа
+ *     В этом случае, fpta_tersely_composite позволяет уменьшить длину ключа
  *     за счет отказа от префиксов-разделителей. При этом составной индекс не
  *     только теряет способность различать NIL и значения нулевой длины, но и
  *     не видит границ полей внутри составного ключа. Иначе говоря, при
@@ -1953,7 +1953,13 @@ FPTA_API int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info);
 FPTA_API int fpta_schema_symbol(const fpta_schema_info *info,
                                 const fpta_name *id, fpta_value *symbol_value);
 /* FIXME: describe */
-FPTA_API int fpta_schema_render(fpta_schema_info *info, fptu_rw **tuple);
+FPTA_API int fpta_schema_render_column(const fpta_schema_info *info,
+                                       const fpta_name *column_id,
+                                       fptu_rw **out);
+FPTA_API int fpta_schema_render_table(const fpta_schema_info *info,
+                                      const fpta_name *table_id, fptu_rw **out);
+FPTA_API int fpta_schema_render_whole(const fpta_schema_info *info,
+                                      fptu_rw **out);
 
 /* Деструктор fpta_schema_info.
  * В случае успеха возвращает ноль, иначе код ошибки. */
