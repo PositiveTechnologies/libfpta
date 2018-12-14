@@ -43,7 +43,7 @@
 
 #elif defined(_MSC_VER)
 
-#if _MSC_FULL_VER < 190024215
+#if _MSC_FULL_VER < 190024210
 #error At least "Microsoft C/C++ Compiler" version 19.00.24215 (Visual Studio 2015 Update 3) is required.
 #endif
 #if _MSC_FULL_VER < 190024218
