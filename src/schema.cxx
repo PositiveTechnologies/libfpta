@@ -264,16 +264,16 @@ public:
 
 class fpta_schema_info::dict {
 public:
-  trivial_dict dict;
-  std::string holder;
+  trivial_dict dict_;
+  std::string holder_;
   bool latch(const MDBX_val &data) {
-    holder.assign((const char *)data.iov_base, data.iov_len);
-    if (dict.fetch(fpta::string_view(holder))) {
-      assert(dict.string() == holder);
+    holder_.assign((const char *)data.iov_base, data.iov_len);
+    if (dict_.fetch(fpta::string_view(holder_))) {
+      assert(dict_.string() == holder_);
       return true;
     }
-    holder.clear();
-    dict.clear();
+    holder_.clear();
+    dict_.clear();
     return false;
   }
 };
@@ -905,7 +905,7 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
         break;
 
       if (unlikely(!fpta_schema_image_validate(id->shove, data,
-                                               info->dict_ptr->dict))) {
+                                               info->dict_ptr->dict_))) {
         rc = FPTA_SCHEMA_CORRUPTED;
         break;
       }
@@ -1453,7 +1453,7 @@ int fpta_schema_symbol(const fpta_schema_info *info, const fpta_name *id,
   if (unlikely(id->version_tsn > info->version.tsn))
     return FPTA_SCHEMA_CHANGED;
 
-  const fpta::string_view symbol = info->dict_ptr->dict.lookup(id->shove);
+  const fpta::string_view symbol = info->dict_ptr->dict_.lookup(id->shove);
   if (symbol.empty())
     return FPTA_ENOENT;
 
@@ -1502,7 +1502,7 @@ static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
   }
 
   const fpta::string_view column_symname =
-      info->dict_ptr->dict.lookup(column_id->shove);
+      info->dict_ptr->dict_.lookup(column_id->shove);
   if (unlikely(column_symname.empty())) {
     r.err = FPTA_SCHEMA_CORRUPTED;
     return r;
@@ -1572,7 +1572,7 @@ static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
       if (unlikely(r.err != FPTA_SUCCESS))
         return r;
       const fpta::string_view item_symname =
-          info->dict_ptr->dict.lookup(item_id.shove);
+          info->dict_ptr->dict_.lookup(item_id.shove);
       if (unlikely(item_symname.empty())) {
         r.err = FPTA_SCHEMA_CORRUPTED;
         return r;
@@ -1608,7 +1608,7 @@ static __cold tuple4xyz_result tuple4table(const fpta_schema_info *info,
   }
 
   const fpta::string_view table_symname =
-      info->dict_ptr->dict.lookup(table_id->shove);
+      info->dict_ptr->dict_.lookup(table_id->shove);
   if (unlikely(table_symname.empty())) {
     r.err = FPTA_SCHEMA_CORRUPTED;
     return r;
