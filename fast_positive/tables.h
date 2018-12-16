@@ -857,7 +857,7 @@ typedef enum fpta_durability {
              * Достаточно быстрый режим, но с риском потери последних
              * изменений при аварии.
              *
-             * FIXME: Скорректировать описание после перехода на libmdbx
+             * FIXME: Скорректировать описание после перехода на версию libmdbx
              * с "догоняющей" фиксацией.
              *
              * Периодически формируются сильные точки фиксации. В случае
@@ -1903,7 +1903,7 @@ FPTA_API int fpta_composite_column_get(const fpta_name *composite_id,
  * получить остальную информацию, включая полное наглядное/читаемое
  * представление схемы.
  *
- * По завершению использования должна быть разрушена посредством
+ * По завершению использования структура должна быть разрушена посредством
  * fpta_schema_destroy(), в противном случае будет утечка памяти. */
 typedef struct fpta_schema_info {
   unsigned signature;
@@ -1930,12 +1930,11 @@ typedef struct fpta_schema_info {
 
 /* Позволяет получить информацию о всех созданных таблицах.
  *
- * Возвращаемый экземпляр fpta_schema_info, по завершению использования, должен
- * быть разрушен посредством fpta_schema_destroy().
+ * Формируемый экземпляр fpta_schema_info содержит всю информацию о схеме,
+ * включая внутренний словарь исходных символических имён схемы.
  *
- * Следует отметить, что формируемый экземпляр fpta_schema_info содержит
- * внутренний словарь исходных символических имён схемы, который остается
- * валидным
+ * По завершению использования экземпляр fpta_schema_info должен быть разрушен
+ * посредством fpta_schema_destroy(), в противном случае будет утечка памяти
  *
  * В случае успеха возвращает ноль, иначе код ошибки. */
 FPTA_API int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info);
@@ -1952,17 +1951,23 @@ FPTA_API int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info);
  * В случае успеха возвращает ноль, иначе код ошибки. */
 FPTA_API int fpta_schema_symbol(const fpta_schema_info *info,
                                 const fpta_name *id, fpta_value *symbol_value);
-/* FIXME: describe */
-FPTA_API int fpta_schema_render_column(const fpta_schema_info *info,
-                                       const fpta_name *column_id,
-                                       fptu_rw **out);
-FPTA_API int fpta_schema_render_table(const fpta_schema_info *info,
-                                      const fpta_name *table_id, fptu_rw **out);
-FPTA_API int fpta_schema_render_whole(const fpta_schema_info *info,
-                                      fptu_rw **out);
+/* TODO: describe */
+FPTA_API int fpta_schema_render_id(const fpta_schema_info *info,
+                                   const fpta_name *name_id, fptu_rw **out);
+/* TODO: describe */
+FPTA_API int fpta_schema_render(const fpta_schema_info *info, fptu_rw **out);
+
+/* Функции транслирующие внутренние теги кортежей в символические имена для
+ * получения описания схемы БД (или её отдельных компонентов) в JSON.
+ * См. fptu_tuple2json(), fptu_tuple2json_FILE(), fptu::tuple2json(). */
+FPTA_API const char *fpta_schema2json_tag2name(const void *schema_ctx,
+                                               unsigned tag);
+FPTA_API const char *fpta_schema2json_value2enum(const void *schema_ctx,
+                                                 unsigned tag, unsigned value);
 
 /* Деструктор fpta_schema_info.
- * В случае успеха возвращает ноль, иначе код ошибки. */
+ * В случае успеха возвращает ноль, либо FPTA_EINVAL если переданная структура
+ * не была инициализирована или уже разрушена. */
 FPTA_API int fpta_schema_destroy(fpta_schema_info *info);
 
 //----------------------------------------------------------------------------
@@ -2960,6 +2965,7 @@ describe_composite_index(const char *composite_name, fpta_index_type index_type,
                                        array.data(), array.size());
 }
 
+/* TODO: describe */
 string_view inline schema_symbol(const fpta_schema_info *info,
                                  const fpta_name *id, int &error) {
   fpta_value symbol;
@@ -2967,6 +2973,26 @@ string_view inline schema_symbol(const fpta_schema_info *info,
   return (error == FPTA_OK) ? string_view(symbol.str, symbol.binary_length)
                             : string_view();
 }
+
+/* TODO: describe */
+FPTA_API int schema2tuple(const fpta_schema_info *info,
+                          const fpta_name *name_id, fptu::tuple_ptr &ptr);
+FPTA_API int schema2json(const fpta_schema_info *info, const fpta_name *name_id,
+                         std::string &json, const string_view &indent,
+                         const fptu_json_options options);
+FPTA_API std::pair<int, std::string>
+schema2json(const fpta_schema_info *info, const fpta_name *name_id,
+            const string_view &indent, const fptu_json_options options);
+
+/* TODO: describe */
+FPTA_API int schema2tuple(const fpta_schema_info *info, fptu::tuple_ptr &ptr);
+FPTA_API int schema2json(const fpta_schema_info *info, std::string &json,
+                         const string_view &indent = string_view(),
+                         const fptu_json_options options = fptu_json_sort_Tags);
+FPTA_API std::pair<int, std::string>
+schema2json(const fpta_schema_info *info,
+            const string_view &indent = string_view(),
+            const fptu_json_options options = fptu_json_sort_Tags);
 
 } // namespace fpta
 
