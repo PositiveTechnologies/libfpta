@@ -209,6 +209,28 @@ TEST(Schema, Base) {
   fpta_schema_info schema_info;
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(1u, schema_info.tables_count);
+  fptu_rw *tuple = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_schema_render(&schema_info, &tuple));
+  EXPECT_NE(nullptr, tuple);
+  EXPECT_EQ(nullptr, fptu::check(tuple));
+  free(tuple);
+  tuple = nullptr;
+  EXPECT_EQ(
+      "{\n    schema_format: 1,\n    table: {\n        name: \"table_1\",\n    "
+      "    column: [\n            {\n                name: \"pk_str_uniq\",\n  "
+      "              number: 0,\n                datatype: \"cstr\",\n         "
+      "       nullable: false,\n                index: \"primary\",\n          "
+      "      unique: true,\n                unordered: true,\n                "
+      "reverse: false\n            },\n            {\n                name: "
+      "\"first_uint\",\n                number: 1,\n                datatype: "
+      "\"uint64\",\n                nullable: false,\n                index: "
+      "\"secondary\",\n                unique: false,\n                "
+      "unordered: true,\n                reverse: false\n            },\n      "
+      "      {\n                name: \"second_fp\",\n                number: "
+      "2,\n                datatype: \"fp64\",\n                nullable: "
+      "false,\n                index: \"none\"\n            }\n        ]\n    "
+      "}\n}",
+      fpta::schema2json(&schema_info, "    ").second);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
@@ -309,7 +331,39 @@ TEST(Schema, Base) {
   EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_2", &def2));
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(2u, schema_info.tables_count);
-  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+  EXPECT_EQ(FPTA_OK, fpta_schema_render(&schema_info, &tuple));
+  EXPECT_NE(nullptr, tuple);
+  EXPECT_EQ(nullptr, fptu::check(tuple));
+  free(tuple);
+  tuple = nullptr;
+  EXPECT_EQ(
+      "{\n    schema_format: 1,\n    table: [\n        {\n            name: "
+      "\"table_1\",\n            column: [\n                {\n                "
+      "    name: \"pk_str_uniq\",\n                    number: 0,\n            "
+      "        datatype: \"cstr\",\n                    nullable: false,\n     "
+      "               index: \"primary\",\n                    unique: true,\n "
+      "                   unordered: true,\n                    reverse: "
+      "false\n                },\n                {\n                    name: "
+      "\"first_uint\",\n                    number: 1,\n                    "
+      "datatype: \"uint64\",\n                    nullable: false,\n           "
+      "         index: \"secondary\",\n                    unique: false,\n    "
+      "                unordered: true,\n                    reverse: false\n  "
+      "              },\n                {\n                    name: "
+      "\"second_fp\",\n                    number: 2,\n                    "
+      "datatype: \"fp64\",\n                    nullable: false,\n             "
+      "       index: \"none\"\n                }\n            ]\n        },\n  "
+      "      {\n            name: \"table_2\",\n            column: [\n        "
+      "        {\n                    name: \"x\",\n                    "
+      "number: 0,\n                    datatype: \"cstr\",\n                   "
+      " nullable: false,\n                    index: \"primary\",\n            "
+      "        unique: true,\n                    unordered: true,\n           "
+      "         reverse: false\n                },\n                {\n        "
+      "            name: \"y\",\n                    number: 1,\n              "
+      "      datatype: \"cstr\",\n                    nullable: false,\n       "
+      "             index: \"secondary\",\n                    unique: "
+      "false,\n                    unordered: true,\n                    "
+      "reverse: false\n                }\n            ]\n        }\n    ]\n}",
+      fpta::schema2json(&schema_info, "    ").second);
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   txn = nullptr;
@@ -388,6 +442,12 @@ TEST(Schema, Base) {
   EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "Table_2"));
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(0u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_render(&schema_info, &tuple));
+  EXPECT_NE(nullptr, tuple);
+  EXPECT_EQ(nullptr, fptu::check(tuple));
+  free(tuple);
+  tuple = nullptr;
+  EXPECT_EQ("{schema_format:1}", fpta::schema2json(&schema_info).second);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
@@ -890,6 +950,34 @@ TEST(Schema, FailingDrop) {
 
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(3u, schema_info.tables_count);
+  EXPECT_EQ(
+      "{\n    schema_format: 1,\n    table: [\n        {\n            name: "
+      "\"table_3\",\n            column: [\n                {\n                "
+      "    name: \"field\",\n                    number: 0,\n                  "
+      "  datatype: \"composite\",\n                    nullable: false,\n      "
+      "              index: \"primary\",\n                    unique: true,\n  "
+      "                  unordered: true,\n                    reverse: "
+      "false,\n                    tersely: false,\n                    "
+      "composite_items: [\n                        \"part_1\",\n               "
+      "         \"part_2\"\n                    ]\n                },\n        "
+      "        {\n                    name: \"part_1\",\n                    "
+      "number: 1,\n                    datatype: \"cstr\",\n                   "
+      " nullable: false,\n                    index: \"none\"\n                "
+      "},\n                {\n                    name: \"part_2\",\n          "
+      "          number: 2,\n                    datatype: \"cstr\",\n         "
+      "           nullable: false,\n                    index: \"none\"\n      "
+      "          }\n            ]\n        },\n        {\n            name: "
+      "\"table_1\",\n            column: {\n                name: \"field\",\n "
+      "               number: 0,\n                datatype: \"cstr\",\n        "
+      "        nullable: false,\n                index: \"primary\",\n         "
+      "       unique: true,\n                unordered: true,\n                "
+      "reverse: false\n            }\n        },\n        {\n            name: "
+      "\"table_2\",\n            column: {\n                name: \"field\",\n "
+      "               number: 0,\n                datatype: \"cstr\",\n        "
+      "        nullable: false,\n                index: \"primary\",\n         "
+      "       unique: true,\n                unordered: true,\n                "
+      "reverse: false\n            }\n        }\n    ]\n}",
+      fpta::schema2json(&schema_info, "    ").second);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   // удаляем первую таблицу
