@@ -31,6 +31,7 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
+set(LIBERTHINK_TYPE STATIC)
 add_subdirectory(erthink)
 
 find_program(RE2C re2c)
