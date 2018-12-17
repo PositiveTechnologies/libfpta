@@ -83,9 +83,9 @@ endif()
 message(STATUS "Use C++${ERTHINK_CXX_STANDARD} for Erthink")
 
 option(ERTHINK_ENABLE_TESTS "Build erthink tests." ON)
+option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." OFF)
 if(NOT SUBPROJECT)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
-  option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." OFF)
 
   find_program(VALGRIND valgrind)
   if(VALGRIND)
@@ -163,10 +163,12 @@ endif()
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
-if(BUILD_SHARED_LIBS)
-  set(LIBERTHINK_TYPE STATIC)
-else()
-  set(LIBERTHINK_TYPE SHARED)
+if(NOT LIBERTHINK_TYPE)
+  if(BUILD_SHARED_LIBS)
+    set(LIBERTHINK_TYPE SHARED)
+  else()
+    set(LIBERTHINK_TYPE STATIC)
+  endif()
 endif()
 
 add_library(erthink ${LIBERTHINK_TYPE}
@@ -181,8 +183,8 @@ set_target_properties(erthink PROPERTIES
   # INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   CXX_STANDARD ${ERTHINK_CXX_STANDARD}
   CXX_STANDARD_REQUIRED ON
-  C_STANDARD_REQUIRED 11
-  # C_STANDARD_REQUIRED ON
+  C_STANDARD 11
+  C_STANDARD_REQUIRED OFF
   )
 
 target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
