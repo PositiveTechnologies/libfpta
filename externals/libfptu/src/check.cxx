@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -98,8 +98,8 @@ static __hot const char *fptu_field_check(const fptu_field *pf,
     if (unlikely(payload_units != bytes2units(len) + 1))
       return "field.opaque_bytes != field.brutto";
   } else if (pf->tag == fptu_nested) {
-    // TODO
-    return "nested tuples NOT yet supported";
+    const fptu_ro nested = {{(const fptu_unit *)(payload), len}};
+    return fptu_check_ro(nested);
   }
 
   return nullptr;
