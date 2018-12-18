@@ -81,7 +81,8 @@ set_target_properties(fpta PROPERTIES
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   CXX_STANDARD ${FPTA_CXX_STANDARD}
   CXX_STANDARD_REQUIRED ON
-  C_STANDARD_REQUIRED 11
+  C_STANDARD 11
+  C_STANDARD_REQUIRED OFF
   )
 
 target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
@@ -153,8 +154,8 @@ get_target_property(fpta_compile_options fpta COMPILE_OPTIONS)
 if(NOT fpta_compile_options)
   set(fpta_compile_options "")
 endif()
-# append cmake's common cxx flags and defines
 
+# append cmake's common cxx flags and defines
 string(REPLACE " " ";" cmake_cxx_options "${CMAKE_CXX_FLAGS}" "${CMAKE_CXX_DEFINES}")
 list(INSERT fpta_compile_options 0 "${cmake_cxx_options}")
 unset(cmake_cxx_options)
