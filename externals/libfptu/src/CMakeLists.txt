@@ -31,6 +31,7 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
+set(LIBERTHINK_TYPE STATIC)
 add_subdirectory(erthink)
 
 find_program(RE2C re2c)
@@ -98,7 +99,8 @@ set_target_properties(fptu PROPERTIES
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   CXX_STANDARD ${FPTU_CXX_STANDARD}
   CXX_STANDARD_REQUIRED ON
-  C_STANDARD_REQUIRED 11
+  C_STANDARD 11
+  C_STANDARD_REQUIRED OFF
   )
 
 target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
