@@ -48,6 +48,7 @@ add_library(testutils STATIC
   tools.hpp
   tools.cxx)
 target_link_libraries(testutils ${UT_LIBRARIES})
+target_compile_features(testutils PUBLIC "cxx_std_${FPTA_CXX_STANDARD}")
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(fpta_small_timeout 10)
