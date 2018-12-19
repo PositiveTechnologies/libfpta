@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -38,5 +38,4 @@
 #cmakedefine ENABLE_GCOV
 #cmakedefine ENABLE_ASAN
 
-#cmakedefine01 LIBFPTU_STATIC
 #cmakedefine01 HAVE_FPTU_VERSIONINFO

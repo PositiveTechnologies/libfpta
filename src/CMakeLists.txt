@@ -58,10 +58,12 @@ else()
   set(FPTU_VERSION "unversioned")
 endif()
 
-if(LIBFPTU_STATIC)
-  set(LIBFPTU_TYPE STATIC)
-else()
-  set(LIBFPTU_TYPE SHARED)
+if(NOT LIBFPTU_TYPE)
+  if(BUILD_SHARED_LIBS)
+    set(LIBFPTU_TYPE SHARED)
+  else()
+    set(LIBFPTU_TYPE STATIC)
+  endif()
 endif()
 
 add_library(fptu ${LIBFPTU_TYPE}
@@ -117,10 +119,8 @@ if(CC_HAS_VISIBILITY)
   endif()
 endif()
 
-if(NOT LIBFPTU_STATIC)
-  target_compile_definitions(fptu PRIVATE "-Dfptu_EXPORTS")
-else()
-  target_compile_definitions(fptu PRIVATE "-Dfptu_STATIC")
+if(LIBFPTU_TYPE STREQUAL "SHARED")
+  target_compile_definitions(fptu PRIVATE "fptu_EXPORTS" INTERFACE "fptu_IMPORTS")
 endif()
 
 install(TARGETS fptu
@@ -164,7 +164,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # append linker dll's options
-if(NOT LIBFPTU_STATIC)
+if(LIBFPTU_TYPE STREQUAL "SHARED")
   string(REPLACE " " ";" cmake_shared_linker_options "${CMAKE_SHARED_LINKER_FLAGS}")
   list(APPEND fptu_compile_options ${cmake_shared_linker_options})
   unset(cmake_shared_linker_options)

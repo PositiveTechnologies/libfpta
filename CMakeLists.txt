@@ -264,12 +264,6 @@ endif(NOT SUBPROJECT)
 
 find_package(Threads REQUIRED)
 
-if(BUILD_SHARED_LIBS)
-  set(LIBFPTU_STATIC FALSE)
-else()
-  set(LIBFPTU_STATIC TRUE)
-endif()
-
 if(PROVIDE_VERSIONINFO)
   set(HAVE_FPTU_VERSIONINFO TRUE)
 else()
