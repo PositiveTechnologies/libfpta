@@ -22,7 +22,7 @@
 ##  https://github.com/leo-yuriev/erthink
 ##
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.8.2)
 cmake_policy(SET CMP0054 NEW)
 
 if(DEFINED PROJECT_NAME)
@@ -180,7 +180,7 @@ add_library(erthink ${LIBERTHINK_TYPE}
 set_target_properties(erthink PROPERTIES
   PROJECT_LABEL "erthink"
   PUBLIC_HEADER "defs.h byteorder.h u2a.h d2a.h"
-  # INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
+  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   CXX_STANDARD ${ERTHINK_CXX_STANDARD}
   CXX_STANDARD_REQUIRED ON
   C_STANDARD 11
