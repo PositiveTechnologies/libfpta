@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -31,7 +31,7 @@
 
 #if FPTA_VERSION_MAJOR != ${FPTA_VERSION_MAJOR} ||                             \
     FPTA_VERSION_MINOR != ${FPTA_VERSION_MINOR}
-#error "API version mismatch!"
+#error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
 /*FPTA_API*/ const fpta_version_info fpta_version = {
