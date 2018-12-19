@@ -1,4 +1,4 @@
-#
+﻿#
 # Check if the same compile family is used for both C and CXX
 #
 if(NOT (CMAKE_C_COMPILER_ID STREQUAL CMAKE_CXX_COMPILER_ID))
@@ -165,11 +165,7 @@ if(CMAKE_COMPILER_IS_GNUCC)
       endif()
     endif()
 
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      get_filename_component(gcc_dir ${CMAKE_C_COMPILER} DIRECTORY)
-    else()
-      get_filename_component(gcc_dir ${CMAKE_C_COMPILER} PATH)
-    endif()
+    get_filename_component(gcc_dir ${CMAKE_C_COMPILER} DIRECTORY)
     if(NOT CMAKE_GCC_AR)
       find_program(CMAKE_GCC_AR NAMES gcc${gcc_suffix}-ar gcc-ar${gcc_suffix} PATHS ${gcc_dir} NO_DEFAULT_PATH)
     endif()

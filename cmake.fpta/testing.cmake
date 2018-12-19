@@ -1,4 +1,4 @@
-##  Copyright 2010-2018 libfpta authors: please see AUTHORS file.
+﻿##  Copyright 2010-2018 libfpta authors: please see AUTHORS file.
 ##
 ##  This file is part of libfpta, aka "Fast Positive Tables".
 ##
@@ -109,24 +109,10 @@ if(NOT GTEST_FOUND)
           set(local_minimal_optimize "")
         endif()
       endif()
-      if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-        target_compile_options(gtest PRIVATE ${local_warn_no_error} ${local_minimal_optimize})
-        target_compile_options(gtest_main PRIVATE ${local_warn_no_error} ${local_minimal_optimize})
-      else()
-        set_target_properties(gtest PROPERTIES COMPILE_FLAGS "${local_warn_no_error} ${local_minimal_optimize}")
-        set_target_properties(gtest_main PROPERTIES COMPILE_FLAGS "${local_warn_no_error} ${local_minimal_optimize}")
-      endif()
+      target_compile_options(gtest PRIVATE ${local_warn_no_error} ${local_minimal_optimize})
+      target_compile_options(gtest_main PRIVATE ${local_warn_no_error} ${local_minimal_optimize})
       unset(local_warn_no_error)
       unset(local_minimal_optimize)
-    endif()
-
-    # The gtest/gtest_main targets carry header search path
-    # dependencies automatically when using CMake 2.8.11 or
-    # later. Otherwise we have to add them here ourselves.
-    if(CMAKE_VERSION VERSION_LESS 2.8.11)
-      set(GTEST_INCLUDE_DIR "${gtest_SOURCE_DIR}/include")
-    else()
-      set(GTEST_INCLUDE_DIR "")
     endif()
 
     set(GTEST_BOTH_LIBRARIES gtest gtest_main)
@@ -137,7 +123,6 @@ endif()
 if(GTEST_FOUND)
   include(CTest)
   enable_testing()
-  set(UT_INCLUDE_DIRECTORIES ${GTEST_INCLUDE_DIR})
   set(UT_LIBRARIES ${GTEST_BOTH_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
   if(MEMORYCHECK_COMMAND OR CMAKE_MEMORYCHECK_COMMAND)
     add_custom_target(test_memcheck
@@ -214,11 +199,7 @@ function(add_gtest name)
               get_target_property(filename ${dep} LOCATION)
             endif()
             if(filename)
-              if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-                get_filename_component(dir ${filename} DIRECTORY)
-              else()
-                get_filename_component(dir ${filename} PATH)
-              endif()
+              get_filename_component(dir ${filename} DIRECTORY)
             else(filename)
               get_target_property(dir ${dep} LIBRARY_OUTPUT_DIRECTORY_${CMAKE_BUILD_TYPE_UPPERCASE})
               if(NOT dir)

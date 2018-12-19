@@ -32,7 +32,7 @@
 ##  до 1.000.000 запросов в секунду на каждое ядро процессора.
 ##
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.8.2)
 cmake_policy(SET CMP0054 NEW)
 
 project(libfpta C CXX)

@@ -1,4 +1,4 @@
-##
+﻿##
 ##  Copyright 2016-2018 libfpta authors: please see AUTHORS file.
 ##
 ##  This file is part of libfpta, aka "Fast Positive Tables".
@@ -99,11 +99,7 @@ else()
 endif()
 
 if(CC_HAS_VISIBILITY)
-  if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-    target_compile_options(fpta PRIVATE "-fvisibility=hidden")
-  else()
-    set_target_properties(fpta PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
-  endif()
+  target_compile_options(fpta PRIVATE "-fvisibility=hidden")
   if(LTO_ENABLED OR INTERPROCEDURAL_OPTIMIZATION)
     set_target_properties(fpta PROPERTIES LINK_FLAGS "-fvisibility=hidden")
   endif()
@@ -117,23 +113,13 @@ else()
   target_compile_definitions(fpta PRIVATE -Dfpta_STATIC)
 endif()
 
-if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-  install(TARGETS fpta
-    LIBRARY DESTINATION lib COMPONENT runtime
-    RUNTIME DESTINATION lib COMPONENT runtime
-    ARCHIVE DESTINATION lib/static COMPONENT devel
-    PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-    PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-    )
-else()
-  install(TARGETS fpta
-    LIBRARY DESTINATION lib COMPONENT runtime
-    RUNTIME DESTINATION lib COMPONENT runtime
-    ARCHIVE DESTINATION lib/static COMPONENT devel
-    PUBLIC_HEADER DESTINATION include/fast_positive COMPONENT devel
-    PRIVATE_HEADER DESTINATION include/fast_positive COMPONENT devel
-    )
-endif()
+install(TARGETS fpta
+  LIBRARY DESTINATION lib COMPONENT runtime
+  RUNTIME DESTINATION lib COMPONENT runtime
+  ARCHIVE DESTINATION lib/static COMPONENT devel
+  PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+  PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+)
 
 ###############################################################################
 #
