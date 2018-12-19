@@ -1,4 +1,4 @@
-##
+﻿##
 ##  Copyright 2016-2018 libfptu authors: please see AUTHORS file.
 ##
 ##  This file is part of libfptu, aka "Fast Positive Tuples".
@@ -31,6 +31,24 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
+set(LIBERTHINK_TYPE STATIC)
+add_subdirectory(erthink)
+
+find_program(RE2C re2c)
+if(RE2C AND NOT RE2C_VERSION)
+  execute_process(COMMAND ${RE2C} --version
+    OUTPUT_VARIABLE re2c_version_output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE rc)
+  if(rc EQUAL 0)
+    string(REGEX MATCH "^re2c ([0-9]+\\.[0-9]+(\\.[0-9]+)*)" re2c_version_valid ${re2c_version_output})
+    if(re2c_version_valid)
+      set(RE2C_VERSION ${CMAKE_MATCH_1})
+      message(STATUS "Found ${RE2C} version ${RE2C_VERSION}")
+    endif()
+  endif()
+endif()
+
 #
 # Get version
 if(HAVE_FPTU_VERSIONINFO)
@@ -51,6 +69,8 @@ add_library(fptu ${LIBFPTU_TYPE}
   ../fast_positive/defs.h
   ../fast_positive/tuples.h
   ../fast_positive/tuples_internal.h
+  gperf_ECMAScript_keywords.h
+  bitset4tags.h
   common.cxx
   create.cxx
   check.cxx
@@ -64,6 +84,10 @@ add_library(fptu ${LIBFPTU_TYPE}
   sort.cxx
   time.cxx
   data.cxx
+  erthink/erthink_u2a.h
+  erthink/erthink_d2a.h
+  json_emit.cxx
+  json_parse.cxx
   ${CMAKE_CURRENT_BINARY_DIR}/version.cxx)
 
 set_target_properties(fptu PROPERTIES
@@ -73,9 +97,13 @@ set_target_properties(fptu PROPERTIES
   PUBLIC_HEADER "../fast_positive/defs.h;../fast_positive/tuples.h;${FAST_POSITIVE_CONFIG_H}"
   PRIVATE_HEADER ../fast_positive/tuples_internal.h
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
+  CXX_STANDARD ${FPTU_CXX_STANDARD}
+  CXX_STANDARD_REQUIRED ON
+  C_STANDARD 11
+  C_STANDARD_REQUIRED OFF
   )
 
-target_compile_features(fptu PUBLIC cxx_std_14)
+target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
 target_link_libraries(fptu ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
 
 if(UNIX AND NOT APPLE)
@@ -106,7 +134,7 @@ if(CMAKE_VERSION VERSION_GREATER 2.8.11)
     ARCHIVE DESTINATION lib/static COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
     PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-  )
+    )
 else()
   install(TARGETS fptu
     LIBRARY DESTINATION lib COMPONENT runtime
@@ -114,7 +142,7 @@ else()
     ARCHIVE DESTINATION lib/static COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive COMPONENT devel
     PRIVATE_HEADER DESTINATION include/fast_positive COMPONENT devel
-  )
+    )
 endif()
 
 ###############################################################################

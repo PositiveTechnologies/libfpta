@@ -65,26 +65,26 @@ TEST(Compare, FetchTags) {
           case 0:
           case 1:
             EXPECT_EQ(FPTU_OK, fptu_insert_uint16(pt, 41, 0));
-            checker.insert(fptu_pack_coltype(41, fptu_uint16));
+            checker.insert(fptu::make_tag(41, fptu_uint16));
             pattern += " x";
             break;
           case 2:
           case 3:
             EXPECT_EQ(FPTU_OK, fptu_insert_int32(pt, 42, 0));
-            checker.insert(fptu_pack_coltype(42, fptu_int32));
+            checker.insert(fptu::make_tag(42, fptu_int32));
             pattern += " y";
             break;
           case 4:
           case 5:
             EXPECT_EQ(FPTU_OK, fptu_insert_uint64(pt, 43, 0));
-            checker.insert(fptu_pack_coltype(43, fptu_uint64));
+            checker.insert(fptu::make_tag(43, fptu_uint64));
             pattern += " z";
             break;
           }
         }
       }
 
-      ASSERT_STREQ(nullptr, fptu_check(pt));
+      ASSERT_STREQ(nullptr, fptu_check_rw(pt));
       fptu_ro ro = fptu_take_noshrink(pt);
       ASSERT_STREQ(nullptr, fptu_check_ro(ro));
 
@@ -101,8 +101,8 @@ TEST(Compare, FetchTags) {
 }
 
 static void probe(const fptu_rw *major_rw, const fptu_rw *minor_rw) {
-  ASSERT_STREQ(nullptr, fptu_check(major_rw));
-  ASSERT_STREQ(nullptr, fptu_check(minor_rw));
+  ASSERT_STREQ(nullptr, fptu_check_rw(major_rw));
+  ASSERT_STREQ(nullptr, fptu_check_rw(minor_rw));
 
   const auto major = fptu_take_noshrink(major_rw);
   const auto minor = fptu_take_noshrink(minor_rw);
@@ -131,7 +131,7 @@ TEST(Compare, EmptyNull) {
   fptu_rw *empty_rw =
       fptu_init(space_exactly_noitems, sizeof(space_exactly_noitems), 0);
   ASSERT_NE(nullptr, empty_rw);
-  ASSERT_STREQ(nullptr, fptu_check(empty_rw));
+  ASSERT_STREQ(nullptr, fptu_check_rw(empty_rw));
   const auto empty_ro = fptu_take_noshrink(empty_rw);
   ASSERT_STREQ(nullptr, fptu_check_ro(empty_ro));
 
@@ -145,12 +145,12 @@ TEST(Compare, Base) {
   char space4major[fptu_buffer_enough];
   fptu_rw *major = fptu_init(space4major, sizeof(space4major), fptu_max_fields);
   ASSERT_NE(nullptr, major);
-  ASSERT_STREQ(nullptr, fptu_check(major));
+  ASSERT_STREQ(nullptr, fptu_check_rw(major));
 
   char space4minor[fptu_buffer_enough];
   fptu_rw *minor = fptu_init(space4minor, sizeof(space4minor), fptu_max_fields);
   ASSERT_NE(nullptr, minor);
-  ASSERT_STREQ(nullptr, fptu_check(minor));
+  ASSERT_STREQ(nullptr, fptu_check_rw(minor));
 
   // разное кол-во одинаковых полей
   EXPECT_EQ(FPTU_OK, fptu_insert_uint16(major, 0, 0));
@@ -209,12 +209,12 @@ TEST(Compare, DISABLED_Shuffle)
   char space4minor[fptu_buffer_enough];
   fptu_rw *minor = fptu_init(space4minor, sizeof(space4minor), fptu_max_fields);
   ASSERT_NE(nullptr, minor);
-  ASSERT_STREQ(nullptr, fptu_check(minor));
+  ASSERT_STREQ(nullptr, fptu_check_rw(minor));
 
   char space4major[fptu_buffer_enough];
   fptu_rw *major = fptu_init(space4major, sizeof(space4major), fptu_max_fields);
   ASSERT_NE(nullptr, major);
-  ASSERT_STREQ(nullptr, fptu_check(major));
+  ASSERT_STREQ(nullptr, fptu_check_rw(major));
 
   std::string minor_pattern, major_pattern;
   time_t start_timestamp = time(nullptr);

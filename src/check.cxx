@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -44,13 +44,13 @@ static __hot const char *fptu_field_check(const fptu_field *pf,
   if (unlikely(detent < (const char *)pf + fptu_unit_size))
     return "field.header > detent";
 
-  unsigned type = fptu_get_type(pf->ct);
+  fptu_type type = pf->type();
   if (type <= fptu_uint16)
     // without ex-data
     return nullptr;
 
   payload_units = 1;
-  const fptu_payload *payload = fptu_field_payload(pf);
+  const fptu_payload *payload = pf->payload();
   if (unlikely((char *)payload < pivot))
     return "field.begin < tuple.pivot";
 
@@ -97,9 +97,9 @@ static __hot const char *fptu_field_check(const fptu_field *pf,
     len = payload->other.varlen.opaque_bytes;
     if (unlikely(payload_units != bytes2units(len) + 1))
       return "field.opaque_bytes != field.brutto";
-  } else if (pf->ct == fptu_nested) {
-    // TODO
-    return "nested tuples NOT yet supported";
+  } else if (pf->tag == fptu_nested) {
+    const fptu_ro nested = {{(const fptu_unit *)(payload), len}};
+    return fptu_check_ro(nested);
   }
 
   return nullptr;
@@ -147,7 +147,7 @@ const char *fptu_check_ro(fptu_ro ro) {
       return bug;
 
     payload_total_bytes += units2bytes(payload_units);
-    // if (ct_is_dead(pf->ct))
+    // if (is_dead(pf))
     //    return "tuple.has_junk";
   }
 
@@ -160,7 +160,7 @@ const char *fptu_check_ro(fptu_ro ro) {
   return nullptr;
 }
 
-const char *fptu_check(const fptu_rw *pt) {
+const char *fptu_check_rw(const fptu_rw *pt) {
   if (unlikely(pt == nullptr))
     return "tuple.is_nullptr";
 
@@ -200,7 +200,7 @@ const char *fptu_check(const fptu_rw *pt) {
       return bug;
 
     payload_total_bytes += units2bytes(payload_units);
-    if (ct_is_dead(pf->ct)) {
+    if (pf->is_dead()) {
       junk_items++;
       payload_junk_units += payload_units;
     }

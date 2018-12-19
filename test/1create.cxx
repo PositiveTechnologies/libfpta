@@ -103,7 +103,7 @@ TEST(Init, Base) {
       EXPECT_EQ(0u, fptu_junkspace(pt));
 
       EXPECT_STREQ(nullptr, fptu_check_ro(io));
-      EXPECT_STREQ(nullptr, fptu_check(pt));
+      EXPECT_STREQ(nullptr, fptu_check_rw(pt));
     }
   }
 }
@@ -111,7 +111,7 @@ TEST(Init, Base) {
 TEST(Init, Alloc) {
   fptu_rw *pt = fptu_alloc(7, 42);
   ASSERT_NE(nullptr, pt);
-  ASSERT_STREQ(nullptr, fptu_check(pt));
+  ASSERT_STREQ(nullptr, fptu_check_rw(pt));
   free(pt);
 }
 

@@ -337,6 +337,12 @@
 #	define __cache_aligned __aligned(CACHELINE_SIZE)
 #endif
 
+#if (UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul)
+#define FPT_ARCH64
+#else
+#define FPT_ARCH32
+#endif /* FPT_ARCH64/32 */
+
 //----------------------------------------------------------------------------
 
 #ifdef __cplusplus
@@ -391,27 +397,18 @@ __extern_C void __assert_fail(const char *assertion, const char *filename,
 #endif
     ;
 
-static __inline unsigned fptu_get_colnum(uint_fast16_t packed) {
-  return (unsigned)(((uint16_t)packed) >> fptu_co_shift);
+static __inline bool is_filter(fptu_type_or_filter type_or_filter) {
+  return (((uint32_t)type_or_filter) >= fptu_ffilter) ? true : false;
 }
 
-static __inline fptu_type fptu_get_type(uint_fast16_t packed) {
-  return (fptu_type)(packed & fptu_ty_mask);
-}
-
-static __inline uint_fast16_t fptu_pack_coltype(unsigned column, int type) {
-  assert(type <= fptu_ty_mask);
-  assert(column <= fptu_max_cols);
-  return (uint_fast16_t)type + (column << fptu_co_shift);
-}
-
-static __inline bool fptu_ct_match(const fptu_field *pf, unsigned column,
-                                   int type_or_filter) {
-  if (fptu_get_colnum(pf->ct) != column)
+static __inline bool match(const fptu_field *pf, unsigned column,
+                           fptu_type_or_filter type_or_filter) {
+  if (pf->colnum() != column)
     return false;
-  if (type_or_filter & fptu_filter)
-    return (type_or_filter & (1 << fptu_get_type(pf->ct))) ? true : false;
-  return type_or_filter == fptu_get_type(pf->ct);
+  if (is_filter(type_or_filter))
+    return ((fptu_filter)type_or_filter & fptu_filter_mask(pf->type())) ? true
+                                                                        : false;
+  return (fptu_type)type_or_filter == pf->type();
 }
 
 static __inline size_t bytes2units(size_t bytes) {
@@ -422,17 +419,9 @@ static __inline size_t units2bytes(size_t units) {
   return units << fptu_unit_shift;
 }
 
-static __inline bool ct_is_fixedsize(uint_fast16_t ct) {
-  return fptu_get_type(ct) < fptu_cstr;
-}
-
-static __inline bool ct_is_dead(uint_fast16_t ct) {
-  return ct >= (fptu_co_dead << fptu_co_shift);
-}
-
-static __inline size_t ct_elem_size(uint_fast16_t ct) {
-  uint_fast16_t type = fptu_get_type(ct);
-  if (likely(ct_is_fixedsize(type)))
+static __inline size_t tag_elem_size(uint_fast16_t tag) {
+  fptu_type type = fptu_get_type(tag);
+  if (likely(fptu_tag_is_fixedsize(type)))
     return fptu_internal_map_t2b[type];
 
   /* fptu_opaque, fptu_cstr or fptu_farray.
@@ -440,9 +429,9 @@ static __inline size_t ct_elem_size(uint_fast16_t ct) {
   return fptu_unit_size;
 }
 
-static __inline bool ct_match_fixedsize(uint_fast16_t ct, size_t units) {
-  return ct_is_fixedsize(ct) &&
-         units == fptu_internal_map_t2u[fptu_get_type(ct)];
+static __inline bool tag_match_fixedsize(uint_fast16_t tag, size_t units) {
+  return fptu_tag_is_fixedsize(tag) &&
+         units == fptu_internal_map_t2u[fptu_get_type(tag)];
 }
 
 size_t fptu_field_units(const fptu_field *pf);
@@ -455,7 +444,7 @@ static __inline const void *fptu_detent(const fptu_rw *rw) {
   return &rw->units[rw->end];
 }
 
-fptu_field *fptu_lookup_ct(fptu_rw *pt, uint_fast16_t ct);
+fptu_field *fptu_lookup_tag(fptu_rw *pt, uint_fast16_t tag);
 
 template <typename type>
 static __inline fptu_lge fptu_cmp2lge(type left, type right) {

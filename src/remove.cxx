@@ -27,11 +27,11 @@ static __inline bool fptu_is_tailed(fptu_rw *pt, fptu_field *pf, size_t units) {
 }
 
 void fptu_erase_field(fptu_rw *pt, fptu_field *pf) {
-  if (unlikely(ct_is_dead(pf->ct)))
+  if (unlikely(pf->is_dead()))
     return;
 
   // mark field as `dead`
-  pf->ct |= fptu_co_dead << fptu_co_shift;
+  pf->tag |= fptu_co_dead << fptu_co_shift;
   size_t units = fptu_field_units(pf);
 
   // head & tail optimization
@@ -48,7 +48,7 @@ void fptu_erase_field(fptu_rw *pt, fptu_field *pf) {
   // continue cutting junk
   while (pt->head < pt->pivot) {
     pf = &pt->units[pt->head].field;
-    if (!ct_is_dead(pf->ct))
+    if (!pf->is_dead())
       break;
 
     units = fptu_field_units(pf);
@@ -62,18 +62,19 @@ void fptu_erase_field(fptu_rw *pt, fptu_field *pf) {
   }
 }
 
-int fptu_erase(fptu_rw *pt, unsigned column, int type_or_filter) {
+int fptu_erase(fptu_rw *pt, unsigned column,
+               fptu_type_or_filter type_or_filter) {
   if (unlikely(column > fptu_max_cols)) {
     static_assert(FPTU_EINVAL > 0, "should be positive");
     return -FPTU_EINVAL;
   }
 
-  if (type_or_filter & fptu_filter) {
+  if (is_filter(type_or_filter)) {
     int count = 0;
     fptu_field *begin = &pt->units[pt->head].field;
     fptu_field *pivot = &pt->units[pt->pivot].field;
     for (fptu_field *pf = begin; pf < pivot; ++pf) {
-      if (fptu_ct_match(pf, column, type_or_filter)) {
+      if (match(pf, column, type_or_filter)) {
         fptu_erase_field(pt, pf);
         count++;
       }
@@ -82,7 +83,7 @@ int fptu_erase(fptu_rw *pt, unsigned column, int type_or_filter) {
   }
 
   fptu_field *pf =
-      fptu_lookup_ct(pt, fptu_pack_coltype(column, type_or_filter));
+      fptu_lookup_tag(pt, fptu_make_tag(column, (fptu_type)type_or_filter));
   if (pf == nullptr)
     return 0;
 

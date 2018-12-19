@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -18,6 +18,9 @@
  */
 
 /* test conformance for C mode */
+#if !defined(fptu_EXPORTS) && !defined(fptu_IMPORTS)
+#define fptu_IMPORTS
+#endif /* fptu_IMPORTS */
 #include <fast_positive/tuples.h>
 
 #ifdef _MSC_VER

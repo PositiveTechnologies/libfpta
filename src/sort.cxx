@@ -37,6 +37,10 @@
 #pragma warning(pop)
 #endif
 
+#include "bitset4tags.h"
+
+using namespace fptu;
+
 __hot bool fptu_is_ordered(const fptu_field *begin, const fptu_field *end) {
   if (likely(end > begin + 1)) {
     /* При формировании кортежа дескрипторы полей физически размещаются
@@ -53,7 +57,7 @@ __hot bool fptu_is_ordered(const fptu_field *begin, const fptu_field *end) {
     do {
       auto next = scan;
       ++next;
-      if (scan->ct < next->ct)
+      if (scan->tag < next->tag && likely(!next->is_dead()))
         return false;
       scan = next;
     } while (scan < end);
@@ -78,13 +82,6 @@ __hot bool fptu_is_ordered(const fptu_field *begin, const fptu_field *end) {
  * 2) Встречая нарушения порядка переходим на slowpath:
  *    - фильтруем дубликаты посредством битовой карты;
  *    - в конце сортируем полученный вектор.
- *
- * 3) Оптимизация:
- *    - уменьшаем размер битовой карты опираясь на разброс значений тэгов;
- *    - для этого дизъюнкцией собираем значения тегов в битовой маске;
- *    - велика вероятность что в кортеже нет массивов и не используется
- *      резерный бит, поэтому вычисляем сдвиг для пропуска этих нулей.
- *    - по старшему биту получаем верхний предел для размера битовой карты.
  */
 
 static __noinline uint16_t *fptu_tags_slowpath(uint16_t *const first,
@@ -94,86 +91,58 @@ static __noinline uint16_t *fptu_tags_slowpath(uint16_t *const first,
                                                unsigned have) {
   assert(std::is_sorted(first, tail, std::less_equal<uint16_t>()));
 
-  /* собираем в маску оставшиеся значения */
-  for (auto i = pos; i < end; ++i)
-    have |= i->ct;
-
-  /* вполне вероятно, что резерный бит всегда нулевой, также возможно что
-   * нет массивов, тогда размер карты можно сократить в 4 раза. */
-  const unsigned blank =
-      (have & fptu_fr_mask)
-          ? 0u
-          : (unsigned)fptu_ct_reserve_bits + ((have & fptu_farray) ? 0u : 1u);
-  const unsigned lo_part = (1 << (fptu_typeid_bits + fptu_ct_reserve_bits)) - 1;
-  const unsigned hi_part = lo_part ^ UINT16_MAX;
-  assert((lo_part >> blank) >= (have & lo_part));
-  const auto top = (have & lo_part) + ((have & hi_part) >> blank) + 1;
-  const auto word_bits = sizeof(size_t) * 8;
-
-  /* std::bitset прекрасен, но требует инстанцирования под максимальный
-   * размер. При этом на стеке будет выделено и заполнено нулями 4K,
-   * в итоге расходы превысят экономию. */
-
-  const size_t n_words = (top + word_bits - 1) / word_bits;
-#ifdef _MSC_VER /* FIXME: mustdie */
-  size_t *const bm = (size_t *)_malloca(sizeof(size_t) * n_words);
-#else
-  size_t bm[n_words];
-#endif
-  memset(bm, 0, sizeof(size_t) * n_words);
+  bitset4tags::minimize params(pos, end, have);
+  bitset4tags bitmask(params, alloca(params.bytes()));
 
   /* отмечаем обработанное */
-  for (auto i = first; i < tail; ++i) {
-    size_t n = *i;
-    assert((lo_part >> blank) >= (n & lo_part));
-    n = (n & lo_part) + ((n & hi_part) >> blank);
-    assert(n < top);
-
-    bm[n / word_bits] |= (size_t)1 << (n % word_bits);
-  }
+  for (auto i = first; i < tail; ++i)
+    bitmask.set(*i);
 
   /* обрабатываем неупорядоченный остаток */
-  for (auto i = pos; i < end; ++i) {
-    size_t n = i->ct;
-    assert((lo_part >> blank) >= (n & lo_part));
-    n = (n & lo_part) + ((n & hi_part) >> blank);
-    assert(n < top);
-
-    if ((bm[n / word_bits] & ((size_t)1 << (n % word_bits))) == 0) {
-      bm[n / word_bits] |= (size_t)1 << (n % word_bits);
-      *tail++ = i->ct;
-    }
-  }
+  for (auto i = pos; i < end; ++i)
+    if (likely(!i->is_dead()) && !bitmask.test_and_set(i->tag))
+      *tail++ = i->tag;
 
   std::sort(first, tail);
   assert(std::is_sorted(first, tail, std::less_equal<uint16_t>()));
   return tail;
 }
 
-uint16_t *fptu_tags(uint16_t *const first, const fptu_field *const begin,
-                    const fptu_field *const end) {
+uint16_t *fptu_tags(uint16_t *const first, const fptu_field *begin,
+                    const fptu_field *end) {
   /* Формирует в буфере упорядоченный список тегов полей без дубликатов. */
   uint16_t *tail = first;
+
+  // пропускаем удаленные элементы
+  while (likely(begin < end) && unlikely(begin->is_dead()))
+    ++begin;
+  while (likely(begin < end) && unlikely(end[-1].is_dead()))
+    --end;
+
   if (end > begin) {
     const fptu_field *i;
     unsigned have = 0;
 
     /* Пытаемся угадать текущий порядок и переливаем в буфер
      * пропуская дубликаты. */
-    if (begin->ct >= end[-1].ct) {
-      for (i = end - 1, *tail++ = i->ct; --i >= begin;) {
-        if (i->ct != tail[-1]) {
-          if (unlikely(i->ct < tail[-1]))
+    if (begin->tag >= end[-1].tag) {
+      for (i = end - 1, *tail++ = i->tag; --i >= begin;) {
+        if (unlikely(i->is_dead()))
+          continue;
+        if (i->tag != tail[-1]) {
+          if (unlikely(i->tag < tail[-1]))
             return fptu_tags_slowpath(first, tail, begin, i + 1, have);
-          have |= (*tail++ = i->ct);
+          have |= (*tail++ = i->tag);
         }
       }
     } else {
-      for (i = begin, *tail++ = i->ct; ++i < end;) {
-        if (i->ct != tail[-1]) {
-          if (unlikely(i->ct < tail[-1]))
+      for (i = begin, *tail++ = i->tag; ++i < end;) {
+        if (unlikely(i->is_dead()))
+          continue;
+        if (i->tag != tail[-1]) {
+          if (unlikely(i->tag < tail[-1]))
             return fptu_tags_slowpath(first, tail, i, end, have);
-          have |= (*tail++ = i->ct);
+          have |= (*tail++ = i->tag);
         }
       }
     }
