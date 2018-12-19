@@ -859,6 +859,10 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
 
+  t1ha_context_t digest;
+  t1ha2_init(&digest, schema_info_signature,
+             FPTA_VERSION_MAJOR * 100 + FPTA_VERSION_MINOR);
+
   MDBX_val data, key;
   rc = mdbx_cursor_get(mdbx_cursor, &key, &data, MDBX_FIRST);
   while (likely(rc == MDBX_SUCCESS)) {
@@ -900,7 +904,7 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
       // id->table_schema = nullptr; /* done by memset() */
       assert(id->table_schema == nullptr);
 
-      rc = fpta_name_refresh_couple(txn, id, nullptr);
+      rc = fpta_id_validate(id, fpta_table);
       if (unlikely(rc != FPTA_SUCCESS))
         break;
 
@@ -909,6 +913,16 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
         rc = FPTA_SCHEMA_CORRUPTED;
         break;
       }
+
+      rc = fpta_schema_clone(shove, data, &id->table_schema);
+      if (unlikely(rc != FPTA_SUCCESS))
+        break;
+      id->version_tsn = txn->schema_tsn();
+
+      t1ha2_update(&digest, &id->table_schema->_key,
+                   sizeof(id->table_schema->_key));
+      t1ha2_update(&digest, &id->table_schema->_stored.columns,
+                   data.iov_len - offsetof(fpta_table_stored_schema, columns));
 
       info->tables_count += 1;
     }
@@ -919,6 +933,7 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
   if (unlikely(rc != MDBX_NOTFOUND))
     return rc;
 
+  info->version.t1ha.lo = t1ha2_final(&digest, &info->version.t1ha.hi);
   return FPTA_SUCCESS;
 }
 
@@ -1466,6 +1481,7 @@ int fpta_schema_symbol(const fpta_schema_info *info, const fpta_name *id,
 
 enum {
   colnum_schema_format,
+  colnum_schema_t1ha,
   colnum_table,
   colnum_table_name,
   colnum_col,
@@ -1493,6 +1509,7 @@ const char *fpta_schema2json_tag2name(const void *schema_ctx, unsigned tag) {
 
   static constexpr std::array<const char *, colnum_max> names = {
       "schema_format" /* colnum_schema_format */,
+      "schema_t1ha" /* colnum_schema_t1ha */,
       "table" /* colnum_tbl */,
       "name" /* colnum_tbl_name */,
       "column" /* colnum_col */,
@@ -1753,8 +1770,8 @@ static __cold tuple4xyz_result tuple4table(const fpta_schema_info *info,
 static __cold tuple4xyz_result tuple4whole(const fpta_schema_info *info,
                                            fptu_rw *out_tuple) {
   tuple4xyz_result r;
-  r.bytes = sizeof(fptu_varlen);
-  r.items = info->tables_count + 1;
+  r.bytes = sizeof(fptu_varlen) + 16;
+  r.items = info->tables_count + 2;
   r.err = fpta_schema_info_validate(info);
   if (unlikely(r.err != FPTA_SUCCESS))
     return r;
@@ -1764,6 +1781,10 @@ static __cold tuple4xyz_result tuple4whole(const fpta_schema_info *info,
       return r;
     r.err = fptu_insert_uint16(out_tuple, colnum_schema_format,
                                enum_value_schema_format);
+    if (unlikely(r.err != FPTA_SUCCESS))
+      return r;
+
+    r.err = fptu_insert_128(out_tuple, colnum_schema_t1ha, &info->version.t1ha);
     if (unlikely(r.err != FPTA_SUCCESS))
       return r;
   }

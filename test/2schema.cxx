@@ -216,7 +216,9 @@ TEST(Schema, Base) {
   free(tuple);
   tuple = nullptr;
   EXPECT_EQ(
-      "{\n    schema_format: 1,\n    table: {\n        name: \"table_1\",\n    "
+      "{\n    schema_format: 1,\n    schema_t1ha: "
+      "\"86f8fa504adfbcbfa513a0b63b6d3f73\",\n    table: {\n        name: "
+      "\"table_1\",\n    "
       "    column: [\n            {\n                name: \"pk_str_uniq\",\n  "
       "              number: 0,\n                datatype: \"cstr\",\n         "
       "       nullable: false,\n                index: \"primary\",\n          "
@@ -337,7 +339,9 @@ TEST(Schema, Base) {
   free(tuple);
   tuple = nullptr;
   EXPECT_EQ(
-      "{\n    schema_format: 1,\n    table: [\n        {\n            name: "
+      "{\n    schema_format: 1,\n    schema_t1ha: "
+      "\"1e605e662ac7c6d4949edc9cebc7a3fe\",\n    table: [\n        {\n        "
+      "    name: "
       "\"table_1\",\n            column: [\n                {\n                "
       "    name: \"pk_str_uniq\",\n                    number: 0,\n            "
       "        datatype: \"cstr\",\n                    nullable: false,\n     "
@@ -447,7 +451,9 @@ TEST(Schema, Base) {
   EXPECT_EQ(nullptr, fptu::check(tuple));
   free(tuple);
   tuple = nullptr;
-  EXPECT_EQ("{schema_format:1}", fpta::schema2json(&schema_info).second);
+  EXPECT_EQ(
+      "{schema_format:1,schema_t1ha:\"ad06cd0771697748a442f92c7a98808e\"}",
+      fpta::schema2json(&schema_info).second);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
@@ -951,7 +957,9 @@ TEST(Schema, FailingDrop) {
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(3u, schema_info.tables_count);
   EXPECT_EQ(
-      "{\n    schema_format: 1,\n    table: [\n        {\n            name: "
+      "{\n    schema_format: 1,\n    schema_t1ha: "
+      "\"e3e9688ae2db035e8c794e15d5ec49c6\",\n    table: [\n        {\n        "
+      "    name: "
       "\"table_3\",\n            column: [\n                {\n                "
       "    name: \"field\",\n                    number: 0,\n                  "
       "  datatype: \"composite\",\n                    nullable: false,\n      "

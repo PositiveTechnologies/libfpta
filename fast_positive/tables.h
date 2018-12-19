@@ -1915,6 +1915,9 @@ typedef struct fpta_schema_info {
     uint64_t csn /* Change Sequence Number.
                   * Порядковый номер версии схемы */
         ;
+    struct {
+      uint64_t lo, hi;
+    } t1ha /* Digest. Дайджест нормализированной формы. */;
   } version;
 #ifdef __cplusplus
   class dict;
