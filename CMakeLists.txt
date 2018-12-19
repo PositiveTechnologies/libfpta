@@ -31,7 +31,7 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.8.2)
 cmake_policy(SET CMP0054 NEW)
 
 if(DEFINED PROJECT_NAME)
