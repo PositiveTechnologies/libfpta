@@ -66,7 +66,7 @@ if(NOT LIBFPTU_TYPE)
   endif()
 endif()
 
-add_library(fptu ${LIBFPTU_TYPE}
+set(LIBFPTU_SOURCES
   ${FAST_POSITIVE_CONFIG_H}
   ../fast_positive/defs.h
   ../fast_positive/tuples.h
@@ -92,7 +92,18 @@ add_library(fptu ${LIBFPTU_TYPE}
   json_parse.cxx
   ${CMAKE_CURRENT_BINARY_DIR}/version.cxx)
 
-set_target_properties(fptu PROPERTIES
+if(LIBFPTU_TYPE STREQUAL "PILE")
+  add_library(fptu_objects OBJECT ${LIBFPTU_SOURCES})
+  add_library(fptu INTERFACE)
+  target_compile_features(fptu_objects INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
+  target_link_libraries(fptu INTERFACE $<TARGET_OBJECTS:fptu_objects>)
+  set(fptu_target fptu_objects)
+else()
+  add_library(fptu ${LIBFPTU_TYPE} ${LIBFPTU_SOURCES})
+  set(fptu_target fptu)
+endif()
+
+set_target_properties(${fptu_target} PROPERTIES
   PROJECT_LABEL "Fast Positive Tuples"
   FRAMEWORK TRUE
   VERSION "${FPTU_VERSION}"
@@ -105,22 +116,21 @@ set_target_properties(fptu PROPERTIES
   C_STANDARD_REQUIRED OFF
   )
 
-target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
-target_link_libraries(fptu ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
-
-if(UNIX AND NOT APPLE)
-  target_link_libraries(fptu rt)
-endif()
-
 if(CC_HAS_VISIBILITY)
-  target_compile_options(fptu PRIVATE "-fvisibility=hidden")
+  target_compile_options(${fptu_target} PRIVATE "-fvisibility=hidden")
   if(LTO_ENABLED OR INTERPROCEDURAL_OPTIMIZATION)
-    set_target_properties(fptu PROPERTIES LINK_FLAGS "-fvisibility=hidden")
+    set_target_properties(${fptu_target} PROPERTIES LINK_FLAGS "-fvisibility=hidden")
   endif()
 endif()
 
+target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
+target_link_libraries(fptu INTERFACE ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
+if(UNIX AND NOT APPLE)
+  target_link_libraries(fptu INTERFACE rt)
+endif()
+
 if(LIBFPTU_TYPE STREQUAL "SHARED")
-  target_compile_definitions(fptu PRIVATE "fptu_EXPORTS" INTERFACE "fptu_IMPORTS")
+  target_compile_definitions(${fptu_target} PRIVATE "fptu_EXPORTS" INTERFACE "fptu_IMPORTS")
 endif()
 
 install(TARGETS fptu
@@ -137,7 +147,7 @@ install(TARGETS fptu
 #
 
 # get definitions as a string of "-Dxyz=124 ..."
-get_target_property(FPTU_DEFINITIONS fptu COMPILE_DEFINITIONS)
+get_target_property(FPTU_DEFINITIONS ${fptu_target} COMPILE_DEFINITIONS)
 if(NOT FPTU_DEFINITIONS)
   set(FPTU_DEFINITIONS "")
 endif()
@@ -146,7 +156,7 @@ string(REGEX REPLACE "([^;]+)" " -D\\1" FPTU_DEFINITIONS "${FPTU_DEFINITIONS}")
 string(STRIP FPTU_DEFINITIONS "${FPTU_DEFINITIONS}")
 
 # get target compile options as a list
-get_target_property(fptu_compile_options fptu COMPILE_OPTIONS)
+get_target_property(fptu_compile_options ${fptu_target} COMPILE_OPTIONS)
 if(NOT fptu_compile_options)
   set(fptu_compile_options "")
 endif()

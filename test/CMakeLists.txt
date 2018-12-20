@@ -43,3 +43,6 @@ add_ut(fptu8_emit2json TIMEOUT ${fptu8_emit_timeout} SOURCE 8emit2json.cxx LIBRA
 
 add_executable(fptu_c_mode c_mode.c)
 target_link_libraries(fptu_c_mode fptu)
+if(LIBFPTU_TYPE STREQUAL "PILE")
+  set_target_properties(fptu_c_mode PROPERTIES LINKER_LANGUAGE CXX)
+endif()
