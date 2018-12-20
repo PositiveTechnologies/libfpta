@@ -126,6 +126,7 @@ else()
   check_c_compiler_flag("-Og" CC_HAS_DEBUG_FRENDLY_OPTIMIZATION)
   check_c_compiler_flag("-Wall" CC_HAS_WALL)
   check_c_compiler_flag("-Ominimal" CC_HAS_OMINIMAL)
+  check_c_compiler_flag("-ffunction-sections -fdata-sections" CC_HAS_SECTIONS)
 
   #
   # Check for an omp support
@@ -375,6 +376,12 @@ macro(setup_compile_flags)
 
   if(CC_HAS_WNO_UNKNOWN_PRAGMAS AND NOT HAVE_OPENMP)
     add_compile_flags("C;CXX" -Wno-unknown-pragmas)
+  endif()
+
+  if(CC_HAS_SECTIONS)
+    add_compile_flags("C;CXX" -ffunction-sections -fdata-sections)
+  elseif(MSVC)
+    add_compile_flags("C;CXX" /Gy)
   endif()
 
   # We must set -fno-omit-frame-pointer here, since we rely
