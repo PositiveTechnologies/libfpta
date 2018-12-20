@@ -86,16 +86,11 @@ set_target_properties(fpta PROPERTIES
   )
 
 target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-  target_link_libraries(fpta
-    LINK_PRIVATE fptu mdbx t1ha
-    LINK_PUBLIC ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
-else()
-  target_link_libraries(fpta fptu mdbx t1ha
-    ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
-  if(UNIX AND NOT APPLE)
-    target_link_libraries(fpta rt)
-  endif()
+target_link_libraries(fpta
+  PRIVATE fptu mdbx $<TARGET_OBJECTS:t1ha>
+  PUBLIC ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
+if(UNIX AND NOT APPLE)
+  target_link_libraries(fpta LINK_PUBLIC rt)
 endif()
 
 if(CC_HAS_VISIBILITY)

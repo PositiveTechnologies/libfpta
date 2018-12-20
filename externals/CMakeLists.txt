@@ -5,7 +5,7 @@ add_subdirectory(libfptu/test)
 
 ###############################################################################
 
-add_library(t1ha STATIC t1ha/t1ha.h t1ha/src/t1ha2.c t1ha/src/t1ha_selfcheck.c t1ha/src/t1ha2_selfcheck.c)
+add_library(t1ha OBJECT t1ha/t1ha.h t1ha/src/t1ha2.c t1ha/src/t1ha_selfcheck.c t1ha/src/t1ha2_selfcheck.c)
 
 target_compile_definitions(t1ha PRIVATE t1ha_EXPORTS T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>)
 
@@ -47,6 +47,7 @@ set_target_properties(mdbx PROPERTIES
   )
 
 install(TARGETS t1ha mdbx
+  OBJECTS DESTINATION lib/static COMPONENT devel
   ARCHIVE DESTINATION lib/static COMPONENT devel
   PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
   PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
