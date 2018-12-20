@@ -58,13 +58,15 @@ else()
   set(FPTU_VERSION "unversioned")
 endif()
 
-if(LIBFPTU_STATIC)
-  set(LIBFPTU_TYPE STATIC)
-else()
-  set(LIBFPTU_TYPE SHARED)
+if(NOT LIBFPTU_TYPE)
+  if(BUILD_SHARED_LIBS)
+    set(LIBFPTU_TYPE SHARED)
+  else()
+    set(LIBFPTU_TYPE STATIC)
+  endif()
 endif()
 
-add_library(fptu ${LIBFPTU_TYPE}
+set(LIBFPTU_SOURCES
   ${FAST_POSITIVE_CONFIG_H}
   ../fast_positive/defs.h
   ../fast_positive/tuples.h
@@ -90,7 +92,18 @@ add_library(fptu ${LIBFPTU_TYPE}
   json_parse.cxx
   ${CMAKE_CURRENT_BINARY_DIR}/version.cxx)
 
-set_target_properties(fptu PROPERTIES
+if(LIBFPTU_TYPE STREQUAL "PILE")
+  add_library(fptu_objects OBJECT ${LIBFPTU_SOURCES})
+  add_library(fptu INTERFACE)
+  target_compile_features(fptu_objects INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
+  target_link_libraries(fptu INTERFACE $<TARGET_OBJECTS:fptu_objects>)
+  set(fptu_target fptu_objects)
+else()
+  add_library(fptu ${LIBFPTU_TYPE} ${LIBFPTU_SOURCES})
+  set(fptu_target fptu)
+endif()
+
+set_target_properties(${fptu_target} PROPERTIES
   PROJECT_LABEL "Fast Positive Tuples"
   FRAMEWORK TRUE
   VERSION "${FPTU_VERSION}"
@@ -103,47 +116,30 @@ set_target_properties(fptu PROPERTIES
   C_STANDARD_REQUIRED OFF
   )
 
-target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
-target_link_libraries(fptu ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
-
-if(UNIX AND NOT APPLE)
-  target_link_libraries(fptu rt)
-endif()
-
 if(CC_HAS_VISIBILITY)
-  if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-    target_compile_options(fptu PRIVATE "-fvisibility=hidden")
-  else()
-    set_target_properties(fptu PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
-  endif()
+  target_compile_options(${fptu_target} PRIVATE "-fvisibility=hidden")
   if(LTO_ENABLED OR INTERPROCEDURAL_OPTIMIZATION)
-    set_target_properties(fptu PROPERTIES LINK_FLAGS "-fvisibility=hidden")
+    set_target_properties(${fptu_target} PROPERTIES LINK_FLAGS "-fvisibility=hidden")
   endif()
 endif()
 
-if(NOT LIBFPTU_STATIC)
-  target_compile_definitions(fptu PRIVATE "-Dfptu_EXPORTS")
-else()
-  target_compile_definitions(fptu PRIVATE "-Dfptu_STATIC")
+target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
+target_link_libraries(fptu INTERFACE ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
+if(UNIX AND NOT APPLE)
+  target_link_libraries(fptu INTERFACE rt)
 endif()
 
-if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-  install(TARGETS fptu
-    LIBRARY DESTINATION lib COMPONENT runtime
-    RUNTIME DESTINATION lib COMPONENT runtime
-    ARCHIVE DESTINATION lib/static COMPONENT devel
-    PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-    PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-    )
-else()
-  install(TARGETS fptu
-    LIBRARY DESTINATION lib COMPONENT runtime
-    RUNTIME DESTINATION lib COMPONENT runtime
-    ARCHIVE DESTINATION lib/static COMPONENT devel
-    PUBLIC_HEADER DESTINATION include/fast_positive COMPONENT devel
-    PRIVATE_HEADER DESTINATION include/fast_positive COMPONENT devel
-    )
+if(LIBFPTU_TYPE STREQUAL "SHARED")
+  target_compile_definitions(${fptu_target} PRIVATE "fptu_EXPORTS" INTERFACE "fptu_IMPORTS")
 endif()
+
+install(TARGETS fptu
+  LIBRARY DESTINATION lib COMPONENT runtime
+  RUNTIME DESTINATION lib COMPONENT runtime
+  ARCHIVE DESTINATION lib/static COMPONENT devel
+  PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+  PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+  )
 
 ###############################################################################
 #
@@ -151,7 +147,7 @@ endif()
 #
 
 # get definitions as a string of "-Dxyz=124 ..."
-get_target_property(FPTU_DEFINITIONS fptu COMPILE_DEFINITIONS)
+get_target_property(FPTU_DEFINITIONS ${fptu_target} COMPILE_DEFINITIONS)
 if(NOT FPTU_DEFINITIONS)
   set(FPTU_DEFINITIONS "")
 endif()
@@ -160,7 +156,7 @@ string(REGEX REPLACE "([^;]+)" " -D\\1" FPTU_DEFINITIONS "${FPTU_DEFINITIONS}")
 string(STRIP FPTU_DEFINITIONS "${FPTU_DEFINITIONS}")
 
 # get target compile options as a list
-get_target_property(fptu_compile_options fptu COMPILE_OPTIONS)
+get_target_property(fptu_compile_options ${fptu_target} COMPILE_OPTIONS)
 if(NOT fptu_compile_options)
   set(fptu_compile_options "")
 endif()
@@ -178,7 +174,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # append linker dll's options
-if(NOT LIBFPTU_STATIC)
+if(LIBFPTU_TYPE STREQUAL "SHARED")
   string(REPLACE " " ";" cmake_shared_linker_options "${CMAKE_SHARED_LINKER_FLAGS}")
   list(APPEND fptu_compile_options ${cmake_shared_linker_options})
   unset(cmake_shared_linker_options)

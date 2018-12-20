@@ -31,7 +31,7 @@
 ##  в том числе при размещении в разделяемой памяти.
 ##
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.8.2)
 cmake_policy(SET CMP0054 NEW)
 
 if(DEFINED PROJECT_NAME)
@@ -263,12 +263,6 @@ endif(NOT SUBPROJECT)
 #######################################################################
 
 find_package(Threads REQUIRED)
-
-if(BUILD_SHARED_LIBS)
-  set(LIBFPTU_STATIC FALSE)
-else()
-  set(LIBFPTU_STATIC TRUE)
-endif()
 
 if(PROVIDE_VERSIONINFO)
   set(HAVE_FPTU_VERSIONINFO TRUE)

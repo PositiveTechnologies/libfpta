@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
@@ -31,7 +31,7 @@
 
 #if FPTU_VERSION_MAJOR != ${FPTU_VERSION_MAJOR} ||                             \
     FPTU_VERSION_MINOR != ${FPTU_VERSION_MINOR}
-#error "API version mismatch!"
+#error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
 /*FPTU_API*/ const fptu_version_info fptu_version = {

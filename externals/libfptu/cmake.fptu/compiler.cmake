@@ -1,4 +1,4 @@
-#
+﻿#
 # Check if the same compile family is used for both C and CXX
 #
 if(NOT (CMAKE_C_COMPILER_ID STREQUAL CMAKE_CXX_COMPILER_ID))
@@ -126,6 +126,7 @@ else()
   check_c_compiler_flag("-Og" CC_HAS_DEBUG_FRENDLY_OPTIMIZATION)
   check_c_compiler_flag("-Wall" CC_HAS_WALL)
   check_c_compiler_flag("-Ominimal" CC_HAS_OMINIMAL)
+  check_c_compiler_flag("-ffunction-sections -fdata-sections" CC_HAS_SECTIONS)
 
   #
   # Check for an omp support
@@ -165,11 +166,7 @@ if(CMAKE_COMPILER_IS_GNUCC)
       endif()
     endif()
 
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      get_filename_component(gcc_dir ${CMAKE_C_COMPILER} DIRECTORY)
-    else()
-      get_filename_component(gcc_dir ${CMAKE_C_COMPILER} PATH)
-    endif()
+    get_filename_component(gcc_dir ${CMAKE_C_COMPILER} DIRECTORY)
     if(NOT CMAKE_GCC_AR)
       find_program(CMAKE_GCC_AR NAMES gcc${gcc_suffix}-ar gcc-ar${gcc_suffix} PATHS ${gcc_dir} NO_DEFAULT_PATH)
     endif()
@@ -379,6 +376,12 @@ macro(setup_compile_flags)
 
   if(CC_HAS_WNO_UNKNOWN_PRAGMAS AND NOT HAVE_OPENMP)
     add_compile_flags("C;CXX" -Wno-unknown-pragmas)
+  endif()
+
+  if(CC_HAS_SECTIONS)
+    add_compile_flags("C;CXX" -ffunction-sections -fdata-sections)
+  elseif(MSVC)
+    add_compile_flags("C;CXX" /Gy)
   endif()
 
   # We must set -fno-omit-frame-pointer here, since we rely
