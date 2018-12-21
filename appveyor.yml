@@ -59,6 +59,7 @@ build_script:
     Write-Output "*******************************************************************************"
 
     & cmake --build . --config $env:CONFIGURATION
+    & cmake --build . --config $env:CONFIGURATION
     if ($LastExitCode -ne 0) {
         throw "Exec: $ErrorMessage"
     }
