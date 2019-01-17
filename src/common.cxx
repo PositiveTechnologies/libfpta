@@ -479,3 +479,25 @@ int fpta_internal_abort(fpta_txn *txn, int errnum, bool txn_maybe_dead) {
   txn->mdbx_txn = nullptr;
   return errnum;
 }
+
+MDBX_env *fpta_mdbx_env(fpta_db *db) {
+  return likely(fpta_db_validate(db)) ? db->mdbx_env : nullptr;
+}
+
+MDBX_txn *fpta_mdbx_txn(fpta_txn *txn) {
+  return likely(fpta_txn_validate(txn, fpta_read) == FPTA_SUCCESS)
+             ? txn->mdbx_txn
+             : nullptr;
+}
+
+int fpta_transaction_lag(fpta_txn *txn, unsigned *lag, unsigned *percent) {
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (unlikely(!lag))
+    return FPTA_EINVAL;
+
+  *lag = mdbx_txn_straggler(txn->mdbx_txn, (int *)percent);
+  return MDBX_SUCCESS;
+}
