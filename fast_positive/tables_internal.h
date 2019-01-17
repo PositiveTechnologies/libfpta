@@ -342,7 +342,6 @@ struct fpta_txn {
   int unused_gap;
   uint64_t db_version;
   mdbx_canary canary;
-  fpta_schema_info *schema_info;
 
   uint64_t &schema_tsn() { return canary.x; }
   uint64_t &db_sequence() { return canary.y; }

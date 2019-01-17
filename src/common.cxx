@@ -256,7 +256,7 @@ int fpta_transaction_begin(fpta_db *db, fpta_level level, fpta_txn **ptxn) {
 
   int err = fpta_db_lock(db, level);
   if (unlikely(err != 0))
-    return (fpta_error)err;
+    return err;
 
   int rc = FPTA_ENOMEM;
   fpta_txn *txn = fpta_txn_alloc(db, level);
@@ -315,7 +315,7 @@ bailout:
   (void)err;
   fpta_txn_free(db, txn);
   *ptxn = nullptr;
-  return (fpta_error)rc;
+  return rc;
 }
 
 int fpta_transaction_end(fpta_txn *txn, bool abort) {
@@ -344,10 +344,6 @@ cancelled:
   int err = fpta_db_unlock(txn->db, txn->level);
   assert(err == 0);
   (void)err;
-  if (unlikely(txn->schema_info)) {
-    fpta_schema_destroy(txn->schema_info);
-    txn->schema_info = nullptr;
-  }
   fpta_txn_free(txn->db, txn);
 
   return (fpta_error)rc;
