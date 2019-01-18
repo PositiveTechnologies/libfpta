@@ -579,7 +579,7 @@ int fpta_cursor_locate(fpta_cursor *cursor, bool exactly, const fpta_value *key,
       if (!mdbx_seek_data) {
         /* Поиск без уточнения по дубликатам. Если индекс допускает
          * дубликаты, то следует перейти к последнему, что будет
-         * сделао ниже. */
+         * сделано ниже. */
         break;
       }
 
