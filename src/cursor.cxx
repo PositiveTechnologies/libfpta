@@ -1145,3 +1145,51 @@ int fpta_cursor_info(fpta_cursor *cursor, fpta_cursor_stat *stat) {
 
   return FPTA_SUCCESS;
 }
+
+int fpta_cursor_rerere(fpta_cursor *cursor) {
+  int rc = fpta_cursor_validate(cursor, fpta_read);
+  if (unlikely(rc != FPTA_SUCCESS))
+    return rc;
+
+  if (unlikely(!cursor->is_filled()))
+    return cursor->unladed_state();
+
+  MDBX_val save_key, save_data;
+  rc = mdbx_cursor_get(cursor->mdbx_cursor, &save_key, &save_data,
+                       MDBX_GET_CURRENT);
+  if (unlikely(rc != FPTA_SUCCESS)) {
+    cursor->set_poor();
+    return rc;
+  }
+
+  save_key.iov_base = save_key.iov_len
+                          ? memcpy(alloca(save_key.iov_len), save_key.iov_base,
+                                   save_key.iov_len)
+                          : nullptr;
+
+  if (!fpta_index_is_unique(cursor->index_shove()))
+    save_data.iov_base = save_data.iov_len
+                             ? memcpy(alloca(save_data.iov_len),
+                                      save_data.iov_base, save_data.iov_len)
+                             : nullptr;
+
+  rc = fpta_transaction_restart(cursor->txn);
+  if (likely(rc == FPTA_SUCCESS))
+    rc = mdbx_cursor_renew(cursor->txn->mdbx_txn, cursor->mdbx_cursor);
+  if (unlikely(rc != FPTA_SUCCESS)) {
+    mdbx_cursor_close(cursor->mdbx_cursor);
+    cursor->mdbx_cursor = nullptr;
+    cursor->set_poor();
+    return rc;
+  }
+
+  const MDBX_cursor_op seek_op = fpta_index_is_unique(cursor->index_shove())
+                                     ? MDBX_SET_RANGE
+                                     : MDBX_GET_BOTH_RANGE;
+  const MDBX_val *seek_data =
+      fpta_index_is_unique(cursor->index_shove()) ? nullptr : &save_data;
+  return fpta_cursor_seek(
+      cursor, seek_op,
+      fpta_cursor_is_descending(cursor->options) ? MDBX_PREV : MDBX_NEXT,
+      &save_key, seek_data);
+}
