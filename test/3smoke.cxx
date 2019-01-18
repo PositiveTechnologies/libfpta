@@ -107,7 +107,7 @@ TEST(SmokeIndex, Primary) {
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_a));
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_b));
 
-  // проверяем иформацию о таблице (сейчас таблица пуста)
+  // проверяем информацию о таблице (сейчас таблица пуста)
   size_t row_count;
   fpta_table_stat stat;
   memset(&row_count, 42, sizeof(row_count));
@@ -185,7 +185,7 @@ TEST(SmokeIndex, Primary) {
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(2u, count);
 
-  // снова проверяем иформацию о таблице (сейчас в таблице две строки)
+  // снова проверяем информацию о таблице (сейчас в таблице две строки)
   memset(&row_count, 42, sizeof(row_count));
   memset(&stat, 42, sizeof(stat));
   EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table, &row_count, &stat));
