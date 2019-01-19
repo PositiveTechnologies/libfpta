@@ -4095,6 +4095,8 @@ TEST(Smoke, Migration) {
 //----------------------------------------------------------------------------
 
 TEST(SmokeComposite, SimilarValuesPrimary) {
+  /* Тривиальный тест вставки двух строк с составным первичным индексом. Причем
+   * среди полей, входящих в составной индекс, отличие только в одном. */
   const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
   if (skipped)
     return;
@@ -4199,14 +4201,11 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
   ASSERT_STREQ(nullptr, fptu_check(pt1));
   fptu_time datetime;
   datetime.fixedpoint = 1492170771;
-
-  // ради проверки пытаемся сделать нехорошее (добавить поля с нарушениями)
   EXPECT_EQ(FPTA_OK,
             fpta_upsert_column(pt1, &col_service_id, fpta_value_sint(0)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_last_changed,
                                         fpta_value_datetime(datetime)));
   EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_cpu, fpta_value_sint(1)));
-  // All good on 24 A, bad on 25
   EXPECT_EQ(FPTA_OK,
             fpta_upsert_column(pt1, &col_hoster,
                                fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
@@ -4215,10 +4214,12 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
   EXPECT_EQ(FPTA_OK,
             fpta_upsert_column(pt1, &col_name,
                                fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
-
   ASSERT_STREQ(nullptr, fptu_check(pt1));
 
-  // создаем еще один кортеж для второй записи
+  // создаем еще один кортеж для второй записи, от первой строки отличия:
+  // в полях:
+  //  col_service_id - со вторичным индексом, но не входит в составной.
+  //  col_cpu - не индексируется, но входит в составной индекс.
   fptu_rw *pt2 = fptu_alloc(7, 1000);
   ASSERT_NE(nullptr, pt2);
   ASSERT_STREQ(nullptr, fptu_check(pt2));
@@ -4237,6 +4238,7 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
                                fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
   ASSERT_STREQ(nullptr, fptu_check(pt2));
 
+  // вставляем первую и вторую запись
   EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt1)));
   EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt2)));
 
