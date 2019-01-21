@@ -86,6 +86,7 @@ set_target_properties(fpta PROPERTIES
   )
 
 target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
+add_dependencies(fpta t1ha)
 target_link_libraries(fpta
   PRIVATE fptu mdbx $<TARGET_OBJECTS:t1ha>
   PUBLIC ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
