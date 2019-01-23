@@ -57,6 +57,9 @@ typedef std::unique_ptr<fptu_rw, ptrw_deleter> scoped_ptrw_guard;
 /* простейший медленный тест на простоту */
 bool isPrime(unsigned number);
 
+/* кол-во единичных бит */
+unsigned hamming_weight(unsigned number);
+
 //----------------------------------------------------------------------------
 
 static __inline int value2key(fpta_shove_t shove, const fpta_value &value,

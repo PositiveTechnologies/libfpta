@@ -1150,6 +1150,9 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
+  if (!fpta_index_is_unique(cursor->index_shove()))
+    return FPTA_EINVAL;
+
   if (unlikely(!cursor->is_filled()))
     return cursor->unladed_state();
 

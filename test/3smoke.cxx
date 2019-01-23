@@ -28,6 +28,14 @@ static const char testdb_name[] = TEST_DB_DIR "ut_smoke.fpta";
 static const char testdb_name_lck[] =
     TEST_DB_DIR "ut_smoke.fpta" MDBX_LOCK_SUFFIX;
 
+static std::string random_string(unsigned len) {
+  static std::string alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  std::string result;
+  for (unsigned i = 0; i < len; ++i)
+    result.push_back(alphabet[rand() % alphabet.length()]);
+  return result;
+}
+
 TEST(SmokeIndex, Primary) {
   /* Smoke-проверка жизнеспособности первичных индексов.
    *
@@ -3798,14 +3806,6 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
 
 //----------------------------------------------------------------------------
 
-static std::string random_string(unsigned len) {
-  static std::string alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
-  std::string result;
-  for (unsigned i = 0; i < len; ++i)
-    result.push_back(alphabet[rand() % alphabet.length()]);
-  return result;
-}
-
 TEST(Smoke, Migration) {
   /* Smoke-проверка сценария миграции с уменьшением размера БД.
    *
@@ -4661,6 +4661,261 @@ TEST(Smoke, TransacionRestart) {
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
+
+//----------------------------------------------------------------------------
+
+class Smoke_CursorRERERE
+    : public ::testing::TestWithParam<
+          GTEST_TUPLE_NAMESPACE_::tuple<bool, fpta_cursor_options>> {
+public:
+  fpta_cursor_options ordering;
+  bool with_dups;
+  bool skipped;
+
+  scoped_db_guard rw_db_guard, ro_db_guard;
+  scoped_txn_guard ro_txn_guard;
+  scoped_cursor_guard cursor_guard;
+  fptu::tuple_ptr tuple;
+
+  fpta_name rw_table, rw_col_pk;
+  fpta_name ro_table, ro_col_pk;
+  fpta_column_set def;
+
+  virtual void SetUp() {
+    with_dups = GTEST_TUPLE_NAMESPACE_::get<0>(GetParam());
+    ordering = GTEST_TUPLE_NAMESPACE_::get<1>(GetParam());
+
+    SCOPED_TRACE("with_dups " + std::to_string(with_dups) + ", ordering " +
+                 std::to_string(ordering));
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
+
+    // чистим
+    if (REMOVE_FILE(testdb_name) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+    if (REMOVE_FILE(testdb_name_lck) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+
+    // инициализируем идентификаторы таблицы и её колонок
+    EXPECT_EQ(FPTA_OK, fpta_table_init(&rw_table, "table"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&rw_table, &rw_col_pk, "pk"));
+    // тоже самое для читающей транзакции
+    EXPECT_EQ(FPTA_OK, fpta_table_init(&ro_table, "table"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&ro_table, &ro_col_pk, "pk"));
+
+    // описываем простейшую таблицу с одним PK
+    fpta_column_set_init(&def);
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "pk", fptu_uint32,
+                           with_dups ? fpta_primary_withdups_ordered_obverse
+                                     : fpta_primary_unique_ordered_obverse,
+                           &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+    // создаем базу
+    fpta_db *db = nullptr;
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    0664, 1, true, &db));
+    ASSERT_NE(nullptr, db);
+    rw_db_guard.reset(db);
+
+    // параллельно открываем базу для чтения
+    db = nullptr;
+    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_readonly,
+                                    fpta_regime_default, 0664, 1, true, &db));
+    ASSERT_NE(nullptr, db);
+    ro_db_guard.reset(db);
+
+    // сразу запускаем транзакцию чтения, дальше будем её только перезапускать
+    fpta_txn *txn = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_transaction_begin(ro_db_guard.get(), fpta_read, &txn));
+    ASSERT_NE(nullptr, txn);
+    ro_txn_guard.reset(txn);
+
+    // создаем кортеж для формирования строк таблицы
+    fptu_rw *pt = fptu_alloc(3, 42);
+    ASSERT_NE(nullptr, pt);
+    tuple.reset(pt);
+  }
+
+  virtual void TearDown() {
+    if (skipped)
+      return;
+
+    // закрываем курсор и завершаем транзакцию чтения
+    if (cursor_guard) {
+      EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    }
+    if (ro_txn_guard) {
+      ASSERT_EQ(FPTA_OK, fpta_transaction_end(ro_txn_guard.release(), true));
+    }
+
+    // разрушаем привязанные идентификаторы
+    fpta_name_destroy(&rw_table);
+    fpta_name_destroy(&rw_col_pk);
+    fpta_name_destroy(&ro_table);
+    fpta_name_destroy(&ro_col_pk);
+
+    // разрушаем описание таблицы
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+    EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+    // закрываем и удаляем базу
+    if (ro_db_guard) {
+      ASSERT_EQ(FPTA_SUCCESS, fpta_db_close(ro_db_guard.release()));
+    }
+    if (rw_db_guard) {
+      ASSERT_EQ(FPTA_SUCCESS, fpta_db_close(rw_db_guard.release()));
+      ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+      ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+    }
+  }
+
+  void Prepare(const unsigned from, const unsigned to) {
+    scoped_txn_guard rw_txn_guard;
+
+    // запускам транзакцию и создаем таблицу с обозначенным набором колонок
+    fpta_txn *txn = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_transaction_begin(rw_db_guard.get(), fpta_schema, &txn));
+    ASSERT_NE(nullptr, txn);
+    rw_txn_guard.reset(txn);
+
+    // очищаем таблицу, либо создаем если её еще нет
+    int err = fpta_table_clear(txn, &rw_table, true);
+    if (err) {
+      ASSERT_EQ(FPTA_NOTFOUND, err);
+      ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "Table", &def));
+    }
+
+    // наполняем таблицу данными
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &rw_table, &rw_col_pk));
+    EXPECT_EQ(FPTU_OK, fptu_clear(tuple.get()));
+    for (unsigned i = from; i <= to; i++) {
+      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple.get(), &rw_col_pk,
+                                            fpta_value_uint(i)));
+      ASSERT_EQ(FPTA_OK,
+                fpta_insert_row(txn, &rw_table, fptu_take(tuple.get())));
+    }
+    ASSERT_EQ(FPTA_OK, fpta_transaction_commit(rw_txn_guard.release()));
+
+    // перезапускаем транзакцию чтения и открываем курсор
+    ASSERT_EQ(FPTA_OK, fpta_transaction_restart(ro_txn_guard.get()));
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(ro_txn_guard.get(), &ro_col_pk,
+                                        fpta_value_begin(), fpta_value_end(),
+                                        nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей за курсором (в таблице).
+    size_t row_count = ~42u;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &row_count, INT_MAX));
+    EXPECT_EQ(to - from + 1, row_count);
+    // переходим к первой записи
+    EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+  }
+
+  unsigned CurrentKey() {
+    fpta_value key;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor_guard.get(), &key));
+    EXPECT_EQ(fpta_unsigned_int, key.type);
+    return (unsigned)key.uint;
+  }
+
+  void Delete(const unsigned key) {
+    scoped_txn_guard rw_txn_guard;
+    fpta_txn *txn = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_transaction_begin(rw_db_guard.get(), fpta_write, &txn));
+    ASSERT_NE(nullptr, txn);
+    rw_txn_guard.reset(txn);
+    ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple.get(), &rw_col_pk,
+                                          fpta_value_uint(key)));
+    ASSERT_EQ(FPTA_OK, fpta_delete(txn, &rw_table, fptu_take(tuple.get())));
+    ASSERT_EQ(FPTA_OK, fpta_transaction_commit(rw_txn_guard.release()));
+  }
+
+  void Insert(const unsigned key) {
+    scoped_txn_guard rw_txn_guard;
+    fpta_txn *txn = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_transaction_begin(rw_db_guard.get(), fpta_write, &txn));
+    ASSERT_NE(nullptr, txn);
+    rw_txn_guard.reset(txn);
+    ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple.get(), &rw_col_pk,
+                                          fpta_value_uint(key)));
+    ASSERT_EQ(FPTA_OK, fpta_insert_row(txn, &rw_table, fptu_take(tuple.get())));
+    ASSERT_EQ(FPTA_OK, fpta_transaction_commit(rw_txn_guard.release()));
+  }
+};
+
+TEST_P(Smoke_CursorRERERE, basic_following) {
+  /* Smoke-тест "рестарта" курсора с перезапуском читающей транзакции. */
+  if (skipped)
+    return;
+
+  SCOPED_TRACE("with_dups " + std::to_string(with_dups) + ", ordering " +
+               std::to_string(ordering));
+
+  // создаем записи с key = 1, 2, 3, 4, 5
+  Prepare(1, 5);
+  const unsigned first = (ordering == fpta_ascending) ? 1 : 5;
+  const unsigned last = (ordering == fpta_ascending) ? 5 : 1;
+  const unsigned before_first = (ordering == fpta_ascending) ? 0 : 6;
+  const unsigned after_first = (ordering == fpta_ascending) ? 2 : 4;
+  const unsigned before_last = (ordering == fpta_ascending) ? 4 : 2;
+
+  // курсор должен быть на "первой" записи, проверям ключ
+  EXPECT_EQ(first, CurrentKey());
+  // вставляем запись перед первой и передергиваем курсор
+  Insert(before_first);
+  if (with_dups) {
+    // индекс должен быть уникальным
+    EXPECT_EQ(FPTA_EINVAL, fpta_cursor_rerere(cursor_guard.get()));
+  } else {
+    // курсор должен остаться на прежней строке
+    EXPECT_EQ(FPTA_OK, fpta_cursor_rerere(cursor_guard.get()));
+    EXPECT_EQ(first, CurrentKey());
+    // делаем шаг вперед
+    EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor_guard.get(), fpta_next));
+    EXPECT_EQ(after_first, CurrentKey());
+    // удаляем первый ключ, передергиваем курсор и проверяем ключ
+    // курсор должен остаться на прежней строке
+    Delete(first);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_rerere(cursor_guard.get()));
+    EXPECT_EQ(after_first, CurrentKey());
+    // удаляем текущий ключ, передергиваем курсор и проверяем ключ
+    // курсор должен перескочить на следующую запись после удаленной
+    Delete(after_first);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_rerere(cursor_guard.get()));
+    EXPECT_EQ(3u, CurrentKey());
+    // еще раз удаляем, но также вставляем предыдущую запись
+    // курсор должен перескочить на следующую запись после удаленной
+    Delete(3);
+    Insert(after_first);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_rerere(cursor_guard.get()));
+    EXPECT_EQ(before_last, CurrentKey());
+    // удаляем строку после курсора, передергиваем курсор и проверям
+    // позиция курсора должна сохраниться
+    Delete(last);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_rerere(cursor_guard.get()));
+    EXPECT_EQ(before_last, CurrentKey());
+    // удаляем текущую строку и передергиваем курсор, теперь в порядке
+    // сортировке курсора после его предыдущей позиции НЕТ записей (FPTA_NODATA)
+    Delete(before_last);
+    EXPECT_EQ(FPTA_NODATA, fpta_cursor_rerere(cursor_guard.get()));
+  }
+}
+
+INSTANTIATE_TEST_CASE_P(Combine, Smoke_CursorRERERE,
+                        ::testing::Combine(::testing::Bool(),
+                                           ::testing::Values(fpta_ascending,
+                                                             fpta_descending)));
 
 //----------------------------------------------------------------------------
 
