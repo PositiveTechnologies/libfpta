@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2018 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -206,24 +206,25 @@ static int fpta_cursor_seek(fpta_cursor *cursor, MDBX_cursor_op mdbx_seek_op,
        * std::lower_bound() при сортировке по-возрастанию. Поэтому при
        * поиске для курсора с сортировкой в обратном порядке необходимо
        * выполнить махинации:
-       *  - Если ключ в фактически самой последней строке оказался меньше
-       *    искомого, то при результате MDBX_NOTFOUND от mdbx_cursor_get()
-       *    следует к последней строке, что будет соответствовать переходу
-       *    к самой первой позиции при обратной сортировке.
-       *  - Если искомый ключ не найден и курсор стоит на фактически самой
-       *    первой строке, то следует вернуть результат "нет данных", что
-       *    будет соответствовать поведению lower_bound при сортировке
-       *    в обратном порядке.
+       *  - При MDBX_NOTFOUND ключ в самой последней строке (в порядке ключей)
+       *    меньше искомого. Тогда следует перейти к последней строке, что будет
+       *    соответствовать переходу к первой позиции при обратной сортировке.
+       *  - Если ключ в позиции курсора больше искомого, то следует перейти к
+       *    предыдущей строке, что будет соответствовать поведению lower_bound
+       *    при сортировке в обратном порядке.
        *  - Если искомый ключ найден, то перейти к "первой" равной строке
        *    в порядке курсора, что означает перейти к последнему дубликату.
        *    По эстетическим соображениям этот переход реализован не здесь,
        *    а в fpta_cursor_locate().
        */
       if (rc == MDBX_SUCCESS &&
-          mdbx_cursor_on_first(cursor->mdbx_cursor) == MDBX_RESULT_TRUE &&
           mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle, &cursor->current,
-                   mdbx_seek_key) < 0) {
-        goto eof;
+                   mdbx_seek_key) > 0) {
+        rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                             &mdbx_data.sys, MDBX_PREV_NODUP);
+        if (rc == MDBX_SUCCESS && mdbx_seek_op == MDBX_GET_BOTH_RANGE)
+          rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                               &mdbx_data.sys, MDBX_LAST_DUP);
       } else if (rc == MDBX_NOTFOUND &&
                  mdbx_cursor_on_last(cursor->mdbx_cursor) == MDBX_RESULT_TRUE) {
         rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
