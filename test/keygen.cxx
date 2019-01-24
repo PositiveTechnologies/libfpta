@@ -140,3 +140,13 @@ bool isPrime(unsigned number) {
   }
   return true;
 }
+
+/* кол-во единичных бит */
+unsigned hamming_weight(unsigned number) {
+  unsigned count = 0;
+  while (number) {
+    count += number & 1;
+    number >>= 1;
+  }
+  return count;
+}

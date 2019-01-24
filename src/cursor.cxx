@@ -217,24 +217,23 @@ static int fpta_cursor_seek(fpta_cursor *cursor, MDBX_cursor_op mdbx_seek_op,
        * std::lower_bound() при сортировке по-возрастанию. Поэтому при
        * поиске для курсора с сортировкой в обратном порядке необходимо
        * выполнить махинации:
-       *  - Если ключ в фактически самой последней строке оказался меньше
-       *    искомого, то при результате MDBX_NOTFOUND от mdbx_cursor_get()
-       *    следует перейти к последней строке, что будет соответствовать
-       *    переходу к самой первой позиции при обратной сортировке.
-       *  - Если искомый ключ не найден и курсор стоит на фактически самой
-       *    первой строке, то следует вернуть результат "нет данных", что
-       *    будет соответствовать поведению lower_bound при сортировке
-       *    в обратном порядке.
+       *  - При MDBX_NOTFOUND ключ в самой последней строке (в порядке ключей)
+       *    меньше искомого. Тогда следует перейти к последней строке, что будет
+       *    соответствовать переходу к первой позиции при обратной сортировке.
+       *  - Если ключ в позиции курсора больше искомого, то следует перейти к
+       *    предыдущей строке, что будет соответствовать поведению lower_bound
+       *    при сортировке в обратном порядке.
        *  - Если искомый ключ найден, то перейти к "первой" равной строке
        *    в порядке курсора, что означает перейти к последнему дубликату.
        *    По эстетическим соображениям этот переход реализован не здесь,
        *    а в fpta_cursor_locate().
        */
       if (rc == MDBX_SUCCESS &&
-          mdbx_cursor_on_first(cursor->mdbx_cursor) == MDBX_RESULT_TRUE &&
           mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle, &cursor->current,
-                   mdbx_seek_key) < 0) {
-        goto eof;
+                   mdbx_seek_key) > 0) {
+        rc = cursor->bring(&cursor->current, &mdbx_data.sys, MDBX_PREV_NODUP);
+        if (rc == MDBX_SUCCESS && mdbx_seek_op == MDBX_GET_BOTH_RANGE)
+          rc = cursor->bring(&cursor->current, &mdbx_data.sys, MDBX_LAST_DUP);
       } else if (rc == MDBX_NOTFOUND &&
                  mdbx_cursor_on_last(cursor->mdbx_cursor) == MDBX_RESULT_TRUE) {
         rc = cursor->bring(&cursor->current, &mdbx_data.sys, MDBX_LAST);
@@ -593,7 +592,7 @@ int fpta_cursor_locate(fpta_cursor *cursor, bool exactly, const fpta_value *key,
       if (!mdbx_seek_data) {
         /* Поиск без уточнения по дубликатам. Если индекс допускает
          * дубликаты, то следует перейти к последнему, что будет
-         * сделао ниже. */
+         * сделано ниже. */
         break;
       }
 
@@ -1123,7 +1122,7 @@ int fpta_apply_visitor(
 
 //----------------------------------------------------------------------------
 
-FPTA_API int fpta_cursor_info(fpta_cursor *cursor, fpta_cursor_stat *stat) {
+int fpta_cursor_info(fpta_cursor *cursor, fpta_cursor_stat *stat) {
   int rc = fpta_cursor_validate(cursor, fpta_read);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
@@ -1144,4 +1143,61 @@ FPTA_API int fpta_cursor_info(fpta_cursor *cursor, fpta_cursor_stat *stat) {
       (stat->index_scans + stat->index_searches + stat->pk_lookups + 1);
 
   return FPTA_SUCCESS;
+}
+
+int fpta_cursor_rerere(fpta_cursor *cursor) {
+  int rc = fpta_cursor_validate(cursor, fpta_read);
+  if (unlikely(rc != FPTA_SUCCESS))
+    return rc;
+
+  if (!fpta_index_is_unique(cursor->index_shove()))
+    return FPTA_EINVAL;
+
+  if (unlikely(!cursor->is_filled()))
+    return cursor->unladed_state();
+
+  if (unlikely(cursor->txn->level != fpta_read))
+    return FPTA_EPERM;
+
+  if (mdbx_txn_straggler(cursor->txn->mdbx_txn, nullptr) == 0)
+    return FPTA_SUCCESS;
+
+  MDBX_val save_key, save_data;
+  rc = mdbx_cursor_get(cursor->mdbx_cursor, &save_key, &save_data,
+                       MDBX_GET_CURRENT);
+  if (unlikely(rc != FPTA_SUCCESS)) {
+    cursor->set_poor();
+    return rc;
+  }
+
+  save_key.iov_base = save_key.iov_len
+                          ? memcpy(alloca(save_key.iov_len), save_key.iov_base,
+                                   save_key.iov_len)
+                          : nullptr;
+
+  if (!fpta_index_is_unique(cursor->index_shove()))
+    save_data.iov_base = save_data.iov_len
+                             ? memcpy(alloca(save_data.iov_len),
+                                      save_data.iov_base, save_data.iov_len)
+                             : nullptr;
+
+  rc = fpta_transaction_restart(cursor->txn);
+  if (likely(rc == FPTA_SUCCESS))
+    rc = mdbx_cursor_renew(cursor->txn->mdbx_txn, cursor->mdbx_cursor);
+  if (unlikely(rc != FPTA_SUCCESS)) {
+    mdbx_cursor_close(cursor->mdbx_cursor);
+    cursor->mdbx_cursor = nullptr;
+    cursor->set_poor();
+    return rc;
+  }
+
+  const MDBX_cursor_op seek_op = fpta_index_is_unique(cursor->index_shove())
+                                     ? MDBX_SET_RANGE
+                                     : MDBX_GET_BOTH_RANGE;
+  const MDBX_val *seek_data =
+      fpta_index_is_unique(cursor->index_shove()) ? nullptr : &save_data;
+  return fpta_cursor_seek(
+      cursor, seek_op,
+      fpta_cursor_is_descending(cursor->options) ? MDBX_PREV : MDBX_NEXT,
+      &save_key, seek_data);
 }

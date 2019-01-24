@@ -256,7 +256,7 @@ int fpta_transaction_begin(fpta_db *db, fpta_level level, fpta_txn **ptxn) {
 
   int err = fpta_db_lock(db, level);
   if (unlikely(err != 0))
-    return (fpta_error)err;
+    return err;
 
   int rc = FPTA_ENOMEM;
   fpta_txn *txn = fpta_txn_alloc(db, level);
@@ -315,7 +315,7 @@ bailout:
   (void)err;
   fpta_txn_free(db, txn);
   *ptxn = nullptr;
-  return (fpta_error)rc;
+  return rc;
 }
 
 int fpta_transaction_end(fpta_txn *txn, bool abort) {
@@ -344,10 +344,6 @@ cancelled:
   int err = fpta_db_unlock(txn->db, txn->level);
   assert(err == 0);
   (void)err;
-  if (unlikely(txn->schema_info)) {
-    fpta_schema_destroy(txn->schema_info);
-    txn->schema_info = nullptr;
-  }
   fpta_txn_free(txn->db, txn);
 
   return (fpta_error)rc;
@@ -478,4 +474,74 @@ int fpta_internal_abort(fpta_txn *txn, int errnum, bool txn_maybe_dead) {
 
   txn->mdbx_txn = nullptr;
   return errnum;
+}
+
+MDBX_env *fpta_mdbx_env(fpta_db *db) {
+  return likely(fpta_db_validate(db)) ? db->mdbx_env : nullptr;
+}
+
+MDBX_txn *fpta_mdbx_txn(fpta_txn *txn) {
+  return likely(fpta_txn_validate(txn, fpta_read) == FPTA_SUCCESS)
+             ? txn->mdbx_txn
+             : nullptr;
+}
+
+int fpta_transaction_lag(fpta_txn *txn, unsigned *lag, unsigned *percent) {
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (unlikely(!lag))
+    return FPTA_EINVAL;
+
+  *lag = mdbx_txn_straggler(txn->mdbx_txn, (int *)percent);
+  return FPTA_SUCCESS;
+}
+
+int fpta_transaction_restart(fpta_txn *txn) {
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (unlikely(txn->level != fpta_read))
+    return FPTA_EPERM;
+
+  if (mdbx_txn_straggler(txn->mdbx_txn, nullptr) == 0)
+    return FPTA_SUCCESS;
+
+retry:
+  err = mdbx_txn_reset(txn->mdbx_txn);
+  if (likely(err == MDBX_SUCCESS))
+    err = mdbx_txn_renew(txn->mdbx_txn);
+  if (unlikely(err != MDBX_SUCCESS)) {
+  bailout:
+    return fpta_internal_abort(txn, err);
+  }
+
+  err = mdbx_canary_get(txn->mdbx_txn, &txn->canary);
+  if (unlikely(err != MDBX_SUCCESS))
+    goto bailout;
+
+  txn->db_version = mdbx_txn_id(txn->mdbx_txn);
+  assert(txn->schema_tsn() <= txn->db_version);
+
+  if (unlikely(txn->db->schema_tsn != txn->schema_tsn())) {
+    fpta_lock_guard guard;
+    if (txn->level < fpta_schema) {
+      err = guard.lock(&txn->db->dbi_mutex);
+      if (unlikely(err != MDBX_SUCCESS))
+        goto bailout;
+    }
+
+    if (txn->db->schema_tsn > txn->schema_tsn())
+      goto retry;
+
+    err = fpta_dbicache_cleanup(txn, nullptr, true);
+    if (unlikely(err != MDBX_SUCCESS))
+      goto bailout;
+
+    txn->db->schema_tsn = txn->schema_tsn();
+  }
+
+  return FPTA_SUCCESS;
 }
