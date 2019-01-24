@@ -1156,6 +1156,12 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
   if (unlikely(!cursor->is_filled()))
     return cursor->unladed_state();
 
+  if (unlikely(cursor->txn->level != fpta_read))
+    return FPTA_EPERM;
+
+  if (mdbx_txn_straggler(cursor->txn->mdbx_txn, nullptr) == 0)
+    return FPTA_SUCCESS;
+
   MDBX_val save_key, save_data;
   rc = mdbx_cursor_get(cursor->mdbx_cursor, &save_key, &save_data,
                        MDBX_GET_CURRENT);

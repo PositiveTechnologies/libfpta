@@ -495,7 +495,7 @@ int fpta_transaction_lag(fpta_txn *txn, unsigned *lag, unsigned *percent) {
     return FPTA_EINVAL;
 
   *lag = mdbx_txn_straggler(txn->mdbx_txn, (int *)percent);
-  return MDBX_SUCCESS;
+  return FPTA_SUCCESS;
 }
 
 int fpta_transaction_restart(fpta_txn *txn) {
@@ -505,6 +505,9 @@ int fpta_transaction_restart(fpta_txn *txn) {
 
   if (unlikely(txn->level != fpta_read))
     return FPTA_EPERM;
+
+  if (mdbx_txn_straggler(txn->mdbx_txn, nullptr) == 0)
+    return FPTA_SUCCESS;
 
 retry:
   err = mdbx_txn_reset(txn->mdbx_txn);
@@ -540,5 +543,5 @@ retry:
     txn->db->schema_tsn = txn->schema_tsn();
   }
 
-  return MDBX_SUCCESS;
+  return FPTA_SUCCESS;
 }
