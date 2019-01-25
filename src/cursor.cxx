@@ -213,18 +213,24 @@ static int fpta_cursor_seek(fpta_cursor *cursor, MDBX_cursor_op mdbx_seek_op,
        *    предыдущей строке, что будет соответствовать поведению lower_bound
        *    при сортировке в обратном порядке.
        *  - Если искомый ключ найден, то перейти к "первой" равной строке
-       *    в порядке курсора, что означает перейти к последнему дубликату.
-       *    По эстетическим соображениям этот переход реализован не здесь,
-       *    а в fpta_cursor_locate().
+       *    в порядке курсора, что означает перейти к последнему дубликату,
+       *    либо к предыдущему дубликату.
        */
-      if (rc == MDBX_SUCCESS &&
-          mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle, &cursor->current,
-                   mdbx_seek_key) > 0) {
-        rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
-                             &mdbx_data.sys, MDBX_PREV_NODUP);
-        if (rc == MDBX_SUCCESS && mdbx_seek_op == MDBX_GET_BOTH_RANGE)
+      if (rc == MDBX_SUCCESS) {
+        const auto cmp = mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle,
+                                  &cursor->current, mdbx_seek_key);
+        if (cmp > 0) {
           rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
-                               &mdbx_data.sys, MDBX_LAST_DUP);
+                               &mdbx_data.sys, MDBX_PREV_NODUP);
+          if (rc == MDBX_SUCCESS && mdbx_seek_op == MDBX_GET_BOTH_RANGE)
+            rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                                 &mdbx_data.sys, MDBX_LAST_DUP);
+        } else if (cmp == 0 && mdbx_seek_op == MDBX_GET_BOTH_RANGE &&
+                   mdbx_dcmp(cursor->txn->mdbx_txn, cursor->idx_handle,
+                             &mdbx_data.sys, mdbx_seek_data) > 0) {
+          rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                               &mdbx_data.sys, MDBX_PREV);
+        }
       } else if (rc == MDBX_NOTFOUND &&
                  mdbx_cursor_on_last(cursor->mdbx_cursor) == MDBX_RESULT_TRUE) {
         rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
