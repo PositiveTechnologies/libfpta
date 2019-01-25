@@ -1155,9 +1155,6 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  if (!fpta_index_is_unique(cursor->index_shove()))
-    return FPTA_EINVAL;
-
   if (unlikely(!cursor->is_filled()))
     return cursor->unladed_state();
 
@@ -1189,20 +1186,30 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
   rc = fpta_transaction_restart(cursor->txn);
   if (likely(rc == FPTA_SUCCESS))
     rc = mdbx_cursor_renew(cursor->txn->mdbx_txn, cursor->mdbx_cursor);
-  if (unlikely(rc != FPTA_SUCCESS)) {
+  if (unlikely(rc != MDBX_SUCCESS)) {
     mdbx_cursor_close(cursor->mdbx_cursor);
     cursor->mdbx_cursor = nullptr;
     cursor->set_poor();
     return rc;
   }
 
-  const MDBX_cursor_op seek_op = fpta_index_is_unique(cursor->index_shove())
-                                     ? MDBX_SET_RANGE
-                                     : MDBX_GET_BOTH_RANGE;
-  const MDBX_val *seek_data =
-      fpta_index_is_unique(cursor->index_shove()) ? nullptr : &save_data;
-  return fpta_cursor_seek(
-      cursor, seek_op,
-      fpta_cursor_is_descending(cursor->options) ? MDBX_PREV : MDBX_NEXT,
-      &save_key, seek_data);
+  const MDBX_cursor_op step_op =
+      fpta_cursor_is_descending(cursor->options) ? MDBX_PREV : MDBX_NEXT;
+  MDBX_cursor_op seek_op = MDBX_SET_RANGE;
+  MDBX_val *seek_data = nullptr;
+  if (!fpta_index_is_unique(cursor->index_shove())) {
+    /* Для индекса без уникальности сначала нужно проверить что есть
+     * сохраненный ключ. Если ключ есть, то продолжить искать ближайшую строку
+     * к сохраненным данным. */
+    rc = fpta_cursor_seek(cursor, seek_op, step_op, &save_key, nullptr);
+    if (rc != FPTA_SUCCESS ||
+        mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle, &cursor->current,
+                 &save_key) != 0)
+      return rc;
+
+    seek_op = MDBX_GET_BOTH_RANGE;
+    seek_data = &save_data;
+  }
+
+  return fpta_cursor_seek(cursor, seek_op, step_op, &save_key, seek_data);
 }
