@@ -1155,43 +1155,45 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  if (unlikely(!cursor->is_filled()))
-    return cursor->unladed_state();
-
-  if (unlikely(cursor->txn->level != fpta_read))
-    return FPTA_EPERM;
-
-  if (mdbx_txn_straggler(cursor->txn->mdbx_txn, nullptr) == 0)
+  if (cursor->txn->level > fpta_read ||
+      mdbx_txn_straggler(cursor->txn->mdbx_txn, nullptr) == 0)
+    /* ничего не делаем для пишущих транзакций, либо если нет отставания */
     return FPTA_SUCCESS;
 
   MDBX_val save_key, save_data;
-  rc = mdbx_cursor_get(cursor->mdbx_cursor, &save_key, &save_data,
-                       MDBX_GET_CURRENT);
-  if (unlikely(rc != FPTA_SUCCESS)) {
-    cursor->set_poor();
-    return rc;
+  /* запоминаем позицию только если курсор установлен */
+  if (likely(cursor->is_filled())) {
+    rc = mdbx_cursor_get(cursor->mdbx_cursor, &save_key, &save_data,
+                         MDBX_GET_CURRENT);
+    if (likely(rc == FPTA_SUCCESS)) {
+      save_key.iov_base = save_key.iov_len
+                              ? memcpy(alloca(save_key.iov_len),
+                                       save_key.iov_base, save_key.iov_len)
+                              : nullptr;
+
+      if (!fpta_index_is_unique(cursor->index_shove()))
+        save_data.iov_base = save_data.iov_len
+                                 ? memcpy(alloca(save_data.iov_len),
+                                          save_data.iov_base, save_data.iov_len)
+                                 : nullptr;
+    }
   }
 
-  save_key.iov_base = save_key.iov_len
-                          ? memcpy(alloca(save_key.iov_len), save_key.iov_base,
-                                   save_key.iov_len)
-                          : nullptr;
+  /* всегда перезапускаем транзакцию и собираем ошибки */
+  int err = fpta_transaction_restart(cursor->txn);
+  rc = (err == MDBX_SUCCESS) ? rc : err;
 
-  if (!fpta_index_is_unique(cursor->index_shove()))
-    save_data.iov_base = save_data.iov_len
-                             ? memcpy(alloca(save_data.iov_len),
-                                      save_data.iov_base, save_data.iov_len)
-                             : nullptr;
+  /* всегда обновляем курсор и собираем ошибки */
+  err = mdbx_cursor_renew(cursor->txn->mdbx_txn, cursor->mdbx_cursor);
+  rc = (err == MDBX_SUCCESS) ? rc : err;
 
-  rc = fpta_transaction_restart(cursor->txn);
-  if (likely(rc == FPTA_SUCCESS))
-    rc = mdbx_cursor_renew(cursor->txn->mdbx_txn, cursor->mdbx_cursor);
   if (unlikely(rc != MDBX_SUCCESS)) {
-    mdbx_cursor_close(cursor->mdbx_cursor);
-    cursor->mdbx_cursor = nullptr;
     cursor->set_poor();
     return rc;
   }
+
+  if (unlikely(!cursor->is_filled()))
+    return cursor->unladed_state();
 
   const MDBX_cursor_op step_op =
       fpta_cursor_is_descending(cursor->options) ? MDBX_PREV : MDBX_NEXT;
