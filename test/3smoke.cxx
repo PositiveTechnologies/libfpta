@@ -189,8 +189,15 @@ TEST(SmokeIndex, Primary) {
                              nullptr, fpta_unsorted_dont_fetch, &cursor));
   ASSERT_NE(nullptr, cursor);
 
-  // узнам сколько записей за курсором (в таблице).
+  // узнам сколько записей за курсором (в таблице),
+  // попутно проверяем fpta_cursor_count() с лимитами.
   size_t count;
+  ASSERT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, 0));
+  EXPECT_EQ(0u, count);
+  ASSERT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, 1));
+  EXPECT_EQ(1u, count);
+  ASSERT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, 2));
+  EXPECT_EQ(2u, count);
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(2u, count);
 
