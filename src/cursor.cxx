@@ -674,7 +674,7 @@ int fpta_cursor_count(fpta_cursor *cursor, size_t *pcount, size_t limit) {
     rc = fpta_cursor_move(cursor, fpta_next);
   }
 
-  if (rc == FPTA_NODATA) {
+  if (rc == FPTA_SUCCESS || rc == FPTA_NODATA) {
     *pcount = count;
     rc = FPTA_SUCCESS;
   }
