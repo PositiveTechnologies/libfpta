@@ -33,6 +33,9 @@
 
 cmake_minimum_required(VERSION 3.8.2)
 cmake_policy(SET CMP0054 NEW)
+if(NOT CMAKE_VERSION VERSION_LESS 3.12)
+  cmake_policy(SET CMP0075 NEW)
+endif()
 
 if(DEFINED PROJECT_NAME)
   set(SUBPROJECT ON)
