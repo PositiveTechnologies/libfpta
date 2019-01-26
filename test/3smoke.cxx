@@ -5092,6 +5092,154 @@ INSTANTIATE_TEST_CASE_P(
 
 //----------------------------------------------------------------------------
 
+TEST(Smoke, CursorRERERE_drop_table) {
+  /* Smoke-тест удаления таблицы "из-под курсора" с перезапуском
+   * читающей транзакции и курсора. */
+
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // создаем базу
+  fpta_db *rw_db = nullptr;
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0664, 1, true, &rw_db));
+  ASSERT_NE(nullptr, rw_db);
+
+  // параллельно открываем базу для чтения
+  fpta_db *ro_db = nullptr;
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_readonly,
+                                  fpta_regime_default, 0664, 1, true, &ro_db));
+  ASSERT_NE(nullptr, ro_db);
+  // сразу запускаем транзакцию чтения
+  fpta_txn *ro_txn = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(ro_db, fpta_read, &ro_txn));
+  ASSERT_NE(nullptr, ro_txn);
+  uint64_t initial_db_version = 42, initial_schema_version = 42;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_versions(ro_txn, &initial_db_version,
+                                               &initial_schema_version));
+  EXPECT_NE(0u, initial_db_version);
+  EXPECT_EQ(0u, initial_schema_version);
+
+  // инициализируем идентификаторы таблицы и её колонок
+  fpta_name rw_table, rw_col_pk;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&rw_table, "table"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&rw_table, &rw_col_pk, "pk_str_uniq"));
+  // тоже самое для читающей транзакции
+  fpta_name ro_table, ro_col_pk;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&ro_table, "table"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&ro_table, &ro_col_pk, "pk_str_uniq"));
+
+  // запускам транзакцию и создаем таблицу с обозначенным набором колонок
+  fpta_txn *rw_txn = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(rw_db, fpta_schema, &rw_txn));
+  ASSERT_NE(nullptr, rw_txn);
+  // описываем простейшую таблицу с одним PK
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("pk_str_uniq", fptu_cstr,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+  EXPECT_EQ(FPTA_OK, fpta_table_create(rw_txn, "Table", &def));
+  ASSERT_EQ(FPTA_OK, fpta_transaction_commit(rw_txn));
+  rw_txn = nullptr;
+  // разрушаем описание таблицы
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  // в запущенной читающей транзакции таблицы еще не должно быть
+  unsigned lag = ~42u;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_lag(ro_txn, &lag, nullptr));
+  EXPECT_EQ(1u, lag);
+  scoped_cursor_guard cursor_guard;
+  fpta_cursor *cursor = (fpta_cursor *)&cursor;
+  EXPECT_EQ(FPTA_NOTFOUND,
+            fpta_cursor_open(ro_txn, &ro_col_pk, fpta_value_begin(),
+                             fpta_value_end(), nullptr,
+                             fpta_unsorted_dont_fetch, &cursor));
+  ASSERT_EQ(nullptr, cursor);
+
+  // перезапускаем транзакцию чтения, теперь таблица должна появиться
+  ASSERT_EQ(FPTA_OK, fpta_transaction_restart(ro_txn));
+  EXPECT_EQ(FPTA_OK, fpta_cursor_open(ro_txn, &ro_col_pk, fpta_value_begin(),
+                                      fpta_value_end(), nullptr,
+                                      fpta_unsorted_dont_fetch, &cursor));
+  ASSERT_NE(nullptr, cursor);
+  cursor_guard.reset(cursor);
+  // но данных в таблице пока нет
+  EXPECT_EQ(FPTA_NODATA, fpta_cursor_move(cursor, fpta_first));
+
+  // начинаем транзакцию для вставки данных
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(rw_db, fpta_write, &rw_txn));
+  ASSERT_NE(nullptr, rw_txn);
+
+  // создаем кортеж и наполняем таблицу данными
+  fptu::tuple_ptr tuple;
+  fptu_rw *pt = fptu_alloc(1, 42);
+  ASSERT_NE(nullptr, pt);
+  tuple.reset(pt);
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(rw_txn, &rw_table, &rw_col_pk));
+  for (int i = 0; i < 42; i++) {
+    ASSERT_EQ(FPTA_OK, fpta_upsert_column(pt, &rw_col_pk,
+                                          fpta_value_str(random_string(21))));
+    ASSERT_EQ(FPTA_OK, fpta_insert_row(rw_txn, &rw_table, fptu_take(pt)));
+  }
+
+  // завершаем транзакцию записи
+  ASSERT_EQ(FPTA_OK, fpta_transaction_commit(rw_txn));
+  rw_txn = nullptr;
+
+  // передергиваем курсор и считаем кол-во записей
+  // ожидаем FPTA_ECURSOR, так как до этого курсор не был установлен
+  // из-за отсутствия данных
+  EXPECT_EQ(FPTA_ECURSOR, fpta_cursor_rerere(cursor));
+  EXPECT_NE(nullptr, cursor->mdbx_cursor);
+  EXPECT_EQ(FPTA_OK, fpta_transaction_lag(ro_txn, &lag, nullptr));
+  EXPECT_EQ(0u, lag);
+  size_t row_count;
+  ASSERT_EQ(FPTA_OK, fpta_cursor_count(cursor, &row_count, INT_MAX));
+  EXPECT_EQ(42u, row_count);
+
+  // удаляем таблицу
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(rw_db, fpta_schema, &rw_txn));
+  ASSERT_NE(nullptr, rw_txn);
+  ASSERT_EQ(FPTA_OK, fpta_table_drop(rw_txn, "table"));
+  ASSERT_EQ(FPTA_OK, fpta_transaction_commit(rw_txn));
+  rw_txn = nullptr;
+
+  // в запущенной читающей транзакции таблица должа остаться
+  EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+  // передергиваем курсор, теперь таблица должна пропасть
+  ASSERT_EQ(FPTA_BAD_DBI, fpta_cursor_rerere(cursor));
+  EXPECT_NE(nullptr, cursor->mdbx_cursor);
+  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+
+  // завершаем транзакцию чтения
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(ro_txn, false));
+  ro_txn = nullptr;
+
+  // разрушаем привязанные идентификаторы
+  fpta_name_destroy(&rw_table);
+  fpta_name_destroy(&rw_col_pk);
+  fpta_name_destroy(&ro_table);
+  fpta_name_destroy(&ro_col_pk);
+
+  // закрываем базу
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(rw_db));
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(ro_db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
