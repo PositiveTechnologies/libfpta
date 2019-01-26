@@ -374,6 +374,7 @@ TEST(Schema, Base) {
 
   EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def2));
   EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def2));
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   //------------------------------------------------------------------------
   // проверяем наличие второй таблицы и обновляем описание первой

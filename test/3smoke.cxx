@@ -3039,6 +3039,7 @@ TEST(Smoke, Kamerades) {
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(commander_db, fpta_schema, &txn));
     ASSERT_NE(nullptr, txn);
     EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_1", &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
     txn = nullptr;
 
@@ -3216,6 +3217,7 @@ TEST(Smoke, OverchargeOnCommit) {
   ASSERT_NE(nullptr, txn);
 
   EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "Table", &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   txn = nullptr;
 
@@ -3750,6 +3752,7 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
   ASSERT_NE(nullptr, txn);
 
   EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "some_table", &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   txn = nullptr;
 

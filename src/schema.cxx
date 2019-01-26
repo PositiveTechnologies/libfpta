@@ -889,6 +889,7 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
         break;
       }
       static_assert(sizeof(info->dict_ptr) == sizeof(void *), "expect equal");
+      assert(info->dict_ptr == nullptr);
       info->dict_ptr = new fpta_schema_info::dict() /* FIXME: std::bad_alloc */;
       if (unlikely(!info->dict_ptr)) {
         rc = FPTA_ENOMEM;
