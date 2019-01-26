@@ -764,6 +764,10 @@ static constexpr unsigned column_set_signature =
     1543140327 /* Вс ноя 25 15:10:11 MSK 2018 */;
 
 void fpta_column_set_init(fpta_column_set *column_set) {
+  VALGRIND_MAKE_MEM_DEFINED(&column_set->signature,
+                            sizeof(column_set->signature));
+  VALGRIND_MAKE_MEM_DEFINED(&column_set->dict_ptr,
+                            sizeof(column_set->dict_ptr));
   assert(column_set->signature != column_set_signature ||
          column_set->dict_ptr == nullptr);
   column_set->signature = column_set_signature;
