@@ -1,4 +1,4 @@
-﻿## Copyright (c) 2012-2018 Leonid Yuriev <leo@yuriev.ru>.
+﻿## Copyright (c) 2012-2019 Leonid Yuriev <leo@yuriev.ru>.
 ## ZLib License
 ##
 ## This software is provided 'as-is', without any express or implied

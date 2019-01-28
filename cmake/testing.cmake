@@ -1,5 +1,5 @@
 ##
-## Copyright (c) 2012-2018 Leonid Yuriev <leo@yuriev.ru>.
+## Copyright (c) 2012-2019 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ## This software is provided 'as-is', without any express or implied
 ## warranty. In no event will the authors be held liable for any damages

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2004-2018 Leonid Yuriev <leo@yuriev.ru>,
+ * Copyright 2004-2019 Leonid Yuriev <leo@yuriev.ru>,
  * (imported/adapted from another personal project).
  *
  * This file is part of libfptu, aka "Fast Positive Tuples".
