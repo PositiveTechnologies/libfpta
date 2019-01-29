@@ -2270,6 +2270,10 @@ typedef struct fpta_cursor_stat {
  * В случае успеха возвращает ноль, иначе код ошибки. */
 FPTA_API int fpta_cursor_info(fpta_cursor *cursor, fpta_cursor_stat *stat);
 
+/* Обнуляет счётчики в статистике курсора.
+ * В случае успеха возвращает ноль, иначе код ошибки. */
+FPTA_API int fpta_cursor_reset_accounting(fpta_cursor *cursor);
+
 /* Реализует применение паттерна "visitor" к выборке из таблицы.
  *
  * Используя параметры txn, column_id, range_from, range_to, filter и op

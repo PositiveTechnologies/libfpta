@@ -1150,6 +1150,15 @@ int fpta_cursor_info(fpta_cursor *cursor, fpta_cursor_stat *stat) {
   return FPTA_SUCCESS;
 }
 
+int fpta_cursor_reset_accounting(fpta_cursor *cursor) {
+  int rc = fpta_cursor_validate(cursor, fpta_read);
+  if (unlikely(rc != FPTA_SUCCESS))
+    return rc;
+
+  memset(&cursor->metrics, 0, sizeof(cursor->metrics));
+  return FPTA_SUCCESS;
+}
+
 int fpta_cursor_rerere(fpta_cursor *cursor) {
   int rc = fpta_cursor_validate(cursor, fpta_read);
   if (unlikely(rc != FPTA_SUCCESS))
