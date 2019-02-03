@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2015-2018 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -8300,7 +8300,7 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
         if (rc > 0) {
           rc = MDBX_NOTFOUND;
           mc->mc_ki[mc->mc_top]++;
-        } else {
+        } else if (unlikely(rc < 0 || (flags & MDBX_APPENDDUP) == 0)) {
           /* new key is <= last key */
           rc = MDBX_EKEYMISMATCH;
         }
@@ -10882,7 +10882,7 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
        * This yields better packing during sequential inserts.
        */
       int dir;
-      if (nkeys < 20 || nsize > pmax / 16 || newindx >= nkeys) {
+      if (nkeys < 32 || nsize > pmax / 16 || newindx >= nkeys) {
         /* Find split point */
         psize = 0;
         if (newindx <= split_indx || newindx >= nkeys) {
