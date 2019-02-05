@@ -415,3 +415,30 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #define __aligned(N)
 #endif
 #endif /* __align */
+
+//----------------------------------------------------------------------------
+
+#if !defined(__typeof)
+#ifdef _MSC_VER
+#define __typeof(exp) decltype(exp)
+#else
+#define __typeof(exp) __typeof__(exp)
+#endif
+#endif /* __typeof */
+
+#ifndef offsetof
+#define offsetof(type, member) __builtin_offsetof(type, member)
+#endif /* offsetof */
+
+#ifndef container_of
+#define container_of(ptr, type, member)                                        \
+  ({                                                                           \
+    const __typeof(((type *)nullptr)->member) *__ptr = (ptr);                  \
+    (type *)((char *)__ptr - offsetof(type, member));                          \
+  })
+#endif /* container_of */
+
+#ifndef STRINGIFY
+#define __MAKE_STR(x) #x
+#define STRINGIFY(x) __MAKE_STR(x)
+#endif /* STRINGIFY */
