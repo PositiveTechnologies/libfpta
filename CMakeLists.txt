@@ -149,19 +149,6 @@ if(NOT SUBPROJECT)
   endif()
 endif(NOT SUBPROJECT)
 
-CHECK_FUNCTION_EXISTS(pow NOT_NEED_LIBM)
-if(NOT_NEED_LIBM)
-  set(LIB_MATH "")
-else()
-  set(CMAKE_REQUIRED_LIBRARIES m)
-  CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
-  if(HAVE_LIBM)
-    set(LIB_MATH m)
-  else()
-    message(FATAL_ERROR "No libm found for math support")
-  endif()
-endif()
-
 #######################################################################
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
@@ -173,7 +160,6 @@ set(erthink_HEADERS erthink_defs.h erthink_byteorder.h erthink_intrin.h erthink_
   erthink_u2a.h erthink_d2a.h erthink_misc.h erthink.h)
 
 target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
-target_link_libraries(erthink ${LIB_MATH})
 
 if(ERTHINK_ENABLE_TESTS)
   add_subdirectory(test)
