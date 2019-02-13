@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include "erthink.h"
+#include "erthink_misc.h"
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4710) /* function not inlined */

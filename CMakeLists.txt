@@ -166,29 +166,11 @@ endif()
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
-if(NOT LIBERTHINK_TYPE)
-  if(BUILD_SHARED_LIBS)
-    set(LIBERTHINK_TYPE SHARED)
-  else()
-    set(LIBERTHINK_TYPE STATIC)
-  endif()
-endif()
+add_library(erthink INTERFACE)
 
-add_library(erthink ${LIBERTHINK_TYPE}
-  erthink_defs.h erthink_byteorder.h erthink_intrin.h erthink_arch.h
+set(erthink_HEADERS erthink_defs.h erthink_byteorder.h erthink_intrin.h erthink_arch.h
   erthink_bswap.h erthink_rot.h erthink_carryadd.h erthink_mul.h erthink_clz.h
-  erthink_u2a.h erthink_d2a.h
-  erthink.h erthink.cxx)
-
-set_target_properties(erthink PROPERTIES
-  PROJECT_LABEL "erthink"
-  PUBLIC_HEADER "defs.h byteorder.h u2a.h d2a.h"
-  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
-  CXX_STANDARD ${ERTHINK_CXX_STANDARD}
-  CXX_STANDARD_REQUIRED ON
-  C_STANDARD 11
-  C_STANDARD_REQUIRED OFF
-  )
+  erthink_u2a.h erthink_d2a.h erthink_misc.h erthink.h)
 
 target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
 target_link_libraries(erthink ${LIB_MATH})

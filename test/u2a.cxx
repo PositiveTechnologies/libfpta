@@ -21,7 +21,6 @@
  */
 
 #include "erthink_defs.h"
-
 #include "erthink_u2a.h"
 #include "testing.h"
 

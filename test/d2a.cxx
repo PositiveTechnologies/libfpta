@@ -24,10 +24,9 @@
 #define _USE_MATH_DEFINES
 #endif
 
-#include "testing.h"
-
 #include "erthink_d2a.h"
 #include "erthink_defs.h"
+#include "testing.h"
 
 #ifdef _MSC_VER
 #pragma warning(push, 1)
