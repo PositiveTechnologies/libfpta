@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright (c) 2010-2018 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 2010-2019 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/leo-yuriev/erthink
  *  ZLib License
  *
@@ -21,9 +21,10 @@
  */
 
 #pragma once
-#include "erthink.h"
+
 #include "erthink_carryadd.h"
 #include "erthink_clz.h"
+#include "erthink_misc.h"
 #include "erthink_mul.h"
 #include "erthink_u2a.h"
 
