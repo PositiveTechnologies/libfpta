@@ -76,8 +76,8 @@ set_target_properties(fpta PROPERTIES
   PROJECT_LABEL "Fast Positive Tables"
   FRAMEWORK TRUE
   VERSION "${FPTA_VERSION}"
-  PUBLIC_HEADER "../fast_positive/tables.h;${FAST_POSITIVE_CONFIG_H}"
-  PRIVATE_HEADER "../fast_positive/tables_internal.h"
+  PUBLIC_HEADER "../fast_positive/tables.h;${FAST_POSITIVE_CONFIG_H};../externals/libfptu/fast_positive/defs.h;../externals/libfptu/fast_positive/tuples.h"
+  PRIVATE_HEADER "../fast_positive/tables_internal.h;../externals/libfptu/fast_positive/tuples_internal.h"
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   CXX_STANDARD ${FPTA_CXX_STANDARD}
   CXX_STANDARD_REQUIRED ON
