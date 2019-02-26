@@ -1,16 +1,33 @@
 ﻿set(FPTU_CXX_STANDARD ${FPTA_CXX_STANDARD})
-set(LIBFPTU_TYPE PILE)
+
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  set(LIBFPTU_TYPE PILE)
+else()
+  set(LIBFPTU_TYPE OBJECT)
+endif()
+
 add_definitions(-Dfptu_EXPORTS)
 add_subdirectory(libfptu/src)
 add_subdirectory(libfptu/test)
 
 ###############################################################################
 
-add_library(t1ha OBJECT t1ha/t1ha.h t1ha/src/t1ha2.c t1ha/src/t1ha_selfcheck.c t1ha/src/t1ha2_selfcheck.c)
+set(T1HA_SOURCES t1ha/t1ha.h t1ha/src/t1ha2.c t1ha/src/t1ha_selfcheck.c t1ha/src/t1ha2_selfcheck.c)
 
-target_compile_definitions(t1ha PRIVATE t1ha_EXPORTS T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>)
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  add_library(t1ha_objects OBJECT ${T1HA_SOURCES})
+  add_library(t1ha INTERFACE)
+  add_dependencies(t1ha t1ha_objects)
+  target_link_libraries(t1ha INTERFACE $<TARGET_OBJECTS:t1ha_objects>)
+  set(t1ha_target t1ha_objects)
+else()
+  add_library(t1ha OBJECT ${T1HA_SOURCES})
+  set(t1ha_target t1ha)
+endif()
 
-set_target_properties(t1ha PROPERTIES
+target_compile_definitions(${t1ha_target} PRIVATE t1ha_EXPORTS T1HA_USE_FAST_ONESHOT_READ=$<BOOL:${T1HA_USE_FAST_ONESHOT_READ}>)
+
+set_target_properties(${t1ha_target} PROPERTIES
   PROJECT_LABEL "Fast Positive Hash"
   #VERSION
   PUBLIC_HEADER "t1ha/t1ha.h"
@@ -25,7 +42,7 @@ else()
   set(LIBMDBX_OSAL posix)
 endif()
 
-add_library(mdbx STATIC
+set(LIBMDBX_SOURCES
   libmdbx/mdbx.h libmdbx/src/defs.h libmdbx/src/bits.h libmdbx/src/osal.h
   libmdbx/src/mdbx.c
   libmdbx/src/osal.c
@@ -33,14 +50,24 @@ add_library(mdbx STATIC
   libmdbx/src/version.c
   )
 
-target_compile_definitions(mdbx PRIVATE LIBMDBX_EXPORTS MDBX_DEBUG=$<CONFIG:Debug> $<$<BOOL:${ENABLE_VALGRIND}>:ENABLE_VALGRIND>)
-target_link_libraries(mdbx ${CMAKE_THREAD_LIBS_INIT})
-
-if(UNIX AND NOT APPLE)
-  target_link_libraries(mdbx rt)
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  add_library(mdbx_objects OBJECT ${LIBMDBX_SOURCES})
+  add_library(mdbx INTERFACE)
+  add_dependencies(mdbx mdbx_objects)
+  target_link_libraries(mdbx INTERFACE $<TARGET_OBJECTS:mdbx_objects>)
+  set(mdbx_target mdbx_objects)
+else()
+  add_library(mdbx OBJECT ${LIBMDBX_SOURCES})
+  set(mdbx_target mdbx)
 endif()
 
-set_target_properties(mdbx PROPERTIES
+target_compile_definitions(${mdbx_target} PRIVATE LIBMDBX_EXPORTS MDBX_DEBUG=$<CONFIG:Debug> $<$<BOOL:${ENABLE_VALGRIND}>:ENABLE_VALGRIND>)
+target_link_libraries(mdbx INTERFACE ${CMAKE_THREAD_LIBS_INIT})
+if(UNIX AND NOT APPLE)
+  target_link_libraries(mdbx INTERFACE rt)
+endif()
+
+set_target_properties(${mdbx_target} PROPERTIES
   PROJECT_LABEL "Fast Memory-Mapped key-value engine"
   #VERSION
   PUBLIC_HEADER "libmdbx/mdbx.h"

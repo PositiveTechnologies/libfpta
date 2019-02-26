@@ -42,6 +42,9 @@ else()
 endif()
 
 if(LIBFPTA_STATIC)
+  if(CMAKE_VERSION VERSION_LESS 3.12)
+    message(WARNING "CMake >= 3.12 is required for build static libfpta.")
+  endif()
   set(LIBFPTA_TYPE STATIC)
 else()
   set(LIBFPTA_TYPE SHARED)
@@ -88,7 +91,7 @@ set_target_properties(fpta PROPERTIES
 target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
 add_dependencies(fpta t1ha)
 target_link_libraries(fpta
-  PRIVATE fptu mdbx $<TARGET_OBJECTS:t1ha>
+  PRIVATE fptu mdbx t1ha
   PUBLIC ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
 if(UNIX AND NOT APPLE)
   target_link_libraries(fpta LINK_PUBLIC rt)

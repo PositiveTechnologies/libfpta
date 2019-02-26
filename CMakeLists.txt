@@ -296,6 +296,9 @@ CMAKE_DEPENDENT_OPTION(T1HA_USE_FAST_ONESHOT_READ
 if(BUILD_SHARED_LIBS)
   set(LIBFPTA_STATIC FALSE)
 else()
+  if(CMAKE_VERSION VERSION_LESS 3.12)
+    message(WARNING "CMake >= 3.12 is required for build static libfpta.")
+  endif()
   set(LIBFPTA_STATIC TRUE)
 endif()
 
