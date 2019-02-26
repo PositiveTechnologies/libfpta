@@ -70,26 +70,32 @@ TEST(Upsert, InvalidColumn) {
   EXPECT_EQ(FPTU_EINVAL, fptu_insert_fp32(pt, inval_col, 0));
   EXPECT_EQ(FPTU_EINVAL, fptu_update_fp32(pt, inval_col, 0));
 
-  EXPECT_EQ(FPTU_EINVAL, fptu_upsert_96(pt, inval_col, "96"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_insert_96(pt, inval_col, "96"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_update_96(pt, inval_col, "96"));
+  EXPECT_EQ(FPTU_EINVAL, fptu_upsert_96(pt, inval_col, "96__________"));
+  EXPECT_EQ(FPTU_EINVAL, fptu_insert_96(pt, inval_col, "96__________"));
+  EXPECT_EQ(FPTU_EINVAL, fptu_update_96(pt, inval_col, "96__________"));
 
-  EXPECT_EQ(FPTU_EINVAL, fptu_upsert_128(pt, inval_col, "128"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_insert_128(pt, inval_col, "128"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_update_128(pt, inval_col, "128"));
+  EXPECT_EQ(FPTU_EINVAL, fptu_upsert_128(pt, inval_col, "128_____________"));
+  EXPECT_EQ(FPTU_EINVAL, fptu_insert_128(pt, inval_col, "128_____________"));
+  EXPECT_EQ(FPTU_EINVAL, fptu_update_128(pt, inval_col, "128_____________"));
 
-  EXPECT_EQ(FPTU_EINVAL, fptu_upsert_160(pt, inval_col, "160"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_insert_160(pt, inval_col, "160"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_update_160(pt, inval_col, "160"));
+  EXPECT_EQ(FPTU_EINVAL,
+            fptu_upsert_160(pt, inval_col, "160_________________"));
+  EXPECT_EQ(FPTU_EINVAL,
+            fptu_insert_160(pt, inval_col, "160_________________"));
+  EXPECT_EQ(FPTU_EINVAL,
+            fptu_update_160(pt, inval_col, "160_________________"));
 
   fptu_time datetime = fptu_now_coarse();
   EXPECT_EQ(FPTU_EINVAL, fptu_upsert_datetime(pt, inval_col, datetime));
   EXPECT_EQ(FPTU_EINVAL, fptu_insert_datetime(pt, inval_col, datetime));
   EXPECT_EQ(FPTU_EINVAL, fptu_update_datetime(pt, inval_col, datetime));
 
-  EXPECT_EQ(FPTU_EINVAL, fptu_upsert_256(pt, inval_col, "256"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_insert_256(pt, inval_col, "256"));
-  EXPECT_EQ(FPTU_EINVAL, fptu_update_256(pt, inval_col, "256"));
+  EXPECT_EQ(FPTU_EINVAL,
+            fptu_upsert_256(pt, inval_col, "256_____________________________"));
+  EXPECT_EQ(FPTU_EINVAL,
+            fptu_insert_256(pt, inval_col, "256_____________________________"));
+  EXPECT_EQ(FPTU_EINVAL,
+            fptu_update_256(pt, inval_col, "256_____________________________"));
 
   EXPECT_EQ(FPTU_EINVAL, fptu_upsert_cstr(pt, inval_col, "cstr"));
   EXPECT_EQ(FPTU_EINVAL, fptu_insert_cstr(pt, inval_col, "cstr"));
@@ -125,11 +131,13 @@ TEST(Upsert, ZeroSpace) {
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_int64(pt, fptu_max_cols / 3, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_fp64(pt, fptu_max_cols - 3, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_fp32(pt, fptu_max_cols - 4, 0));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_96(pt, fptu_max_cols / 2, "96"));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_128(pt, 257, "128"));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_160(pt, 7, "160"));
+  EXPECT_EQ(FPTU_ENOSPACE,
+            fptu_upsert_96(pt, fptu_max_cols / 2, "96__________"));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_128(pt, 257, "128_____________"));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_160(pt, 7, "160_________________"));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_datetime(pt, 8, fptu_now_coarse()));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_256(pt, fptu_max_cols - 2, "256"));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_256(pt, fptu_max_cols - 2,
+                                           "256_____________________________"));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_cstr(pt, fptu_max_cols - 1, "cstr"));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_upsert_opaque(pt, fptu_max_cols, "data", 4));
 
@@ -147,11 +155,13 @@ TEST(Upsert, ZeroSpace) {
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_int64(pt, fptu_max_cols / 3, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_fp64(pt, fptu_max_cols - 3, 0));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_fp32(pt, fptu_max_cols - 4, 0));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_96(pt, fptu_max_cols / 2, "96"));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_128(pt, 257, "128"));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_160(pt, 7, "160"));
+  EXPECT_EQ(FPTU_ENOSPACE,
+            fptu_insert_96(pt, fptu_max_cols / 2, "96__________"));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_128(pt, 257, "128_____________"));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_160(pt, 7, "160_________________"));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_datetime(pt, 8, fptu_now_coarse()));
-  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_256(pt, fptu_max_cols - 2, "256"));
+  EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_256(pt, fptu_max_cols - 2,
+                                           "256_____________________________"));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_cstr(pt, fptu_max_cols - 1, "cstr"));
   EXPECT_EQ(FPTU_ENOSPACE, fptu_insert_opaque(pt, fptu_max_cols, "data", 4));
 
@@ -169,11 +179,13 @@ TEST(Upsert, ZeroSpace) {
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_int64(pt, fptu_max_cols / 3, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_fp64(pt, fptu_max_cols - 3, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_fp32(pt, fptu_max_cols - 4, 0));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_96(pt, fptu_max_cols / 2, "96"));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_128(pt, 257, "128"));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_160(pt, 7, "160"));
+  EXPECT_EQ(FPTU_ENOFIELD,
+            fptu_update_96(pt, fptu_max_cols / 2, "96__________"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_128(pt, 257, "128_____________"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_160(pt, 7, "160_________________"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_datetime(pt, 8, fptu_now_coarse()));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_256(pt, fptu_max_cols - 2, "256"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_256(pt, fptu_max_cols - 2,
+                                           "256_____________________________"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_cstr(pt, fptu_max_cols - 1, "cstr"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_opaque(pt, fptu_max_cols, "data", 4));
 
@@ -528,11 +540,12 @@ TEST(Upsert, InsertUpdate) {
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_int64(pt, 0, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_fp64(pt, 0, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_fp32(pt, 0, 0));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_96(pt, 0, "96"));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_128(pt, 0, "128"));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_160(pt, 0, "160"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_96(pt, 0, "96__________"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_128(pt, 0, "128_____________"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_160(pt, 0, "160_________________"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_datetime(pt, 0, fptu_now_coarse()));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_256(pt, 0, "256"));
+  EXPECT_EQ(FPTU_ENOFIELD,
+            fptu_update_256(pt, 0, "256_____________________________"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_cstr(pt, 0, "cstr"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_opaque(pt, 0, "data", 4));
 
@@ -1063,11 +1076,12 @@ TEST(Upsert, InsertUpdate) {
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_int64(pt, 0, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_fp64(pt, 0, 0));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_fp32(pt, 0, 0));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_96(pt, 0, "96"));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_128(pt, 0, "128"));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_160(pt, 0, "160"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_96(pt, 0, "96__________"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_128(pt, 0, "128_____________"));
+  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_160(pt, 0, "160_________________"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_datetime(pt, 0, now3));
-  EXPECT_EQ(FPTU_ENOFIELD, fptu_update_256(pt, 0, "256"));
+  EXPECT_EQ(FPTU_ENOFIELD,
+            fptu_update_256(pt, 0, "256_____________________________"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_cstr(pt, 0, "cstr"));
   EXPECT_EQ(FPTU_ENOFIELD, fptu_update_opaque(pt, 0, "data", 4));
   EXPECT_EQ(0, fptu::erase(pt, 0, fptu_any));

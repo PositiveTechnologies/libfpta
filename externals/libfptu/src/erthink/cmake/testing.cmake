@@ -1,5 +1,5 @@
 ##
-## Copyright (c) 2012-2018 Leonid Yuriev <leo@yuriev.ru>.
+## Copyright (c) 2012-2019 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ## This software is provided 'as-is', without any express or implied
 ## warranty. In no event will the authors be held liable for any damages
@@ -199,7 +199,7 @@ function(add_gtest name)
       string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
       foreach(dep IN LISTS params_LIBRARY GTEST_BOTH_LIBRARIES)
         get_target_property(type ${dep} TYPE)
-        if(NOT ${type} STREQUAL "STATIC_LIBRARY")
+        if(NOT ${type} STREQUAL "STATIC_LIBRARY" AND NOT ${type} STREQUAL "INTERFACE_LIBRARY")
           # Windows don't have RPATH feature,
           # therefore we should prepare PATH or copy DLL(s)...
           if(CMAKE_CONFIGURATION_TYPES)

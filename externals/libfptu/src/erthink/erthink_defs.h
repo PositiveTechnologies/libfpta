@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright (c) 1994-2018 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2019 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/leo-yuriev/erthink
  *  ZLib License
  *
@@ -143,6 +143,32 @@
     (__cplusplus < 201103L && !defined(_MSC_VER))
 #define constexpr
 #endif
+
+#if !defined(cxx14_constexpr)
+#if defined(__cplusplus) && __cplusplus >= 201402L &&                          \
+    (!defined(_MSC_VER) || _MSC_VER >= 1910) &&                                \
+    (!defined(__GNUC__) || __GNUC__ >= 6)
+#define cxx14_constexpr constexpr
+#else
+#define cxx14_constexpr
+#endif
+#endif /* cxx14_constexpr */
+
+#if !defined(cxx17_constexpr)
+#if defined(__cplusplus) && __cplusplus >= 201703L &&                          \
+    (!defined(_MSC_VER) || _MSC_VER >= 1915) &&                                \
+    (!defined(__GNUC__) || __GNUC__ >= 7)
+#define cxx17_constexpr constexpr
+#else
+#define cxx17_constexpr
+#endif
+#endif /* cxx17_constexpr */
+
+#if __cplusplus >= 201402L
+#define constexpr_assert(foo) assert(foo)
+#else
+#define constexpr_assert(foo) __noop(foo)
+#endif /* constexpr_assert for C++14 */
 
 //----------------------------------------------------------------------------
 
@@ -415,3 +441,30 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #define __aligned(N)
 #endif
 #endif /* __align */
+
+//----------------------------------------------------------------------------
+
+#if !defined(__typeof)
+#ifdef _MSC_VER
+#define __typeof(exp) decltype(exp)
+#else
+#define __typeof(exp) __typeof__(exp)
+#endif
+#endif /* __typeof */
+
+#ifndef offsetof
+#define offsetof(type, member) __builtin_offsetof(type, member)
+#endif /* offsetof */
+
+#ifndef container_of
+#define container_of(ptr, type, member)                                        \
+  ({                                                                           \
+    const __typeof(((type *)nullptr)->member) *__ptr = (ptr);                  \
+    (type *)((char *)__ptr - offsetof(type, member));                          \
+  })
+#endif /* container_of */
+
+#ifndef STRINGIFY
+#define __MAKE_STR(x) #x
+#define STRINGIFY(x) __MAKE_STR(x)
+#endif /* STRINGIFY */

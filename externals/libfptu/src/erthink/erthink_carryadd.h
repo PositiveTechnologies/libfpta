@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright (c) 1994-2018 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2019 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/leo-yuriev/erthink
  *  ZLib License
  *
@@ -81,7 +81,7 @@ static __maybe_unused __always_inline void e2k_add64carry_last(unsigned carry,
 #define add32carry_last(carry, base, addend, sum)                              \
   (void)_addcarry_u32(carry, base, addend, sum)
 
-static __forceinline unsigned char
+static __always_inline unsigned char
 msvc32_add64carry_first(uint64_t base, uint64_t addend, uint64_t *sum) {
   uint32_t *const sum32 = (uint32_t *)sum;
   const uint32_t base_32l = (uint32_t)base;
@@ -94,10 +94,10 @@ msvc32_add64carry_first(uint64_t base, uint64_t addend, uint64_t *sum) {
 #define add64carry_first(base, addend, sum)                                    \
   msvc32_add64carry_first(base, addend, sum)
 
-static __forceinline unsigned char msvc32_add64carry_next(unsigned char carry,
-                                                          uint64_t base,
-                                                          uint64_t addend,
-                                                          uint64_t *sum) {
+static __always_inline unsigned char msvc32_add64carry_next(unsigned char carry,
+                                                            uint64_t base,
+                                                            uint64_t addend,
+                                                            uint64_t *sum) {
   uint32_t *const sum32 = (uint32_t *)sum;
   const uint32_t base_32l = (uint32_t)base;
   const uint32_t base_32h = (uint32_t)(base >> 32);
@@ -109,9 +109,10 @@ static __forceinline unsigned char msvc32_add64carry_next(unsigned char carry,
 #define add64carry_next(carry, base, addend, sum)                              \
   msvc32_add64carry_next(carry, base, addend, sum)
 
-static __forceinline void msvc32_add64carry_last(unsigned char carry,
-                                                 uint64_t base, uint64_t addend,
-                                                 uint64_t *sum) {
+static __always_inline void msvc32_add64carry_last(unsigned char carry,
+                                                   uint64_t base,
+                                                   uint64_t addend,
+                                                   uint64_t *sum) {
   uint32_t *const sum32 = (uint32_t *)sum;
   const uint32_t base_32l = (uint32_t)base;
   const uint32_t base_32h = (uint32_t)(base >> 32);

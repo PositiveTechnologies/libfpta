@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright (c) 1994-2018 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2019 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/leo-yuriev/erthink
  *  ZLib License
  *
@@ -24,10 +24,9 @@
 #define _USE_MATH_DEFINES
 #endif
 
-#include "testing.h"
-
 #include "erthink_d2a.h"
 #include "erthink_defs.h"
+#include "testing.h"
 
 #ifdef _MSC_VER
 #pragma warning(push, 1)

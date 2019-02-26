@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright (c) 1994-2018 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2019 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/leo-yuriev/erthink
  *  ZLib License
  *
@@ -19,6 +19,8 @@
  *     misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
+
+#pragma once
 
 #include "erthink_arch.h"
 #include "erthink_defs.h"
