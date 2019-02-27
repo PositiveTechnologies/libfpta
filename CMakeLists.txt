@@ -1,5 +1,5 @@
 ##
-##  Copyright 2016-2018 libfpta authors: please see AUTHORS file.
+##  Copyright 2016-2019 libfpta authors: please see AUTHORS file.
 ##
 ##  This file is part of libfpta, aka "Fast Positive Tables".
 ##
