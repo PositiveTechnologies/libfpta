@@ -4938,8 +4938,7 @@ public:
     ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple.get(), &rw_col_pk,
                                           fpta_value_uint(order)));
     if (fpta_index_is_secondary(index)) {
-      map_pk2se[order] = map_pk2se[order] =
-          fpta_index_is_unique(index) ? order : dup;
+      map_pk2se[order] = fpta_index_is_unique(index) ? order : dup;
       ASSERT_EQ(FPTA_OK,
                 fpta_upsert_column(tuple.get(), &rw_col_se,
                                    fpta_value_uint(map_pk2se.at(order))));
