@@ -940,6 +940,28 @@ FPTA_API int fpta_db_open(const char *path, fpta_durability durability,
                           size_t megabytes, bool alterable_schema,
                           fpta_db **db);
 
+typedef struct fpta_db_creation_params {
+  unsigned params_size;
+  mode_t file_mode;
+  intptr_t size_lower, size_upper;
+  intptr_t growth_step, shrink_threshold;
+  intptr_t pagesize;
+} fpta_db_creation_params_t;
+
+FPTA_API int fpta_db_create_or_open(const char *path,
+                                    fpta_durability durability,
+                                    fpta_regime_flags regime_flags,
+                                    bool alterable_schema, fpta_db **db,
+                                    fpta_db_creation_params_t *creation_params);
+
+static inline int fpta_db_open_existing(const char *path,
+                                        fpta_durability durability,
+                                        fpta_regime_flags regime_flags,
+                                        bool alterable_schema, fpta_db **db) {
+  return fpta_db_create_or_open(path, durability, regime_flags,
+                                alterable_schema, db, nullptr);
+}
+
 /* Закрывает ранее открытую базу.
  *
  * На момент закрытия базы должны быть закрыты все ранее открытые

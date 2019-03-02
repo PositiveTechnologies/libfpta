@@ -94,18 +94,49 @@ void fpta_cursor_free(fpta_db *db, fpta_cursor *cursor) {
 int fpta_db_open(const char *path, fpta_durability durability,
                  fpta_regime_flags regime_flags, mode_t file_mode,
                  size_t megabytes, bool alterable_schema, fpta_db **pdb) {
-  if (unlikely(t1ha_selfcheck__t1ha2()))
-    return FPTA_EOOPS;
+
+  if (megabytes == 0 || durability == fpta_readonly)
+    return fpta_db_open_existing(path, durability, regime_flags,
+                                 alterable_schema, pdb);
+  if (unlikely(pdb == nullptr))
+    return FPTA_EINVAL;
+  *pdb = nullptr;
+
+  if (megabytes > SIZE_MAX >> 22)
+    return FPTA_ETOO_LARGE;
+
+  fpta_db_creation_params_t creation_params;
+  creation_params.params_size = sizeof(creation_params);
+  creation_params.file_mode = file_mode;
+  creation_params.size_lower = creation_params.size_upper = megabytes << 20;
+  creation_params.pagesize = -1;
+  creation_params.growth_step = 0;
+  creation_params.shrink_threshold = 0;
+  return fpta_db_create_or_open(path, durability, regime_flags,
+                                alterable_schema, pdb, &creation_params);
+}
+
+int fpta_db_create_or_open(const char *path, fpta_durability durability,
+                           fpta_regime_flags regime_flags,
+                           bool alterable_schema, fpta_db **pdb,
+                           fpta_db_creation_params_t *creation_params) {
 
   if (unlikely(pdb == nullptr))
     return FPTA_EINVAL;
   *pdb = nullptr;
 
+  if (unlikely(t1ha_selfcheck__t1ha2()))
+    return FPTA_EOOPS;
+
   if (unlikely(path == nullptr || *path == '\0'))
     return FPTA_EINVAL;
 
-  if (unlikely(megabytes > (SIZE_MAX >> 20)))
-    return FPTA_EINVAL;
+  if (creation_params) {
+    if (unlikely(durability == fpta_readonly ||
+                 creation_params->params_size !=
+                     sizeof(fpta_db_creation_params_t)))
+      return FPTA_EINVAL;
+  }
 
   unsigned mdbx_flags = MDBX_NOSUBDIR;
   switch (durability) {
@@ -174,11 +205,17 @@ int fpta_db_open(const char *path, fpta_durability durability,
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;
 
-  rc = mdbx_env_set_mapsize(db->mdbx_env, megabytes << 20);
-  if (unlikely(rc != MDBX_SUCCESS))
-    goto bailout;
+  if (creation_params) {
+    rc = mdbx_env_set_geometry(
+        db->mdbx_env, creation_params->size_lower, creation_params->size_lower,
+        creation_params->size_upper, creation_params->growth_step,
+        creation_params->shrink_threshold, creation_params->pagesize);
+    if (unlikely(rc != MDBX_SUCCESS))
+      goto bailout;
+  }
 
-  rc = mdbx_env_open(db->mdbx_env, path, mdbx_flags, file_mode);
+  rc = mdbx_env_open(db->mdbx_env, path, mdbx_flags,
+                     creation_params ? creation_params->file_mode : 0);
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;
 
