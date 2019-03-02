@@ -151,18 +151,19 @@ struct diy_fp {
     return diy_fp(value, exp2 - shift);
   }
 
-  static diy_fp middle(const diy_fp &a, const diy_fp &b) {
-    assert(a.e == b.e);
-    const int64_t diff = int64_t(a.f - b.f);
-    return diy_fp(a.f - uint64_t(diff >> 1), a.e);
+  static diy_fp middle(const diy_fp &upper, const diy_fp &lower) {
+    assert(upper.e == lower.e && upper.f > lower.f);
+    const int64_t diff = int64_t(upper.f - lower.f);
+    assert(diff > 1);
+    return diy_fp(upper.f - uint64_t(diff >> 1), upper.e);
   }
 
-  const diy_fp &operator*=(const diy_fp &rhs) {
-    const uint64_t l = mul_64x64_128(f, rhs.f, &f);
+  void scale(const diy_fp &factor, bool roundup) {
+    const uint64_t l = mul_64x64_128(f, factor.f, &f);
     assert(f < UINT64_MAX - INT32_MAX);
-    f += /* round */ msb(l);
-    e += rhs.e + 64;
-    return *this;
+    if (roundup)
+      f += l >> 63;
+    e += factor.e + 64;
   }
 
   diy_fp operator-(const diy_fp &rhs) const {
@@ -382,18 +383,19 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
 #endif
 
   // LY: normalize
-  assert(v.f <= UINT64_MAX / 2 && left > 0);
+  assert(v.f <= UINT64_MAX / 2 && left > 1);
   v.e -= left;
   v.f <<= left;
 
   // LY: get boundaries
-  const uint64_t half_epsilon = UINT64_C(1) << (left - 1);
+  const int mojo = (v.f >= UINT64_C(0x8000000080000000)) ? left - 1 : left - 2;
+  const uint64_t half_epsilon = UINT64_C(1) << mojo;
   diy_fp upper(v.f + half_epsilon, v.e);
   diy_fp lower(v.f - half_epsilon, v.e);
 
   const diy_fp dec_factor = cached_power(upper.e, out_exp10);
-  upper *= dec_factor;
-  lower *= dec_factor;
+  upper.scale(dec_factor, false);
+  lower.scale(dec_factor, true);
   v = diy_fp::middle(upper, lower);
   --upper.f;
   return make_digits(v, upper, upper.f - lower.f - 1, buffer, out_exp10);
