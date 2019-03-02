@@ -122,7 +122,7 @@ TEST(Threaded, SimpleConcurence) {
   fpta_db_creation_params_t creation_params;
   creation_params.params_size = sizeof(creation_params);
   creation_params.file_mode = 0644;
-  creation_params.size_lower = 1 << 20;
+  creation_params.size_lower = 0;
   creation_params.size_upper = 8 << 20;
   creation_params.pagesize = -1;
   creation_params.growth_step = -1;
