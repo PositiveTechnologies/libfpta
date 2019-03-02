@@ -119,9 +119,19 @@ TEST(Threaded, SimpleConcurence) {
     ASSERT_EQ(ENOENT, errno);
   }
 
+  fpta_db_creation_params_t creation_params;
+  creation_params.params_size = sizeof(creation_params);
+  creation_params.file_mode = 0644;
+  creation_params.size_lower = 1 << 20;
+  creation_params.size_upper = 8 << 20;
+  creation_params.pagesize = -1;
+  creation_params.growth_step = -1;
+  creation_params.shrink_threshold = -1;
+
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
-                                  true, &db));
+  ASSERT_EQ(FPTA_OK,
+            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_saferam, true,
+                                   &db, &creation_params));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database opened");
 
@@ -151,8 +161,8 @@ TEST(Threaded, SimpleConcurence) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 4,
-                                  false, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open_existing(testdb_name, fpta_weak, fpta_saferam,
+                                           false, &db));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
 
