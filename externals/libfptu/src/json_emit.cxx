@@ -485,7 +485,7 @@ void json::value_dateime(const fptu_time &value) {
       int exponent;
       char *const begin = wanna(32) + 1;
       begin[-1] = '.';
-      char *const end = erthink::grisu::convert(
+      char *end = erthink::grisu::convert(
           erthink::grisu::diy_fp::fixedpoint(value.fractional, -32), begin,
           exponent);
       assert(end > begin && end < begin + 31);
@@ -495,7 +495,9 @@ void json::value_dateime(const fptu_time &value) {
       if (zero_needed > 0) {
         memmove(begin + zero_needed, begin, size_t(end - begin));
         memset(begin, '0', size_t(zero_needed));
-      }
+      } else
+        while (end[-1] == '0')
+          --end;
       fill +=
           static_cast<unsigned>(end - begin + zero_needed + /* the dot */ 1);
       assert(fill < sizeof(buffer));

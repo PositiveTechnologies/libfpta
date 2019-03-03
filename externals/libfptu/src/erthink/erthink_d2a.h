@@ -24,6 +24,7 @@
 
 #include "erthink_carryadd.h"
 #include "erthink_clz.h"
+#include "erthink_defs.h"
 #include "erthink_misc.h"
 #include "erthink_mul.h"
 #include "erthink_u2a.h"
@@ -55,7 +56,7 @@ namespace erthink {
 namespace NAMESPACE_ERTHINK_D2A_DETAILS {
 /* low-level routines and bindings to compilers-depended intrinsics */
 
-static inline int dec_digits(uint32_t n) {
+static cxx14_constexpr int dec_digits(uint32_t n) {
   if (n < UINT_E5) {
     if (n < UINT_E1)
       return 1;
@@ -73,13 +74,19 @@ static inline int dec_digits(uint32_t n) {
     return 7;
   if (n < UINT_E8)
     return 8;
-  assert(n < UINT_E9);
-  return 9;
+  if (n < UINT_E9)
+    return 9;
+  return 10;
 }
 
-static inline uint64_t dec_power(unsigned n) {
-  static const uint32_t array[] = {UINT_E0, UINT_E1, UINT_E2, UINT_E3, UINT_E4,
-                                   UINT_E5, UINT_E6, UINT_E7, UINT_E8, UINT_E9};
+static inline /* LY: 'inline' here if better for performance than 'constexpr' */
+    uint64_t
+    dec_power(unsigned n) {
+  static const uint64_t array[] = {
+      UINT_E0,  UINT_E1,  UINT_E2,  UINT_E3,  UINT_E4,  UINT_E5,  UINT_E6,
+      UINT_E7,  UINT_E8,  UINT_E9,  UINT_E10, UINT_E11, UINT_E12, UINT_E13,
+      UINT_E14, UINT_E15, UINT_E16, UINT_E17, UINT_E18, UINT_E19};
+  static_assert(array_length(array) == 20, "WTF?");
   assert(n < array_length(array));
   return array[n];
 }
@@ -151,18 +158,19 @@ struct diy_fp {
     return diy_fp(value, exp2 - shift);
   }
 
-  static diy_fp middle(const diy_fp &a, const diy_fp &b) {
-    assert(a.e == b.e);
-    const int64_t diff = int64_t(a.f - b.f);
-    return diy_fp(a.f - uint64_t(diff >> 1), a.e);
+  static diy_fp middle(const diy_fp &upper, const diy_fp &lower) {
+    assert(upper.e == lower.e && upper.f > lower.f);
+    const int64_t diff = int64_t(upper.f - lower.f);
+    assert(diff > 0);
+    return diy_fp(upper.f - uint64_t(diff >> 1), upper.e);
   }
 
-  const diy_fp &operator*=(const diy_fp &rhs) {
-    const uint64_t l = mul_64x64_128(f, rhs.f, &f);
+  void scale(const diy_fp &factor, bool roundup) {
+    const uint64_t l = mul_64x64_128(f, factor.f, &f);
     assert(f < UINT64_MAX - INT32_MAX);
-    f += /* round */ msb(l);
-    e += rhs.e + 64;
-    return *this;
+    if (roundup)
+      f += l >> 63;
+    e += factor.e + 64;
   }
 
   diy_fp operator-(const diy_fp &rhs) const {
@@ -269,12 +277,12 @@ static inline void round(char *end, uint64_t delta, uint64_t rest,
 static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
                                 uint64_t delta, char *const buffer,
                                 int &inout_exp10) {
-  assert(delta > 0);
   const unsigned shift = unsigned(-upper.e);
   const uint64_t mask = UINT64_MAX >> (64 - shift);
   char *ptr = buffer;
   const diy_fp gap = upper - v;
 
+  assert((upper.f >> shift) <= UINT_E9);
   uint_fast32_t digit, body = static_cast<uint_fast32_t>(upper.f >> shift);
   uint64_t tail = upper.f & mask;
   int kappa = dec_digits(body);
@@ -284,10 +292,10 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
     default:
       assert(false);
       __unreachable();
-    /* case 10:
+    case 10:
       digit = body / UINT_E9;
       body %= UINT_E9;
-      break; */
+      break;
     case 9:
       digit = body / UINT_E8;
       body %= UINT_E8;
@@ -329,7 +337,7 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
     --kappa;
     const uint64_t left = (static_cast<uint64_t>(body) << shift) + tail;
     ptr += (digit || ptr > buffer);
-    if (left <= delta) {
+    if (left < delta) {
       inout_exp10 += kappa;
       assert(kappa >= 0);
       round(ptr, delta, left, dec_power(unsigned(kappa)) << shift, gap.f);
@@ -347,7 +355,7 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
     } while (unlikely(!digit));
     *ptr++ = static_cast<char>(digit + '0');
   }
-  while (tail >= delta) {
+  while (tail > delta) {
     --kappa;
     tail *= 10;
     delta *= 10;
@@ -357,8 +365,8 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
   }
 
   inout_exp10 += kappa;
-  assert(kappa < 0);
-  const uint64_t unit = (kappa > -10 ? dec_power(unsigned(-kappa)) : 0u);
+  assert(kappa >= -19 && kappa <= 0);
+  const uint64_t unit = dec_power(unsigned(-kappa));
   round(ptr, delta, tail, mask + 1, gap.f * unit);
   return ptr;
 }
@@ -382,20 +390,22 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
 #endif
 
   // LY: normalize
-  assert(v.f <= UINT64_MAX / 2 && left > 0);
+  assert(v.f <= UINT64_MAX / 2 && left > 1);
   v.e -= left;
   v.f <<= left;
 
   // LY: get boundaries
-  const uint64_t half_epsilon = UINT64_C(1) << (left - 1);
+  const int mojo = v.f >= UINT64_C(0x8000000080000000) ? left - 1 : left - 2;
+  const uint64_t half_epsilon = UINT64_C(1) << mojo;
   diy_fp upper(v.f + half_epsilon, v.e);
   diy_fp lower(v.f - half_epsilon, v.e);
 
   const diy_fp dec_factor = cached_power(upper.e, out_exp10);
-  upper *= dec_factor;
-  lower *= dec_factor;
+  upper.scale(dec_factor, false);
+  lower.scale(dec_factor, true);
   v = diy_fp::middle(upper, lower);
   --upper.f;
+  assert(upper.f > lower.f);
   return make_digits(v, upper, upper.f - lower.f - 1, buffer, out_exp10);
 }
 
