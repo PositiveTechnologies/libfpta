@@ -98,8 +98,42 @@ TEST(d2a, trivia) {
   probe_d2a(buffer, -DBL_MIN * M_PI);
 }
 
+static bool probe_d2a(uint64_t u64, char (&buffer)[23 + 1]) {
+  erthink::grisu::casting_union casting(u64);
+  switch (std::fpclassify(casting.f)) {
+  case FP_NAN:
+  case FP_INFINITE:
+    return false;
+  default:
+    probe_d2a(buffer, casting.f);
+  }
+
+  const float f32 = static_cast<float>(casting.f);
+  switch (std::fpclassify(f32)) {
+  case FP_NAN:
+  case FP_INFINITE:
+    return false;
+  default:
+    probe_d2a(buffer, f32);
+    return true;
+  }
+}
+
 TEST(d2a, stairwell) {
   char buffer[23 + 1];
+  probe_d2a(UINT64_C(4989988387303176888), buffer);
+  probe_d2a(UINT64_C(4895412794877399892), buffer);
+  probe_d2a(UINT64_C(13717964465041107931), buffer);
+  probe_d2a(UINT64_C(13416223289762161370), buffer);
+  probe_d2a(UINT64_C(13434237688651515774), buffer);
+  probe_d2a(UINT64_C(5008002785836588600), buffer);
+  probe_d2a(UINT64_C(4210865651786747166), buffer);
+  probe_d2a(UINT64_C(14231374822717078073), buffer);
+  probe_d2a(UINT64_C(13434237688189056622), buffer);
+  probe_d2a(UINT64_C(13717964465155820979), buffer);
+  probe_d2a(UINT64_C(4237887249171175423), buffer);
+  probe_d2a(UINT64_C(13632396072180810313), buffer);
+
   const double up = 1.1283791670955125739 /* 2/sqrt(pi) */;
   for (double value = DBL_MIN * up; value < DBL_MAX / up; value *= up) {
     probe_d2a(buffer, value);
@@ -115,27 +149,28 @@ TEST(d2a, stairwell) {
     if (!std::isinf(f32))
       probe_d2a(buffer, f32);
   }
+
+  for (uint64_t mantissa = erthink::grisu::IEEE754_DOUBLE_MANTISSA_MASK;
+       mantissa != 0; mantissa >>= 1) {
+    for (uint64_t offset = 1; offset < mantissa; offset <<= 1) {
+      for (uint64_t exp = 0;
+           exp <= erthink::grisu::IEEE754_DOUBLE_EXPONENT_MASK;
+           exp += erthink::grisu::IEEE754_DOUBLE_IMPLICIT_LEAD) {
+        probe_d2a((mantissa + offset) ^ exp, buffer);
+        probe_d2a((mantissa - offset) ^ exp, buffer);
+      }
+    }
+  }
 }
 
 TEST(d2a, random3e6) {
   char buffer[23 + 1];
-  erthink::grisu::casting_union prng(uint64_t(time(0)));
-  SCOPED_TRACE("PGNG seed" + std::to_string(prng.u));
-  for (int i = 0; i < 3000000;) {
-    switch (std::fpclassify(prng.f)) {
-    case FP_NAN:
-    case FP_INFINITE:
-      break;
-    default:
-      probe_d2a(buffer, prng.f);
-      const float f32 = static_cast<float>(prng.f);
-      if (!std::isinf(f32)) {
-        probe_d2a(buffer, f32);
-        ++i;
-      }
-    }
-    prng.u *= UINT64_C(6364136223846793005);
-    prng.u += UINT64_C(1442695040888963407);
+  uint64_t prng(uint64_t(time(0)));
+  SCOPED_TRACE("PGNG seed=" + std::to_string(prng));
+  for (int i = 0; i < 3333333;) {
+    i += probe_d2a(prng, buffer);
+    prng *= UINT64_C(6364136223846793005);
+    prng += UINT64_C(1442695040888963407);
   }
 }
 
