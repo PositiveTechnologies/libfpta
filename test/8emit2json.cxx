@@ -565,8 +565,8 @@ TEST(Emit, FloatAndDouble) {
                                       -std::numeric_limits<float>::infinity()));
   ASSERT_EQ(FPTU_OK, fptu_upsert_fp32(pt.get(), 9, FPTU_DENIL_FP32));
   EXPECT_STREQ(
-      "{\"@4\":1,f1_fp32:0,f2_fp32:-0,f3_fp32:34028234663852887e+22,f4_fp32:"
-      "11754943508222876e-54,f5_fp32:NaN,f6_fp32:NaN,f7_fp32:+"
+      "{\"@4\":1,f1_fp32:0,f2_fp32:-0,f3_fp32:34028234663852886e+22,f4_fp32:"
+      "11754943508222875e-54,f5_fp32:NaN,f6_fp32:NaN,f7_fp32:+"
       "Infinity,f8_fp32:-Infinity,f9_fp32:null}",
       json(dict, pt));
 
@@ -646,7 +646,7 @@ TEST(Emit, Datetime) {
       2 /* 1970-01-01 00:00:00.0000000004656612873077392578 */;
   ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
   EXPECT_STREQ(
-      "{f1_datetime:\"1970-01-01T00:00:00.0000000004656612873077392579\"}",
+      "{f1_datetime:\"1970-01-01T00:00:00.0000000004656612873077392578\"}",
       json(dict, pt));
 
   ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
