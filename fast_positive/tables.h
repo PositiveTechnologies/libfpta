@@ -1873,6 +1873,16 @@ FPTA_API int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id,
 FPTA_API int fpta_table_info(fpta_txn *txn, fpta_name *table_id,
                              size_t *row_count, fpta_table_stat *stat);
 
+typedef struct fpta_estimate_item {
+  fpta_name *column;
+  fpta_value begin, end;
+  size_t items;
+  int error;
+} fpta_estimate_item;
+
+FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
+                           fpta_estimate_item *items_vector);
+
 /* Возвращает общее количество колонок в таблице и отдельно количество
  * составных колонок. Код ошибки возвращается отдельно от результата.
  *

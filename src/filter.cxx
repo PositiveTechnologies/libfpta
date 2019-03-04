@@ -394,3 +394,94 @@ tail_recursion:
 
   return rc;
 }
+
+//----------------------------------------------------------------------------
+
+FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
+                           fpta_estimate_item *items_vector) {
+  if (unlikely(items_count < 1 || items_count > fpta_max_indexes ||
+               items_vector == nullptr))
+    return FPTA_EINVAL;
+
+  int rc = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(rc != FPTA_SUCCESS))
+    return rc;
+
+  fpta_estimate_item *const vector_begin = items_vector;
+  fpta_estimate_item *const vector_end = items_vector + items_count;
+  for (fpta_estimate_item *i = vector_begin; i != vector_end; ++i) {
+    i->items = SIZE_MAX / 2;
+    rc = fpta_id_validate(i->column, fpta_column);
+    if (unlikely(rc != FPTA_SUCCESS)) {
+      i->error = rc;
+      continue;
+    }
+    rc = fpta_name_refresh(txn, i->column);
+    if (unlikely(rc != FPTA_SUCCESS)) {
+      i->error = rc;
+      continue;
+    }
+    if (!fpta_is_indexed(i->column->shove)) {
+      i->error = FPTA_NO_INDEX;
+      continue;
+    }
+
+    MDBX_dbi tbl_handle, idx_handle;
+    rc = fpta_open_column(txn, i->column, tbl_handle, idx_handle);
+    if (unlikely(rc != FPTA_SUCCESS)) {
+      i->error = rc;
+      continue;
+    }
+
+    fpta_key begin_key;
+    if (i->begin.type != fpta_begin) {
+      rc = fpta_index_value2key(i->column->shove, i->begin, begin_key);
+      if (unlikely(rc != FPTA_SUCCESS)) {
+        i->error = rc;
+        continue;
+      }
+    }
+
+    fpta_key end_key;
+    if (i->end.type != fpta_end) {
+      rc = fpta_index_value2key(i->column->shove, i->end, end_key);
+      if (unlikely(rc != FPTA_SUCCESS)) {
+        i->error = rc;
+        continue;
+      }
+    }
+
+    ptrdiff_t items = 0xDEADBEEF;
+    if (i->begin.type == fpta_begin && i->end.type == fpta_end) {
+      // entire table
+      rc = mdbx_estimate_range(txn->mdbx_txn, idx_handle, nullptr, nullptr,
+                               nullptr, nullptr, &items);
+    } else if (i->begin.type != fpta_begin && i->end.type != fpta_end &&
+               fpta_is_same(begin_key.mdbx, end_key.mdbx)) {
+      // single value
+      rc = mdbx_estimate_range(txn->mdbx_txn, idx_handle, &begin_key.mdbx,
+                               nullptr, &begin_key.mdbx, nullptr, &items);
+    } else {
+      if (fpta_index_is_unordered(i->column->shove))
+        continue;
+      // range (maybe inverted)
+      rc = mdbx_estimate_range(
+          txn->mdbx_txn, idx_handle,
+          (i->begin.type != fpta_begin) ? &begin_key.mdbx : nullptr, nullptr,
+          (i->end.type != fpta_end) ? &end_key.mdbx : nullptr, nullptr, &items);
+    }
+
+    if (unlikely(rc != FPTA_SUCCESS)) {
+      i->error = rc;
+      if (rc == FPTA_NOTFOUND)
+        i->items = 0;
+      continue;
+    }
+
+    assert(items >= 0);
+    i->items = items;
+    i->error = FPTA_SUCCESS;
+  }
+
+  return FPTA_SUCCESS;
+}
