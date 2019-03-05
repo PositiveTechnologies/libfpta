@@ -4498,22 +4498,25 @@ TEST(SmokeFilter, ChoppedLookup) {
 
 //----------------------------------------------------------------------------
 
-static size_t intersect(size_t b1, size_t e1, size_t b2, size_t e2) {
-  size_t b = std::max(b1, b2);
-  size_t e = std::min(e1, e2);
+static ptrdiff_t intersect(ptrdiff_t b1, ptrdiff_t e1, ptrdiff_t b2,
+                           ptrdiff_t e2) {
+  ptrdiff_t b = std::max(b1, b2);
+  ptrdiff_t e = std::min(e1, e2);
   return (e > b) ? e - b : 0;
 }
-static void check_estimation(const unsigned gap, fpta_txn *txn,
+
+static void check_estimation(const ptrdiff_t gap, fpta_txn *txn,
                              const fpta_table_stat &stat, fpta_name &id,
                              fpta_name &padding) {
-  const unsigned blunt = 3;
-  const size_t begin_key = gap;
-  const size_t end_key = begin_key + stat.row_count;
-  const int step = (stat.btree_depth < 3)
-                       ? 1
-                       : 1 + (int)(stat.row_count / stat.branch_pages / 2);
+  const ptrdiff_t blunt = 3;
+  const ptrdiff_t begin_key = gap;
+  const ptrdiff_t end_key = begin_key + stat.row_count;
+  const ptrdiff_t step =
+      (stat.btree_depth < 3)
+          ? 1
+          : 1 + (ptrdiff_t)(stat.row_count / stat.branch_pages / 2);
 
-  for (size_t from = 0; from <= end_key + gap;
+  for (ptrdiff_t from = 0; from <= end_key + gap;
        from += (from > begin_key && from < end_key) ? step : 1) {
     for (ptrdiff_t width = stat.row_count - from + gap * 2; width >= 0;
          width -= (width > step + (int)gap) ? step : 1) {
@@ -4526,20 +4529,20 @@ static void check_estimation(const unsigned gap, fpta_txn *txn,
 
       fpta_estimate_item vector[] = {
           /* 0 */ {&id, fpta_value_cstr(from_buf), fpta_value_cstr(to_buf),
-                   0xDEADBEEF, FPTA_ENOIMP},
+                   INT_MIN, FPTA_ENOIMP},
           /* 1 */
-          {&id, fpta_value_cstr(to_buf), fpta_value_cstr(from_buf), 0xDEADBEEF,
+          {&id, fpta_value_cstr(to_buf), fpta_value_cstr(from_buf), INT_MIN,
            FPTA_ENOIMP},
           /* 2 */
-          {&id, fpta_value_begin(), fpta_value_cstr(from_buf), 0xDEADBEEF,
+          {&id, fpta_value_begin(), fpta_value_cstr(from_buf), INT_MIN,
            FPTA_ENOIMP},
           /* 3 */
-          {&id, fpta_value_cstr(from_buf), fpta_value_end(), 0xDEADBEEF,
+          {&id, fpta_value_cstr(from_buf), fpta_value_end(), INT_MIN,
            FPTA_ENOIMP},
           /* 4 */
-          {&id, fpta_value_begin(), fpta_value_end(), 0xDEADBEEF, FPTA_ENOIMP},
+          {&id, fpta_value_begin(), fpta_value_end(), INT_MIN, FPTA_ENOIMP},
           /* 5 */
-          {&padding, fpta_value_begin(), fpta_value_end(), 0xDEADBEEF,
+          {&padding, fpta_value_begin(), fpta_value_end(), INT_MIN,
            FPTA_ENOIMP},
       };
 
@@ -4557,14 +4560,13 @@ static void check_estimation(const unsigned gap, fpta_txn *txn,
       }
 
       // [1] to..from (inverted range): inverted_range == estimated
-      const auto inverted_range = stat.row_count - vector[0].items;
-      EXPECT_EQ(FPTA_OK, vector[1].error);
-      if (to == from) {
-        // одиночное значение вместо инвертированного диапазона
-        EXPECT_EQ(range, vector[1].items);
+      const auto inverted_range = -range;
+      if (inverted_range > -2) {
+        // отсутствие или одно значение
+        EXPECT_EQ(inverted_range, vector[1].items);
       } else {
-        EXPECT_LE(inverted_range, vector[1].items);
-        EXPECT_GE(inverted_range * blunt, vector[1].items);
+        EXPECT_GE(inverted_range, vector[1].items * blunt);
+        EXPECT_LE(inverted_range * blunt, vector[1].items);
       }
 
       // [2] begin..from: before/2 <= estimated <= before*2
@@ -4574,18 +4576,18 @@ static void check_estimation(const unsigned gap, fpta_txn *txn,
       EXPECT_GE(before * blunt, vector[2].items);
 
       // [3] from..end: after/2 <= estimated <= after*2
-      const auto after = intersect(begin_key, end_key, from, UINT_MAX);
+      const auto after = intersect(begin_key, end_key, from, INT_MAX);
       EXPECT_EQ(FPTA_OK, vector[3].error);
       EXPECT_LE(after, vector[3].items * blunt);
       EXPECT_GE(after * blunt, vector[3].items);
 
       // [4] begin..end: estimated == number of rows
       EXPECT_EQ(FPTA_OK, vector[4].error);
-      EXPECT_EQ(stat.row_count, vector[4].items);
+      EXPECT_EQ((ptrdiff_t)stat.row_count, vector[4].items);
 
-      // [5] non-intexed 'padding' field: estimated > INT_MAX
+      // [5] non-intexed 'padding' field: estimated >= INT_MAX
       EXPECT_EQ(FPTA_NO_INDEX, vector[5].error);
-      EXPECT_LE((size_t)INT_MAX, vector[5].items);
+      EXPECT_LE(INT_MAX, vector[5].items);
     }
   }
 }
