@@ -4498,6 +4498,247 @@ TEST(SmokeFilter, ChoppedLookup) {
 
 //----------------------------------------------------------------------------
 
+static size_t intersect(size_t b1, size_t e1, size_t b2, size_t e2) {
+  size_t b = std::max(b1, b2);
+  size_t e = std::min(e1, e2);
+  return (e > b) ? e - b : 0;
+}
+static void check_estimation(const unsigned gap, fpta_txn *txn,
+                             const fpta_table_stat &stat, fpta_name &id,
+                             fpta_name &padding) {
+  const unsigned blunt = 3;
+  const size_t begin_key = gap;
+  const size_t end_key = begin_key + stat.row_count;
+  const int step = (stat.btree_depth < 3)
+                       ? 1
+                       : 1 + (int)(stat.row_count / stat.branch_pages / 2);
+
+  for (size_t from = 0; from <= end_key + gap;
+       from += (from > begin_key && from < end_key) ? step : 1) {
+    for (ptrdiff_t width = stat.row_count - from + gap * 2; width >= 0;
+         width -= (width > step + (int)gap) ? step : 1) {
+      char from_buf[32], to_buf[32];
+      ASSERT_GT(sizeof(from_buf), (size_t)snprintf(from_buf, sizeof(from_buf),
+                                                   "%08" PRIuSIZE, from));
+      const auto to = from + width;
+      ASSERT_GT(sizeof(to_buf),
+                (size_t)snprintf(to_buf, sizeof(to_buf), "%08" PRIuSIZE, to));
+
+      fpta_estimate_item vector[] = {
+          /* 0 */ {&id, fpta_value_cstr(from_buf), fpta_value_cstr(to_buf),
+                   0xDEADBEEF, FPTA_ENOIMP},
+          /* 1 */
+          {&id, fpta_value_cstr(to_buf), fpta_value_cstr(from_buf), 0xDEADBEEF,
+           FPTA_ENOIMP},
+          /* 2 */
+          {&id, fpta_value_begin(), fpta_value_cstr(from_buf), 0xDEADBEEF,
+           FPTA_ENOIMP},
+          /* 3 */
+          {&id, fpta_value_cstr(from_buf), fpta_value_end(), 0xDEADBEEF,
+           FPTA_ENOIMP},
+          /* 4 */
+          {&id, fpta_value_begin(), fpta_value_end(), 0xDEADBEEF, FPTA_ENOIMP},
+          /* 5 */
+          {&padding, fpta_value_begin(), fpta_value_end(), 0xDEADBEEF,
+           FPTA_ENOIMP},
+      };
+
+      ASSERT_EQ(FPTA_OK, fpta_estimate(txn, FPT_ARRAY_LENGTH(vector), vector));
+
+      // [0] from..to: range/2 <= estimated <= range*2
+      const auto range = intersect(begin_key, end_key, from, to);
+      EXPECT_EQ(FPTA_OK, vector[0].error);
+      if (range < 2) {
+        // отсутствие или одно значение
+        EXPECT_EQ(range, vector[0].items);
+      } else {
+        EXPECT_LE(range, vector[0].items * blunt);
+        EXPECT_GE(range * blunt, vector[0].items);
+      }
+
+      // [1] to..from (inverted range): inverted_range == estimated
+      const auto inverted_range = stat.row_count - vector[0].items;
+      EXPECT_EQ(FPTA_OK, vector[1].error);
+      if (to == from) {
+        // одиночное значение вместо инвертированного диапазона
+        EXPECT_EQ(range, vector[1].items);
+      } else {
+        EXPECT_LE(inverted_range, vector[1].items);
+        EXPECT_GE(inverted_range * blunt, vector[1].items);
+      }
+
+      // [2] begin..from: before/2 <= estimated <= before*2
+      const auto before = intersect(begin_key, end_key, 0, from);
+      EXPECT_EQ(FPTA_OK, vector[2].error);
+      EXPECT_LE(before, vector[2].items * blunt);
+      EXPECT_GE(before * blunt, vector[2].items);
+
+      // [3] from..end: after/2 <= estimated <= after*2
+      const auto after = intersect(begin_key, end_key, from, UINT_MAX);
+      EXPECT_EQ(FPTA_OK, vector[3].error);
+      EXPECT_LE(after, vector[3].items * blunt);
+      EXPECT_GE(after * blunt, vector[3].items);
+
+      // [4] begin..end: estimated == number of rows
+      EXPECT_EQ(FPTA_OK, vector[4].error);
+      EXPECT_EQ(stat.row_count, vector[4].items);
+
+      // [5] non-intexed 'padding' field: estimated > INT_MAX
+      EXPECT_EQ(FPTA_NO_INDEX, vector[5].error);
+      EXPECT_LE((size_t)INT_MAX, vector[5].items);
+    }
+  }
+}
+
+TEST(Smoke, Estimate) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // создаем и открываем базу 128 Mb c минимальным размером страницы
+  fpta_db_creation_params creation_params;
+  creation_params.params_size = sizeof(creation_params);
+  creation_params.file_mode = 0644;
+  creation_params.pagesize = 512;
+  creation_params.size_lower = creation_params.size_upper = 8 << 20;
+  creation_params.growth_step = creation_params.shrink_threshold = 0;
+
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK,
+            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                   true, &db, &creation_params));
+  ASSERT_NE(nullptr, db);
+
+  // создаем простую таблицу
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("id", fptu_cstr,
+                                 fpta_primary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe("padding", fptu_cstr,
+                                          fpta_noindex_nullable, &def));
+  fpta_txn *txn = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "linear", &def));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+
+  // готовим причиндалы
+  fpta_name table, id, padding;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "linear"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &id, "id"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &padding, "padding"));
+  fptu_rw *tuple = fptu_alloc(9, 2000);
+  ASSERT_NE(nullptr, tuple);
+
+  // заполняем таблицу пока в БД есть место,
+  // сохраняя кол-во элементов при изменении высоты b-дерева
+  std::deque<unsigned> edges;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &id));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &padding));
+  fpta_table_stat stat;
+  memset(&stat, 0, sizeof(stat));
+  const unsigned gap = 2;
+  ASSERT_EQ(FPTA_OK, fpta_table_sequence(txn, &table, nullptr, gap));
+
+  while (1) {
+    uint64_t sequence = 0;
+    ASSERT_EQ(FPTA_OK, fpta_table_sequence(txn, &table, &sequence, 1));
+
+    std::string tail(random_string(42));
+    char buf[256];
+    ASSERT_GT(sizeof(buf),
+              (size_t)snprintf(buf, sizeof(buf), "%08" PRIu64 " %s", sequence,
+                               tail.c_str()));
+    ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &id, fpta_value_cstr(buf)));
+    int err = fpta_insert_row(txn, &table, fptu_take(tuple));
+    if (err == FPTA_DB_FULL) {
+      edges.push_back((unsigned)sequence);
+      break;
+    }
+    ASSERT_EQ(FPTA_OK, err);
+    const unsigned prev_height = stat.btree_depth;
+    ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+    if (prev_height != stat.btree_depth)
+      edges.push_back((unsigned)sequence);
+  }
+  // отменяем эту транзакцию и начинаем новую
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
+  txn = nullptr;
+
+  // теперь при наполнении таблицы прогоняем цикл проверки estimation,
+  // перед каждым изменением высоты дерева и сразу после него.
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  ASSERT_EQ(FPTA_OK, fpta_table_sequence(txn, &table, nullptr, gap));
+  while (1) {
+    uint64_t sequence = 0;
+    ASSERT_EQ(FPTA_OK, fpta_table_sequence(txn, &table, &sequence, 1));
+
+    if (sequence == edges.front()) {
+      if (edges.size() == 1)
+        break;
+      SCOPED_TRACE(fptu::format("Probe at three-depth %u, before growth by @%u",
+                                stat.btree_depth, edges.front()));
+      check_estimation(gap, txn, stat, id, padding);
+    }
+
+    std::string tail(random_string(42));
+    char buf[256];
+    ASSERT_GT(sizeof(buf),
+              (size_t)snprintf(buf, sizeof(buf), "%08" PRIu64 " %s", sequence,
+                               tail.c_str()));
+    ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &id, fpta_value_cstr(buf)));
+    ASSERT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take(tuple)));
+    const unsigned prev_height = stat.btree_depth;
+    ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+    if (prev_height != stat.btree_depth) {
+      EXPECT_EQ(edges.front(), sequence);
+      SCOPED_TRACE(fptu::format("Probe after growth three-depth to %u by @%u",
+                                stat.btree_depth, edges.front()));
+      check_estimation(gap, txn, stat, id, padding);
+      edges.pop_front();
+    } else {
+      EXPECT_NE(edges.front(), sequence);
+      if (stat.btree_depth < 4) {
+        SCOPED_TRACE(fptu::format("Probe for small three-depth %u at %u items",
+                                  stat.btree_depth, (unsigned)stat.row_count));
+        check_estimation(gap, txn, stat, id, padding);
+      }
+    }
+  }
+  // должен остаться только элемент (вызывающий переполнение БД)
+  ASSERT_EQ(1u, edges.size());
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
+  txn = nullptr;
+
+  // освобождаем ресурсы
+  EXPECT_EQ(FPTU_OK, fptu_clear(tuple));
+  free(tuple);
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&id);
+  fpta_name_destroy(&padding);
+
+  // закрываем и удаляем базу
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//----------------------------------------------------------------------------
+
 TEST(Smoke, TransacionRestart) {
   /* Smoke-тест перезапуска читающей транзакции.
    *

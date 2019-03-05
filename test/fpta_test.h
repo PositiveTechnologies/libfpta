@@ -64,6 +64,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <deque>
 #include <limits>
 #include <map>
 #include <memory>
