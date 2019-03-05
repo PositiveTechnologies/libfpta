@@ -1875,8 +1875,8 @@ FPTA_API int fpta_table_info(fpta_txn *txn, fpta_name *table_id,
 
 typedef struct fpta_estimate_item {
   fpta_name *column;
-  fpta_value begin, end;
-  size_t items;
+  fpta_value range_from, range_to;
+  ptrdiff_t items;
   int error;
 } fpta_estimate_item;
 
