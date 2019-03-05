@@ -403,22 +403,23 @@ FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
                items_vector == nullptr))
     return FPTA_EINVAL;
 
-  int rc = fpta_txn_validate(txn, fpta_read);
-  if (unlikely(rc != FPTA_SUCCESS))
-    return rc;
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != FPTA_SUCCESS))
+    return err;
 
   fpta_estimate_item *const vector_begin = items_vector;
   fpta_estimate_item *const vector_end = items_vector + items_count;
+  int rc = FPTA_NODATA;
   for (fpta_estimate_item *i = vector_begin; i != vector_end; ++i) {
-    i->items = PTRDIFF_MAX;
-    rc = fpta_id_validate(i->column, fpta_column);
-    if (unlikely(rc != FPTA_SUCCESS)) {
-      i->error = rc;
+    i->estimated_rows = PTRDIFF_MAX;
+    err = fpta_id_validate(i->column_id, fpta_column);
+    if (unlikely(err != FPTA_SUCCESS)) {
+      i->error = err;
       continue;
     }
-    rc = fpta_name_refresh(txn, i->column);
-    if (unlikely(rc != FPTA_SUCCESS)) {
-      i->error = rc;
+    err = fpta_name_refresh(txn, i->column_id);
+    if (unlikely(err != FPTA_SUCCESS)) {
+      i->error = err;
       continue;
     }
 
@@ -427,30 +428,30 @@ FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
       i->error = FPTA_EINVAL;
       continue;
     }
-    if (unlikely(!fpta_is_indexed(i->column->shove))) {
+    if (unlikely(!fpta_is_indexed(i->column_id->shove))) {
       i->error = FPTA_NO_INDEX;
       continue;
     }
 
     fpta_key begin_key;
     if (i->range_from.type != fpta_begin) {
-      rc = fpta_index_value2key(i->column->shove, i->range_from, begin_key);
-      if (unlikely(rc != FPTA_SUCCESS)) {
-        i->error = rc;
+      err = fpta_index_value2key(i->column_id->shove, i->range_from, begin_key);
+      if (unlikely(err != FPTA_SUCCESS)) {
+        i->error = err;
         continue;
       }
     }
 
     fpta_key end_key;
     if (i->range_to.type != fpta_end) {
-      rc = fpta_index_value2key(i->column->shove, i->range_to, end_key);
-      if (unlikely(rc != FPTA_SUCCESS)) {
-        i->error = rc;
+      err = fpta_index_value2key(i->column_id->shove, i->range_to, end_key);
+      if (unlikely(err != FPTA_SUCCESS)) {
+        i->error = err;
         continue;
       }
     }
 
-    if (fpta_index_is_unordered(i->column->shove) &&
+    if (fpta_index_is_unordered(i->column_id->shove) &&
         unlikely(i->range_from.type != fpta_begin &&
                  i->range_to.type != fpta_end &&
                  !fpta_is_same(begin_key.mdbx, end_key.mdbx))) {
@@ -459,18 +460,24 @@ FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
     }
 
     MDBX_dbi tbl_handle, idx_handle;
-    rc = fpta_open_column(txn, i->column, tbl_handle, idx_handle);
-    if (unlikely(rc != FPTA_SUCCESS)) {
-      i->error = rc;
+    err = fpta_open_column(txn, i->column_id, tbl_handle, idx_handle);
+    if (unlikely(err != FPTA_SUCCESS)) {
+      i->error = err;
       continue;
     }
 
-    i->error = mdbx_estimate_range(
+    err = mdbx_estimate_range(
         txn->mdbx_txn, idx_handle,
         (i->range_from.type != fpta_begin) ? &begin_key.mdbx : nullptr, nullptr,
         (i->range_to.type != fpta_end) ? &end_key.mdbx : nullptr, nullptr,
-        &i->items);
+        &i->estimated_rows);
+    if (unlikely(err != FPTA_SUCCESS)) {
+      i->error = err;
+      continue;
+    }
+
+    i->error = rc = FPTA_SUCCESS;
   }
 
-  return FPTA_SUCCESS;
+  return rc;
 }

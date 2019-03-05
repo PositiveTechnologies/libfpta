@@ -4553,41 +4553,41 @@ static void check_estimation(const ptrdiff_t gap, fpta_txn *txn,
       EXPECT_EQ(FPTA_OK, vector[0].error);
       if (range < 2) {
         // отсутствие или одно значение
-        EXPECT_EQ(range, vector[0].items);
+        EXPECT_EQ(range, vector[0].estimated_rows);
       } else {
-        EXPECT_LE(range, vector[0].items * blunt);
-        EXPECT_GE(range * blunt, vector[0].items);
+        EXPECT_LE(range, vector[0].estimated_rows * blunt);
+        EXPECT_GE(range * blunt, vector[0].estimated_rows);
       }
 
       // [1] to..from (inverted range): inverted_range == estimated
       const auto inverted_range = -range;
       if (inverted_range > -2) {
         // отсутствие или одно значение
-        EXPECT_EQ(inverted_range, vector[1].items);
+        EXPECT_EQ(inverted_range, vector[1].estimated_rows);
       } else {
-        EXPECT_GE(inverted_range, vector[1].items * blunt);
-        EXPECT_LE(inverted_range * blunt, vector[1].items);
+        EXPECT_GE(inverted_range, vector[1].estimated_rows * blunt);
+        EXPECT_LE(inverted_range * blunt, vector[1].estimated_rows);
       }
 
       // [2] begin..from: before/2 <= estimated <= before*2
       const auto before = intersect(begin_key, end_key, 0, from);
       EXPECT_EQ(FPTA_OK, vector[2].error);
-      EXPECT_LE(before, vector[2].items * blunt);
-      EXPECT_GE(before * blunt, vector[2].items);
+      EXPECT_LE(before, vector[2].estimated_rows * blunt);
+      EXPECT_GE(before * blunt, vector[2].estimated_rows);
 
       // [3] from..end: after/2 <= estimated <= after*2
       const auto after = intersect(begin_key, end_key, from, INT_MAX);
       EXPECT_EQ(FPTA_OK, vector[3].error);
-      EXPECT_LE(after, vector[3].items * blunt);
-      EXPECT_GE(after * blunt, vector[3].items);
+      EXPECT_LE(after, vector[3].estimated_rows * blunt);
+      EXPECT_GE(after * blunt, vector[3].estimated_rows);
 
       // [4] begin..end: estimated == number of rows
       EXPECT_EQ(FPTA_OK, vector[4].error);
-      EXPECT_EQ((ptrdiff_t)stat.row_count, vector[4].items);
+      EXPECT_EQ((ptrdiff_t)stat.row_count, vector[4].estimated_rows);
 
       // [5] non-intexed 'padding' field: estimated >= INT_MAX
       EXPECT_EQ(FPTA_NO_INDEX, vector[5].error);
-      EXPECT_LE(INT_MAX, vector[5].items);
+      EXPECT_LE(INT_MAX, vector[5].estimated_rows);
     }
   }
 }
