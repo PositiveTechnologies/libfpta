@@ -424,7 +424,7 @@ d2a(const grisu::casting_union &value,
     const branchless_abs<int> pair(exponent);
     static char e_with_sign[4] = {'e', '+', 'e', '-'};
     // LY: strive for branchless
-    memcpy(ptr, e_with_sign + (pair.expanded_sign & 2), 2);
+    std::memcpy(ptr, e_with_sign + (pair.expanded_sign & 2), 2);
     ptr = dec3(pair.unsigned_abs, ptr + 2);
   }
   assert(ptr - buffer <= 23);
