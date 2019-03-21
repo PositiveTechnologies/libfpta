@@ -27,10 +27,14 @@
 #pragma warning(disable : 4505) /* unreferenced local function... */
 #endif
 
+#include "erthink_arch.h"
 #include "erthink_bswap.h"
+#include "erthink_byteorder.h"
 #include "erthink_carryadd.h"
 #include "erthink_clz.h"
 #include "erthink_d2a.h"
+#include "erthink_defs.h"
+#include "erthink_dynamic_constexpr.h"
 #include "erthink_intrin.h"
 #include "erthink_misc.h"
 #include "erthink_mul.h"
