@@ -1330,6 +1330,7 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
           assert(rc == MDBX_RESULT_FALSE);
         }
       } else {
+        new_dict.pickup(old_dict, shove);
         for (size_t i = 0; i < schema->count; ++i)
           new_dict.pickup(old_dict, schema->columns[i]);
       }
