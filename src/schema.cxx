@@ -129,6 +129,15 @@ class trivial_dict {
   };
 
   struct eq {
+    bool constexpr operator()(const item &a, const item &b) const {
+      return fpta_shove_eq(a.first, b.first);
+    }
+    bool constexpr operator()(const item &a, const fpta_shove_t &b) const {
+      return fpta_shove_eq(a.first, b);
+    }
+    bool constexpr operator()(const fpta_shove_t &a, const item &b) const {
+      return fpta_shove_eq(a, b.first);
+    }
     bool constexpr operator()(const fpta_shove_t &a,
                               const fpta_shove_t &b) const {
       return fpta_shove_eq(a, b);
@@ -180,8 +189,8 @@ public:
     for (size_t i = 0; i < vector.size(); ++i) {
       if (!is_valid(vector[i]))
         return false;
-      if (i > 0 && (!gt()(vector[i - 1], vector[i]) ||
-                    eq()(vector[i - 1].first, vector[i].first)))
+      if (i > 0 &&
+          (!gt()(vector[i - 1], vector[i]) || eq()(vector[i - 1], vector[i])))
         return false;
     }
     return true;
@@ -230,12 +239,12 @@ public:
     assert(validate() && from.validate());
     const auto dst =
         std::lower_bound(vector.begin(), vector.end(), internal(shove), gt());
-    if (dst != vector.end() && eq()(dst->first, internal(shove)))
+    if (dst != vector.end() && eq()(*dst, internal(shove)))
       return false;
 
     const auto src = std::lower_bound(from.vector.begin(), from.vector.end(),
                                       internal(shove), gt());
-    assert(src != from.vector.end() && eq()(src->first, internal(shove)));
+    assert(src != from.vector.end() && eq()(*src, internal(shove)));
 
     vector.insert(dst, *src);
     assert(validate() && from.validate());
@@ -703,7 +712,6 @@ fpta_schema_image_validate(const fpta_shove_t schema_key,
   const fpta_table_stored_schema *const schema =
       fpta_schema_image_validate(schema_key, schema_data);
   if (likely(schema)) {
-
     for (size_t i = 0; i < schema->count; ++i)
       if (unlikely(!schema_dict.exists(schema->columns[i])))
         return nullptr;
