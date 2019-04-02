@@ -1637,7 +1637,7 @@ static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
       if (unlikely(r.err != FPTA_SUCCESS))
         return r;
       r.err = fptu_insert_bool(out_tuple, colnum_index_is_unordered,
-                               fpta_index_is_ordered(index));
+                               fpta_index_is_unordered(index));
       if (unlikely(r.err != FPTA_SUCCESS))
         return r;
       r.err = fptu_insert_bool(out_tuple, colnum_index_is_reverse,
