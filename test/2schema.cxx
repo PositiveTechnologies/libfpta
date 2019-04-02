@@ -408,18 +408,36 @@ TEST(Schema, Base) {
 
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(2u, schema_info.tables_count);
+  // повторно проверяем получение схемы до удаления первой таблицы
+  EXPECT_EQ(FPTA_OK, fpta_schema_render(&schema_info, &tuple));
+  EXPECT_NE(nullptr, tuple);
+  EXPECT_EQ(nullptr, fptu::check(tuple));
+  free(tuple);
+  tuple = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   // удаляем первую таблицу
   EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "Table_1"));
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(1u, schema_info.tables_count);
+  // проверяем получение схемы после удаления первой таблицы
+  EXPECT_EQ(FPTA_OK, fpta_schema_render(&schema_info, &tuple));
+  EXPECT_NE(nullptr, tuple);
+  EXPECT_EQ(nullptr, fptu::check(tuple));
+  free(tuple);
+  tuple = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   // пробуем удалить несуществующую таблицу
   EXPECT_EQ(FPTA_NOTFOUND, fpta_table_drop(txn, "table_xyz"));
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(1u, schema_info.tables_count);
+  // повторно проверяем получение схемы после удаления первой таблицы
+  EXPECT_EQ(FPTA_OK, fpta_schema_render(&schema_info, &tuple));
+  EXPECT_NE(nullptr, tuple);
+  EXPECT_EQ(nullptr, fptu::check(tuple));
+  free(tuple);
+  tuple = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   // обновляем описание второй таблицы (внутри транзакции изменения схемы)
@@ -438,6 +456,12 @@ TEST(Schema, Base) {
 
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
   EXPECT_EQ(1u, schema_info.tables_count);
+  // еще раз проверяем получение схемы после удаления первой таблицы
+  EXPECT_EQ(FPTA_OK, fpta_schema_render(&schema_info, &tuple));
+  EXPECT_NE(nullptr, tuple);
+  EXPECT_EQ(nullptr, fptu::check(tuple));
+  free(tuple);
+  tuple = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
   // еще раз обновляем описание второй таблицы
