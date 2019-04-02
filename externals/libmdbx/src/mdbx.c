@@ -406,7 +406,7 @@ __cold void mdbx_rthc_global_init(void) {
 }
 
 /* dtor called for thread, i.e. for all mdbx's environment objects */
-void mdbx_rthc_thread_dtor(void *ptr) {
+__cold void mdbx_rthc_thread_dtor(void *ptr) {
   mdbx_rthc_lock();
   mdbx_trace(">> pid %d, thread 0x%" PRIxPTR ", rthc %p", mdbx_getpid(),
              (uintptr_t)mdbx_thread_self(), ptr);
@@ -2214,8 +2214,8 @@ static int __must_check_result mdbx_page_dirty(MDBX_txn *txn, MDBX_page *mp) {
   return MDBX_SUCCESS;
 }
 
-static int mdbx_mapresize(MDBX_env *env, const pgno_t size_pgno,
-                          const pgno_t limit_pgno) {
+__cold static int mdbx_mapresize(MDBX_env *env, const pgno_t size_pgno,
+                                 const pgno_t limit_pgno) {
 #ifdef USE_VALGRIND
   const size_t prev_mapsize = env->me_mapsize;
   void *const prev_mapaddr = env->me_map;
@@ -2770,7 +2770,8 @@ done:
  * [in] dst page to copy into
  * [in] src page to copy from
  * [in] psize size of a page */
-static void mdbx_page_copy(MDBX_page *dst, MDBX_page *src, unsigned psize) {
+__hot static void mdbx_page_copy(MDBX_page *dst, MDBX_page *src,
+                                 unsigned psize) {
   STATIC_ASSERT(UINT16_MAX > MAX_PAGESIZE - PAGEHDRSZ);
   STATIC_ASSERT(MIN_PAGESIZE > PAGEHDRSZ + NODESIZE * 42);
   enum { Align = sizeof(pgno_t) };
@@ -2797,8 +2798,9 @@ static void mdbx_page_copy(MDBX_page *dst, MDBX_page *src, unsigned psize) {
  * [in] mp    the page being referenced. It must not be dirty.
  * [out] ret  the writable page, if any.
  *            ret is unchanged if mp wasn't spilled. */
-static int __must_check_result mdbx_page_unspill(MDBX_txn *txn, MDBX_page *mp,
-                                                 MDBX_page **ret) {
+__hot static int __must_check_result mdbx_page_unspill(MDBX_txn *txn,
+                                                       MDBX_page *mp,
+                                                       MDBX_page **ret) {
   MDBX_env *env = txn->mt_env;
   const MDBX_txn *tx2;
   unsigned x;
@@ -2856,7 +2858,7 @@ static int __must_check_result mdbx_page_unspill(MDBX_txn *txn, MDBX_page *mp,
  * [in] mc  cursor pointing to the page to be touched
  *
  * Returns 0 on success, non-zero on failure. */
-static int mdbx_page_touch(MDBX_cursor *mc) {
+__hot static int mdbx_page_touch(MDBX_cursor *mc) {
   MDBX_page *mp = mc->mc_pg[mc->mc_top], *np;
   MDBX_txn *txn = mc->mc_txn;
   MDBX_cursor *m2, *m3;
@@ -2963,7 +2965,7 @@ fail:
   return rc;
 }
 
-static int mdbx_env_sync_ex(MDBX_env *env, int force, int nonblock) {
+__cold static int mdbx_env_sync_ex(MDBX_env *env, int force, int nonblock) {
   if (unlikely(!env))
     return MDBX_EINVAL;
 
@@ -3034,7 +3036,7 @@ static int mdbx_env_sync_ex(MDBX_env *env, int force, int nonblock) {
   return MDBX_SUCCESS;
 }
 
-int mdbx_env_sync(MDBX_env *env, int force) {
+__cold int mdbx_env_sync(MDBX_env *env, int force) {
   return mdbx_env_sync_ex(env, force, false);
 }
 
@@ -5643,11 +5645,10 @@ static int __cold mdbx_env_map(MDBX_env *env, size_t usedsize) {
   return MDBX_SUCCESS;
 }
 
-LIBMDBX_API int mdbx_env_set_geometry(MDBX_env *env, intptr_t size_lower,
-                                      intptr_t size_now, intptr_t size_upper,
-                                      intptr_t growth_step,
-                                      intptr_t shrink_threshold,
-                                      intptr_t pagesize) {
+__cold LIBMDBX_API int
+mdbx_env_set_geometry(MDBX_env *env, intptr_t size_lower, intptr_t size_now,
+                      intptr_t size_upper, intptr_t growth_step,
+                      intptr_t shrink_threshold, intptr_t pagesize) {
   if (unlikely(!env))
     return MDBX_EINVAL;
 
@@ -6720,7 +6721,9 @@ int __cold mdbx_env_close_ex(MDBX_env *env, int dont_sync) {
   return rc;
 }
 
-int mdbx_env_close(MDBX_env *env) { return mdbx_env_close_ex(env, false); }
+__cold int mdbx_env_close(MDBX_env *env) {
+  return mdbx_env_close_ex(env, false);
+}
 
 /* Compare two items pointing at aligned unsigned int's. */
 static int __hot mdbx_cmp_int_ai(const MDBX_val *a, const MDBX_val *b) {
@@ -7002,8 +7005,8 @@ static int mdbx_cursor_push(MDBX_cursor *mc, MDBX_page *mp) {
  *            0=mapped page.
  *
  * Returns 0 on success, non-zero on failure. */
-static int mdbx_page_get(MDBX_cursor *mc, pgno_t pgno, MDBX_page **ret,
-                         int *lvl) {
+__hot static int mdbx_page_get(MDBX_cursor *mc, pgno_t pgno, MDBX_page **ret,
+                               int *lvl) {
   MDBX_txn *txn = mc->mc_txn;
   MDBX_env *env = txn->mt_env;
   MDBX_page *p = NULL;
@@ -7071,7 +7074,8 @@ done:
 
 /* Finish mdbx_page_search() / mdbx_page_search_lowest().
  * The cursor is at the root page, set up the rest of it. */
-static int mdbx_page_search_root(MDBX_cursor *mc, MDBX_val *key, int flags) {
+__hot static int mdbx_page_search_root(MDBX_cursor *mc, MDBX_val *key,
+                                       int flags) {
   MDBX_page *mp = mc->mc_pg[mc->mc_top];
   int rc;
   DKBUF;
@@ -7154,7 +7158,7 @@ static int mdbx_page_search_root(MDBX_cursor *mc, MDBX_val *key, int flags) {
  * before calling mdbx_page_search_root(), because the callers
  * are all in situations where the current page is known to
  * be underfilled. */
-static int mdbx_page_search_lowest(MDBX_cursor *mc) {
+__hot static int mdbx_page_search_lowest(MDBX_cursor *mc) {
   MDBX_page *mp = mc->mc_pg[mc->mc_top];
   mdbx_cassert(mc, IS_BRANCH(mp));
   MDBX_node *node = NODEPTR(mp, 0);
@@ -7183,7 +7187,7 @@ static int mdbx_page_search_lowest(MDBX_cursor *mc) {
  *              lookups.
  *
  * Returns 0 on success, non-zero on failure. */
-static int mdbx_page_search(MDBX_cursor *mc, MDBX_val *key, int flags) {
+__hot static int mdbx_page_search(MDBX_cursor *mc, MDBX_val *key, int flags) {
   int rc;
   pgno_t root;
 
@@ -7698,8 +7702,8 @@ static int mdbx_cursor_prev(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
 }
 
 /* Set the cursor on a specific data item. */
-static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
-                           MDBX_cursor_op op, int *exactp) {
+__hot static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
+                                 MDBX_cursor_op op, int *exactp) {
   int rc;
   MDBX_page *mp;
   MDBX_node *leaf = NULL;
@@ -13176,80 +13180,81 @@ struct diff_result {
   int root_nkeys;
 };
 
-static int cursor_diff(const MDBX_cursor *const __restrict first,
-                       const MDBX_cursor *const __restrict last,
-                       struct diff_result *const __restrict dr) {
-  dr->root_nkeys = 0;
-  dr->level = 0;
-  dr->diff = 0;
+/* calculates: r = x - y */
+__hot static int cursor_diff(const MDBX_cursor *const __restrict x,
+                             const MDBX_cursor *const __restrict y,
+                             struct diff_result *const __restrict r) {
+  r->diff = 0;
+  r->level = 0;
+  r->root_nkeys = 0;
 
-  if (unlikely(first->mc_signature != MDBX_MC_SIGNATURE ||
-               last->mc_signature != MDBX_MC_SIGNATURE))
+  if (unlikely(y->mc_signature != MDBX_MC_SIGNATURE ||
+               x->mc_signature != MDBX_MC_SIGNATURE))
     return MDBX_EBADSIGN;
 
-  if (unlikely(first->mc_dbi != last->mc_dbi))
+  if (unlikely(y->mc_dbi != x->mc_dbi))
     return MDBX_EINVAL;
 
-  if (unlikely(!(first->mc_flags & last->mc_flags & C_INITIALIZED)))
+  if (unlikely(!(y->mc_flags & x->mc_flags & C_INITIALIZED)))
     return MDBX_ENODATA;
 
-  while (likely(dr->level < first->mc_snum && dr->level < last->mc_snum)) {
-    if (unlikely(first->mc_pg[dr->level] != last->mc_pg[dr->level]))
+  while (likely(r->level < y->mc_snum && r->level < x->mc_snum)) {
+    if (unlikely(y->mc_pg[r->level] != x->mc_pg[r->level]))
       return MDBX_PROBLEM;
 
-    int nkeys = NUMKEYS(first->mc_pg[dr->level]);
+    int nkeys = NUMKEYS(y->mc_pg[r->level]);
     assert(nkeys > 0);
-    if (dr->level == 0)
-      dr->root_nkeys = nkeys;
+    if (r->level == 0)
+      r->root_nkeys = nkeys;
 
-    int max_ki = nkeys - 1;
-    int last_ki = last->mc_ki[dr->level];
-    int first_ki = first->mc_ki[dr->level];
-    dr->diff = ((last_ki < max_ki) ? last_ki : max_ki) -
-               ((first_ki < max_ki) ? first_ki : max_ki);
-    if (dr->diff == 0) {
-      dr->level += 1;
+    const int limit_ki = nkeys - 1;
+    const int x_ki = x->mc_ki[r->level];
+    const int y_ki = y->mc_ki[r->level];
+    r->diff = ((x_ki < limit_ki) ? x_ki : limit_ki) -
+              ((y_ki < limit_ki) ? y_ki : limit_ki);
+    if (r->diff == 0) {
+      r->level += 1;
       continue;
     }
 
-    while (unlikely(dr->diff == 1) && likely(dr->level + 1 < first->mc_snum &&
-                                             dr->level + 1 < last->mc_snum)) {
-      dr->level += 1;
+    while (unlikely(r->diff == 1) &&
+           likely(r->level + 1 < y->mc_snum && r->level + 1 < x->mc_snum)) {
+      r->level += 1;
       /*   DB'PAGEs: 0------------------>MAX
        *
-       *    CURSORs:   first < last
+       *    CURSORs:       y < x
        *  STACK[i ]:         |
-       *  STACK[+1]:  ...f++N|0++l...
+       *  STACK[+1]:  ...y++N|0++x...
        */
-      nkeys = NUMKEYS(first->mc_pg[dr->level]);
-      dr->diff = (nkeys - first->mc_ki[dr->level]) + last->mc_ki[dr->level];
-      assert(dr->diff > 0);
+      nkeys = NUMKEYS(y->mc_pg[r->level]);
+      r->diff = (nkeys - y->mc_ki[r->level]) + x->mc_ki[r->level];
+      assert(r->diff > 0);
     }
 
-    while (unlikely(dr->diff == -1) && likely(dr->level + 1 < first->mc_snum &&
-                                              dr->level + 1 < last->mc_snum)) {
-      dr->level += 1;
+    while (unlikely(r->diff == -1) &&
+           likely(r->level + 1 < y->mc_snum && r->level + 1 < x->mc_snum)) {
+      r->level += 1;
       /*   DB'PAGEs: 0------------------>MAX
        *
-       *    CURSORs:    last < first
+       *    CURSORs:       x < y
        *  STACK[i ]:         |
-       *  STACK[+1]:  ...l--N|0--f...
+       *  STACK[+1]:  ...x--N|0--y...
        */
-      nkeys = NUMKEYS(last->mc_pg[dr->level]);
-      dr->diff = -(nkeys - last->mc_ki[dr->level]) - first->mc_ki[dr->level];
-      assert(dr->diff < 0);
+      nkeys = NUMKEYS(x->mc_pg[r->level]);
+      r->diff = -(nkeys - x->mc_ki[r->level]) - y->mc_ki[r->level];
+      assert(r->diff < 0);
     }
 
     return MDBX_SUCCESS;
   }
 
-  dr->diff = mdbx_cmp2int(last->mc_flags & C_EOF, first->mc_flags & C_EOF);
+  r->diff = mdbx_cmp2int(x->mc_flags & C_EOF, y->mc_flags & C_EOF);
   return MDBX_SUCCESS;
 }
 
-static ptrdiff_t estimate(const MDBX_db *db,
-                          struct diff_result *const __restrict dr) {
-  /*        root: branch-page    => scale = leaf-factor * branch-factor(N-1)
+__hot static ptrdiff_t estimate(const MDBX_db *db,
+                                struct diff_result *const __restrict dr) {
+  /*        root: branch-page    => scale = leaf-factor * branch-factor^(N-1)
    *     level-1: branch-page(s) => scale = leaf-factor * branch-factor^2
    *     level-2: branch-page(s) => scale = leaf-factor * branch-factor
    *     level-N: branch-page(s) => scale = leaf-factor
@@ -13269,9 +13274,9 @@ static ptrdiff_t estimate(const MDBX_db *db,
     return (ptrdiff_t)db->md_entries * dr->diff / (ptrdiff_t)dr->root_nkeys;
   }
 
-  /* average_branch_fillfactor = total(branch_entries) / branch_pages
-   * total(branch_entries) = leaf_pages + branch_pages - 1 (root page) */
-  const size_t log2_fixedpoint = 3;
+  /* average_branchpage_fillfactor = total(branch_entries) / branch_pages
+     total(branch_entries) = leaf_pages + branch_pages - 1 (root page) */
+  const size_t log2_fixedpoint = sizeof(size_t) - 1;
   const size_t half = UINT64_C(1) << (log2_fixedpoint - 1);
   const size_t factor =
       ((db->md_leaf_pages + db->md_branch_pages - 1) << log2_fixedpoint) /
@@ -13310,14 +13315,15 @@ static ptrdiff_t estimate(const MDBX_db *db,
   }
 }
 
-int mdbx_estimate_distance(const MDBX_cursor *first, const MDBX_cursor *last,
-                           ptrdiff_t *distance_items) {
+__hot int mdbx_estimate_distance(const MDBX_cursor *first,
+                                 const MDBX_cursor *last,
+                                 ptrdiff_t *distance_items) {
   if (unlikely(first == NULL || last == NULL || distance_items == NULL))
     return MDBX_EINVAL;
 
   *distance_items = 0;
   struct diff_result dr;
-  int rc = cursor_diff(first, last, &dr);
+  int rc = cursor_diff(last, first, &dr);
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
 
