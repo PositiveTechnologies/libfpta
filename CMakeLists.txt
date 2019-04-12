@@ -159,7 +159,7 @@ set(erthink_HEADERS
   erthink_arch.h erthink_bswap.h erthink_byteorder.h erthink_carryadd.h
   erthink_clz.h erthink_d2a.h erthink_defs.h erthink_dynamic_constexpr.h
   erthink_intrin.h erthink_misc.h erthink_mul.h erthink_rot.h erthink_u2a.h
-  erthink.h)
+  erthink_short_alloc.h erthink.h)
 
 target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
 
