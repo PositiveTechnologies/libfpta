@@ -63,12 +63,12 @@ template <typename T> struct branchless_abs {
 #pragma warning(disable : 4514) /* unreferenced inline function                \
                                    has been removed */
 #endif
-template <typename TYPE, size_t LENGTH>
-constexpr size_t array_length(const TYPE __maybe_unused (&array)[LENGTH]) {
+template <typename TYPE, std::size_t LENGTH>
+constexpr std::size_t array_length(const TYPE __maybe_unused (&array)[LENGTH]) {
   return LENGTH;
 }
 
-template <typename TYPE, size_t LENGTH>
+template <typename TYPE, std::size_t LENGTH>
 constexpr const TYPE *array_end(const TYPE (&array)[LENGTH]) {
   return array + LENGTH;
 }

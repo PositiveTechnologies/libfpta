@@ -184,7 +184,8 @@ struct diy_fp {
 #endif
 
 static diy_fp cached_power(const int in_exp2, int &out_exp10) {
-  constexpr size_t n_items = (340 + 340) / 8 + 1 /* 10^-340 .. 0 .. 10^340 */;
+  constexpr std::size_t n_items =
+      (340 + 340) / 8 + 1 /* 10^-340 .. 0 .. 10^340 */;
   assert(in_exp2 < 1096 && in_exp2 > -1191);
 
   /* LY: avoid branches and IEEE754-to-integer conversion,
@@ -200,7 +201,7 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
   assert(static_cast<int>(exp10_unbiased) ==
          static_cast<int>(ceil((-61 - in_exp2) / log2(10.0))) + 347);
 
-  const size_t index = exp10_unbiased >> 3;
+  const std::size_t index = exp10_unbiased >> 3;
   assert(n_items > index);
   out_exp10 = int(340 - (exp10_unbiased & ~7));
 

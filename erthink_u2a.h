@@ -93,7 +93,7 @@ static const char digits_00_99[200] = {
     57, 53, 57, 54, 57, 55, 57, 56, 57, 57};
 
 static __always_inline char *dec2(uint_fast32_t v, char *ptr,
-                                  size_t force = 0) {
+                                  std::size_t force = 0) {
   assert(v < 100u);
   // LY: strive for branchless (SSA-optimizer must solve this)
   *ptr = digits_00_99[v << 1];
@@ -103,7 +103,7 @@ static __always_inline char *dec2(uint_fast32_t v, char *ptr,
 }
 
 static __always_inline char *dec3(uint_fast32_t v, char *ptr,
-                                  size_t force = 0) {
+                                  std::size_t force = 0) {
   assert(v < 1000u);
   const uint_fast32_t hi = v / 10u;
   const uint_fast32_t lo = v % 10u;
@@ -117,7 +117,7 @@ static __always_inline char *dec3(uint_fast32_t v, char *ptr,
 }
 
 static __always_inline char *dec4(uint_fast32_t v, char *ptr,
-                                  size_t force = 0) {
+                                  std::size_t force = 0) {
   assert(v < 10000u);
   const uint_fast32_t hi = v / 100u;
   const uint_fast32_t lo = v % 100u;
@@ -167,7 +167,7 @@ u2a(uint64_t u64,
   // at least 10 digits
   char *ptr = buffer;
   if (u64 >= UINT_E12) {
-    size_t force = 0;
+    std::size_t force = 0;
     if (unlikely(u64 >= UINT_E16)) {
       /* LY: no more than 20 digits */
       ptr = dec4(static_cast<unsigned>(u64 / UINT_E16), ptr, force);
