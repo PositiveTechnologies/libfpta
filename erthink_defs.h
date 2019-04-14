@@ -183,6 +183,14 @@ inline void constexpr_assert_failed(Assert &&a) noexcept {
 #define constexpr_assert(foo) __noop(foo)
 #endif /* constexpr_assert for C++11 and later */
 
+#ifndef NDEBUG_CONSTEXPR
+#ifdef NDEBUG
+#define NDEBUG_CONSTEXPR constexpr
+#else
+#define NDEBUG_CONSTEXPR
+#endif
+#endif /* NDEBUG_CONSTEXPR */
+
 //----------------------------------------------------------------------------
 
 #if defined(__GNUC__) || __has_attribute(format)
