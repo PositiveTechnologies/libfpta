@@ -38,6 +38,8 @@
 #include "erthink_intrin.h"
 #include "erthink_misc.h"
 #include "erthink_mul.h"
+#include "erthink_optimize4size.h"
+#include "erthink_optimize4speed.h"
 #include "erthink_rot.h"
 #include "erthink_short_alloc.h"
 #include "erthink_u2a.h"
