@@ -38,9 +38,11 @@
 #if defined(__KERNEL__) || !defined(__cplusplus) || __cplusplus < 201103L
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #else
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #endif
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -105,7 +107,7 @@
 #define __SANITIZE_ADDRESS__ 1
 #endif
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
 #if (defined(__GNUC__) && __GNUC__ >= 2) || defined(__clang__) ||              \
@@ -191,7 +193,7 @@ inline void constexpr_assert_failed(Assert &&a) noexcept {
 #endif
 #endif /* NDEBUG_CONSTEXPR */
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 #if defined(__GNUC__) || __has_attribute(format)
 #define __printf_args(format_index, first_arg)                                 \
@@ -358,7 +360,7 @@ inline void constexpr_assert_failed(Assert &&a) noexcept {
 #endif
 #endif /* __maybe_unused */
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 #ifndef __dll_hidden
 #if defined(__GNUC__) || __has_attribute(visibility)
@@ -463,7 +465,7 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #endif
 #endif /* __align */
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 #if !defined(__typeof)
 #ifdef _MSC_VER
@@ -489,3 +491,34 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #define __MAKE_STR(x) #x
 #define STRINGIFY(x) __MAKE_STR(x)
 #endif /* STRINGIFY */
+
+//------------------------------------------------------------------------------
+
+#if defined(__cplusplus) && !defined(DEFINE_ENUM_FLAG_OPERATORS)
+// Define operator overloads to enable bit operations on enum values that are
+// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
+#define DEFINE_ENUM_FLAG_OPERATORS(ENUM)                                       \
+  extern "C++" {                                                               \
+  constexpr inline ENUM operator|(ENUM a, ENUM b) {                            \
+    return ENUM(std::size_t(a) | std::size_t(b));                              \
+  }                                                                            \
+  cxx14_constexpr inline ENUM &operator|=(ENUM &a, ENUM b) {                   \
+    return a = a | b;                                                          \
+  }                                                                            \
+  constexpr inline ENUM operator&(ENUM a, ENUM b) {                            \
+    return ENUM(std::size_t(a) & std::size_t(b));                              \
+  }                                                                            \
+  cxx14_constexpr inline ENUM &operator&=(ENUM &a, ENUM b) {                   \
+    return a = a & b;                                                          \
+  }                                                                            \
+  constexpr inline ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }    \
+  constexpr inline ENUM operator^(ENUM a, ENUM b) {                            \
+    return ENUM(std::size_t(a) ^ std::size_t(b));                              \
+  }                                                                            \
+  cxx14_constexpr inline ENUM &operator^=(ENUM &a, ENUM b) {                   \
+    return a = a ^ b;                                                          \
+  }                                                                            \
+  }
+#else                                    /* __cplusplus */
+#define DEFINE_ENUM_FLAG_OPERATORS(ENUM) /* nope, C allows these operators */
+#endif                                   /* !__cplusplus */

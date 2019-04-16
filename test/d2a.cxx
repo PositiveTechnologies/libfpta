@@ -42,7 +42,7 @@ __hot __dll_export __noinline char *_d2a(const double value, char *ptr) {
   return erthink::d2a(value, ptr);
 }
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 static void probe_d2a(char (&buffer)[23 + 1], const double value) {
   char *d2a_end = _d2a(value, buffer);
@@ -174,7 +174,7 @@ TEST(d2a, random3e6) {
   }
 }
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
