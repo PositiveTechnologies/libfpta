@@ -1150,11 +1150,11 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
         const auto shove = column_set->shoves[i];
         if (!fpta_is_indexed(shove))
           break;
-        if (fpta_is_ordinary(shove) && !fpta_column_is_nullable(shove))
-          /* primary index costly than secondary */
-          return FPTA_CLUMSY_INDEX;
-
-        if (++clumsy_count > 1)
+        if (fpta_is_ordinary(shove) && !fpta_column_is_nullable(shove)) {
+          if (fpta_index_is_unique(shove))
+            /* primary index costly than secondary */
+            return FPTA_CLUMSY_INDEX;
+        } else if (++clumsy_count > 1)
           /* too costly, ordinary PK should be used */
           return FPTA_CLUMSY_INDEX;
       }
