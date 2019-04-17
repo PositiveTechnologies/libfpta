@@ -156,11 +156,6 @@ static constexpr bool fpta_is_composite(fpta_shove_t shove) {
   return fpta_shove2type(shove) == /* composite */ fptu_null;
 }
 
-static constexpr bool fpta_is_ordinary(fpta_shove_t shove) {
-  return fpta_shove2type(shove) > fptu_uint16 &&
-         fpta_shove2type(shove) < fptu_cstr;
-}
-
 static constexpr fptu_type fpta_id2type(const fpta_name *id) {
   return fpta_shove2type(id->shove);
 }
@@ -208,6 +203,12 @@ static constexpr bool fpta_index_is_primary(const fpta_shove_t index) {
 
 static constexpr bool fpta_index_is_secondary(const fpta_shove_t index) {
   return (index & fpta_index_fsecondary) != 0;
+}
+
+static constexpr bool fpta_index_is_ordinal(fpta_shove_t shove) {
+  return fpta_index_is_unordered(shove) ||
+         (fpta_shove2type(shove) > fptu_null &&
+          fpta_shove2type(shove) < fptu_cstr);
 }
 
 static constexpr bool

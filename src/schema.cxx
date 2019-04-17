@@ -1144,13 +1144,13 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     return rc;
 
   if ((txn->db->regime_flags & fpta_allow_clumsy) == 0) {
-    if (!fpta_is_ordinary(column_set->shoves[0])) {
+    if (!fpta_index_is_ordinal(column_set->shoves[0])) {
       unsigned clumsy_count = 0;
       for (size_t i = 1; i < column_set->count; ++i) {
         const auto shove = column_set->shoves[i];
         if (!fpta_is_indexed(shove))
           break;
-        if (fpta_is_ordinary(shove) && !fpta_column_is_nullable(shove)) {
+        if (fpta_index_is_ordinal(shove) && !fpta_column_is_nullable(shove)) {
           if (fpta_index_is_unique(shove))
             /* primary index costly than secondary */
             return FPTA_CLUMSY_INDEX;
