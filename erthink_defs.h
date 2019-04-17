@@ -143,6 +143,11 @@
 #define nullptr NULL
 #endif
 
+#if !defined(noexcept) && !defined(__cplusplus) ||                             \
+    (__cplusplus < 201103L && !defined(_MSC_VER))
+#define noexcept
+#endif
+
 #if !defined(constexpr) && !defined(__cplusplus) ||                            \
     (__cplusplus < 201103L && !defined(_MSC_VER))
 #define constexpr
