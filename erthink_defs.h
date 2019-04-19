@@ -175,22 +175,11 @@
 #endif
 #endif /* cxx17_constexpr */
 
-#if __cplusplus >= 201402L
-#define constexpr_assert(cond) assert(cond)
-#elif __cplusplus >= 201103L
-/* https://gist.github.com/oliora/928424f7675d58fadf49c70fdba70d2f */
-#include <utility>
-template <class Assert>
-inline void constexpr_assert_failed(Assert &&a) noexcept {
-  std::forward<Assert>(a)();
-}
-// When evaluated at compile time emits a compilation error if condition is not
-// true. Invokes the standard assert at run time.
-#define constexpr_assert(cond)                                                 \
-  ((void)((cond) ? 0 : (constexpr_assert_failed([]() { assert(!#cond); }), 0)))
+#if __cplusplus < 201402L
+#define constexpr_assert(foo)
 #else
-#define constexpr_assert(foo) __noop(foo)
-#endif /* constexpr_assert for C++11 and later */
+#define constexpr_assert(cond) assert(cond)
+#endif
 
 #ifndef NDEBUG_CONSTEXPR
 #ifdef NDEBUG
