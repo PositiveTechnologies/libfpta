@@ -27,10 +27,17 @@
 
 namespace erthink {
 
+#if __cplusplus < 201402L
+template <bool B, class T = void>
+using enable_if_t = typename std::enable_if<B, T>::type;
+#else
+using std::enable_if_t;
+#endif /* C++14 */
+
 template <typename TO, typename FROM,
-          typename std::enable_if_t<std::is_pointer<TO>::value, int> = 0,
-          typename std::enable_if_t<std::is_pointer<FROM>::value, int> = 0,
-          typename std::enable_if_t<
+          typename erthink::enable_if_t<std::is_pointer<TO>::value, int> = 0,
+          typename erthink::enable_if_t<std::is_pointer<FROM>::value, int> = 0,
+          typename erthink::enable_if_t<
               std::is_const<typename std::remove_pointer<FROM>::type>::value,
               int> = 0>
 inline constexpr TO constexpr_pointer_cast(FROM from) {
@@ -38,9 +45,9 @@ inline constexpr TO constexpr_pointer_cast(FROM from) {
 }
 
 template <typename TO, typename FROM,
-          typename std::enable_if_t<std::is_pointer<TO>::value, int> = 0,
-          typename std::enable_if_t<std::is_pointer<FROM>::value, int> = 0,
-          typename std::enable_if_t<
+          typename erthink::enable_if_t<std::is_pointer<TO>::value, int> = 0,
+          typename erthink::enable_if_t<std::is_pointer<FROM>::value, int> = 0,
+          typename erthink::enable_if_t<
               !std::is_const<typename std::remove_pointer<FROM>::type>::value,
               int> = 0>
 inline constexpr TO constexpr_pointer_cast(FROM from) {
