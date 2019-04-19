@@ -168,8 +168,10 @@
     (!defined(_MSC_VER) || _MSC_VER >= 1915) &&                                \
     (!defined(__GNUC__) || __GNUC__ >= 7)
 #define cxx17_constexpr constexpr
+#define cxx17_noexcept noexcept
 #else
 #define cxx17_constexpr
+#define cxx17_noexcept
 #endif
 #endif /* cxx17_constexpr */
 
