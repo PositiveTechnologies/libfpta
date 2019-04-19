@@ -91,10 +91,11 @@ constexpr inline bool is_constant_evaluated() noexcept {
 
 #elif __GNUC_PREREQ(5, 4) || __has_builtin(__builtin_constant_p)
 
-#define erthink_dynamic_constexpr constexpr
+#define erthink_dynamic_constexpr cxx14_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static inline constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED noexcept {   \
+  static inline cxx14_constexpr RESULT_TYPE NAME                               \
+      DECLARGS_PARENTHESIZED noexcept {                                        \
     return __builtin_constant_p(PROBE_ARG)                                     \
                ? NAME##_constexpr CALLARGS_PARENTHESIZED                       \
                : NAME##_dynamic CALLARGS_PARENTHESIZED;                        \
