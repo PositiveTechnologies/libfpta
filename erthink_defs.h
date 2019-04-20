@@ -114,8 +114,7 @@
 //------------------------------------------------------------------------------
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
-#if (defined(__GNUC__) && __GNUC__ >= 2) || defined(__clang__) ||              \
-    defined(_MSC_VER)
+#if __GNUC_PREREQ(2, 0) || defined(__clang__) || defined(_MSC_VER)
 #define __func__ __FUNCTION__
 #else
 #define __func__ "__func__"
@@ -160,22 +159,22 @@
 #if !defined(nullptr) && !defined(__cplusplus) ||                              \
     (__cplusplus < 201103L && !defined(_MSC_VER))
 #define nullptr NULL
-#endif
+#endif /* nullptr */
 
 #if !defined(noexcept) && !defined(__cplusplus) ||                             \
     (__cplusplus < 201103L && !defined(_MSC_VER))
 #define noexcept
-#endif
+#endif /* noexcept */
 
 #if !defined(constexpr) && !defined(__cplusplus) ||                            \
     (__cplusplus < 201103L && !defined(_MSC_VER))
 #define constexpr
-#endif
+#endif /* constexpr */
 
 #if !defined(cxx14_constexpr)
 #if defined(__cplusplus) && __cplusplus >= 201402L &&                          \
     (!defined(_MSC_VER) || _MSC_VER >= 1910) &&                                \
-    (!defined(__GNUC__) || __GNUC__ >= 6)
+    (!defined(__GNUC__) || __GNUC__ >= 5)
 #define cxx14_constexpr constexpr
 #else
 #define cxx14_constexpr
@@ -198,7 +197,7 @@
 #define constexpr_assert(foo)
 #else
 #define constexpr_assert(cond) assert(cond)
-#endif
+#endif /* constexpr_assert */
 
 #ifndef NDEBUG_CONSTEXPR
 #ifdef NDEBUG
