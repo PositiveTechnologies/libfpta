@@ -142,6 +142,21 @@
 #endif
 #endif
 
+#ifndef __fallthrough
+#if __has_cpp_attribute(fallthrough)
+#define __fallthrough [[fallthrough]]
+#elif __GNUC_PREREQ(8, 0) && defined(__cplusplus) && __cplusplus >= 201103L
+#define __fallthrough [[fallthrough]]
+#elif __GNUC_PREREQ(7, 0)
+#define __fallthrough __attribute__((fallthrough))
+#elif defined(__clang__) && defined(__cplusplus) && __cplusplus >= 201103L &&  \
+    __has_feature(cxx_attributes) && __has_warning("-Wimplicit-fallthrough")
+#define __fallthrough [[clang::fallthrough]]
+#else
+#define __fallthrough
+#endif
+#endif /* __fallthrough */
+
 #if !defined(nullptr) && !defined(__cplusplus) ||                              \
     (__cplusplus < 201103L && !defined(_MSC_VER))
 #define nullptr NULL
