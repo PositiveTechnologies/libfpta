@@ -99,6 +99,10 @@
 #define __has_include(x) (0)
 #endif
 
+#ifndef __has_cpp_attribute
+#define __has_cpp_attribute(x) (0)
+#endif
+
 #if __has_feature(thread_sanitizer)
 #define __SANITIZE_THREAD__ 1
 #endif
