@@ -187,9 +187,11 @@
     (!defined(__GNUC__) || __GNUC__ >= 7)
 #define cxx17_constexpr constexpr
 #define cxx17_noexcept noexcept
+#define if_constexpr if constexpr
 #else
 #define cxx17_constexpr
 #define cxx17_noexcept
+#define if_constexpr if
 #endif
 #endif /* cxx17_constexpr */
 
