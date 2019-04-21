@@ -206,6 +206,17 @@
 #endif
 #endif /* NDEBUG_CONSTEXPR */
 
+/* Crutch for case when OLD GLIBC++ (without std::max_align_t)
+ * is coupled with MODERN C++ COMPILER (with __cpp_aligned_new) */
+#ifndef ERTHINK_PROVIDE_ALIGNED_NEW
+#if defined(__cpp_aligned_new) &&                                              \
+    (!defined(__GLIBCXX__) || defined(_GLIBCXX_HAVE_ALIGNED_ALLOC))
+#define ERTHINK_PROVIDE_ALIGNED_NEW 1
+#else
+#define ERTHINK_PROVIDE_ALIGNED_NEW 0
+#endif
+#endif /* ERTHINK_PROVIDE_ALIGNED_NEW */
+
 //------------------------------------------------------------------------------
 
 #if defined(__GNUC__) || __has_attribute(format)

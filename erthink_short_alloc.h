@@ -60,7 +60,7 @@ public:
   ~allocation_arena() { ptr_ = nullptr; }
   constexpr allocation_arena() noexcept : ptr_(buf_) {
     static_assert(size > 1, "Oops, ALLOW_OUTLIVE is messed with N_BYTES?");
-#if !defined(__cpp_aligned_new)
+#if !ERTHINK_PROVIDE_ALIGNED_NEW
     static_assert(!allow_outlive || alignment <= alignof(std::max_align_t),
                   "you've chosen an alignment that is larger than "
                   "alignof(std::max_align_t), and cannot be guaranteed by "
@@ -87,7 +87,7 @@ public:
     }
 
     if (allow_outlive) {
-#ifdef __cpp_aligned_new
+#if ERTHINK_PROVIDE_ALIGNED_NEW
       return static_cast<char *>(
           ::operator new(n, std::align_val_t(alignment)));
 #else
@@ -106,7 +106,7 @@ public:
     }
 
     if (allow_outlive) {
-#if defined(__cpp_aligned_new) && defined(__cpp_sized_deallocation)
+#if ERTHINK_PROVIDE_ALIGNED_NEW && defined(__cpp_sized_deallocation)
       ::operator delete(p, n, std::align_val_t(alignment));
 #elif defined(__cpp_sized_deallocation)
       ::operator delete(p, n);
