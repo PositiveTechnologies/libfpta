@@ -414,6 +414,14 @@
 #endif
 #endif /* __dll_import */
 
+#ifndef __dll_visibility_default
+#if defined(__GNUC__) || __has_attribute(visibility)
+#define __dll_visibility_default __attribute__((visibility("default")))
+#else
+#define __dll_visibility_default
+#endif
+#endif /* __dll_visibility_default */
+
 //----------------------------------------------------------------------------
 
 #if !defined(__noop) && !defined(_MSC_VER)
