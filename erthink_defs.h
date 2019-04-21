@@ -156,18 +156,15 @@
 #endif
 #endif /* __fallthrough */
 
-#if !defined(nullptr) && !defined(__cplusplus) ||                              \
-    (__cplusplus < 201103L && !defined(_MSC_VER))
+#if !defined(nullptr) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #define nullptr NULL
 #endif /* nullptr */
 
-#if !defined(noexcept) && !defined(__cplusplus) ||                             \
-    (__cplusplus < 201103L && !defined(_MSC_VER))
+#if !defined(noexcept) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #define noexcept
 #endif /* noexcept */
 
-#if !defined(constexpr) && !defined(__cplusplus) ||                            \
-    (__cplusplus < 201103L && !defined(_MSC_VER))
+#if !defined(constexpr) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #define constexpr
 #endif /* constexpr */
 

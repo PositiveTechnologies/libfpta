@@ -69,6 +69,13 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
+if (MSVC)
+  if (MSVC_VERSION LESS 1915)
+    message(FATAL_ERROR At least \"Microsoft C/C++ Compiler\" version 19.15.26730 (Visual Studio 2017 15.8) is required.)
+  else()
+    add_compile_options("/Zc:__cplusplus")
+  endif()
+endif()
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
 
