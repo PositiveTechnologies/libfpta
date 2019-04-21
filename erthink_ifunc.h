@@ -64,9 +64,9 @@
                              RESOLVER)                                         \
                                                                                \
   ERTHINK_IFUNC_RESOLVER_API(API_VISIBILITY)                                   \
-  RESULT_TYPE(*RESOLVER(void)) DECLARGS_PARENTHESIZED;                         \
+  __attribute__((used)) RESULT_TYPE(*RESOLVER(void)) DECLARGS_PARENTHESIZED;   \
                                                                                \
-  RESULT_TYPE NAME DECLARGS_PARENTHESIZED                                      \
+  __extern_C API_VISIBILITY RESULT_TYPE NAME DECLARGS_PARENTHESIZED            \
       __attribute__((ifunc(STRINGIFY(RESOLVER))));
 
 #else
