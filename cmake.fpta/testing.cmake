@@ -218,6 +218,9 @@ function(add_gtest name)
           else(dir)
             # Path is configuration-depended or not available, should copy dll
             add_custom_command(TARGET ${target} POST_BUILD
+              COMMAND if exist "$<TARGET_PDB_FILE:${dep}>"
+              ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_PDB_FILE:${dep}>" "$<TARGET_FILE_DIR:${target}>")
+            add_custom_command(TARGET ${target} POST_BUILD
               COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${dep}>" "$<TARGET_FILE_DIR:${target}>"
               COMMENT "${UT_NEED_DLLCRUTCH}: Copy shared library ${dep} for test ${target}")
           endif(dir)
