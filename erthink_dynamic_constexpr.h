@@ -103,10 +103,10 @@ constexpr inline bool is_constant_evaluated() noexcept {
 
 #else
 
-#define erthink_dynamic_constexpr cxx17_constexpr
+#define erthink_dynamic_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static cxx17_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED noexcept {    \
+  static RESULT_TYPE NAME DECLARGS_PARENTHESIZED noexcept {                    \
     return NAME##_dynamic CALLARGS_PARENTHESIZED;                              \
   }
 
