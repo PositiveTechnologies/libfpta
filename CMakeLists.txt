@@ -92,7 +92,9 @@ if(NOT DEFINED ERTHINK_CXX_STANDARD)
 endif()
 message(STATUS "Use C++${ERTHINK_CXX_STANDARD} for Erthink")
 
-option(ERTHINK_ENABLE_TESTS "Build erthink tests." ON)
+include(cmake/testing.cmake)
+option(ERTHINK_ENABLE_TESTS "Build erthink tests." ${BUILD_TESTING})
+
 option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." OFF)
 if(NOT SUBPROJECT)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
@@ -114,7 +116,6 @@ if(NOT SUBPROJECT)
   if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD ${ERTHINK_CXX_STANDARD})
   endif()
-  include(cmake/testing.cmake)
 
   #
   # Enable 'make tags' target.
