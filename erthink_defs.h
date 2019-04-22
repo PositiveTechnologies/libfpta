@@ -217,6 +217,14 @@
 #endif
 #endif /* ERTHINK_PROVIDE_ALIGNED_NEW */
 
+#ifndef ERTHINK_NAME_PREFIX
+#ifdef __cplusplus
+#define ERTHINK_NAME_PREFIX(NAME) NAME
+#else
+#define ERTHINK_NAME_PREFIX(NAME) erthink_##NAME
+#endif
+#endif /* ERTHINK_NAME_PREFIX */
+
 //------------------------------------------------------------------------------
 
 #if defined(__GNUC__) || __has_attribute(format)

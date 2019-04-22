@@ -21,6 +21,7 @@
  */
 
 #include "erthink_arch.h"
+#include "erthink_bswap.h"
 #include "erthink_clz.h"
 #include "erthink_defs.h"
 #include "erthink_intrin.h"
@@ -84,6 +85,25 @@ TEST(ops, clz64) {
     EXPECT_EQ((i == 63) ? 1 : 0, _clz64(~bit));
     EXPECT_EQ(i, _clz64(all >> i));
   }
+}
+
+//------------------------------------------------------------------------------
+
+TEST(ops, bswap) {
+  EXPECT_EQ(1, erthink::bswap<uint8_t>(1));
+  EXPECT_EQ(2, erthink::bswap<int8_t>(2));
+
+  EXPECT_EQ(UINT16_C(0x3412), erthink::bswap<uint16_t>(UINT16_C(0x1234)));
+  EXPECT_EQ(INT16_C(0x7856), erthink::bswap<int16_t>(INT16_C(0x5678)));
+
+  EXPECT_EQ(UINT32_C(0x78563412),
+            erthink::bswap<uint32_t>(UINT32_C(0x12345678)));
+  EXPECT_EQ(INT32_C(0x12345678), erthink::bswap<int32_t>(INT32_C(0x78563412)));
+
+  EXPECT_EQ(UINT64_C(0xf0debc9a78563412),
+            erthink::bswap<uint64_t>(UINT64_C(0x123456789abcdef0)));
+  EXPECT_EQ(INT64_C(0x123456789abcdef0),
+            erthink::bswap<int64_t>(INT64_C(0xf0debc9a78563412)));
 }
 
 //------------------------------------------------------------------------------
