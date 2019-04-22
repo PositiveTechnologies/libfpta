@@ -35,6 +35,7 @@
 #include "erthink_d2a.h"
 #include "erthink_defs.h"
 #include "erthink_dynamic_constexpr.h"
+#include "erthink_endian.h"
 #include "erthink_ifunc.h"
 #include "erthink_intrin.h"
 #include "erthink_misc.h"
