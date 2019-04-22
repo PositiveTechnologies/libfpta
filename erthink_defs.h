@@ -225,6 +225,14 @@
 #endif
 #endif /* ERTHINK_NAME_PREFIX */
 
+#ifndef constexpr_intrin
+#ifdef __GNUC__
+#define constexpr_intrin constexpr
+#else
+#define constexpr_intrin
+#endif
+#endif /* constexpr_intrin */
+
 //------------------------------------------------------------------------------
 
 #if defined(__GNUC__) || __has_attribute(format)
