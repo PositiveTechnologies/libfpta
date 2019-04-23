@@ -191,7 +191,6 @@ else()
   check_compiler_flag("-fexceptions" CC_HAS_FEXCEPTIONS)
   check_compiler_flag("-funwind-tables" CC_HAS_FUNWIND_TABLES)
   check_compiler_flag("-fno-omit-frame-pointer" CC_HAS_FNO_OMIT_FRAME_POINTER)
-  check_compiler_flag("-fno-stack-protector" CC_HAS_FNO_STACK_PROTECTOR)
   check_compiler_flag("-fno-common" CC_HAS_FNO_COMMON)
   check_compiler_flag("-Wno-strict-aliasing" CC_HAS_WNO_STRICT_ALIASING)
   check_compiler_flag("-ggdb" CC_HAS_GGDB)
@@ -357,7 +356,7 @@ option(ENABLE_BACKTRACE "Enable output of fiber backtrace information in 'show
   fiber' administrative command. Only works on x86 architectures, if compiled
   with gcc. If GNU binutils and binutils-dev libraries are installed, backtrace
   is output with resolved function (symbol) names. Otherwise only frame
-  addresses are printed." ${CMAKE_COMPILER_IS_GNUC${CMAKE_PRIMARY_LANG}})
+  addresses are printed." OFF)
 
 set(HAVE_BFD False)
 if(ENABLE_BACKTRACE)
@@ -459,9 +458,6 @@ macro(setup_compile_flags)
   if(ENABLE_BACKTRACE)
     if(CC_HAS_FNO_OMIT_FRAME_POINTER)
       add_compile_flags("C;CXX" "-fno-omit-frame-pointer")
-    endif()
-    if(CC_HAS_FNO_STACK_PROTECTOR)
-      add_compile_flags("C;CXX" "-fno-stack-protector")
     endif()
   endif()
 
