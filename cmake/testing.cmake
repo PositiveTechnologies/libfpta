@@ -17,8 +17,10 @@
 ##    misrepresented as being the original software.
 ## 3. This notice may not be removed or altered from any source distribution.
 
+cmake_minimum_required(VERSION 3.8.2)
 include(CTest)
 if(BUILD_TESTING)
+  cmake_policy(PUSH)
 
   # Expected GTest was already found and/or pointed via ${gtest_root},
   # otherwise will search at ${gtest_paths} locations, if defined or default ones.
@@ -48,7 +50,7 @@ if(BUILD_TESTING)
       message(STATUS "Found GoogleTest sources at ${gtest_root}")
     else()
       message(STATUS "Not found GoogleTest sources, downloading it...")
-      configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/googletest-download.cmake.in ${CMAKE_BINARY_DIR}/googletest-download/CMakeLists.txt)
+      configure_file(${CMAKE_CURRENT_LIST_DIR}/googletest-download.cmake.in ${CMAKE_BINARY_DIR}/googletest-download/CMakeLists.txt)
       execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
         RESULT_VARIABLE result
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download)
@@ -277,4 +279,5 @@ if(BUILD_TESTING)
     add_gtest(${name} PREFIX "pt_" DISABLED ${ARGN})
   endfunction(add_perf_test)
 
+  cmake_policy(POP)
 endif(BUILD_TESTING)
