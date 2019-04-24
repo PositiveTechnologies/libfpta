@@ -34,7 +34,20 @@
 
 #include "erthink_defs.h"
 
+#ifndef NDEBUG
+#include <cstring> // for memset()
+#endif
+
 namespace erthink {
+
+class allocation_arena_exhausted : public std::bad_alloc {
+public:
+  allocation_arena_exhausted() = default;
+  virtual const char *what() const throw() {
+    return "short_alloc has exhausted allocation arena";
+  }
+  virtual ~allocation_arena_exhausted() throw() {}
+};
 
 template <bool ALLOW_OUTLIVE, std::size_t N_BYTES,
           std::size_t ALIGN = alignof(std::max_align_t)>
@@ -45,20 +58,64 @@ public:
   static auto constexpr alignment = ALIGN;
 
 private:
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4307) /* integral constant overflow */
+#pragma warning(disable : 4324) /* structure was padded due to alignment */
+#endif
+#ifndef NDEBUG
+  static constexpr std::size_t signature_A =
+      std::size_t(2125913479ul) * N_BYTES +
+      std::size_t(ALLOW_OUTLIVE ? 4190596621ul : 3120246733ul) +
+      ALIGN * std::size_t(3366427381ul);
+  static constexpr std::size_t signature_B =
+      std::size_t(3909341731ul) * N_BYTES +
+      std::size_t(ALLOW_OUTLIVE ? 937226681ul : 2469154943ul) +
+      ALIGN * std::size_t(3752260177ul);
+  static constexpr std::size_t signature_C =
+      std::size_t(3756481181ul) * N_BYTES +
+      std::size_t(ALLOW_OUTLIVE ? 2595029951ul : 1665577289ul) +
+      ALIGN * std::size_t(2105020861ul);
+#endif /* NDEBUG */
+
+#ifndef NDEBUG
+  std::size_t checkpoint_A_;
+#endif
   alignas(alignment) char buf_[size];
+#ifndef NDEBUG
+  std::size_t checkpoint_B_;
+#endif
   char *ptr_;
+#ifndef NDEBUG
+  std::size_t checkpoint_C_;
+#endif
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
   constexpr static std::size_t align_up(std::size_t n) noexcept {
     return (n + (alignment - 1)) & ~(alignment - 1);
   }
 
-  constexpr bool pointer_in_buffer(char *p) noexcept {
-    return buf_ <= p && p <= buf_ + size;
+  constexpr bool pointer_in_buffer(const char *ptr,
+                                   bool accepd_end_of_buffer = false) const
+      noexcept {
+    return buf_ <= ptr &&
+           (accepd_end_of_buffer ? ptr <= buf_ + size : ptr < buf_ + size);
   }
 
 public:
-  ~allocation_arena() { ptr_ = nullptr; }
-  constexpr allocation_arena() noexcept : ptr_(buf_) {
+  using exhausted_exception = allocation_arena_exhausted;
+  ~allocation_arena() {
+    ptr_ = nullptr;
+#ifndef NDEBUG
+    checkpoint_A_ = 0;
+    checkpoint_B_ = 0;
+    checkpoint_C_ = 0;
+    std::memset(buf_, 0xBB, sizeof(buf_));
+#endif
+  }
+  NDEBUG_CONSTEXPR allocation_arena() noexcept : ptr_(buf_) {
     static_assert(size > 1, "Oops, ALLOW_OUTLIVE is messed with N_BYTES?");
 #if !ERTHINK_PROVIDE_ALIGNED_NEW
     static_assert(!allow_outlive || alignment <= alignof(std::max_align_t),
@@ -68,20 +125,49 @@ public:
 #endif
     static_assert(size % alignment == 0,
                   "size N needs to be a multiple of alignment Align");
+#ifndef NDEBUG
+    checkpoint_A_ = signature_A;
+    checkpoint_B_ = signature_B;
+    checkpoint_C_ = signature_C;
+    std::memset(buf_, 0x55, sizeof(buf_));
+#endif
   }
+  void NDEBUG_CONSTEXPR debug_check() const {
+    assert(checkpoint_A_ == signature_A);
+    assert(checkpoint_B_ == signature_B);
+    assert(checkpoint_C_ == signature_C);
+    assert(ptr_ >= buf_ && ptr_ <= buf_ + sizeof(buf_));
+  }
+
   allocation_arena(const allocation_arena &) = delete;
   allocation_arena &operator=(const allocation_arena &) = delete;
+
+  NDEBUG_CONSTEXPR bool pointer_in_bounds(const void *ptr) const noexcept {
+    debug_check();
+    return pointer_in_buffer(static_cast<const char *>(ptr));
+  }
+  constexpr bool chunk_in_bounds(const void *ptr, std::size_t bytes) const
+      noexcept {
+    return pointer_in_buffer(static_cast<const char *>(ptr), true) &&
+           (bytes == 0 ||
+            pointer_in_buffer(static_cast<const char *>(ptr) + bytes, true));
+  }
 
   template <std::size_t ReqAlign> char *allocate(std::size_t n) {
     static_assert(ReqAlign <= alignment,
                   "alignment is too large for this arena");
+    debug_check();
 
     if (likely(pointer_in_buffer(ptr_))) {
       auto const aligned_n = align_up(n);
       if (likely(static_cast<decltype(aligned_n)>(buf_ + size - ptr_) >=
                  aligned_n)) {
         char *r = ptr_;
+#ifndef NDEBUG
+        std::memset(r, 0xCC, aligned_n);
+#endif
         ptr_ += aligned_n;
+        debug_check();
         return r;
       }
     }
@@ -94,14 +180,19 @@ public:
       return static_cast<char *>(::operator new(n));
 #endif
     }
-    throw std::runtime_error("short_alloc has exhausted allocation arena");
+    throw exhausted_exception();
   }
 
   void deallocate(char *p, std::size_t n) {
+    debug_check();
     if (likely(pointer_in_buffer(p))) {
-      n = align_up(n);
-      if (p + n == ptr_)
+      auto const aligned_n = align_up(n);
+#ifndef NDEBUG
+      std::memset(p, 0xDD, aligned_n);
+#endif
+      if (p + aligned_n == ptr_)
         ptr_ = p;
+      debug_check();
       return;
     }
 
@@ -115,14 +206,21 @@ public:
 #endif
       return;
     }
-    throw std::runtime_error("short_alloc was disabled to exhausted arena");
+    throw std::logic_error("short_alloc was disabled to exhausted arena");
   }
 
-  constexpr std::size_t used() const noexcept {
+  NDEBUG_CONSTEXPR std::size_t used() const noexcept {
+    debug_check();
     return static_cast<std::size_t>(ptr_ - buf_);
   }
 
-  constexpr void reset() noexcept { ptr_ = buf_; }
+  void reset() noexcept {
+    debug_check();
+#ifndef NDEBUG
+    std::memset(buf_, 0x55, sizeof(buf_));
+#endif
+    ptr_ = buf_;
+  }
 };
 
 template <class T, typename ARENA> class short_alloc {
@@ -141,10 +239,12 @@ private:
   arena_type &arena_;
 
 public:
+  using arena_exhausted_exception = typename ARENA::exhausted_exception;
   constexpr short_alloc(/*allocation arena must be provided */) = delete;
   constexpr short_alloc(const short_alloc &) noexcept = default;
   short_alloc &operator=(const short_alloc &) = delete;
-  constexpr short_alloc &select_on_container_copy_construction() noexcept {
+  constexpr short_alloc &select_on_container_copy_construction() const
+      noexcept {
     return *this;
   }
 
