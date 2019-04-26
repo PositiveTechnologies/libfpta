@@ -36,6 +36,9 @@ DEFINE_ENUM_FLAG_OPERATORS(foo)
 
 //------------------------------------------------------------------------------
 
+// LY: workaround for CLANG & GCC8
+#define INT64_LITERAL(x) int64_t(INT64_C(x))
+
 TEST(ops, fallback_clz32) {
   EXPECT_EQ(31, erthink::fallback_clz32(1));
   const uint32_t all = ~UINT32_C(0);
@@ -103,7 +106,7 @@ TEST(ops, bswap) {
 
   EXPECT_EQ(UINT64_C(0xf0debc9a78563412),
             erthink::bswap<uint64_t>(UINT64_C(0x123456789abcdef0)));
-  EXPECT_EQ(INT64_C(0x123456789abcdef0),
+  EXPECT_EQ(INT64_LITERAL(0x123456789abcdef0),
             erthink::bswap<int64_t>(INT64_C(0xf0debc9a78563412)));
 }
 
@@ -176,39 +179,40 @@ TEST(ops, endian) {
   EXPECT_EQ(UINT64_C(0xf0debc9a78563412),
             erthink::h2be<uint64_t>(
                 erthink::h2le<uint64_t>(UINT64_C(0x123456789abcdef0))));
-  EXPECT_EQ(INT64_C(0x123456789abcdef0),
+  EXPECT_EQ(INT64_LITERAL(0x123456789abcdef0),
             erthink::h2be<int64_t>(
                 erthink::h2le<int64_t>(INT64_C(0xf0debc9a78563412))));
   EXPECT_EQ(UINT64_C(0xf0debc9a78563412),
             erthink::be2h<uint64_t>(
                 erthink::le2h<uint64_t>(UINT64_C(0x123456789abcdef0))));
-  EXPECT_EQ(INT64_C(0x123456789abcdef0),
+  EXPECT_EQ(INT64_LITERAL(0x123456789abcdef0),
             erthink::be2h<int64_t>(
                 erthink::le2h<int64_t>(INT64_C(0xf0debc9a78563412))));
 
   EXPECT_EQ(UINT64_C(0x123456789abcdef0),
             erthink::le2h<uint64_t>(
                 erthink::h2le<uint64_t>(UINT64_C(0x123456789abcdef0))));
-  EXPECT_EQ(INT64_C(0xf0debc9a78563412),
+
+  EXPECT_EQ(INT64_LITERAL(0xf0debc9a78563412),
             erthink::le2h<int64_t>(
                 erthink::h2le<int64_t>(INT64_C(0xf0debc9a78563412))));
   EXPECT_EQ(UINT64_C(0x123456789abcdef0),
             erthink::le2h<uint64_t>(
                 erthink::h2le<uint64_t>(UINT64_C(0x123456789abcdef0))));
-  EXPECT_EQ(INT64_C(0xf0debc9a78563412),
+  EXPECT_EQ(INT64_LITERAL(0xf0debc9a78563412),
             erthink::le2h<int64_t>(
                 erthink::h2le<int64_t>(INT64_C(0xf0debc9a78563412))));
 
   EXPECT_EQ(UINT64_C(0x123456789abcdef0),
             erthink::be2h<uint64_t>(
                 erthink::h2be<uint64_t>(UINT64_C(0x123456789abcdef0))));
-  EXPECT_EQ(INT64_C(0xf0debc9a78563412),
+  EXPECT_EQ(INT64_LITERAL(0xf0debc9a78563412),
             erthink::be2h<int64_t>(
                 erthink::h2be<int64_t>(INT64_C(0xf0debc9a78563412))));
   EXPECT_EQ(UINT64_C(0x123456789abcdef0),
             erthink::be2h<uint64_t>(
                 erthink::h2be<uint64_t>(UINT64_C(0x123456789abcdef0))));
-  EXPECT_EQ(INT64_C(0xf0debc9a78563412),
+  EXPECT_EQ(INT64_LITERAL(0xf0debc9a78563412),
             erthink::be2h<int64_t>(
                 erthink::h2be<int64_t>(INT64_C(0xf0debc9a78563412))));
 }
