@@ -111,6 +111,10 @@
 #define __SANITIZE_ADDRESS__ 1
 #endif
 
+#if !defined(__cplusplus) && (HAVE_STDALIGN_H || __has_include(<stdalign.h>))
+#include <stdalign.h>
+#endif
+
 //------------------------------------------------------------------------------
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
@@ -503,15 +507,15 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #endif
 #endif /* unlikely */
 
-#ifndef __aligned
-#if defined(__GNUC__) || defined(__clang__)
-#define __aligned(N) __attribute__((aligned(N)))
+#if !defined(alignas) && (!defined(__cplusplus) || __cplusplus < 201103L)
+#if defined(__GNUC__) || defined(__clang__) || __has_attribute(aligned)
+#define alignas(N) __attribute__((aligned(N)))
 #elif defined(_MSC_VER)
-#define __aligned(N) __declspec(align(N))
+#define alignas(N) __declspec(align(N))
 #else
-#define __aligned(N)
+#error "C++11 or C11 compiler is required"
 #endif
-#endif /* __align */
+#endif /* alignas */
 
 //------------------------------------------------------------------------------
 
