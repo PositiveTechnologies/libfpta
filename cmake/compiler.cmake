@@ -592,6 +592,12 @@ macro(setup_compile_flags)
     unset(config)
   endif()
 
+  if(CMAKE_COMPILER_IS_CLANG AND OSX_ARCHITECTURES)
+    set(EXE_LINKER_FLAGS "${EXE_LINKER_FLAGS} -Wl,-keep_dwarf_unwind")
+    set(SHARED_LINKER_FLAGS "${SHARED_LINKER_FLAGS} -Wl,-keep_dwarf_unwind")
+    set(MODULE_LINKER_FLAGS "${MODULE_LINKER_FLAGS} -Wl,-keep_dwarf_unwind")
+  endif()
+
   if(CMAKE_COMPILER_IS_CLANG AND LTO_ENABLED)
     if(CMAKE_${CMAKE_PRIMARY_LANG}_COMPILER_VERSION VERSION_LESS 3.9)
       set(CLANG_LTO_FLAG "-flto")
