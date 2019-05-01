@@ -189,6 +189,7 @@ else()
   check_compiler_flag("-Wextra" CC_HAS_WEXTRA)
   check_compiler_flag("-Werror" CC_HAS_WERROR)
   check_compiler_flag("-fexceptions" CC_HAS_FEXCEPTIONS)
+  check_cxx_compiler_flag("-fcxx-exceptions" CC_HAS_FCXX_EXCEPTIONS)
   check_compiler_flag("-funwind-tables" CC_HAS_FUNWIND_TABLES)
   check_compiler_flag("-fno-omit-frame-pointer" CC_HAS_FNO_OMIT_FRAME_POINTER)
   check_compiler_flag("-fno-common" CC_HAS_FNO_COMMON)
@@ -415,6 +416,9 @@ macro(setup_compile_flags)
 
   if(CC_HAS_FEXCEPTIONS)
     add_compile_flags("C;CXX" "-fexceptions")
+  endif()
+  if(CC_HAS_FCXX_EXCEPTIONS)
+    add_compile_flags("CXX" "-fcxx-exceptions -frtti")
   endif()
 
   # In C a global variable without a storage specifier (static/extern) and
