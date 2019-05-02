@@ -19,8 +19,8 @@
 
 #include "fast_positive/tables_internal.h"
 
-#if defined(_MSC_VER) && defined(FPTA_BUILD_TAGRET)
-#pragma message("Configuration-depended FPTA_BUILD_TAGRET: " FPTA_BUILD_TAGRET)
+#if defined(_MSC_VER) && defined(FPTA_BUILD_TARGET)
+#pragma message("Configuration-depended FPTA_BUILD_TARGET: " FPTA_BUILD_TARGET)
 #endif
 #if defined(_MSC_VER) && defined(FPTA_COMPILE_FLAGS)
 #pragma message(                                                               \
@@ -44,5 +44,5 @@
 #endif /* HAVE_FPTA_VERSIONINFO */
 
 /*FPTA_API*/ const fpta_build_info fpta_build = {
-    "@FPTA_BUILD_TIMESTAMP@", ${FPTA_BUILD_TAGRET}, "@FPTA_CMAKE_OPTIONS@",
+    "@FPTA_BUILD_TIMESTAMP@", ${FPTA_BUILD_TARGET}, "@FPTA_CMAKE_OPTIONS@",
     "@FPTA_BUILD_COMPILER@", ${FPTA_COMPILE_FLAGS}};
