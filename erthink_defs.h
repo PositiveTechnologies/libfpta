@@ -175,7 +175,7 @@
 #if !defined(cxx14_constexpr)
 #if defined(__cplusplus) && __cplusplus >= 201402L &&                          \
     (!defined(_MSC_VER) || _MSC_VER >= 1910) &&                                \
-    (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 5)
+    (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 6)
 #define cxx14_constexpr constexpr
 #else
 #define cxx14_constexpr
@@ -196,10 +196,14 @@
 #endif
 #endif /* cxx17_constexpr */
 
-#if __cplusplus < 201402L
-#define constexpr_assert(foo)
-#else
+#if !defined(constexpr_assert) && defined(__cplusplus)
+#if defined(HAS_RELAXED_CONSTEXPR) ||                                          \
+    (__cplusplus >= 201408L && (!defined(_MSC_VER) || _MSC_VER >= 1915) &&     \
+     (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 6))
 #define constexpr_assert(cond) assert(cond)
+#else
+#define constexpr_assert(foo)
+#endif
 #endif /* constexpr_assert */
 
 #ifndef NDEBUG_CONSTEXPR
