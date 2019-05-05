@@ -422,9 +422,9 @@ d2a(const grisu::casting_union &value,
       grisu::convert(grisu::diy_fp(value), buffer + (value.i < 0), exponent);
   if (exponent != 0) {
     const branchless_abs<int> pair(exponent);
-    static char e_with_sign[4] = {'e', '+', 'e', '-'};
+    ptr[0] = 'e';
     // LY: strive for branchless
-    memcpy(ptr, e_with_sign + (pair.expanded_sign & 2), 2);
+    ptr[1] = '+' + (('-' - '+') & pair.expanded_sign);
     ptr = dec3(pair.unsigned_abs, ptr + 2);
   }
   assert(ptr - buffer <= 23);
