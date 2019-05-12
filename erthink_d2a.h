@@ -140,9 +140,10 @@ struct diy_fp {
     e = static_cast<int>(exp_bits >> IEEE754_DOUBLE_MANTISSA_SIZE) -
         (exp_bits ? GRISU_EXPONENT_BIAS : GRISU_EXPONENT_BIAS - 1);
   }
-  constexpr diy_fp(const diy_fp &rhs) : f(rhs.f), e(rhs.e) {}
-  constexpr diy_fp(uint64_t f, int e) : f(f), e(e) {}
-  diy_fp() {}
+  constexpr diy_fp(const diy_fp &rhs) noexcept = default;
+  constexpr diy_fp(uint64_t f, int e) noexcept : f(f), e(e) {}
+  constexpr diy_fp &operator=(const diy_fp &rhs) noexcept = default;
+  diy_fp() = default;
 
   static diy_fp fixedpoint(uint64_t value, int exp2) {
     assert(value > 0);
