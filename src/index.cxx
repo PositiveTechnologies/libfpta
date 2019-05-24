@@ -167,7 +167,7 @@ __hot MDBX_cmp_func *fpta_index_shove2comparator(fpta_shove_t shove) {
   switch (type) {
   default:
     if (type >= fptu_96 || type == /* composite */ fptu_null) {
-      if (!fpta_index_is_ordered(index))
+      if (fpta_index_is_unordered(index))
         return fpta_idxcmp_type<uint64_t>;
       if (fpta_index_is_reverse(index))
         return fpta_idxcmp_binary_last2first;
@@ -212,7 +212,7 @@ static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
   if (unlikely(key.mdbx.iov_base == nullptr) && key.mdbx.iov_len)
     return FPTA_EINVAL;
 
-  if (!fpta_index_is_ordered(index)) {
+  if (fpta_index_is_unordered(index)) {
     // хешируем ключ для неупорядоченного индекса
     key.place.u64 = t1ha2_atonce(key.mdbx.iov_base, key.mdbx.iov_len, 2018);
     key.mdbx.iov_base = &key.place.u64;
@@ -328,7 +328,7 @@ static __inline unsigned shove2dbiflags(fpta_shove_t shove) {
   unsigned dbi_flags =
       fpta_index_is_unique(index) ? 0u : (unsigned)MDBX_DUPSORT;
   if ((type != /* composite */ fptu_null && type < fptu_96) ||
-      !fpta_index_is_ordered(index))
+      fpta_index_is_unordered(index))
     dbi_flags |= MDBX_INTEGERKEY;
   else if (fpta_index_is_reverse(index) &&
            (type >= fptu_96 || type == /* composite */ fptu_null))
@@ -354,7 +354,7 @@ unsigned fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
     if (pk_type < fptu_cstr && pk_type != /* composite */ fptu_null)
       dbi_flags |= MDBX_DUPFIXED;
     if ((pk_type < fptu_96 && pk_type != /* composite */ fptu_null) ||
-        !fpta_index_is_ordered(pk_index))
+        fpta_index_is_unordered(pk_index))
       dbi_flags |= MDBX_INTEGERDUP | MDBX_DUPFIXED;
     else if (fpta_index_is_reverse(pk_index) &&
              (pk_type >= fptu_96 || pk_type == /* composite */ fptu_null))
@@ -373,7 +373,7 @@ static bool fpta_index_ordered_is_compat(fptu_type data_type,
    *  - но НЕ допускается смешивать integer и float.
    *  - shoved допустим только при возможности больших ключей.
    */
-  static int32_t bits[fpta_end + 1] = {
+  static int32_t bits[fpta_invalid] = {
       /* fpta_null */
       0,
 
@@ -409,6 +409,9 @@ static bool fpta_index_ordered_is_compat(fptu_type data_type,
       ~0,
 
       /* fpta_end */
+      ~0,
+
+      /* fpta_epsilon */
       ~0};
 
   return (bits[value_type] & (1 << data_type)) != 0;
@@ -423,7 +426,7 @@ static bool fpta_index_unordered_is_compat(fptu_type data_type,
    *    преобразует значение, либо вернет ошибку.
    *  - но НЕ допускается смешивать integer и float.
    *  - shoved для всех типов, которые могут быть длиннее 8. */
-  static int32_t bits[fpta_end + 1] = {
+  static int32_t bits[fpta_invalid] = {
       /* fpta_null */
       0,
 
@@ -458,6 +461,9 @@ static bool fpta_index_unordered_is_compat(fptu_type data_type,
       ~0,
 
       /* fpta_end */
+      ~0,
+
+      /* fpta_epsilon */
       ~0};
 
   return (bits[value_type] & (1 << data_type)) != 0;
@@ -696,7 +702,7 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   const fptu_type type = fpta_shove2type(shove);
   const fpta_index_type index = fpta_shove2index(shove);
 
-  if (type >= fptu_96 && !fpta_index_is_ordered(index)) {
+  if (type >= fptu_96 && fpta_index_is_unordered(index)) {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
 

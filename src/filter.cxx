@@ -398,7 +398,8 @@ tail_recursion:
 //----------------------------------------------------------------------------
 
 FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
-                           fpta_estimate_item *items_vector) {
+                           fpta_estimate_item *items_vector,
+                           fpta_cursor_options options) {
   if (unlikely(items_count < 1 || items_count > fpta_max_indexes ||
                items_vector == nullptr))
     return FPTA_EINVAL;
@@ -423,54 +424,85 @@ FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
       continue;
     }
 
-    if (unlikely(i->range_from.type == fpta_end ||
-                 i->range_to.type == fpta_begin)) {
-      i->error = FPTA_EINVAL;
-      continue;
-    }
     if (unlikely(!fpta_is_indexed(i->column_id->shove))) {
       i->error = FPTA_NO_INDEX;
       continue;
     }
 
-    fpta_key begin_key;
-    if (i->range_from.type != fpta_begin) {
-      err = fpta_index_value2key(i->column_id->shove, i->range_from, begin_key);
-      if (unlikely(err != FPTA_SUCCESS)) {
-        i->error = err;
-        continue;
-      }
-    }
-
-    fpta_key end_key;
-    if (i->range_to.type != fpta_end) {
-      err = fpta_index_value2key(i->column_id->shove, i->range_to, end_key);
-      if (unlikely(err != FPTA_SUCCESS)) {
-        i->error = err;
-        continue;
-      }
-    }
-
-    if (fpta_index_is_unordered(i->column_id->shove) &&
-        unlikely(i->range_from.type != fpta_begin &&
-                 i->range_to.type != fpta_end &&
-                 !fpta_is_same(begin_key.mdbx, end_key.mdbx))) {
-      i->error = FPTA_NO_INDEX;
-      continue;
-    }
-
     MDBX_dbi tbl_handle, idx_handle;
+    /* Не стоит открывать хендлы до проверки всех аргументов, однако:
+        - раннее открытие не создает заметных пользователю сторонних эффектов;
+        - упрощает код, устраняя дублирование и условные переходы. */
     err = fpta_open_column(txn, i->column_id, tbl_handle, idx_handle);
     if (unlikely(err != FPTA_SUCCESS)) {
       i->error = err;
       continue;
     }
 
-    err = mdbx_estimate_range(
-        txn->mdbx_txn, idx_handle,
-        (i->range_from.type != fpta_begin) ? &begin_key.mdbx : nullptr, nullptr,
-        (i->range_to.type != fpta_end) ? &end_key.mdbx : nullptr, nullptr,
-        &i->estimated_rows);
+    fpta_key begin_key;
+    MDBX_val *mdbx_begin_key;
+    switch (i->range_from.type) {
+    case fpta_begin:
+      mdbx_begin_key = nullptr;
+      break;
+
+    case fpta_epsilon:
+      if (unlikely(i->range_to.type == fpta_epsilon)) {
+        i->error = FPTA_EINVAL;
+        continue;
+      }
+      mdbx_begin_key = MDBX_EPSILON;
+      break;
+
+    default:
+      err = fpta_index_value2key(i->column_id->shove, i->range_from, begin_key);
+      if (unlikely(err != FPTA_SUCCESS)) {
+        i->error = err;
+        continue;
+      }
+      mdbx_begin_key = &begin_key.mdbx;
+      break;
+    }
+
+    fpta_key end_key;
+    MDBX_val *mdbx_end_key;
+    switch (i->range_to.type) {
+    case fpta_end:
+      mdbx_end_key = nullptr;
+      break;
+
+    case fpta_epsilon:
+      assert(i->range_from.type != fpta_epsilon);
+      mdbx_end_key = MDBX_EPSILON;
+      break;
+
+    default:
+      err = fpta_index_value2key(i->column_id->shove, i->range_to, end_key);
+      if (unlikely(err != FPTA_SUCCESS)) {
+        i->error = err;
+        continue;
+      }
+      mdbx_end_key = &end_key.mdbx;
+      break;
+    }
+
+    if (i->range_from.type <= fpta_shoved && i->range_to.type <= fpta_shoved) {
+      if (fpta_is_same(begin_key.mdbx, end_key.mdbx)) {
+        /* range_from == range_to */
+        if ((options & fpta_zeroed_range_is_point) == 0) {
+          i->estimated_rows = 0;
+          i->error = FPTA_SUCCESS;
+          continue;
+        }
+      } else if (fpta_index_is_unordered(i->column_id->shove)) {
+        i->error = FPTA_NO_INDEX;
+        continue;
+      }
+    }
+
+    err =
+        mdbx_estimate_range(txn->mdbx_txn, idx_handle, mdbx_begin_key, nullptr,
+                            mdbx_end_key, nullptr, &i->estimated_rows);
     if (unlikely(err != FPTA_SUCCESS)) {
       i->error = err;
       continue;

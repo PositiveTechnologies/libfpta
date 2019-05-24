@@ -223,15 +223,15 @@ static constexpr bool fpta_column_is_nullable(const fpta_shove_t shove) {
   return (shove & fpta_index_fnullable) != 0;
 }
 
-static constexpr bool fpta_cursor_is_ordered(const fpta_cursor_options op) {
+static inline bool fpta_cursor_is_ordered(const fpta_cursor_options op) {
   return (op & (fpta_descending | fpta_ascending)) != fpta_unsorted;
 }
 
-static constexpr bool fpta_cursor_is_descending(const fpta_cursor_options op) {
+static inline bool fpta_cursor_is_descending(const fpta_cursor_options op) {
   return (op & (fpta_descending | fpta_ascending)) == fpta_descending;
 }
 
-static constexpr bool fpta_cursor_is_ascending(const fpta_cursor_options op) {
+static inline bool fpta_cursor_is_ascending(const fpta_cursor_options op) {
   return (op & (fpta_descending | fpta_ascending)) == fpta_ascending;
 }
 
