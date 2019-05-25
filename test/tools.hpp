@@ -93,7 +93,7 @@ inline bool is_valid4cursor(fpta_index_type index, fpta_cursor_options cursor) {
   if (!fpta_is_indexed(index))
     return false;
 
-  if (fpta_cursor_is_ordered(cursor) && !fpta_index_is_ordered(index))
+  if (fpta_cursor_is_ordered(cursor) && fpta_index_is_unordered(index))
     return false;
 
   return true;

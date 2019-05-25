@@ -474,7 +474,7 @@ TEST_P(IndexSecondary, basic) {
        * Соответственно, этот порядок должен соблюдаться, если только
        * первичный индекс не unordered.
        */
-      if (!fpta_index_is_ordered(pk_index))
+      if (fpta_index_is_unordered(pk_index))
         ASSERT_GT(2u, tuple_dup_id);
       else if (tuple_order % 3)
         ASSERT_EQ(i & 1u, tuple_dup_id);
