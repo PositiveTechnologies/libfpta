@@ -199,7 +199,7 @@ else()
 endif()
 
 # Check for LTO support by GCC
-if(CMAKE_COMPILER_IS_GNUC${CMAKE_PRIMARY_LANG})
+if(CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG})
   unset(gcc_collect)
   unset(gcc_lto_wrapper)
 
@@ -347,7 +347,7 @@ option(ENABLE_BACKTRACE "Enable output of fiber backtrace information in 'show
 
 set(HAVE_BFD False)
 if(ENABLE_BACKTRACE)
-  if(NOT CMAKE_COMPILER_IS_GNUC${CMAKE_PRIMARY_LANG})
+  if(NOT (X86_32 OR X86_64) OR NOT CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG})
     # We only know this option to work with gcc
     message(FATAL_ERROR "ENABLE_BACKTRACE option is set but the system
       is not x86 based (${CMAKE_SYSTEM_PROCESSOR}) or the compiler
