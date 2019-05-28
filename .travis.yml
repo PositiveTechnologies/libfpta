@@ -52,6 +52,6 @@ script: >
         git diff;
         exit -1;
       fi) &&
-    make --keep-going all && make --keep-going test &&
+    make --keep-going all && MALLOC_CHECK_=7 MALLOC_PERTURB_=42 make --keep-going test &&
     externals/libfptu/test/fptu_c_mode && test/fpta_c_mode;
   fi
