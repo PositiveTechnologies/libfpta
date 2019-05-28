@@ -427,3 +427,14 @@
 #else                                     /* __cplusplus */
 #define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE) /* nope, C allows these operators */
 #endif                                    /* !__cplusplus */
+
+/* Workaround for Coverity Scan */
+#if defined(__COVERITY__) && __GNUC_PREREQ(7, 0) && !defined(__cplusplus)
+typedef float _Float32;
+typedef double _Float32x;
+typedef double _Float64;
+typedef long double _Float64x;
+typedef float _Float128 __attribute__((__mode__(__TF__)));
+typedef __complex__ float __cfloat128 __attribute__((__mode__(__TC__)));
+typedef _Complex float __cfloat128 __attribute__((__mode__(__TC__)));
+#endif /* Workaround for Coverity Scan */

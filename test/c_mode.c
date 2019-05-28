@@ -17,6 +17,10 @@
  * along with libfptu.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef __COVERITY__
+#include <fast_positive/defs.h>
+#endif
+
 /* test conformance for C mode */
 #if !defined(fptu_EXPORTS) && !defined(fptu_IMPORTS)
 #define fptu_IMPORTS
