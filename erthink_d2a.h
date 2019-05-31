@@ -79,7 +79,7 @@ static cxx14_constexpr int dec_digits(uint32_t n) {
   return 10;
 }
 
-static inline /* LY: 'inline' here if better for performance than 'constexpr' */
+static inline /* LY: 'inline' here is better for performance than 'constexpr' */
     uint64_t
     dec_power(unsigned n) {
   static const uint64_t array[] = {
