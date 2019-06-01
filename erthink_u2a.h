@@ -1,23 +1,18 @@
 ﻿/*
- *  Copyright (c) 2010-2019 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2019 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/leo-yuriev/erthink
- *  ZLib License
  *
- *  This software is provided 'as-is', without any express or implied
- *  warranty. In no event will the authors be held liable for any damages
- *  arising from the use of this software.
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- *  Permission is granted to anyone to use this software for any purpose,
- *  including commercial applications, and to alter it and redistribute it
- *  freely, subject to the following restrictions:
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *  1. The origin of this software must not be misrepresented; you must not
- *     claim that you wrote the original software. If you use this software
- *     in a product, an acknowledgement in the product documentation would be
- *     appreciated but is not required.
- *  2. Altered source versions must be plainly marked as such, and must not be
- *     misrepresented as being the original software.
- *  3. This notice may not be removed or altered from any source distribution.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
 
 #pragma once
@@ -95,7 +90,7 @@ static const char digits_00_99[200] = {
     57, 53, 57, 54, 57, 55, 57, 56, 57, 57};
 
 static __always_inline char *dec2(uint_fast32_t v, char *ptr,
-                                  size_t force = 0) {
+                                  std::size_t force = 0) {
   assert(v < 100u);
   // LY: strive for branchless (SSA-optimizer must solve this)
   *ptr = digits_00_99[v << 1];
@@ -105,7 +100,7 @@ static __always_inline char *dec2(uint_fast32_t v, char *ptr,
 }
 
 static __always_inline char *dec3(uint_fast32_t v, char *ptr,
-                                  size_t force = 0) {
+                                  std::size_t force = 0) {
   assert(v < 1000u);
   const uint_fast32_t hi = v / 10u;
   const uint_fast32_t lo = v % 10u;
@@ -119,7 +114,7 @@ static __always_inline char *dec3(uint_fast32_t v, char *ptr,
 }
 
 static __always_inline char *dec4(uint_fast32_t v, char *ptr,
-                                  size_t force = 0) {
+                                  std::size_t force = 0) {
   assert(v < 10000u);
   const uint_fast32_t hi = v / 100u;
   const uint_fast32_t lo = v % 100u;
@@ -169,7 +164,7 @@ u2a(uint64_t u64,
   // at least 10 digits
   char *ptr = buffer;
   if (u64 >= UINT_E12) {
-    size_t force = 0;
+    std::size_t force = 0;
     if (unlikely(u64 >= UINT_E16)) {
       /* LY: no more than 20 digits */
       ptr = dec4(static_cast<unsigned>(u64 / UINT_E16), ptr, force);
