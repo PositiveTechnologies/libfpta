@@ -36,7 +36,7 @@
 #define FAST_POSITIVE_TUPLES_H
 
 #define FPTU_VERSION_MAJOR 0
-#define FPTU_VERSION_MINOR 0
+#define FPTU_VERSION_MINOR 1
 
 #include "fast_positive/config.h"
 #include "fast_positive/defs.h"
