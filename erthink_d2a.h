@@ -283,76 +283,132 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
   uint_fast32_t digit, body = static_cast<uint_fast32_t>(upper.f >> shift);
   uint64_t tail = upper.f & mask;
   int kappa = dec_digits(body);
+  assert(kappa > 0);
 
-  while (kappa > 0) {
-    switch (kappa) {
+  do {
+    switch (--kappa) {
     default:
       assert(false);
       __unreachable();
-    case 10:
+    case 9:
       digit = body / UINT_E9;
       body %= UINT_E9;
       break;
-    case 9:
+    case 8:
       digit = body / UINT_E8;
       body %= UINT_E8;
       break;
-    case 8:
+    case 7:
       digit = body / UINT_E7;
       body %= UINT_E7;
       break;
-    case 7:
+    case 6:
       digit = body / UINT_E6;
       body %= UINT_E6;
       break;
-    case 6:
+    case 5:
       digit = body / UINT_E5;
       body %= UINT_E5;
       break;
-    case 5:
+    case 4:
       digit = body / UINT_E4;
       body %= UINT_E4;
       break;
-    case 4:
+    case 3:
       digit = body / 1000u;
       body %= 1000u;
       break;
-    case 3:
+    case 2:
       digit = body / 100u;
       body %= 100u;
       break;
-    case 2:
+    case 1:
       digit = body / 10u;
       body %= 10u;
       break;
-    case 1:
+    case 0:
       digit = body;
-      body = 0u;
-      break;
+      if (unlikely(tail < delta)) {
+      early:
+        *ptr++ = static_cast<char>(digit + '0');
+        inout_exp10 += kappa;
+        assert(kappa >= 0);
+        round(ptr, delta, tail, dec_power(unsigned(kappa)) << shift, gap.f);
+        return ptr;
+      }
+
+      while (true) {
+        if (likely(digit))
+          goto done;
+        --kappa;
+        tail *= 10;
+        delta *= 10;
+        digit = static_cast<uint_fast32_t>(tail >> shift);
+        tail &= mask;
+      }
     }
-    *ptr = static_cast<char>(digit + '0');
-    --kappa;
+
     const uint64_t left = (static_cast<uint64_t>(body) << shift) + tail;
-    ptr += (digit || ptr > buffer);
-    if (left < delta) {
-      inout_exp10 += kappa;
-      assert(kappa >= 0);
-      round(ptr, delta, left, dec_power(unsigned(kappa)) << shift, gap.f);
-      return ptr;
+    if (unlikely(left < delta))
+      goto early;
+
+  } while (unlikely(digit == 0));
+
+  while (true) {
+    *ptr++ = static_cast<char>(digit + '0');
+    switch (--kappa) {
+    default:
+      assert(false);
+      __unreachable();
+    case 9:
+      digit = body / UINT_E9;
+      body %= UINT_E9;
+      break;
+    case 8:
+      digit = body / UINT_E8;
+      body %= UINT_E8;
+      break;
+    case 7:
+      digit = body / UINT_E7;
+      body %= UINT_E7;
+      break;
+    case 6:
+      digit = body / UINT_E6;
+      body %= UINT_E6;
+      break;
+    case 5:
+      digit = body / UINT_E5;
+      body %= UINT_E5;
+      break;
+    case 4:
+      digit = body / UINT_E4;
+      body %= UINT_E4;
+      break;
+    case 3:
+      digit = body / 1000u;
+      body %= 1000u;
+      break;
+    case 2:
+      digit = body / 100u;
+      body %= 100u;
+      break;
+    case 1:
+      digit = body / 10u;
+      body %= 10u;
+      break;
+    case 0:
+      digit = body;
+      goto done;
     }
+
+    const uint64_t left = (static_cast<uint64_t>(body) << shift) + tail;
+    if (unlikely(left < delta))
+      goto early;
   }
 
-  if (ptr == buffer) {
-    do {
-      --kappa;
-      tail *= 10;
-      delta *= 10;
-      digit = static_cast<uint_fast32_t>(tail >> shift);
-      tail &= mask;
-    } while (unlikely(!digit));
-    *ptr++ = static_cast<char>(digit + '0');
-  }
-  while (tail > delta) {
+done:
+  *ptr++ = static_cast<char>(digit + '0');
+  while (likely(tail > delta)) {
     --kappa;
     tail *= 10;
     delta *= 10;
