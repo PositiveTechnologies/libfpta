@@ -696,7 +696,8 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   const fptu_type type = fpta_shove2type(shove);
   const fpta_index_type index = fpta_shove2index(shove);
 
-  if (type >= fptu_96 && !fpta_index_is_ordered(index)) {
+  if (!fpta_index_is_ordered(index) &&
+      (type >= fptu_96 || type == /* composite */ fptu_null)) {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
 

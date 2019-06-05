@@ -64,6 +64,9 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
          hash == &key.place.longkey_reverse.headhash);
   const bool obverse = hash == &key.place.longkey_obverse.tailhash;
 
+  if (unlikely(length == 0))
+    return FPTA_SUCCESS;
+
   if (key.mdbx.iov_len <= fpta_max_keylen) {
     const size_t left = fpta_max_keylen - key.mdbx.iov_len;
     const size_t chunk = (left >= length) ? length : left;
@@ -91,6 +94,7 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
         return FPTA_SUCCESS;
       }
     }
+
     /* Limit for key-size reached,
      * continue hashing all of the rest.
      * Initialize hash value */
