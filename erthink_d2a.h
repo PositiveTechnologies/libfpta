@@ -44,6 +44,22 @@
 
 namespace erthink {
 
+/* The ERTHINK_D2A_PEDANTRY_ACCURATE macro allows you to control the trade-off
+ * between conversion speed and accuracy:
+ *
+ *  - Define it to non-zero for accurately conversion to impeccable string
+ *    representation, which will be a nearest to the actual binary value.
+ *
+ *  - Otherwise (if ERTHINK_D2A_PEDANTRY_ACCURATE undefiner or defined to zero)
+ *    the conversion will be slightly faster and the result will also be correct
+ *    (inverse conversion via stdtod() will give the original value).
+ *    However, the string representation will be slightly larger than the ideal
+ *    nearest value. */
+
+#ifndef ERTHINK_D2A_PEDANTRY_ACCURATE
+#define ERTHINK_D2A_PEDANTRY_ACCURATE 0
+#endif
+
 #ifndef NAMESPACE_ERTHINK_D2A_DETAILS
 #define NAMESPACE_ERTHINK_D2A_DETAILS /* anonymous */
 #endif                                /* NAMESPACE_ERTHINK_D2A_DETAILS */
@@ -261,6 +277,7 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
   return diy_fp(power10_mas[index], power10_exp2[index]);
 }
 
+#if ERTHINK_D2A_PEDANTRY_ACCURATE
 static __always_inline void round(char *end, uint64_t delta, uint64_t rest,
                                   uint64_t ten_kappa, uint64_t upper) {
   while (rest < upper && delta - rest >= ten_kappa &&
@@ -271,18 +288,23 @@ static __always_inline void round(char *end, uint64_t delta, uint64_t rest,
     rest += ten_kappa;
   }
 }
+#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
 
-static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
-                                uint64_t delta, char *const buffer,
-                                int &inout_exp10) {
-  const unsigned shift = unsigned(-upper.e);
+static inline char *make_digits(const diy_fp &value, uint64_t delta,
+                                char *const buffer, int &inout_exp10,
+                                const diy_fp &baseline) {
+  const unsigned shift = unsigned(-value.e);
   const uint64_t mask = UINT64_MAX >> (64 - shift);
   char *ptr = buffer;
-  const diy_fp gap = upper - v;
+#if ERTHINK_D2A_PEDANTRY_ACCURATE
+  const diy_fp gap = value - baseline;
+#else
+  (void)baseline;
+#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
 
-  assert((upper.f >> shift) <= UINT_E9);
-  uint_fast32_t digit, body = static_cast<uint_fast32_t>(upper.f >> shift);
-  uint64_t tail = upper.f & mask;
+  assert((value.f >> shift) <= UINT_E9);
+  uint_fast32_t digit, body = static_cast<uint_fast32_t>(value.f >> shift);
+  uint64_t tail = value.f & mask;
   int kappa = dec_digits(body);
   assert(kappa > 0);
 
@@ -333,8 +355,10 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
       early:
         *ptr++ = static_cast<char>(digit + '0');
         inout_exp10 += kappa;
+#if ERTHINK_D2A_PEDANTRY_ACCURATE
         assert(kappa >= 0);
         round(ptr, delta, tail, dec_power(unsigned(kappa)) << shift, gap.f);
+#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
         return ptr;
       }
 
@@ -414,9 +438,11 @@ done:
   }
 
   inout_exp10 += kappa;
+#if ERTHINK_D2A_PEDANTRY_ACCURATE
   assert(kappa >= -19 && kappa <= 0);
   const uint64_t unit = dec_power(unsigned(-kappa));
   round(ptr, delta, tail, mask + 1, gap.f * unit);
+#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
   return ptr;
 }
 
@@ -428,8 +454,8 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
   }
 
   const int left = clz64(v.f);
-#if 0 /* Given the rest of the optimizations does not have a significant       \
-         impact, although a little faster in the simplest cases. */
+#if 0 /* Given the remaining optimizations, on average it does not have a      \
+         positive effect, although a little faster in the simplest cases. */
   // LY: check to output as ordinal
   if (unlikely(v.e >= -52 && v.e <= left && (v.e >= 0 || (v.f << (64 + v.e)) == 0))) {
     uint64_t ordinal = (v.e < 0) ? v.f >> -v.e : v.f << v.e;
@@ -443,20 +469,19 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
   assert(v.f <= UINT64_MAX / 2 && left > 1);
   v.e -= left;
   v.f <<= left;
+  const diy_fp dec_factor = cached_power(v.e, out_exp10);
 
   // LY: get boundaries
   const int mojo = v.f >= UINT64_C(0x8000000080000000) ? left - 1 : left - 2;
   const uint64_t half_epsilon = UINT64_C(1) << mojo;
   diy_fp upper(v.f + half_epsilon, v.e);
   diy_fp lower(v.f - half_epsilon, v.e);
-
-  const diy_fp dec_factor = cached_power(upper.e, out_exp10);
   upper.scale(dec_factor, false);
   lower.scale(dec_factor, true);
-  v = diy_fp::middle(upper, lower);
   --upper.f;
   assert(upper.f > lower.f);
-  return make_digits(v, upper, upper.f - lower.f - 1, buffer, out_exp10);
+  return make_digits(upper, upper.f - lower.f - 1, buffer, out_exp10,
+                     diy_fp::middle(upper, lower));
 }
 
 } // namespace grisu
