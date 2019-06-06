@@ -261,11 +261,12 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
   return diy_fp(power10_mas[index], power10_exp2[index]);
 }
 
-static inline void round(char *end, uint64_t delta, uint64_t rest,
-                         uint64_t ten_kappa, uint64_t upper) {
+static __always_inline void round(char *end, uint64_t delta, uint64_t rest,
+                                  uint64_t ten_kappa, uint64_t upper) {
   while (rest < upper && delta - rest >= ten_kappa &&
          (rest + ten_kappa < upper || /* closer */
           upper - rest > rest + ten_kappa - upper)) {
+    assert(end[-1] > '0');
     end[-1] -= 1;
     rest += ten_kappa;
   }
@@ -347,11 +348,6 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
         tail &= mask;
       }
     }
-
-    const uint64_t left = (static_cast<uint64_t>(body) << shift) + tail;
-    if (unlikely(left < delta))
-      goto early;
-
   } while (unlikely(digit == 0));
 
   while (true) {
@@ -432,7 +428,8 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
   }
 
   const int left = clz64(v.f);
-#if 0
+#if 0 /* Given the rest of the optimizations does not have a significant       \
+         impact, although a little faster in the simplest cases. */
   // LY: check to output as ordinal
   if (unlikely(v.e >= -52 && v.e <= left && (v.e >= 0 || (v.f << (64 + v.e)) == 0))) {
     uint64_t ordinal = (v.e < 0) ? v.f >> -v.e : v.f << v.e;
