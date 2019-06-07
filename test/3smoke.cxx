@@ -4973,9 +4973,9 @@ TEST(Smoke, Estimate) {
   // создаем простую таблицу
   fpta_column_set def;
   fpta_column_set_init(&def);
-  EXPECT_EQ(FPTA_OK,
-            fpta_column_describe("id", fptu_cstr,
-                                 fpta_primary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                         "id", fptu_cstr,
+                         fpta_primary_withdups_ordered_obverse_nullable, &def));
   EXPECT_EQ(FPTA_OK, fpta_column_describe("padding", fptu_cstr,
                                           fpta_noindex_nullable, &def));
   fpta_txn *txn = nullptr;
@@ -5005,6 +5005,17 @@ TEST(Smoke, Estimate) {
   memset(&stat, 0, sizeof(stat));
   const unsigned gap = 2;
   ASSERT_EQ(FPTA_OK, fpta_table_sequence(txn, &table, nullptr, gap));
+
+  // пара простых проверок обработки fpta_null() в качестве границ диапазона
+  fpta_cursor *cursor = nullptr;
+  ASSERT_EQ(FPTA_NODATA,
+            fpta_cursor_open(txn, &id, fpta_value_null(), fpta_value_null(),
+                             nullptr, fpta_zeroed_range_is_point, &cursor));
+  fpta_estimate_item item = {&id, fpta_value_null(), fpta_value_null(), INT_MIN,
+                             FPTA_ENOIMP};
+  ASSERT_EQ(FPTA_OK, fpta_estimate(txn, 1, &item, fpta_zeroed_range_is_point));
+  EXPECT_EQ(FPTA_OK, item.error);
+  EXPECT_EQ(0, item.estimated_rows);
 
   while (1) {
     uint64_t sequence = 0;
