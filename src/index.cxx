@@ -470,6 +470,9 @@ static bool fpta_index_unordered_is_compat(fptu_type data_type,
 }
 
 bool fpta_index_is_compat(fpta_shove_t shove, const fpta_value &value) {
+  if (unlikely(value.type == fpta_null))
+    return fpta_column_is_nullable(shove);
+
   fptu_type type = fpta_shove2type(shove);
   fpta_index_type index = fpta_shove2index(shove);
 
@@ -481,14 +484,121 @@ bool fpta_index_is_compat(fpta_shove_t shove, const fpta_value &value) {
 
 //----------------------------------------------------------------------------
 
+static int fpta_denil_key(const fpta_shove_t shove, fpta_key &key) {
+  const fptu_type type = fpta_shove2type(shove);
+  switch (type) {
+  case fptu_null | fptu_farray:
+    return FPTA_EOOPS;
+
+  default:
+    if (fpta_index_is_ordered(shove)) {
+      if (type >= fptu_cstr) {
+        key.mdbx.iov_len = 0;
+        key.mdbx.iov_base = (void *)&fpta_NIL;
+        return FPTA_SUCCESS;
+      }
+      assert(type >= fptu_96 && type <= fptu_256);
+
+      const int fillbyte = fpta_index_is_obverse(shove)
+                               ? FPTA_DENIL_FIXBIN_OBVERSE
+                               : FPTA_DENIL_FIXBIN_REVERSE;
+      key.mdbx.iov_base = &key.place;
+      switch (type) {
+      case fptu_96:
+        memset(&key.place, fillbyte, key.mdbx.iov_len = 96 / 8);
+        break;
+      case fptu_128:
+        memset(&key.place, fillbyte, key.mdbx.iov_len = 128 / 8);
+        break;
+      case fptu_160:
+        memset(&key.place, fillbyte, key.mdbx.iov_len = 160 / 8);
+        break;
+      case fptu_256:
+        memset(&key.place, fillbyte, key.mdbx.iov_len = 256 / 8);
+        break;
+      default:
+        assert(false && "unexpected field type");
+        __unreachable();
+      }
+      return FPTA_SUCCESS;
+    }
+    /* make unordered "super nil" */;
+    key.place.u64 = 0;
+    key.mdbx.iov_len = sizeof(key.place.u64);
+    key.mdbx.iov_base = &key.place.u64;
+    return FPTA_SUCCESS;
+
+  case fptu_datetime:
+    key.place.u64 = FPTA_DENIL_DATETIME_BIN;
+    key.mdbx.iov_len = sizeof(key.place.u64);
+    key.mdbx.iov_base = &key.place.u64;
+    return FPTA_SUCCESS;
+
+  case fptu_uint16:
+    key.place.u32 = fpta_index_is_obverse(shove)
+                        ? (unsigned)FPTA_DENIL_UINT16_OBVERSE
+                        : (unsigned)FPTA_DENIL_UINT16_REVERSE;
+    key.mdbx.iov_len = sizeof(key.place.u32);
+    key.mdbx.iov_base = &key.place.u32;
+    return FPTA_SUCCESS;
+
+  case fptu_uint32:
+    key.place.u32 = fpta_index_is_obverse(shove) ? FPTA_DENIL_UINT32_OBVERSE
+                                                 : FPTA_DENIL_UINT32_REVERSE;
+    key.mdbx.iov_len = sizeof(key.place.u32);
+    key.mdbx.iov_base = &key.place.u32;
+    return FPTA_SUCCESS;
+
+  case fptu_uint64:
+    key.place.u64 = fpta_index_is_obverse(shove) ? FPTA_DENIL_UINT64_OBVERSE
+                                                 : FPTA_DENIL_UINT64_REVERSE;
+    key.mdbx.iov_len = sizeof(key.place.u64);
+    key.mdbx.iov_base = &key.place.u64;
+    return FPTA_SUCCESS;
+
+  case fptu_int32:
+    key.place.i32 = FPTA_DENIL_SINT32;
+    key.mdbx.iov_len = sizeof(key.place.i32);
+    key.mdbx.iov_base = &key.place.i32;
+    return FPTA_SUCCESS;
+
+  case fptu_int64:
+    key.place.i64 = FPTA_DENIL_SINT64;
+    key.mdbx.iov_len = sizeof(key.place.i64);
+    key.mdbx.iov_base = &key.place.i64;
+    return FPTA_SUCCESS;
+
+  case fptu_fp32:
+    key.place.u32 = FPTA_DENIL_FP32_BIN;
+    key.mdbx.iov_len = sizeof(key.place.u32);
+    key.mdbx.iov_base = &key.place.u32;
+    return FPTA_SUCCESS;
+
+  case fptu_fp64:
+    key.place.u64 = FPTA_DENIL_FP64_BIN;
+    key.mdbx.iov_len = sizeof(key.place.u64);
+    key.mdbx.iov_base = &key.place.u64;
+    return FPTA_SUCCESS;
+  }
+#ifndef _MSC_VER
+  assert(false && "unreachable point");
+  __unreachable();
+#endif
+}
+
 int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
                          fpta_key &key, bool copy) {
-  if (unlikely(value.type == fpta_begin || value.type == fpta_end ||
-               value.type == fpta_null))
+  if (unlikely(value.type == fpta_begin || value.type == fpta_end))
     return FPTA_ETYPE;
 
   if (unlikely(!fpta_is_indexed(shove)))
     return FPTA_EOOPS;
+
+  if (unlikely(value.type == fpta_null)) {
+    if (unlikely(!fpta_column_is_nullable(shove)))
+      return FPTA_ETYPE;
+    return fpta_denil_key(shove, key);
+  }
 
   const fptu_type type = fpta_shove2type(shove);
   const fpta_index_type index = fpta_shove2index(shove);
@@ -966,105 +1076,7 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
     if (!fpta_is_indexed_and_nullable(index))
       return FPTA_COLUMN_MISSING;
 
-    switch (type) {
-    case fptu_null | fptu_farray:
-      return FPTA_EOOPS;
-
-    default:
-      if (fpta_index_is_ordered(shove)) {
-        if (type >= fptu_cstr) {
-          key.mdbx.iov_len = 0;
-          key.mdbx.iov_base = nullptr;
-          return FPTA_SUCCESS;
-        }
-        assert(type >= fptu_96 && type <= fptu_256);
-
-        const int fillbyte = fpta_index_is_obverse(shove)
-                                 ? FPTA_DENIL_FIXBIN_OBVERSE
-                                 : FPTA_DENIL_FIXBIN_REVERSE;
-        key.mdbx.iov_base = &key.place;
-        switch (type) {
-        case fptu_96:
-          memset(&key.place, fillbyte, key.mdbx.iov_len = 96 / 8);
-          break;
-        case fptu_128:
-          memset(&key.place, fillbyte, key.mdbx.iov_len = 128 / 8);
-          break;
-        case fptu_160:
-          memset(&key.place, fillbyte, key.mdbx.iov_len = 160 / 8);
-          break;
-        case fptu_256:
-          memset(&key.place, fillbyte, key.mdbx.iov_len = 256 / 8);
-          break;
-        default:
-          assert(false && "unexpected field type");
-          __unreachable();
-        }
-        return FPTA_SUCCESS;
-      }
-      /* make unordered "super nil" */;
-      key.place.u64 = 0;
-      key.mdbx.iov_len = sizeof(key.place.u64);
-      key.mdbx.iov_base = &key.place.u64;
-      return FPTA_SUCCESS;
-
-    case fptu_datetime:
-      key.place.u64 = FPTA_DENIL_DATETIME_BIN;
-      key.mdbx.iov_len = sizeof(key.place.u64);
-      key.mdbx.iov_base = &key.place.u64;
-      return FPTA_SUCCESS;
-
-    case fptu_uint16:
-      key.place.u32 = fpta_index_is_obverse(shove)
-                          ? (unsigned)FPTA_DENIL_UINT16_OBVERSE
-                          : (unsigned)FPTA_DENIL_UINT16_REVERSE;
-      key.mdbx.iov_len = sizeof(key.place.u32);
-      key.mdbx.iov_base = &key.place.u32;
-      return FPTA_SUCCESS;
-
-    case fptu_uint32:
-      key.place.u32 = fpta_index_is_obverse(shove) ? FPTA_DENIL_UINT32_OBVERSE
-                                                   : FPTA_DENIL_UINT32_REVERSE;
-      key.mdbx.iov_len = sizeof(key.place.u32);
-      key.mdbx.iov_base = &key.place.u32;
-      return FPTA_SUCCESS;
-
-    case fptu_uint64:
-      key.place.u64 = fpta_index_is_obverse(shove) ? FPTA_DENIL_UINT64_OBVERSE
-                                                   : FPTA_DENIL_UINT64_REVERSE;
-      key.mdbx.iov_len = sizeof(key.place.u64);
-      key.mdbx.iov_base = &key.place.u64;
-      return FPTA_SUCCESS;
-
-    case fptu_int32:
-      key.place.i32 = FPTA_DENIL_SINT32;
-      key.mdbx.iov_len = sizeof(key.place.i32);
-      key.mdbx.iov_base = &key.place.i32;
-      return FPTA_SUCCESS;
-
-    case fptu_int64:
-      key.place.i64 = FPTA_DENIL_SINT64;
-      key.mdbx.iov_len = sizeof(key.place.i64);
-      key.mdbx.iov_base = &key.place.i64;
-      return FPTA_SUCCESS;
-
-    case fptu_fp32:
-      key.place.u32 = FPTA_DENIL_FP32_BIN;
-      key.mdbx.iov_len = sizeof(key.place.u32);
-      key.mdbx.iov_base = &key.place.u32;
-      return FPTA_SUCCESS;
-
-    case fptu_fp64:
-      key.place.u64 = FPTA_DENIL_FP64_BIN;
-      key.mdbx.iov_len = sizeof(key.place.u64);
-      key.mdbx.iov_base = &key.place.u64;
-      return FPTA_SUCCESS;
-    }
-
-#ifndef _MSC_VER
-    assert(false && "unreachable point");
-    __unreachable();
-#endif
+    return fpta_denil_key(shove, key);
   }
 
   const fptu_payload *payload = field->payload();

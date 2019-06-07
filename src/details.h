@@ -57,6 +57,10 @@ enum fpta_schema_item {
   fpta_column_with_schema
 };
 
+/* Подставляется в качестве адреса для ключей нулевой длины,
+ * с тем чтобы отличать от nullptr */
+extern const char fpta_NIL;
+
 //----------------------------------------------------------------------------
 
 class fpta_lock_guard {

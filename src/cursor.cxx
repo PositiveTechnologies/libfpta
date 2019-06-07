@@ -19,10 +19,6 @@
 
 #include "details.h"
 
-/* Подставляется в качестве адреса для ключей нулевой длины,
- * с тем чтобы отличать от nullptr */
-static char NIL;
-
 static int fpta_cursor_seek(fpta_cursor *cursor,
                             const MDBX_cursor_op mdbx_seek_op,
                             const MDBX_cursor_op mdbx_step_op,
@@ -245,7 +241,7 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
          * в курсоре стоящем на строке с ключом нулевой длины
          * cursor->current.iov_base != nullptr, и тем самым курсор
          * не попадал под критерий is_poor() */
-        mdbx_seek_key->iov_base ? mdbx_seek_key->iov_base : &NIL;
+        mdbx_seek_key->iov_base ? mdbx_seek_key->iov_base : (void *)&fpta_NIL;
 
     if (!mdbx_seek_data) {
       rc = cursor->bring(&cursor->current, &mdbx_data.sys, mdbx_seek_op);

@@ -25,6 +25,10 @@
 /*FPTA_API*/ const fpta_fp64_t fpta_fp32x64_denil = {FPTA_DENIL_FP32x64_BIN};
 /*FPTA_API*/ const fpta_fp64_t fpta_fp32x64_qsnan = {FPTA_QSNAN_FP32x64_BIN};
 
+/* Подставляется в качестве адреса для ключей нулевой длины,
+ * с тем чтобы отличать от nullptr */
+const char fpta_NIL = '\0';
+
 //----------------------------------------------------------------------------
 
 static fpta_value fpta_field2value_ex(const fptu_field *field,
