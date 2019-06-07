@@ -23,13 +23,12 @@ void fpta_shove2str(fpta_shove_t shove, fpta_dbi_name *name) {
   const static char aplhabet[65] =
       "@0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_";
 
-  char *buf = name->cstr;
-  do
-    *buf++ = aplhabet[shove & 63];
-  while (shove >>= 6);
+  for (ptrdiff_t i = FPT_ARRAY_LENGTH(name->cstr) - 1; --i >= 0;) {
+    name->cstr[i] = aplhabet[shove & 63];
+    shove >>= 6;
+  }
 
-  *buf = '\0';
-  assert(buf < name->cstr + sizeof(name->cstr));
+  name->cstr[FPT_ARRAY_LENGTH(name->cstr) - 1] = '\0';
 }
 
 static __inline MDBX_dbi fpta_dbicache_peek(const fpta_txn *txn,
