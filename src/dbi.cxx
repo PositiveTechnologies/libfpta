@@ -19,11 +19,7 @@
 
 #include "details.h"
 
-struct fpta_dbi_name {
-  char cstr[(64 + 6 - 1) / 6 /* 64-битный хэш */ + 1 /* терминирующий 0 */];
-};
-
-static void fpta_shove2str(fpta_shove_t shove, fpta_dbi_name *name) {
+void fpta_shove2str(fpta_shove_t shove, fpta_dbi_name *name) {
   const static char aplhabet[65] =
       "@0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_";
 

@@ -1509,6 +1509,7 @@ enum {
   colnum_index_is_reverse,
   colnum_index_is_tersely,
   colnum_index_composite_items,
+  colnum_index_mdbx_name,
   colnum_max,
 
   enum_value_nonindexed,
@@ -1536,7 +1537,8 @@ const char *fpta_schema2json_tag2name(const void *schema_ctx, unsigned tag) {
       "unordered" /* colnum_index_is_unordered */,
       "reverse" /* colnum_index_is_reverse */,
       "tersely" /* colnum_index_is_tersely */,
-      "composite_items" /* colnum_index_composite_items */
+      "composite_items" /* colnum_index_composite_items */,
+      "mdbx" /* colnum_index_mdbx_name */
   };
 
   const unsigned colnum = fptu_get_colnum(tag);
@@ -1591,8 +1593,8 @@ static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
   assert(fpta_schema_info_validate(info) == FPTA_OK);
   tuple4xyz_result r;
   /* seems be enough for all data, with exclusion of symbolic names */
-  r.bytes = 42;
-  r.items = 12;
+  r.bytes = 50;
+  r.items = 13;
   r.err = fpta_id_validate(column_id, fpta_column_with_schema);
   if (unlikely(r.err != FPTA_SUCCESS))
     return r;
@@ -1661,6 +1663,15 @@ static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
         if (unlikely(r.err != FPTA_SUCCESS))
           return r;
       }
+
+      fpta_dbi_name mdbx_name;
+      fpta_shove2str(
+          fpta_dbi_shove(column_id->column.table->shove, column_id->column.num),
+          &mdbx_name);
+      r.err = fptu_insert_string(out_tuple, colnum_index_mdbx_name,
+                                 mdbx_name.cstr, sizeof(mdbx_name.cstr) - 1);
+      if (unlikely(r.err != FPTA_SUCCESS))
+        return r;
     } else {
       r.err = fptu_insert_uint16(out_tuple, colnum_index_kind,
                                  enum_value_nonindexed);

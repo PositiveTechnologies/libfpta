@@ -169,6 +169,12 @@ static __inline int fpta_cursor_validate(const fpta_cursor *cursor,
 
 //----------------------------------------------------------------------------
 
+struct fpta_dbi_name {
+  char cstr[(64 + 6 - 1) / 6 /* 64-битный хэш */ + 1 /* терминирующий 0 */];
+};
+
+void fpta_shove2str(fpta_shove_t shove, fpta_dbi_name *name);
+
 fpta_shove_t fpta_name_validate_and_shove(const fpta::string_view &);
 
 inline fpta_shove_t fpta_shove_name(const char *name,
