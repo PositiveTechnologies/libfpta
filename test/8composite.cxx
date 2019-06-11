@@ -742,6 +742,298 @@ TEST(SmokeIndex, Secondary) {
 
 //----------------------------------------------------------------------------
 
+TEST(SmokeIndex, MissingFieldOfCompositeKey) {
+  /* Тривиальный тест вставки NULL значения в nullable колонку, для которой
+   * присутствует составная не-nullable
+   *
+   * Сценарий:
+   *  - создаем/инициализируем описание колонок.
+   *  - пробуем добавить кортеж без записи
+   */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  fpta_txn *txn = (fpta_txn *)&txn;
+  fpta_db *db = nullptr;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // открываем/создаем базульку в 1 мегабайт
+
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // описываем простейшую таблицу с тремя колонками и одним PK
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+
+  EXPECT_EQ(FPTA_OK, fpta_column_describe("some_field", fptu_cstr,
+                                          fpta_noindex_nullable, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe("name", fptu_cstr,
+                                          fpta_noindex_nullable, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe("age", fptu_cstr,
+                                          fpta_noindex_nullable, &def));
+
+  const char *const composite_names[2] = {"some_field", "name"};
+  EXPECT_EQ(FPTA_OK, fpta_describe_composite_index(
+                         "mycomposite", fpta_primary_unique_ordered_obverse,
+                         &def, composite_names, 2));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "some_table", &def));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // инициализируем идентификаторы таблицы и её колонок
+  fpta_name some_field, age, table;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "some_table"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &age, "age"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &some_field, "some_field"));
+
+  // начинаем транзакцию для вставки данных
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+  // ради теста делаем привязку вручную
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &some_field));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &some_field));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &age));
+
+  // создаем кортеж, который должен быть вставлен в таблицу
+  fptu_rw *pt1 = fptu_alloc(3, 1000);
+  ASSERT_NE(nullptr, pt1);
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+
+  // добавляем нормальные значения
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &some_field,
+                                        fpta_value_cstr("composite_part_1")));
+  // пропускаем вставку значения в одну из входящих в mycomposite колонок
+  // EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_a, fpta_value_sint(34)));
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt1, &age, fpta_value_cstr("some data")));
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+
+  // вставляем
+  EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt1)));
+
+  // фиксируем изменения
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+
+  // разрушаем созданный кортеж
+  // на всякий случай предварительно проверяя их
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  free(pt1);
+  pt1 = nullptr;
+
+  // разрушаем привязанные идентификаторы
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&some_field);
+  fpta_name_destroy(&age);
+  // закрываем базульку
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  db = nullptr;
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//----------------------------------------------------------------------------
+
+TEST(SmokeComposite, SimilarValuesPrimary) {
+  /* Тривиальный тест вставки двух строк с составным первичным индексом. Причем
+   * среди полей, входящих в составной индекс, отличие только в одном. */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // открываем/создаем базульку в 1 мегабайт
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0644, 1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // описываем простейшую таблицу с тремя колонками и одним составным PK
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("_id", fptu_int64,
+                                 fpta_secondary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                         "_last_changed", fptu_datetime,
+                         fpta_secondary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("cpu", fptu_int64, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("hoster", fptu_cstr, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("id", fptu_cstr, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("name", fptu_cstr, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("type", fptu_cstr, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_describe_composite_index_va(
+                "ui_composite_field", fpta_primary_unique_ordered_obverse, &def,
+                "hoster", "name", "type", "id", "cpu", nullptr));
+
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  // запускам транзакцию и создаем таблицу с обозначенным набором колонок
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "composite_table", &def));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // разрушаем описание таблицы
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  // инициализируем идентификаторы таблицы и её колонок
+  fpta_name table, col_service_id, col_last_changed, col_cpu, col_hoster,
+      col_id, col_name, col_type, col_composite;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "composite_table"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_service_id, "_id"));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_init(&table, &col_last_changed, "_last_changed"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_cpu, "cpu"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_hoster, "hoster"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_id, "id"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_name, "name"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_type, "type"));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_init(&table, &col_composite, "ui_composite_field"));
+
+  // начинаем транзакцию для вставки данных
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+  // ради теста делаем привязку вручную
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_composite));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_service_id));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_last_changed));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_cpu));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_hoster));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_id));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_name));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_type));
+
+  // проверяем информацию о таблице (сейчас таблица пуста)
+  size_t row_count;
+  fpta_table_stat stat;
+  memset(&row_count, 42, sizeof(row_count));
+  memset(&stat, 42, sizeof(stat));
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table, &row_count, &stat));
+  EXPECT_EQ(0u, row_count);
+  EXPECT_EQ(row_count, stat.row_count);
+  EXPECT_EQ(0u, stat.btree_depth);
+  EXPECT_EQ(0u, stat.large_pages);
+  EXPECT_EQ(0u, stat.branch_pages);
+  EXPECT_EQ(0u, stat.leaf_pages);
+  EXPECT_EQ(0u, stat.total_bytes);
+
+  // создаем кортеж, который станет первой записью в таблице
+  fptu_rw *pt1 = fptu_alloc(7, 1000);
+  ASSERT_NE(nullptr, pt1);
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  fptu_time datetime;
+  datetime.fixedpoint = 1492170771;
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt1, &col_service_id, fpta_value_sint(0)));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_last_changed,
+                                        fpta_value_datetime(datetime)));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_cpu, fpta_value_sint(1)));
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt1, &col_hoster,
+                               fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_id, fpta_value_cstr("A")));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt1, &col_type, fpta_value_cstr("A")));
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt1, &col_name,
+                               fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+
+  // создаем еще один кортеж для второй записи, от первой строки отличия:
+  // в полях:
+  //  col_service_id - со вторичным индексом, но не входит в составной.
+  //  col_cpu - не индексируется, но входит в составной индекс.
+  fptu_rw *pt2 = fptu_alloc(7, 1000);
+  ASSERT_NE(nullptr, pt2);
+  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt2, &col_service_id, fpta_value_sint(1)));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_last_changed,
+                                        fpta_value_datetime(datetime)));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_cpu, fpta_value_sint(2)));
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt2, &col_hoster,
+                               fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_id, fpta_value_cstr("A")));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt2, &col_type, fpta_value_cstr("A")));
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt2, &col_name,
+                               fpta_value_cstr("AAAAAAAAAAAAAAAAAAAAAAAAA")));
+  ASSERT_STREQ(nullptr, fptu_check(pt2));
+
+  // вставляем первую и вторую запись
+  EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt1)));
+  EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take_noshrink(pt2)));
+
+  // разрушаем созданные кортежи
+  // на всякий случай предварительно проверяя их
+  ASSERT_STREQ(nullptr, fptu_check(pt1));
+  free(pt1);
+  pt1 = nullptr;
+  ASSERT_STREQ(nullptr, fptu_check(pt2));
+  free(pt2);
+  pt2 = nullptr;
+
+  // фиксируем изменения
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  // и начинаем следующую транзакцию
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table, &row_count, &stat));
+  EXPECT_EQ(2u, row_count);
+  EXPECT_EQ(row_count, stat.row_count);
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // разрушаем привязанные идентификаторы
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&col_service_id);
+  fpta_name_destroy(&col_last_changed);
+  fpta_name_destroy(&col_cpu);
+  fpta_name_destroy(&col_id);
+  fpta_name_destroy(&col_name);
+  fpta_name_destroy(&col_type);
+  fpta_name_destroy(&col_hoster);
+  fpta_name_destroy(&col_composite);
+  // закрываем базульку
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
