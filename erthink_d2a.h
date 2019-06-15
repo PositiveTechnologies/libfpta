@@ -352,8 +352,9 @@ static inline char *make_digits(const diy_fp &value, uint64_t delta,
     case 0:
       digit = body;
       if (unlikely(tail < delta)) {
-      early:
+      early_last:
         *ptr++ = static_cast<char>(digit + '0');
+      early_skip:
         inout_exp10 += kappa;
 #if ERTHINK_D2A_PEDANTRY_ACCURATE
         assert(kappa >= 0);
@@ -422,8 +423,12 @@ static inline char *make_digits(const diy_fp &value, uint64_t delta,
     }
 
     const uint64_t left = (static_cast<uint64_t>(body) << shift) + tail;
-    if (unlikely(left < delta))
-      goto early;
+    if (unlikely(left < delta)) {
+      if (likely(digit))
+        goto early_last;
+      ++kappa;
+      goto early_skip;
+    }
   }
 
 done:
