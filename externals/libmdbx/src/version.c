@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -18,8 +18,8 @@
 #error "API version mismatch!"
 #endif
 
-#define MDBX_VERSION_RELEASE 0
-#define MDBX_VERSION_REVISION 2
+#define MDBX_VERSION_RELEASE 2
+#define MDBX_VERSION_REVISION 0
 
 /*LIBMDBX_EXPORTS*/ const mdbx_version_info mdbx_version = {
     MDBX_VERSION_MAJOR,

@@ -1,5 +1,5 @@
-/*
- * Copyright 2015-2018 Leonid Yuriev <leo@yuriev.ru>
+﻿/*
+ * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -3755,6 +3755,7 @@ static int mdbx_prep_backlog(MDBX_txn *txn, MDBX_cursor *mc) {
   const int extra = mdbx_backlog_extragap(txn->mt_env);
 
   if (mdbx_backlog_size(txn) < mc->mc_db->md_depth + extra) {
+    mc->mc_flags &= ~C_RECLAIMING;
     int rc = mdbx_cursor_touch(mc);
     if (unlikely(rc))
       return rc;
@@ -3768,6 +3769,7 @@ static int mdbx_prep_backlog(MDBX_txn *txn, MDBX_cursor *mc) {
         break;
       }
     }
+    mc->mc_flags |= C_RECLAIMING;
   }
 
   return MDBX_SUCCESS;
@@ -3880,6 +3882,7 @@ static int mdbx_update_gc(MDBX_txn *txn) {
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout_notracking;
 
+  mc.mc_flags |= C_RECLAIMING;
   mc.mc_next = txn->mt_cursors[FREE_DBI];
   txn->mt_cursors[FREE_DBI] = &mc;
 
@@ -3925,9 +3928,7 @@ retry:
           mdbx_tassert(txn, cleaned_gc_id < *env->me_oldest);
           mdbx_trace("%s.cleanup-reclaimed-id [%u]%" PRIaTXN, dbg_prefix_mode,
                      cleaned_gc_slot, cleaned_gc_id);
-          mc.mc_flags |= C_RECLAIMING;
           rc = mdbx_cursor_del(&mc, 0);
-          mc.mc_flags ^= C_RECLAIMING;
           if (unlikely(rc != MDBX_SUCCESS))
             goto bailout;
         } while (cleaned_gc_slot < MDBX_PNL_SIZE(txn->mt_lifo_reclaimed));
@@ -3949,9 +3950,7 @@ retry:
         mdbx_tassert(txn, cleaned_gc_id < *env->me_oldest);
         mdbx_trace("%s.cleanup-reclaimed-id %" PRIaTXN, dbg_prefix_mode,
                    cleaned_gc_id);
-        mc.mc_flags |= C_RECLAIMING;
         rc = mdbx_cursor_del(&mc, 0);
-        mc.mc_flags ^= C_RECLAIMING;
         if (unlikely(rc != MDBX_SUCCESS))
           goto bailout;
         settled = 0;
@@ -4104,7 +4103,9 @@ retry:
     if (befree_stored < MDBX_PNL_SIZE(txn->mt_befree_pages)) {
       if (unlikely(!befree_stored)) {
         /* Make sure last page of freeDB is touched and on befree-list */
+        mc.mc_flags &= ~C_RECLAIMING;
         rc = mdbx_page_search(&mc, NULL, MDBX_PS_LAST | MDBX_PS_MODIFY);
+        mc.mc_flags |= C_RECLAIMING;
         if (unlikely(rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND))
           goto bailout;
       }
@@ -4198,7 +4199,9 @@ retry:
                   reused_gc_slot) *
                      env->me_maxgc_ov1page) {
         /* LY: need just a txn-id for save page list. */
+        mc.mc_flags &= ~C_RECLAIMING;
         rc = mdbx_page_alloc(&mc, 0, NULL, MDBX_ALLOC_GC | MDBX_ALLOC_KICK);
+        mc.mc_flags |= C_RECLAIMING;
         if (likely(rc == MDBX_SUCCESS)) {
           /* LY: ok, reclaimed from freedb. */
           mdbx_trace("%s: took @%" PRIaTXN " from GC, continue",
@@ -4412,7 +4415,7 @@ retry:
       key.iov_len = sizeof(fill_gc_id);
 
       mdbx_tassert(txn, data.iov_len >= sizeof(pgno_t) * 2);
-      mc.mc_flags |= C_RECLAIMING | C_GCFREEZE;
+      mc.mc_flags |= C_GCFREEZE;
       unsigned chunk = (unsigned)(data.iov_len / sizeof(pgno_t)) - 1;
       if (unlikely(chunk > left)) {
         mdbx_trace("%s: chunk %u > left %u, @%" PRIaTXN, dbg_prefix_mode, chunk,
@@ -4420,12 +4423,12 @@ retry:
         if (loop < 5 || chunk - left > env->me_maxgc_ov1page) {
           data.iov_len = (left + 1) * sizeof(pgno_t);
           if (loop < 21)
-            mc.mc_flags -= C_GCFREEZE;
+            mc.mc_flags &= ~C_GCFREEZE;
         }
         chunk = left;
       }
       rc = mdbx_cursor_put(&mc, &key, &data, MDBX_CURRENT | MDBX_RESERVE);
-      mc.mc_flags &= ~(C_RECLAIMING | C_GCFREEZE);
+      mc.mc_flags &= ~C_GCFREEZE;
       if (unlikely(rc != MDBX_SUCCESS))
         goto bailout;
 
@@ -5127,7 +5130,7 @@ static int __cold mdbx_read_header(MDBX_env *env, MDBX_meta *meta,
 
     /* LY: check and silently put mm_geo.now into [geo.lower...geo.upper].
      *
-     * Copy-with-compaction by previous version of libmfbx could produce DB-file
+     * Copy-with-compaction by previous version of libmdbx could produce DB-file
      * less than meta.geo.lower bound, in case actual filling is low or no data
      * at all. This is not a problem as there is no damage or loss of data.
      * Therefore it is better not to consider such situation as an error, but
@@ -5496,7 +5499,7 @@ fail:
 
 int __cold mdbx_env_get_maxkeysize(MDBX_env *env) {
   if (!env || env->me_signature != MDBX_ME_SIGNATURE || !env->me_maxkey_limit)
-    return -MDBX_EINVAL;
+    return (MDBX_EINVAL > 0) ? -MDBX_EINVAL : MDBX_EINVAL;
   return env->me_maxkey_limit;
 }
 
@@ -7195,13 +7198,13 @@ static int mdbx_page_search(MDBX_cursor *mc, MDBX_val *key, int flags) {
       return rc;
     rc = mdbx_page_search(&mc2, &mc->mc_dbx->md_name, 0);
     if (unlikely(rc != MDBX_SUCCESS))
-      return rc;
+      return (rc == MDBX_NOTFOUND) ? MDBX_BAD_DBI : rc;
     {
       MDBX_val data;
       int exact = 0;
       MDBX_node *leaf = mdbx_node_search(&mc2, &mc->mc_dbx->md_name, &exact);
       if (!exact)
-        return MDBX_NOTFOUND;
+        return MDBX_BAD_DBI;
       if (unlikely((leaf->mn_flags & (F_DUPDATA | F_SUBDATA)) != F_SUBDATA))
         return MDBX_INCOMPATIBLE; /* not a named DB */
       rc = mdbx_node_read(&mc2, leaf, &data);
@@ -8300,7 +8303,7 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
         if (rc > 0) {
           rc = MDBX_NOTFOUND;
           mc->mc_ki[mc->mc_top]++;
-        } else {
+        } else if (unlikely(rc < 0 || (flags & MDBX_APPENDDUP) == 0)) {
           /* new key is <= last key */
           rc = MDBX_EKEYMISMATCH;
         }
@@ -10882,7 +10885,7 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
        * This yields better packing during sequential inserts.
        */
       int dir;
-      if (nkeys < 20 || nsize > pmax / 16 || newindx >= nkeys) {
+      if (nkeys < 32 || nsize > pmax / 16 || newindx >= nkeys) {
         /* Find split point */
         psize = 0;
         if (newindx <= split_indx || newindx >= nkeys) {
@@ -12466,7 +12469,7 @@ int __cold mdbx_reader_list(MDBX_env *env, MDBX_msg_func *func, void *ctx) {
   int rc = 0, first = 1;
 
   if (unlikely(!env || !func))
-    return -MDBX_EINVAL;
+    return (MDBX_EINVAL > 0) ? -MDBX_EINVAL : MDBX_EINVAL;
 
   if (unlikely(env->me_signature != MDBX_ME_SIGNATURE))
     return MDBX_EBADSIGN;
@@ -12796,7 +12799,7 @@ __attribute__((no_sanitize_thread, noinline))
 int mdbx_txn_straggler(MDBX_txn *txn, int *percent)
 {
   if (unlikely(!txn))
-    return -MDBX_EINVAL;
+    return (MDBX_EINVAL > 0) ? -MDBX_EINVAL : MDBX_EINVAL;
 
   if (unlikely(txn->mt_signature != MDBX_MT_SIGNATURE))
     return MDBX_EBADSIGN;
@@ -12810,7 +12813,7 @@ int mdbx_txn_straggler(MDBX_txn *txn, int *percent)
       *percent =
           (int)((txn->mt_next_pgno * UINT64_C(100) + txn->mt_end_pgno / 2) /
                 txn->mt_end_pgno);
-    return -1;
+    return 0;
   }
 
   txnid_t recent;
@@ -13515,7 +13518,7 @@ __cold intptr_t mdbx_limits_keysize_max(intptr_t pagesize) {
   else if (unlikely(pagesize < (intptr_t)MIN_PAGESIZE ||
                     pagesize > (intptr_t)MAX_PAGESIZE ||
                     !mdbx_is_power2((size_t)pagesize)))
-    return -MDBX_EINVAL;
+    return (MDBX_EINVAL > 0) ? -MDBX_EINVAL : MDBX_EINVAL;
 
   return mdbx_maxkey(mdbx_nodemax(pagesize));
 }
@@ -13530,7 +13533,7 @@ __cold intptr_t mdbx_limits_dbsize_min(intptr_t pagesize) {
   else if (unlikely(pagesize < (intptr_t)MIN_PAGESIZE ||
                     pagesize > (intptr_t)MAX_PAGESIZE ||
                     !mdbx_is_power2((size_t)pagesize)))
-    return -MDBX_EINVAL;
+    return (MDBX_EINVAL > 0) ? -MDBX_EINVAL : MDBX_EINVAL;
 
   return MIN_PAGENO * pagesize;
 }
@@ -13541,7 +13544,7 @@ __cold intptr_t mdbx_limits_dbsize_max(intptr_t pagesize) {
   else if (unlikely(pagesize < (intptr_t)MIN_PAGESIZE ||
                     pagesize > (intptr_t)MAX_PAGESIZE ||
                     !mdbx_is_power2((size_t)pagesize)))
-    return -MDBX_EINVAL;
+    return (MDBX_EINVAL > 0) ? -MDBX_EINVAL : MDBX_EINVAL;
 
   const uint64_t limit = MAX_PAGENO * (uint64_t)pagesize;
   return (limit < (intptr_t)MAX_MAPSIZE) ? (intptr_t)limit
@@ -13554,7 +13557,7 @@ __cold intptr_t mdbx_limits_txnsize_max(intptr_t pagesize) {
   else if (unlikely(pagesize < (intptr_t)MIN_PAGESIZE ||
                     pagesize > (intptr_t)MAX_PAGESIZE ||
                     !mdbx_is_power2((size_t)pagesize)))
-    return -MDBX_EINVAL;
+    return (MDBX_EINVAL > 0) ? -MDBX_EINVAL : MDBX_EINVAL;
 
   return pagesize * (MDBX_DPL_TXNFULL - 1);
 }
