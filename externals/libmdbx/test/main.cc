@@ -27,6 +27,8 @@ void actor_params::set_defaults(const std::string &tmpdir) {
   loglevel =
 #ifdef NDEBUG
       logging::info;
+#elif defined(_WIN32) || defined(_WIN64)
+      logging::verbose;
 #else
       logging::trace;
 #endif
@@ -37,7 +39,8 @@ void actor_params::set_defaults(const std::string &tmpdir) {
   table_flags = MDBX_DUPSORT;
 
   size_lower = -1;
-  size_now = 1024 * 1024 * ((table_flags & MDBX_DUPSORT) ? 4 : 256);
+  size_now =
+      intptr_t(1024) * 1024 * ((table_flags & MDBX_DUPSORT) ? 256 : 1024);
   size_upper = -1;
   shrink_threshold = -1;
   growth_step = -1;
@@ -61,14 +64,15 @@ void actor_params::set_defaults(const std::string &tmpdir) {
   datalen_min = mdbx_datalen_min();
   datalen_max = std::min(mdbx_datalen_max(), 256u * 1024 + 42);
 
-  batch_read = 4;
-  batch_write = 4;
+  batch_read = 42;
+  batch_write = 42;
 
   delaystart = 0;
   waitfor_nops = 0;
   inject_writefaultn = 0;
 
   drop_table = false;
+  ignore_dbfull = false;
 
   max_readers = 42;
   max_tables = 42;
@@ -182,11 +186,11 @@ int main(int argc, char *const argv[]) {
                              mdbx_limits_dbsize_min(params.pagesize),
                              mdbx_limits_dbsize_max(params.pagesize)))
       continue;
-    if (config::parse_option(argc, argv, narg, "size", params.size_now,
+    if (config::parse_option(argc, argv, narg, "size-upper", params.size_upper,
                              mdbx_limits_dbsize_min(params.pagesize),
                              mdbx_limits_dbsize_max(params.pagesize)))
       continue;
-    if (config::parse_option(argc, argv, narg, "size-upper", params.size_upper,
+    if (config::parse_option(argc, argv, narg, "size", params.size_now,
                              mdbx_limits_dbsize_min(params.pagesize),
                              mdbx_limits_dbsize_max(params.pagesize)))
       continue;
@@ -287,6 +291,9 @@ int main(int argc, char *const argv[]) {
       continue;
     if (config::parse_option(argc, argv, narg, "drop", params.drop_table))
       continue;
+    if (config::parse_option(argc, argv, narg, "ignore-dbfull",
+                             params.ignore_dbfull))
+      continue;
     if (config::parse_option(argc, argv, narg, "dump-config",
                              global::config::dump_config))
       continue;
@@ -343,6 +350,10 @@ int main(int argc, char *const argv[]) {
     }
     if (config::parse_option(argc, argv, narg, "append", nullptr)) {
       configure_actor(last_space_id, ac_append, value, params);
+      continue;
+    }
+    if (config::parse_option(argc, argv, narg, "ttl", nullptr)) {
+      configure_actor(last_space_id, ac_ttl, value, params);
       continue;
     }
     if (config::parse_option(argc, argv, narg, "failfast",

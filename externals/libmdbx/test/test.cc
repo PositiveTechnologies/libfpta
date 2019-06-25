@@ -35,6 +35,8 @@ const char *testcase2str(const actor_testcase testcase) {
     return "copy";
   case ac_append:
     return "append";
+  case ac_ttl:
+    return "ttl";
   }
 }
 
@@ -168,20 +170,42 @@ void testcase::txn_begin(bool readonly, unsigned flags) {
             flags);
 }
 
+int testcase::breakable_commit() {
+  int rc = MDBX_SUCCESS;
+  log_trace(">> txn_commit");
+  assert(txn_guard);
+
+  MDBX_txn *txn = txn_guard.release();
+  txn_inject_writefault(txn);
+  int err = mdbx_txn_commit(txn);
+  if (unlikely(err != MDBX_SUCCESS)) {
+    if (err == MDBX_MAP_FULL && config.params.ignore_dbfull) {
+      rc = err;
+      err = mdbx_txn_abort(txn);
+      if (unlikely(err != MDBX_SUCCESS && err != MDBX_THREAD_MISMATCH))
+        failure_perror("mdbx_txn_abort()", err);
+    } else
+      failure_perror("mdbx_txn_commit()", err);
+  }
+
+  log_trace("<< txn_commit: %s", rc ? "failed" : "Ok");
+  return rc;
+}
+
 void testcase::txn_end(bool abort) {
   log_trace(">> txn_end(%s)", abort ? "abort" : "commit");
   assert(txn_guard);
 
   MDBX_txn *txn = txn_guard.release();
   if (abort) {
-    int rc = mdbx_txn_abort(txn);
-    if (unlikely(rc != MDBX_SUCCESS))
-      failure_perror("mdbx_txn_abort()", rc);
+    int err = mdbx_txn_abort(txn);
+    if (unlikely(err != MDBX_SUCCESS && err != MDBX_THREAD_MISMATCH))
+      failure_perror("mdbx_txn_abort()", err);
   } else {
     txn_inject_writefault(txn);
-    int rc = mdbx_txn_commit(txn);
-    if (unlikely(rc != MDBX_SUCCESS))
-      failure_perror("mdbx_txn_commit()", rc);
+    int err = mdbx_txn_commit(txn);
+    if (unlikely(err != MDBX_SUCCESS))
+      failure_perror("mdbx_txn_commit()", err);
   }
 
   log_trace("<< txn_end(%s)", abort ? "abort" : "commit");
@@ -207,6 +231,16 @@ void testcase::cursor_close() {
   MDBX_cursor *cursor = cursor_guard.release();
   mdbx_cursor_close(cursor);
   log_trace("<< cursor_close()");
+}
+
+int testcase::breakable_restart() {
+  int rc = MDBX_SUCCESS;
+  if (txn_guard)
+    rc = breakable_commit();
+  if (cursor_guard)
+    cursor_close();
+  txn_begin(false, 0);
+  return rc;
 }
 
 void testcase::txn_restart(bool abort, bool readonly, unsigned flags) {
@@ -322,6 +356,7 @@ bool testcase::setup() {
     return false;
 
   start_timestamp = chrono::now_motonic();
+  nops_completed = 0;
   return true;
 }
 
@@ -391,6 +426,28 @@ void testcase::update_canary(uint64_t increment) {
   log_trace("<< update_canary: sequence = %" PRIu64, canary_now.y);
 }
 
+int testcase::db_open__begin__table_create_open_clean(MDBX_dbi &dbi) {
+  db_open();
+
+  int err, retry_left = 42;
+  for (;;) {
+    txn_begin(false);
+    dbi = db_table_open(true);
+    db_table_clear(dbi);
+    err = breakable_commit();
+    if (likely(err == MDBX_SUCCESS)) {
+      txn_begin(false);
+      return MDBX_SUCCESS;
+    }
+    if (--retry_left == 0)
+      break;
+    jitter_delay(true);
+  }
+  log_notice("db_begin_table_create_open_clean: bailout due '%s'",
+             mdbx_strerror(err));
+  return err;
+}
+
 MDBX_dbi testcase::db_table_open(bool create) {
   log_trace(">> testcase::db_table_create");
 
@@ -429,6 +486,14 @@ void testcase::db_table_drop(MDBX_dbi handle) {
   }
 }
 
+void testcase::db_table_clear(MDBX_dbi handle) {
+  log_trace(">> testcase::db_table_clear, handle %u", handle);
+  int rc = mdbx_drop(txn_guard.get(), handle, false);
+  if (unlikely(rc != MDBX_SUCCESS))
+    failure_perror("mdbx_drop(delete=false)", rc);
+  log_trace("<< testcase::db_table_clear");
+}
+
 void testcase::db_table_close(MDBX_dbi handle) {
   log_trace(">> testcase::db_table_close, handle %u", handle);
   assert(!txn_guard);
@@ -450,8 +515,9 @@ void testcase::checkdata(const char *step, MDBX_dbi handle, MDBX_val key2check,
 
 //-----------------------------------------------------------------------------
 
-bool test_execute(const actor_config &config) {
+bool test_execute(const actor_config &config_const) {
   const mdbx_pid_t pid = osal_getpid();
+  actor_config config = config_const;
 
   if (global::singlemode) {
     logging::setup(format("single_%s", testcase2str(config.testcase)));
@@ -487,23 +553,40 @@ bool test_execute(const actor_config &config) {
     case ac_append:
       test.reset(new testcase_append(config, pid));
       break;
+    case ac_ttl:
+      test.reset(new testcase_ttl(config, pid));
+      break;
     default:
       test.reset(new testcase(config, pid));
       break;
     }
 
-    if (!test->setup())
-      log_notice("test setup failed");
-    else if (!test->run())
-      log_notice("test failed");
-    else if (!test->teardown())
-      log_notice("test teardown failed");
-    else {
-      log_info("test successed");
-      return true;
-    }
+    size_t iter = 0;
+    do {
+      iter++;
+      if (!test->setup()) {
+        log_notice("test setup failed");
+        return false;
+      } else if (!test->run()) {
+        log_notice("test failed");
+        return false;
+      } else if (!test->teardown()) {
+        log_notice("test teardown failed");
+        return false;
+      } else {
+        if (config.params.nrepeat == 1)
+          log_info("test successed");
+        else if (config.params.nrepeat)
+          log_info("test successed (iteration %zi of %zi)", iter,
+                   size_t(config.params.nrepeat));
+        else
+          log_info("test successed (iteration %zi)", iter);
+        config.params.keygen.seed += INT32_C(0xA4F4D37B);
+      }
+    } while (config.params.nrepeat == 0 || iter < config.params.nrepeat);
+    return true;
   } catch (const std::exception &pipets) {
     failure("***** Exception: %s *****", pipets.what());
+    return false;
   }
-  return false;
 }

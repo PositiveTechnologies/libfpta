@@ -168,7 +168,7 @@ typedef pthread_t mdbx_tid_t;
 /*--------------------------------------------------------------------------*/
 
 #define MDBX_VERSION_MAJOR 0
-#define MDBX_VERSION_MINOR 2
+#define MDBX_VERSION_MINOR 3
 
 #if defined(LIBMDBX_EXPORTS)
 #define LIBMDBX_API __dll_export
@@ -1666,11 +1666,16 @@ typedef enum {
   MDBX_subpage_dupfixed_leaf
 } MDBX_page_type_t;
 
-typedef int MDBX_pgvisitor_func(uint64_t pgno, unsigned number, void *ctx,
-                                int deep, const char *dbi, size_t page_size,
-                                MDBX_page_type_t type, size_t nentries,
-                                size_t payload_bytes, size_t header_bytes,
-                                size_t unused_bytes);
+#define MDBX_PGWALK_MAIN ((const char *)((ptrdiff_t)0))
+#define MDBX_PGWALK_GC ((const char *)((ptrdiff_t)-1))
+#define MDBX_PGWALK_META ((const char *)((ptrdiff_t)-2))
+
+typedef int
+MDBX_pgvisitor_func(const uint64_t pgno, const unsigned number, void *const ctx,
+                    const int deep, const char *const dbi,
+                    const size_t page_size, const MDBX_page_type_t type,
+                    const size_t nentries, const size_t payload_bytes,
+                    const size_t header_bytes, const size_t unused_bytes);
 LIBMDBX_API int mdbx_env_pgwalk(MDBX_txn *txn, MDBX_pgvisitor_func *visitor,
                                 void *ctx);
 

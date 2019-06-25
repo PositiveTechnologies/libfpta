@@ -105,7 +105,9 @@ protected:
   void db_open();
   void db_close();
   void txn_begin(bool readonly, unsigned flags = 0);
+  int breakable_commit();
   void txn_end(bool abort);
+  int breakable_restart();
   void txn_restart(bool abort, bool readonly, unsigned flags = 0);
   void cursor_open(unsigned dbi);
   void cursor_close();
@@ -119,7 +121,9 @@ protected:
 
   MDBX_dbi db_table_open(bool create);
   void db_table_drop(MDBX_dbi handle);
+  void db_table_clear(MDBX_dbi handle);
   void db_table_close(MDBX_dbi handle);
+  int db_open__begin__table_create_open_clean(MDBX_dbi &dbi);
 
   bool wait4start();
   void report(size_t nops_done);
@@ -151,6 +155,13 @@ public:
   virtual bool run() { return true; }
   virtual bool teardown();
   virtual ~testcase() {}
+};
+
+class testcase_ttl : public testcase {
+public:
+  testcase_ttl(const actor_config &config, const mdbx_pid_t pid)
+      : testcase(config, pid) {}
+  bool run();
 };
 
 class testcase_hill : public testcase {
