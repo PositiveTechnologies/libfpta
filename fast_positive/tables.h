@@ -3156,6 +3156,8 @@ FPTA_API int fpta_confine_number(fpta_value *value, fpta_name *column_id);
  * В случае успеха возвращает ноль, иначе код ошибки. */
 FPTA_API int fpta_upsert_column(fptu_rw *pt, const fpta_name *column_id,
                                 fpta_value value);
+FPTA_API int fpta_upsert_column_ex(fptu_rw *pt, const fpta_name *column_id,
+                                   fpta_value value, bool erase_on_denil);
 
 /* Получает значение указанной колонки из переданной строки таблицы (кортежа),
  * исключая составные колоноки.

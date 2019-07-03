@@ -288,6 +288,12 @@ int fpta_get_column2buffer(fptu_ro row, const fpta_name *column_id,
 
 int fpta_upsert_column(fptu_rw *pt, const fpta_name *column_id,
                        fpta_value value) {
+  return fpta_upsert_column_ex(pt, column_id, value,
+                               !FPTA_PROHIBIT_UPSERT_DENIL);
+}
+
+int fpta_upsert_column_ex(fptu_rw *pt, const fpta_name *column_id,
+                          fpta_value value, bool erase_on_denil) {
   if (unlikely(!pt))
     return FPTA_EINVAL;
   int rc = fpta_id_validate(column_id, fpta_column_with_schema);
@@ -514,7 +520,7 @@ int fpta_upsert_column(fptu_rw *pt, const fpta_name *column_id,
   }
 
 denil_catched:
-  if (FPTA_PROHIBIT_UPSERT_DENIL)
+  if (!erase_on_denil)
     return FPTA_EVALUE;
 
 erase_field:
