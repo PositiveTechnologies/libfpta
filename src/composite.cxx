@@ -621,7 +621,8 @@ int __cold fpta_composite_index_validate(
         fpta_index_is_ordered(column_shove)) {
       /* both indexes are ordered, one should
        * not be a prefix/beginning of the another. */
-      const size_t shortest = std::min(items.size(), present.size());
+      const size_t shortest =
+          std::min(items_end - items_end, present_first - present_last);
       const auto left = fpta_index_is_obverse(index_type)
                             ? items_begin
                             : items_end - shortest;
