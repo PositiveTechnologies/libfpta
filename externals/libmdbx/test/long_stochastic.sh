@@ -35,6 +35,9 @@ fi
 # system immediately, as well some space is required for logs.
 #
 db_size_mb=$(expr '(' ${ram_avail_mb} - ${ram_reserve4logs_mb} ')' / 4)
+if [ ${db_size_mb} -gt 3072 ]; then
+db_size_mb=3072
+fi
 echo "=== ${ram_avail_mb}M RAM available, use ${db_size_mb}M for DB"
 
 make check
@@ -70,10 +73,10 @@ function probe {
 
 ###############################################################################
 
-if [ ${db_size_mb} -gt 5555 ]; then
-biggest=7
-else
+if [ ${db_size_mb} -gt 1111 ]; then
 biggest=6
+else
+biggest=5
 fi
 
 count=0

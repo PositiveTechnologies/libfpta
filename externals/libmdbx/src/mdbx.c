@@ -11253,7 +11253,7 @@ int mdbx_put(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key, MDBX_val *data,
 }
 
 #ifndef MDBX_WBUF
-#define MDBX_WBUF (1024 * 1024)
+#define MDBX_WBUF ((size_t)1024 * 1024)
 #endif
 #define MDBX_EOF 0x10 /* mdbx_env_copyfd1() is done reading */
 
@@ -11281,23 +11281,7 @@ static THREAD_RESULT __cold THREAD_CALL mdbx_env_copythr(void *arg) {
   uint8_t *ptr;
   int toggle = 0;
   int rc;
-
-#if defined(F_SETNOSIGPIPE)
-  /* OS X delivers SIGPIPE to the whole process, not the thread that caused it.
-   * Disable SIGPIPE using platform specific fcntl. */
-  int enabled = 1;
-  if (fcntl(my->mc_fd, F_SETNOSIGPIPE, &enabled))
-    my->mc_error = errno;
-#endif
-
-#if defined(SIGPIPE) && !defined(_WIN32) && !defined(_WIN64)
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGPIPE);
-  rc = pthread_sigmask(SIG_BLOCK, &set, NULL);
-  if (rc != 0)
-    my->mc_error = rc;
-#endif
+  size_t offset = pgno2bytes(my->mc_env, NUM_METAS);
 
   mdbx_condmutex_lock(&my->mc_condmutex);
   while (!my->mc_error) {
@@ -11309,18 +11293,12 @@ static THREAD_RESULT __cold THREAD_CALL mdbx_env_copythr(void *arg) {
     ptr = my->mc_wbuf[toggle];
   again:
     if (wsize > 0 && !my->mc_error) {
-      rc = mdbx_write(my->mc_fd, ptr, wsize);
+      rc = mdbx_pwrite(my->mc_fd, ptr, wsize, offset);
       if (rc != MDBX_SUCCESS) {
-#if defined(SIGPIPE) && !defined(_WIN32) && !defined(_WIN64)
-        if (rc == EPIPE) {
-          /* Collect the pending SIGPIPE, otherwise (at least OS X)
-           * gives it to the process on thread-exit (ITS#8504). */
-          int tmp;
-          sigwait(&set, &tmp);
-        }
-#endif
         my->mc_error = rc;
+        break;
       }
+      offset += wsize;
     }
 
     /* If there's an overflow page tail, write it too */
@@ -11654,12 +11632,13 @@ static int __cold mdbx_env_copy_asis(MDBX_env *env, MDBX_txn *read_txn,
     return rc;
   }
 
+  const size_t meta_bytes = pgno2bytes(env, NUM_METAS);
   /* Make a snapshot of meta-pages,
    * but writing ones after the data was flushed */
-  memcpy(buffer, env->me_map, pgno2bytes(env, NUM_METAS));
+  memcpy(buffer, env->me_map, meta_bytes);
   MDBX_meta *const headcopy = /* LY: get pointer to the spanshot copy */
       (MDBX_meta *)(buffer + ((uint8_t *)mdbx_meta_head(env) - env->me_map));
-  const uint64_t size =
+  const uint64_t whole_size =
       mdbx_roundup2(pgno2bytes(env, headcopy->mm_geo.now), env->me_os_psize);
   mdbx_txn_unlock(env);
 
@@ -11667,12 +11646,31 @@ static int __cold mdbx_env_copy_asis(MDBX_env *env, MDBX_txn *read_txn,
   headcopy->mm_datasync_sign = mdbx_meta_sign(headcopy);
 
   /* Copy the data */
-  rc = mdbx_pwrite(fd, env->me_map + pgno2bytes(env, NUM_METAS),
-                   pgno2bytes(env, read_txn->mt_next_pgno - NUM_METAS),
-                   pgno2bytes(env, NUM_METAS));
+  const size_t data_bytes = pgno2bytes(env, read_txn->mt_next_pgno);
+#if __GLIBC_PREREQ(2, 27)
+  for (off_t in_offset = meta_bytes; in_offset < (off_t)data_bytes;) {
+    off_t out_offset = in_offset;
+    ssize_t bytes_copied = copy_file_range(
+        env->me_fd, &in_offset, fd, &out_offset, data_bytes - in_offset, 0);
+    if (bytes_copied < 0) {
+      rc = errno;
+      break;
+    }
+  }
+#else
+  uint8_t *data_buffer = buffer + meta_bytes;
+  for (size_t offset = meta_bytes;
+       likely(rc == MDBX_SUCCESS) && offset < data_bytes;) {
+    const size_t chunk =
+        (MDBX_WBUF < data_bytes - offset) ? MDBX_WBUF : data_bytes - offset;
+    memcpy(data_buffer, env->me_map + offset, chunk);
+    rc = mdbx_pwrite(fd, data_buffer, chunk, offset);
+    offset += chunk;
+  }
+#endif
 
-  if (likely(rc == MDBX_SUCCESS))
-    rc = mdbx_ftruncate(fd, size);
+  if (likely(rc == MDBX_SUCCESS) && whole_size != data_bytes)
+    rc = mdbx_ftruncate(fd, whole_size);
 
   return rc;
 }
@@ -11689,8 +11687,10 @@ int __cold mdbx_env_copy2fd(MDBX_env *env, mdbx_filehandle_t fd,
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
 
-  const size_t buffer_size = pgno2bytes(env, NUM_METAS) +
-                             ((flags & MDBX_CP_COMPACT) ? MDBX_WBUF * 2 : 0);
+  const size_t buffer_size =
+      pgno2bytes(env, NUM_METAS) +
+      ((flags & MDBX_CP_COMPACT) ? MDBX_WBUF * 2 : MDBX_WBUF);
+
   uint8_t *buffer = NULL;
   rc = mdbx_memalign_alloc(env->me_os_psize, buffer_size, (void **)&buffer);
   if (unlikely(rc != MDBX_SUCCESS))
@@ -11708,7 +11708,7 @@ int __cold mdbx_env_copy2fd(MDBX_env *env, mdbx_filehandle_t fd,
   /* Firstly write a stub to meta-pages.
    * Now we sure to incomplete copy will not be used. */
   memset(buffer, -1, pgno2bytes(env, NUM_METAS));
-  rc = mdbx_write(fd, buffer, pgno2bytes(env, NUM_METAS));
+  rc = mdbx_pwrite(fd, buffer, pgno2bytes(env, NUM_METAS), 0);
   if (likely(rc == MDBX_SUCCESS)) {
     memset(buffer, 0, pgno2bytes(env, NUM_METAS));
     rc = (flags & MDBX_CP_COMPACT)
@@ -13013,7 +13013,7 @@ static int __cold mdbx_env_walk(mdbx_walk_ctx_t *ctx, const char *dbi,
                        payload_size, header_size, unused_size + align_bytes);
 
   if (unlikely(rc != MDBX_SUCCESS))
-    return (rc == MDBX_RESULT_TRUE) ? MDBX_SUCCESS : MDBX_SUCCESS;
+    return (rc == MDBX_RESULT_TRUE) ? MDBX_SUCCESS : rc;
 
   for (int i = 0; i < nkeys; i++) {
     if (type == MDBX_page_dupfixed_leaf)
@@ -13022,6 +13022,11 @@ static int __cold mdbx_env_walk(mdbx_walk_ctx_t *ctx, const char *dbi,
     MDBX_node *node = NODEPTR(mp, i);
     if (type == MDBX_page_branch) {
       rc = mdbx_env_walk(ctx, dbi, NODEPGNO(node), deep + 1);
+      if (unlikely(rc != MDBX_SUCCESS)) {
+        if (rc != MDBX_RESULT_TRUE)
+          return rc;
+        break;
+      }
       continue;
     }
 
