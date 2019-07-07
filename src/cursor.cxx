@@ -872,32 +872,32 @@ int fpta_cursor_delete(fpta_cursor *cursor) {
       }
     }
 
-    fptu_ro old;
+    fptu_ro row;
 #if defined(NDEBUG) && __cplusplus >= 201103L
     const constexpr size_t likely_enough = 64u * 42u;
 #else
     const size_t likely_enough = (time(nullptr) & 1) ? 11u : 64u * 42u;
 #endif /* NDEBUG */
     void *buffer = alloca(likely_enough);
-    old.sys.iov_base = buffer;
-    old.sys.iov_len = likely_enough;
+    row.sys.iov_base = buffer;
+    row.sys.iov_len = likely_enough;
 
     cursor->metrics.upserts += 1;
     rc = mdbx_replace(cursor->txn->mdbx_txn, cursor->tbl_handle, &pk_key,
-                      nullptr, &old.sys, MDBX_CURRENT);
+                      nullptr, &row.sys, MDBX_CURRENT);
     if (unlikely(rc == MDBX_RESULT_TRUE)) {
-      assert(old.sys.iov_base == nullptr && old.sys.iov_len > likely_enough);
-      old.sys.iov_base = alloca(old.sys.iov_len);
+      assert(row.sys.iov_base == nullptr && row.sys.iov_len > likely_enough);
+      row.sys.iov_base = alloca(row.sys.iov_len);
       cursor->metrics.upserts += 1;
       rc = mdbx_replace(cursor->txn->mdbx_txn, cursor->tbl_handle, &pk_key,
-                        nullptr, &old.sys, MDBX_CURRENT);
+                        nullptr, &row.sys, MDBX_CURRENT);
     }
     if (unlikely(rc != MDBX_SUCCESS)) {
       cursor->set_poor();
       return rc;
     }
 
-    rc = fpta_secondary_remove(cursor->txn, cursor->table_schema(), pk_key, old,
+    rc = fpta_secondary_remove(cursor->txn, cursor->table_schema(), pk_key, row,
                                cursor->column_number);
     if (unlikely(rc != MDBX_SUCCESS)) {
       cursor->set_poor();
@@ -1063,10 +1063,10 @@ int fpta_cursor_update(fpta_cursor *cursor, fptu_ro new_row_value) {
    * mdbx_get_ex() использует MDBX_SET_KEY для получения как данных, так и
    * данных ключа. */
 
-  fptu_ro old;
+  fptu_ro old_row;
   cursor->metrics.pk_lookups += 1;
   rc = mdbx_get_ex(cursor->txn->mdbx_txn, cursor->tbl_handle, &old_pk_key,
-                   &old.sys, nullptr);
+                   &old_row.sys, nullptr);
   if (unlikely(rc != MDBX_SUCCESS)) {
     cursor->set_poor();
     return (rc != MDBX_NOTFOUND) ? rc : (int)FPTA_INDEX_CORRUPTED;
@@ -1089,7 +1089,7 @@ int fpta_cursor_update(fpta_cursor *cursor, fptu_ro new_row_value) {
 #endif
 
   rc = fpta_secondary_upsert(cursor->txn, cursor->table_schema(), old_pk_key,
-                             old, new_pk_key.mdbx, new_row_value,
+                             old_row, new_pk_key.mdbx, new_row_value,
                              cursor->column_number);
   if (unlikely(rc != MDBX_SUCCESS)) {
     cursor->set_poor();

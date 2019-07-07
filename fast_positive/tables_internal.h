@@ -470,8 +470,8 @@ int fpta_composite_row2key(const fpta_table_schema *const schema, size_t column,
                            const fptu_ro &row, fpta_key &key);
 
 int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
-                          MDBX_val pk_key_old, const fptu_ro &row_old,
-                          MDBX_val pk_key_new, const fptu_ro &row_new,
+                          MDBX_val old_pk_key, const fptu_ro &old_row,
+                          MDBX_val new_pk_key, const fptu_ro &new_row,
                           const unsigned stepover);
 
 int fpta_check_secondary_uniq(fpta_txn *txn, fpta_table_schema *table_def,
@@ -479,7 +479,7 @@ int fpta_check_secondary_uniq(fpta_txn *txn, fpta_table_schema *table_def,
                               const unsigned stepover);
 
 int fpta_secondary_remove(fpta_txn *txn, fpta_table_schema *table_def,
-                          MDBX_val &pk_key, const fptu_ro &row_old,
+                          MDBX_val &pk_key, const fptu_ro &row,
                           const unsigned stepover);
 
 int fpta_check_nonnullable(const fpta_table_schema *table_def,

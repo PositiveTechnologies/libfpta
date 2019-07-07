@@ -651,29 +651,30 @@ int fpta_put(fpta_txn *txn, fpta_name *table_id, fptu_ro row,
   if (!table_def->has_secondary())
     return mdbx_put(txn->mdbx_txn, handle, &pk_key.mdbx, &row.sys, flags);
 
-  fptu_ro old;
+  fptu_ro old_row;
 #if defined(NDEBUG) && __cplusplus >= 201103L
   constexpr size_t likely_enough = 64u * 42u;
 #else
   const size_t likely_enough = (time(nullptr) & 1) ? 11u : 64u * 42u;
 #endif /* NDEBUG */
   void *buffer = alloca(likely_enough);
-  old.sys.iov_base = buffer;
-  old.sys.iov_len = likely_enough;
+  old_row.sys.iov_base = buffer;
+  old_row.sys.iov_len = likely_enough;
 
-  rc = mdbx_replace(txn->mdbx_txn, handle, &pk_key.mdbx, &row.sys, &old.sys,
+  rc = mdbx_replace(txn->mdbx_txn, handle, &pk_key.mdbx, &row.sys, &old_row.sys,
                     flags);
   if (unlikely(rc == MDBX_RESULT_TRUE)) {
-    assert(old.sys.iov_base == nullptr && old.sys.iov_len > likely_enough);
-    old.sys.iov_base = alloca(old.sys.iov_len);
-    rc = mdbx_replace(txn->mdbx_txn, handle, &pk_key.mdbx, &row.sys, &old.sys,
-                      flags);
+    assert(old_row.sys.iov_base == nullptr &&
+           old_row.sys.iov_len > likely_enough);
+    old_row.sys.iov_base = alloca(old_row.sys.iov_len);
+    rc = mdbx_replace(txn->mdbx_txn, handle, &pk_key.mdbx, &row.sys,
+                      &old_row.sys, flags);
   }
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
 
-  rc = fpta_secondary_upsert(txn, table_def, pk_key.mdbx, old, pk_key.mdbx, row,
-                             0);
+  rc = fpta_secondary_upsert(txn, table_def, pk_key.mdbx, old_row, pk_key.mdbx,
+                             row, 0);
   if (unlikely(rc != MDBX_SUCCESS))
     return fpta_internal_abort(txn, rc);
 

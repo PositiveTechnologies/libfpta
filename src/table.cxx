@@ -66,8 +66,8 @@ __hot int fpta_check_nonnullable(const fpta_table_schema *table_def,
 }
 
 __hot int fpta_check_secondary_uniq(fpta_txn *txn, fpta_table_schema *table_def,
-                                    const fptu_ro &row_old,
-                                    const fptu_ro &row_new,
+                                    const fptu_ro &old_row,
+                                    const fptu_ro &new_row,
                                     const unsigned stepover) {
   MDBX_dbi dbi[fpta_max_indexes];
   int rc = fpta_open_secondaries(txn, table_def, dbi);
@@ -83,22 +83,22 @@ __hot int fpta_check_secondary_uniq(fpta_txn *txn, fpta_table_schema *table_def,
     if (i == stepover || !fpta_index_is_unique(index))
       continue;
 
-    fpta_key fk_key_new;
-    rc = fpta_index_row2key(table_def, i, row_new, fk_key_new, false);
+    fpta_key new_se_key;
+    rc = fpta_index_row2key(table_def, i, new_row, new_se_key, false);
     if (unlikely(rc != MDBX_SUCCESS))
       return rc;
 
-    if (row_old.sys.iov_base) {
-      fpta_key fk_key_old;
-      rc = fpta_index_row2key(table_def, i, row_old, fk_key_old, false);
+    if (old_row.sys.iov_base) {
+      fpta_key old_se_key;
+      rc = fpta_index_row2key(table_def, i, old_row, old_se_key, false);
       if (unlikely(rc != MDBX_SUCCESS))
         return rc;
-      if (fpta_is_same(fk_key_old.mdbx, fk_key_new.mdbx))
+      if (fpta_is_same(old_se_key.mdbx, new_se_key.mdbx))
         continue;
     }
 
     MDBX_val pk_exist;
-    rc = mdbx_get(txn->mdbx_txn, dbi[i], &fk_key_new.mdbx, &pk_exist);
+    rc = mdbx_get(txn->mdbx_txn, dbi[i], &new_se_key.mdbx, &pk_exist);
     if (unlikely(rc != MDBX_NOTFOUND))
       return (rc == MDBX_SUCCESS) ? MDBX_KEYEXIST : rc;
   }
@@ -107,8 +107,8 @@ __hot int fpta_check_secondary_uniq(fpta_txn *txn, fpta_table_schema *table_def,
 }
 
 int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
-                          MDBX_val pk_key_old, const fptu_ro &row_old,
-                          MDBX_val pk_key_new, const fptu_ro &row_new,
+                          MDBX_val old_pk_key, const fptu_ro &old_row,
+                          MDBX_val new_pk_key, const fptu_ro &new_row,
                           const unsigned stepover) {
   MDBX_dbi dbi[fpta_max_indexes];
   int rc = fpta_open_secondaries(txn, table_def, dbi);
@@ -124,16 +124,16 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
     if (i == stepover)
       continue;
 
-    fpta_key fk_key_new;
-    rc = fpta_index_row2key(table_def, i, row_new, fk_key_new, false);
+    fpta_key new_se_key;
+    rc = fpta_index_row2key(table_def, i, new_row, new_se_key, false);
     if (unlikely(rc != MDBX_SUCCESS))
       return rc;
 
-    if (row_old.sys.iov_base == nullptr) {
+    if (old_row.sys.iov_base == nullptr) {
       /* Старой версии нет, выполняется добавление новой строки */
-      assert(pk_key_old.iov_base == pk_key_new.iov_base);
+      assert(old_pk_key.iov_base == new_pk_key.iov_base);
       /* Вставляем новую пару в secondary индекс */
-      rc = mdbx_put(txn->mdbx_txn, dbi[i], &fk_key_new.mdbx, &pk_key_new,
+      rc = mdbx_put(txn->mdbx_txn, dbi[i], &new_se_key.mdbx, &new_pk_key,
                     fpta_index_is_unique(index)
                         ? MDBX_NODUPDATA | MDBX_NOOVERWRITE
                         : MDBX_NODUPDATA);
@@ -144,18 +144,18 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
     }
     /* else: Выполняется обновление существующей строки */
 
-    fpta_key fk_key_old;
-    rc = fpta_index_row2key(table_def, i, row_old, fk_key_old, false);
+    fpta_key old_se_key;
+    rc = fpta_index_row2key(table_def, i, old_row, old_se_key, false);
     if (unlikely(rc != MDBX_SUCCESS))
       return rc;
 
-    if (!fpta_is_same(fk_key_old.mdbx, fk_key_new.mdbx)) {
+    if (!fpta_is_same(old_se_key.mdbx, new_se_key.mdbx)) {
       /* Изменилось значение индексированного поля, выполняем удаление
        * из индекса пары со старым значением и добавляем пару с новым. */
-      rc = mdbx_del(txn->mdbx_txn, dbi[i], &fk_key_old.mdbx, &pk_key_old);
+      rc = mdbx_del(txn->mdbx_txn, dbi[i], &old_se_key.mdbx, &old_pk_key);
       if (unlikely(rc != MDBX_SUCCESS))
         return (rc != MDBX_NOTFOUND) ? rc : (int)FPTA_INDEX_CORRUPTED;
-      rc = mdbx_put(txn->mdbx_txn, dbi[i], &fk_key_new.mdbx, &pk_key_new,
+      rc = mdbx_put(txn->mdbx_txn, dbi[i], &new_se_key.mdbx, &new_pk_key,
                     fpta_index_is_unique(index)
                         ? MDBX_NODUPDATA | MDBX_NOOVERWRITE
                         : MDBX_NODUPDATA);
@@ -164,8 +164,8 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
       continue;
     }
 
-    if (pk_key_old.iov_base == pk_key_new.iov_base ||
-        fpta_is_same(pk_key_old, pk_key_new))
+    if (old_pk_key.iov_base == new_pk_key.iov_base ||
+        fpta_is_same(old_pk_key, new_pk_key))
       continue;
 
     /* Изменился PK, необходимо обновить пару<SE_value, PK_value> во вторичном
@@ -174,9 +174,9 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
      * значения из multivalue. Таким образом, мы меняем ссылку именно со
      * старого значения PK на новое, даже если для индексируемого поля
      * разрешены не уникальные значения. */
-    MDBX_val pk_key_old_clone = pk_key_old;
-    rc = mdbx_replace(txn->mdbx_txn, dbi[i], &fk_key_new.mdbx, &pk_key_new,
-                      &pk_key_old_clone,
+    MDBX_val old_pk_key_clone = old_pk_key;
+    rc = mdbx_replace(txn->mdbx_txn, dbi[i], &new_se_key.mdbx, &new_pk_key,
+                      &old_pk_key_clone,
                       fpta_index_is_unique(index)
                           ? MDBX_CURRENT | MDBX_NODUPDATA
                           : MDBX_CURRENT | MDBX_NODUPDATA | MDBX_NOOVERWRITE);
@@ -188,7 +188,7 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
 }
 
 int fpta_secondary_remove(fpta_txn *txn, fpta_table_schema *table_def,
-                          MDBX_val &pk_key, const fptu_ro &row_old,
+                          MDBX_val &pk_key, const fptu_ro &row,
                           const unsigned stepover) {
   MDBX_dbi dbi[fpta_max_indexes];
   int rc = fpta_open_secondaries(txn, table_def, dbi);
@@ -204,12 +204,12 @@ int fpta_secondary_remove(fpta_txn *txn, fpta_table_schema *table_def,
     if (i == stepover)
       continue;
 
-    fpta_key fk_key_old;
-    rc = fpta_index_row2key(table_def, i, row_old, fk_key_old, false);
+    fpta_key se_key;
+    rc = fpta_index_row2key(table_def, i, row, se_key, false);
     if (unlikely(rc != MDBX_SUCCESS))
       return rc;
 
-    rc = mdbx_del(txn->mdbx_txn, dbi[i], &fk_key_old.mdbx, &pk_key);
+    rc = mdbx_del(txn->mdbx_txn, dbi[i], &se_key.mdbx, &pk_key);
     if (unlikely(rc != MDBX_SUCCESS))
       return (rc != MDBX_NOTFOUND) ? rc : (int)FPTA_INDEX_CORRUPTED;
   }
