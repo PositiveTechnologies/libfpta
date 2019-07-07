@@ -174,13 +174,14 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
      * значения из multivalue. Таким образом, мы меняем ссылку именно со
      * старого значения PK на новое, даже если для индексируемого поля
      * разрешены не уникальные значения. */
+    MDBX_val pk_key_old_clone = pk_key_old;
     rc = mdbx_replace(txn->mdbx_txn, dbi[i], &fk_key_new.mdbx, &pk_key_new,
-                      &pk_key_old,
+                      &pk_key_old_clone,
                       fpta_index_is_unique(index)
                           ? MDBX_CURRENT | MDBX_NODUPDATA
                           : MDBX_CURRENT | MDBX_NODUPDATA | MDBX_NOOVERWRITE);
     if (unlikely(rc != MDBX_SUCCESS))
-      return rc;
+      return (rc != MDBX_NOTFOUND) ? rc : (int)FPTA_INDEX_CORRUPTED;
   }
 
   return FPTA_SUCCESS;
