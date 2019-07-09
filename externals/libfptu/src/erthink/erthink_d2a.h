@@ -292,6 +292,7 @@ static inline char *make_digits(const diy_fp &v, const diy_fp &upper,
     default:
       assert(false);
       __unreachable();
+      /*  fall through */
     case 10:
       digit = body / UINT_E9;
       body %= UINT_E9;
