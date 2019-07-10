@@ -1107,6 +1107,148 @@ TEST(Schema, FailingClear) {
 
 //----------------------------------------------------------------------------
 
+TEST(Schema, SameNames) {
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db *db = nullptr;
+  /* открываем базу с возможностью изменять схему */
+  ASSERT_EQ(FPTA_SUCCESS,
+            fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
+                         true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // формируем описание колонок для таблиц
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("a", fptu_cstr, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("b", fptu_int64,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe(
+                "c", fptu_cstr, fpta_secondary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  //------------------------------------------------------------------------
+  // создаем таблицу
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "a", &def));
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "b", &def));
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "C", &def));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  //------------------------------------------------------------------------
+  // запрашиваем информацию о схеме и о каждой таблице
+  fpta_name table_a, table_b, table_c;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_a, "a"));
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_b, "B"));
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_c, "c"));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  fpta_schema_info schema_info;
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(3u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+
+  size_t row_count;
+  fpta_table_stat table_stat;
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table_a, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table_b, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table_c, &row_count, &table_stat));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  //------------------------------------------------------------------------
+  // по-очередно удаляем таблицы
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "A"));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(2u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+  EXPECT_EQ(FPTA_NOTFOUND,
+            fpta_table_info(txn, &table_a, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table_b, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table_c, &row_count, &table_stat));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "c"));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(1u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+  EXPECT_EQ(FPTA_NOTFOUND,
+            fpta_table_info(txn, &table_a, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_OK, fpta_table_info(txn, &table_b, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_NOTFOUND,
+            fpta_table_info(txn, &table_c, &row_count, &table_stat));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "B"));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(0u, schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+  EXPECT_EQ(FPTA_NOTFOUND,
+            fpta_table_info(txn, &table_a, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_NOTFOUND,
+            fpta_table_info(txn, &table_b, &row_count, &table_stat));
+  EXPECT_EQ(FPTA_NOTFOUND,
+            fpta_table_info(txn, &table_c, &row_count, &table_stat));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  //------------------------------------------------------------------------
+
+  fpta_name_destroy(&table_a);
+  fpta_name_destroy(&table_b);
+  fpta_name_destroy(&table_c);
+
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
