@@ -148,11 +148,11 @@ class trivial_dict {
     const fpta_shove_t shove = internal(name);
     assert(is_valid(shove));
     assert(anchor <= vector.size());
-    if (!std::binary_search(vector.begin(), vector.begin() + anchor, shove,
-                            gt())) {
-      vector.emplace_back(item(shove, name.begin()));
-      assert(is_valid(vector.back()));
-    }
+    for (const auto i : vector)
+      if (i.first == shove)
+        return;
+    vector.emplace_back(item(shove, name.begin()));
+    assert(is_valid(vector.back()));
   }
   std::vector<item> vector;
 
