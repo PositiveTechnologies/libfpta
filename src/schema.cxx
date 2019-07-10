@@ -144,10 +144,9 @@ class trivial_dict {
     }
   };
 
-  void append(size_t anchor, const fpta::string_view &name) {
+  void append(const fpta::string_view &name) {
     const fpta_shove_t shove = internal(name);
     assert(is_valid(shove));
-    assert(anchor <= vector.size());
     for (const auto i : vector)
       if (i.first == shove)
         return;
@@ -217,11 +216,11 @@ public:
         std::count(columns_chain.begin(), columns_chain.end(), delimiter));
     const size_t anchor = vector.size();
     if (!table_name.empty())
-      append(anchor, table_name);
+      append(table_name);
 
     for (auto *scan = columns_chain.begin(); scan < columns_chain.end();) {
       const auto next = std::find(scan, columns_chain.end(), delimiter);
-      append(anchor, fpta::string_view(scan, next));
+      append(fpta::string_view(scan, next));
       scan = next + 1;
     }
 
