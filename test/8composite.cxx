@@ -1724,12 +1724,12 @@ public:
     any_keygen keygen_c(c_type, cd_index);
     any_keygen keygen_d(d_type, d_index);
 
-    int linear = 0;
-    while (linear < NNN) {
+    for (unsigned linear = 0; linear < NNN; linear += 2) {
+      const auto foo_linear = linear;
+      const auto baz_linear = linear + 1;
       txn();
 
       // вставляем первую запись из пары
-      const auto foo_linear = linear++;
       const fptu_ro foo =
           make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d, row_foo);
       // LOG("uphill-insert-1: linear " + std::to_string(foo_linear) + " " +
@@ -1737,9 +1737,8 @@ public:
       ASSERT_EQ(FPTA_OK, fpta_insert_row(txn(), &table, foo));
       batch_cond_commit();
 
-      const auto baz_linear = (linear < NNN) ? linear++ : -1;
       fptu_ro baz = {0, 0};
-      if (baz_linear > -1) {
+      if (baz_linear < NNN) {
         // вставляем вторую запись из пары
         baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
                        row_baz);
@@ -1750,12 +1749,12 @@ public:
       }
 
       // обновляем данные в первой записи
-      const int update_diff_salt =
-          int((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
-               checksum_salt) %
-              4673) +
+      const unsigned update_diff_salt =
+          unsigned((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
+                    checksum_salt) %
+                   4673) +
           1;
-      const int alter_mode_salt =
+      const unsigned alter_mode_salt =
           (((foo_linear + 607750243) ^ (foo_linear * 16458383)) ^
            (update_diff_salt >> 2)) %
           7151;
@@ -1811,7 +1810,7 @@ public:
       }
       batch_cond_commit();
 
-      if (baz_linear > -1) {
+      if (baz_linear < NNN) {
         // удаляем вторую запись
         // LOG("uphill-delete-2: linear " + std::to_string(baz_linear) + " " +
         //     std::to_string(baz));
@@ -1829,84 +1828,79 @@ public:
 
     //--------------------------------------------------------------------------
 
-    while (linear >= 0) {
+    for (unsigned linear = 0; linear < NNN; linear += 2) {
+      const auto foo_linear = linear;
+      const auto baz_linear = linear + 1;
+
       // обновляем первую запись из пары
-      const auto foo_linear = (linear & 1) ? --linear : -1;
       fptu_ro foo = {0, 0};
       fptu_ro bar = {0, 0};
       fpta_cursor *cursor = nullptr;
-      if (foo_linear > -1) {
-        const int update_diff_salt =
-            int((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
-                 checksum_salt) %
-                4673) +
-            1;
-        const int alter_mode_salt =
-            (((foo_linear + 607750243) ^ (foo_linear * 16458383)) ^
-             (update_diff_salt >> 2)) %
-            7151;
-        foo = make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d,
-                       row_foo);
-        bar = make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d,
-                       row_bar, update_diff_salt);
-        const int update_via =
-            update_via_index(update_diff_salt, alter_mode_salt);
-        // LOG("downhill-update-1: diff-alter " +
-        //     std::to_string(update_diff_salt % 4) + ", update-via " +
-        //     std::to_string(update_via) + " " + std::to_string(bar) + " ==>> "
-        //     + std::to_string(foo));
-        switch (update_via) {
-        default:
-          assert(false);
-          GTEST_FAIL();
-          break;
-        case 0:
-          // обновляем через первичный составной индекс по колонкам A и B
-          if ((update_diff_salt ^ alter_mode_salt) % 11 > 5) {
-            // обновляем без курсора через PK
-            ASSERT_EQ(FPTA_OK, fpta_update_row(txn(), &table, foo));
-          } else {
-            ASSERT_EQ(FPTA_OK,
-                      fpta_cursor_open(txn(), &col_ab, fpta_value_begin(),
-                                       fpta_value_end(), nullptr,
-                                       fpta_unsorted_dont_fetch, &cursor));
-          }
-          break;
-        case 1:
-          // обновляем через вторичный составной индекс по колонкам C и D
+      const unsigned update_diff_salt =
+          unsigned((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
+                    checksum_salt) %
+                   4673) +
+          1;
+      const unsigned alter_mode_salt =
+          (((foo_linear + 607750243) ^ (foo_linear * 16458383)) ^
+           (update_diff_salt >> 2)) %
+          7151;
+      foo =
+          make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d, row_foo);
+      bar = make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d,
+                     row_bar, update_diff_salt);
+      const int update_via =
+          update_via_index(update_diff_salt, alter_mode_salt);
+      // LOG("downhill-update-1: diff-alter " +
+      //     std::to_string(update_diff_salt % 4) + ", update-via " +
+      //     std::to_string(update_via) + " " + std::to_string(bar) + " ==>> " +
+      //     std::to_string(foo));
+      switch (update_via) {
+      default:
+        assert(false);
+        GTEST_FAIL();
+        break;
+      case 0:
+        // обновляем через первичный составной индекс по колонкам A и B
+        if ((update_diff_salt ^ alter_mode_salt) % 11 > 5) {
+          // обновляем без курсора через PK
+          ASSERT_EQ(FPTA_OK, fpta_update_row(txn(), &table, foo));
+        } else {
           ASSERT_EQ(FPTA_OK,
-                    fpta_cursor_open(txn(), &col_cd, fpta_value_begin(),
+                    fpta_cursor_open(txn(), &col_ab, fpta_value_begin(),
                                      fpta_value_end(), nullptr,
                                      fpta_unsorted_dont_fetch, &cursor));
-          break;
-        case 2:
-          // обновляем через дополнительный индекс по колонке B
-          ASSERT_EQ(FPTA_OK,
-                    fpta_cursor_open(txn(), &col_b, fpta_value_begin(),
-                                     fpta_value_end(), nullptr,
-                                     fpta_unsorted_dont_fetch, &cursor));
-          break;
-        case 3:
-          // обновляем через дополнительный индекс по колонке D
-          ASSERT_EQ(FPTA_OK,
-                    fpta_cursor_open(txn(), &col_d, fpta_value_begin(),
-                                     fpta_value_end(), nullptr,
-                                     fpta_unsorted_dont_fetch, &cursor));
-          break;
         }
-        cursor_guard.reset(cursor);
-        if (cursor) {
-          ASSERT_EQ(FPTA_OK, fpta_cursor_locate(cursor, true, nullptr, &bar));
-          ASSERT_EQ(FPTA_OK, fpta_cursor_update(cursor, foo));
-        }
-        // batch_cond_commit();
-        commit();
+        break;
+      case 1:
+        // обновляем через вторичный составной индекс по колонкам C и D
+        ASSERT_EQ(FPTA_OK, fpta_cursor_open(txn(), &col_cd, fpta_value_begin(),
+                                            fpta_value_end(), nullptr,
+                                            fpta_unsorted_dont_fetch, &cursor));
+        break;
+      case 2:
+        // обновляем через дополнительный индекс по колонке B
+        ASSERT_EQ(FPTA_OK, fpta_cursor_open(txn(), &col_b, fpta_value_begin(),
+                                            fpta_value_end(), nullptr,
+                                            fpta_unsorted_dont_fetch, &cursor));
+        break;
+      case 3:
+        // обновляем через дополнительный индекс по колонке D
+        ASSERT_EQ(FPTA_OK, fpta_cursor_open(txn(), &col_d, fpta_value_begin(),
+                                            fpta_value_end(), nullptr,
+                                            fpta_unsorted_dont_fetch, &cursor));
+        break;
       }
+      cursor_guard.reset(cursor);
+      if (cursor) {
+        ASSERT_EQ(FPTA_OK, fpta_cursor_locate(cursor, true, nullptr, &bar));
+        ASSERT_EQ(FPTA_OK, fpta_cursor_update(cursor, foo));
+      }
+      batch_cond_commit();
 
       // вставляем вторую запись из пары
-      const auto baz_linear = --linear;
       fptu_ro baz = {0, 0};
-      if (baz_linear > -1) {
+      if (baz_linear < NNN) {
         // вставляем вторую запись из пары
         baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
                        row_baz);
@@ -1916,16 +1910,14 @@ public:
         batch_cond_commit();
       }
 
-      if (foo_linear > -1) {
-        // удаляем первую запись
-        // LOG("downhill-delete-1: linear " + std::to_string(foo_linear) + " " +
-        //     std::to_string(foo));
-        ASSERT_EQ(FPTA_OK, fpta_delete(txn(), &table, foo));
-        batch_cond_commit();
-      }
+      // удаляем первую запись
+      // LOG("downhill-delete-1: linear " + std::to_string(foo_linear) + " " +
+      //     std::to_string(foo));
+      ASSERT_EQ(FPTA_OK, fpta_delete(txn(), &table, foo));
+      batch_cond_commit();
 
       // удаляем вторую запись
-      if (baz_linear > -1) {
+      if (baz_linear < NNN) {
         // удаляем вторую запись
         // LOG("downhill-delete-2: linear " + std::to_string(baz_linear) + " " +
         //     std::to_string(baz));
@@ -1941,7 +1933,8 @@ public:
         batch_cond_commit();
       }
     }
-    commit();
+    if (txn_guard)
+      commit();
   }
 };
 
