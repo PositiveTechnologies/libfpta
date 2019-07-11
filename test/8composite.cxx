@@ -1131,16 +1131,16 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
  */
 
 #ifdef FPTA_INDEX_UT_LONG
-constexpr int NNN_WITHDUP = 797;
-constexpr int NNN_UNIQ = 32653;
-constexpr unsigned megabytes = 1024;
+static constexpr int NNN_WITHDUP = 797;
+static constexpr int NNN_UNIQ = 32653;
+static constexpr unsigned megabytes = 1024;
 #else
-constexpr int NNN_WITHDUP = 101;
-constexpr int NNN_UNIQ = 509;
-constexpr unsigned megabytes = 32;
+static constexpr int NNN_WITHDUP = 101;
+static constexpr int NNN_UNIQ = 509;
+static constexpr unsigned megabytes = 32;
 #endif
-constexpr unsigned NBATCH = 7;
-constexpr int NNN = NNN_UNIQ / 2;
+static constexpr unsigned NBATCH = 7;
+static constexpr int NNN = NNN_UNIQ / 2;
 
 #include <bitset>
 
@@ -1996,6 +1996,12 @@ int main(int argc, char **argv) {
   fflush(nullptr);
 #ifdef INSTANTIATE_TEST_SUITE_P
   CompositeTest_Combine(false);
+#else
+  (void)NNN_WITHDUP;
+  (void)NNN_UNIQ;
+  (void)megabytes;
+  (void)NBATCH;
+  (void)NNN_UNIQ;
 #endif /* INSTANTIATE_TEST_SUITE_P */
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
