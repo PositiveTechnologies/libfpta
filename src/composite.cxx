@@ -622,7 +622,7 @@ int __cold fpta_composite_index_validate(
       /* both indexes are ordered, one should
        * not be a prefix/beginning of the another. */
       const size_t shortest =
-          std::min(items_end - items_end, present_first - present_last);
+          std::min(items_end - items_begin, present_last - present_first);
       const auto left = fpta_index_is_obverse(index_type)
                             ? items_begin
                             : items_end - shortest;
