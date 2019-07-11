@@ -719,6 +719,8 @@ int __cold fpta_describe_composite_index(const char *composite_name,
   for (auto n : items)
     *tail++ = n;
   assert(tail <= end);
+  if (tail < end)
+    *tail = 0;
 
   return FPTA_SUCCESS;
 }
