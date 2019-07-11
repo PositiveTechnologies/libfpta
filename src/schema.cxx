@@ -800,17 +800,19 @@ int fpta_column_set_destroy(fpta_column_set *column_set) {
 }
 
 int fpta_column_set_reset(fpta_column_set *column_set) {
-  if (likely(column_set != nullptr && column_set->count != FPTA_DEADBEEF &&
-             column_set->signature == column_set_signature)) {
-    if (column_set->dict_ptr)
-      *(char *)column_set->dict_ptr = '\0';
-    column_set->count = 0;
-    column_set->shoves[0] = 0;
-    column_set->composites[0] = 0;
-    return FPTA_SUCCESS;
-  }
+  if (unlikely(column_set == nullptr))
+    return FPTA_EINVAL;
 
-  return FPTA_EINVAL;
+  if (unlikely(column_set->signature != column_set_signature ||
+               column_set->count == FPTA_DEADBEEF))
+    return FPTA_EBADSIGN;
+
+  if (column_set->dict_ptr)
+    *(char *)column_set->dict_ptr = '\0';
+  column_set->count = 0;
+  column_set->shoves[0] = 0;
+  column_set->composites[0] = 0;
+  return FPTA_SUCCESS;
 }
 
 int fpta_column_describe(const char *column_name, fptu_type data_type,
@@ -826,12 +828,21 @@ int fpta_column_describe(const char *column_name, fptu_type data_type,
                  fpta_nullable_reverse_sensitive(data_type))))
     return FPTA_EFLAG;
 
+  if (unlikely(column_set == nullptr))
+    return FPTA_EINVAL;
+
+  if (unlikely(column_set->signature != column_set_signature))
+    return FPTA_EBADSIGN;
+
   return fpta_column_set_add(column_set, column_name, data_type, index_type);
 }
 
 int fpta_column_set_validate(fpta_column_set *column_set) {
   if (unlikely(column_set == nullptr))
     return FPTA_EINVAL;
+
+  if (unlikely(column_set->signature != column_set_signature))
+    return FPTA_EBADSIGN;
 
   return fpta_columns_description_validate(
       column_set->shoves, column_set->count, column_set->composites,
