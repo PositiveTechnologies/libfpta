@@ -40,34 +40,6 @@
 #	define NOMINMAX
 #endif
 
-#ifndef _ISOC99_SOURCE
-#	define _ISOC99_SOURCE 1
-#endif
-
-#ifndef _ISOC11_SOURCE
-#	define _ISOC11_SOURCE 1
-#endif
-
-#ifndef _POSIX_C_SOURCE
-#	define _POSIX_C_SOURCE 200809L
-#endif
-
-#ifndef _GNU_SOURCE
-#	define _GNU_SOURCE 1
-#endif
-
-#ifndef __STDC_LIMIT_MACROS
-#	define __STDC_LIMIT_MACROS 1
-#endif
-
-#ifndef _THREAD_SAFE
-#	define _THREAD_SAFE 1
-#endif
-
-#ifndef _REENTRANT
-#	define _REENTRANT 1
-#endif
-
 #include "fast_positive/tuples.h"
 
 #ifdef _MSC_VER
