@@ -68,7 +68,7 @@ void any_keygen::init_tier::unroll(fptu_type _type) {
 }
 
 any_keygen::init_tier::init_tier(fptu_type _type, fpta_index_type _index) {
-  switch (_index) {
+  switch (_index & ~fpta_index_fnullable) {
   default:
     assert(false && "wrong index");
     stub(_type, _index);
@@ -114,12 +114,10 @@ any_keygen::init_tier::init_tier(fptu_type _type, fpta_index_type _index) {
 
 any_keygen::any_keygen(const init_tier &init, fptu_type type,
                        fpta_index_type index)
-    : maker(init.maker) {
+    : type(type), index(index), maker(init.maker) {
   // страховка от опечаток в параметрах при инстанцировании шаблонов.
   assert(init.type == type);
-  assert(init.index == index);
-  (void)type;
-  (void)index;
+  assert(init.index == (index & ~fpta_index_fnullable));
 }
 
 any_keygen::any_keygen(fptu_type type, fpta_index_type index)

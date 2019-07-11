@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2016-2019 libfpta authors: please see AUTHORS file.
  *
  * This file is part of libfpta, aka "Fast Positive Tables".
@@ -698,6 +698,8 @@ struct keygen<index, fptu_opaque> : public varbin_stepper<fptu_opaque> {
 /* Карманный бильярд для закатки keygen-шаблонов в один не-шаблонный класс */
 class any_keygen {
   typedef fpta_value (*maker_type)(int order, int const N);
+  const fptu_type type;
+  const fpta_index_type index;
   const maker_type maker;
 
   struct init_tier {
@@ -727,6 +729,9 @@ class any_keygen {
 public:
   any_keygen(fptu_type type, fpta_index_type index);
   fpta_value make(int order, int const N) const { return maker(order, N); }
+
+  fptu_type get_type() const { return type; }
+  fpta_index_type get_index() const { return index; }
 
   any_keygen(const any_keygen &) = delete;
   any_keygen(const any_keygen &&) = delete;

@@ -1035,7 +1035,968 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
 
 //----------------------------------------------------------------------------
 
+/* Дополнительная проверка жизнеспособности CRUD-операций на составных
+ * индексах, как первичных, так и вторичных.
+ *
+ * Сценарий:
+ *
+ *  1. Внутри тестовой БД многократно пересоздается одна таблица
+ *     с шаблонной структурой:
+ *      - составной первичный индекс из колонок A и B.
+ *      - составной вторичный индекс из колонок C и D.
+ *      - дополнительные вторичные индексы для колонок B и D.
+ *      - неиндексируемая колонка order для контроля порядка записей.
+ *      - неиндексируемая колонка checksum для контроля содержания записей.
+ *
+ *  2. На каждой итерации схема таблицы последовательно перебирает
+ *     комбинации типов данных для колонок и создаваемых индексов:
+ *      - Для колонок A, B, C, D перебираются все комбинации
+ *        типов данных (до 14**4 = 38416 итераций).
+ *      - Для всех индексов перебираются возможные подвиды:
+ *         - до 6 комбинаций для составного primary-индекса по A и B:
+ *             unique_ordered_obverse +/-tersely_composite,
+ *             unique_ordered_reverse +/-tersely_composite,
+ *             unique_unordered +/-tersely_composite.
+ *         - до 12 комбинаций для составного secondary-индекса по C и D:
+ *             unique_ordered_obverse +/-tersely_composite,
+ *             unique_ordered_reverse +/-tersely_composite,
+ *             unique_unordered +/-tersely_composite,
+ *             withdups_ordered_obverse +/-tersely_composite,
+ *             withdups_ordered_reverse +/-tersely_composite,
+ *             withdups_unordered +/-tersely_composite.
+ *         - до 14*14=196 комбинаций для дополнительных secondary-индексов
+ *           по колонками B и D:
+ *             withdups_ordered_obverse,
+ *             withdups_ordered_obverse_nullable,
+ *             withdups_ordered_reverse,
+ *             withdups_ordered_reverse_nullable,
+ *             unique_ordered_obverse,
+ *             unique_ordered_obverse_nullable,
+ *             unique_ordered_reverse,
+ *             unique_ordered_reverse_nullable,
+ *             unique_unordered,
+ *             unique_unordered_nullable,
+ *             withdups_unordered,
+ *             withdups_unordered_nullable,
+ *      - ПРОБЛЕМА в итоговом количестве комбинаций = 14*14*14*14*6*12*14*14
+ *        что даёт 542_126_592, среди которых 72_855_552 являются допустимыми.
+ *        GoogleTest предполагает регистрации каждого варианта, на что требуется
+ *        невменяемое кол-во гигабайт ОЗУ. А прогон этих тестов зайдем более
+ *        2-х лет, если в среднем каждая итерация уложится в 1 секунду.
+ *        ПОЭТОМУ приходится кардинально снихать кол-во комбинаций:
+ *         - каждый тип данных используется в составном индексе
+ *           только один раз, за исключением string и opaque, которые нужны
+ *           для проверки длинных ключей.
+ *         - для дополнительного индекса B-колонки исключаются все виды
+ *           индексов с контролем уникальности, так как колонка B входит в PK,
+ *           который требует уникальности.
+ *         - для дополнительного индекса D-колонки исключаются все виды
+ *           индексов, которые перебираются дополнительным индексом B-колонки.
+ *         - пропускаются комбинации с одинаковыми видами индексов.
+ *        В результате остается 114432 комбинации.
+ *
+ *  3. На каждой итерации выполняется некоторое (большое) количество
+ *     CRUD-операций "горкой":
+ *      - Первый "нарастающий" этап до необходимого кол-ва записей в БД:
+ *         - обновляется одна из ранее добавленных записей.
+ *         - удаляется одна из ранее добавленных записей.
+ *         - добавляются две новые записи.
+ *      - Второй "нисходящий" этап до полного опустошения БД:
+ *         - обновляется одна из ранее добавленных записей.
+ *         - удаляется две из ранее добавленных записей.
+ *         - добавляются одна новая запись.
+ *      - В каждой транзакции, в самом начале и перед фиксацией проверяется
+ *        содержание БД и порядок записей в каждом индексе.
+ *
+ *  4. Метод генерации значений для всех индексируемых колонок (A, B, C, D)
+ *     обеспечивает верифицируемость порядка записей по каждому индексу,
+ *     а также генерацию "дубликатов" с заданной плотностью:
+ *      - Значения формируются общим "генератором ключей", который
+ *        обеспечивает получение упорядоченных ключей для всех типов данных,
+ *        как фиксированной, так и переменной длины, в том числе обход
+ *        крайних и промежуточных значений за заданное кол-во шагов.
+ *      - Генератор ключей проверяется отдельными тестами (см. keygen.hpp)
+ *        и позволяет получать ключи в произвольном порядке, для obverse и
+ *        reverse индексами, обходя домен допустимых значений за N шагов.
+ *      - Порядковые номера ключей для генерации значения каждой колонки
+ *        формируются через биективное (для unique индексов) или
+ *        не-инъективное (для индексов с дубликатами) преобразование
+ *        из промежуточной последовательности целых чисел. В свою очередь,
+ *        промежуточная последовательность формируются конгруэнтным
+ *        биективным преобразованием из линейонй последоватльности, значения
+ *        которой для каждой строки сохраняются в колонке order.
+ *      - Сам генератор ключей проверяется отдельным тестом в других юнитах.
+ *
+ *  5. Завершаем операции и освобождаем ресурсы.
+ */
+
+#ifdef FPTA_INDEX_UT_LONG
+constexpr int NNN_WITHDUP = 797;
+constexpr int NNN_UNIQ = 32653;
+constexpr unsigned megabytes = 1024;
+#else
+constexpr int NNN_WITHDUP = 101;
+constexpr int NNN_UNIQ = 509;
+constexpr unsigned megabytes = 32;
+#endif
+constexpr unsigned NBATCH = 7;
+constexpr int NNN = NNN_UNIQ / 2;
+
+#include <bitset>
+
+template <int N>
+static inline unsigned map_linear2stochastic(const unsigned linear,
+                                             const bool odd,
+                                             const unsigned salt) {
+  static_assert(N >= 0 && N < 4, "WTF?");
+  assert(linear < NNN);
+  constexpr const unsigned x[] = {4026277019, 2450534059, 968322911,
+                                  4001240291};
+  constexpr const unsigned y[] = {3351947, 3172243, 16392923, 12004879};
+  constexpr const unsigned z[] = {3086191, 856351, 11844137, 1815599};
+  uint64_t order = linear + linear + odd;
+  order = (order * x[N] + salt) % NNN_UNIQ;
+  order = (order * y[N] + z[N]) % NNN_UNIQ;
+  return unsigned(order);
+}
+
+using bitset_NNN_UNIQ = std::bitset<NNN_UNIQ>;
+
+TEST(Self, map_linear2stochastic) {
+#if defined(NDEBUG) || defined(__OPTIMIZE__)
+  constexpr unsigned n_iterations = 42000;
+#else
+  constexpr unsigned n_iterations = 42;
+#endif
+  unsigned salt = 3216208939;
+  for (unsigned n = 0; n < n_iterations; ++n) {
+    SCOPED_TRACE("iteration " + std::to_string(n) + ", salt " +
+                 std::to_string(salt));
+    bitset_NNN_UNIQ probe[4];
+    for (unsigned i = 0; i < NNN; ++i) {
+      SCOPED_TRACE("linear " + std::to_string(i));
+      const unsigned bit_0_even = map_linear2stochastic<0>(i, false, salt);
+      EXPECT_FALSE(probe[0][bit_0_even]);
+      probe[0].set(bit_0_even);
+      const unsigned bit_0_odd = map_linear2stochastic<0>(i, true, salt);
+      EXPECT_FALSE(probe[0][bit_0_odd]);
+      probe[0].set(bit_0_odd);
+
+      const unsigned bit_1_even = map_linear2stochastic<1>(i, false, salt);
+      EXPECT_FALSE(probe[1][bit_1_even]);
+      probe[1].set(bit_1_even);
+      const unsigned bit_1_odd = map_linear2stochastic<1>(i, true, salt);
+      EXPECT_FALSE(probe[1][bit_1_odd]);
+      probe[1].set(bit_1_odd);
+
+      const unsigned bit_2_even = map_linear2stochastic<2>(i, false, salt);
+      EXPECT_FALSE(probe[2][bit_2_even]);
+      probe[2].set(bit_2_even);
+      const unsigned bit_2_odd = map_linear2stochastic<2>(i, true, salt);
+      EXPECT_FALSE(probe[2][bit_2_odd]);
+      probe[2].set(bit_2_odd);
+
+      const unsigned bit_3_even = map_linear2stochastic<3>(i, false, salt);
+      EXPECT_FALSE(probe[3][bit_3_even]);
+      probe[3].set(bit_3_even);
+      const unsigned bit_3_odd = map_linear2stochastic<3>(i, true, salt);
+      EXPECT_FALSE(probe[3][bit_3_odd]);
+      probe[3].set(bit_3_odd);
+    }
+    salt = salt * 1664525 + 1013904223;
+  }
+}
+
+#define CompositeTest_ColumtA_TypeList                                         \
+  fptu_uint16, /* fptu_int32, fptu_uint32, fptu_fp32, */ fptu_int64,           \
+      /* fptu_uint64, fptu_fp64, fptu_96, */ fptu_128, /* fptu_160,            \
+      fptu_datetime, fptu_256, */                                              \
+      fptu_cstr                                        /*, fptu_opaque */
+
+#define CompositeTest_ColumtB_TypeList                                         \
+  /* fptu_uint16, */ fptu_int32, /* fptu_uint32, fptu_fp32, fptu_int64, */     \
+      fptu_uint64, /* fptu_fp64, fptu_96, fptu_128, */ fptu_160,               \
+      /* fptu_datetime,  fptu_256, fptu_cstr, */ fptu_opaque
+
+#define CompositeTest_ColumtC_TypeList                                         \
+  /* fptu_uint16, fptu_int32, */ fptu_uint32,                                  \
+      /* fptu_fp32, fptu_int64, fptu_uint64, */ fptu_fp64, /* fptu_96,         \
+                                                              fptu_128,        \
+                                                              fptu_160, */     \
+      fptu_datetime, /* fptu_256, fptu_cstr, */ fptu_opaque
+
+#define CompositeTest_ColumtD_TypeList                                         \
+  /* fptu_uint16, fptu_int32, fptu_uint32, */ fptu_fp32,                       \
+      /* fptu_int64, fptu_uint64, fptu_fp64, */ fptu_96,                       \
+      /* fptu_128, fptu_160, fptu_datetime, */ fptu_256,                       \
+      fptu_cstr /*, fptu_opaque */
+
+#define CompositeTest_PK_IndexAB_List                                          \
+  fpta_primary_unique_ordered_obverse, fpta_primary_unique_ordered_reverse,    \
+      fpta_primary_unique_unordered,                                           \
+      fpta_index_type(fpta_primary_unique_ordered_obverse +                    \
+                      fpta_tersely_composite),                                 \
+      fpta_index_type(fpta_primary_unique_ordered_reverse +                    \
+                      fpta_tersely_composite),                                 \
+      fpta_index_type(fpta_primary_unique_unordered + fpta_tersely_composite)
+
+#define CompositeTest_SE_IndexCD_List                                          \
+  /* unique*****************************************************************/  \
+  fpta_secondary_unique_ordered_obverse,                                       \
+      fpta_secondary_unique_ordered_reverse, fpta_secondary_unique_unordered,  \
+      fpta_index_type(fpta_secondary_unique_ordered_obverse +                  \
+                      fpta_tersely_composite),                                 \
+      fpta_index_type(fpta_secondary_unique_ordered_reverse +                  \
+                      fpta_tersely_composite),                                 \
+      fpta_index_type(fpta_secondary_unique_unordered +                        \
+                      fpta_tersely_composite), /* with-dups*****************/  \
+      fpta_secondary_withdups_ordered_obverse,                                 \
+      fpta_secondary_withdups_ordered_reverse,                                 \
+      fpta_secondary_withdups_unordered,                                       \
+      fpta_index_type(fpta_secondary_withdups_ordered_obverse +                \
+                      fpta_tersely_composite),                                 \
+      fpta_index_type(fpta_secondary_withdups_ordered_reverse +                \
+                      fpta_tersely_composite),                                 \
+      fpta_index_type(fpta_secondary_withdups_unordered +                      \
+                      fpta_tersely_composite)
+
+#define CompositeTest_SE_IndexB_List                                           \
+  /* ordered****************************************************************/  \
+  fpta_secondary_withdups_ordered_obverse,                                     \
+      fpta_secondary_withdups_ordered_obverse_nullable,                        \
+      fpta_secondary_withdups_ordered_reverse,                                 \
+      fpta_secondary_withdups_ordered_reverse_nullable, /* unordered********/  \
+      fpta_secondary_withdups_unordered,                                       \
+      fpta_secondary_withdups_unordered_nullable_obverse,                      \
+      fpta_secondary_withdups_unordered_nullable_reverse
+
+#define CompositeTest_SE_IndexD_List                                           \
+  /* unique*****************************************************************/  \
+  fpta_secondary_unique_ordered_obverse,                                       \
+      fpta_secondary_unique_ordered_obverse_nullable,                          \
+      fpta_secondary_unique_ordered_reverse,                                   \
+      fpta_secondary_unique_ordered_reverse_nullable,                          \
+      fpta_secondary_unique_unordered,                                         \
+      fpta_secondary_unique_unordered_nullable_obverse,                        \
+      fpta_secondary_unique_unordered_nullable_reverse
+/*  withdups****************************************************************
+ *    fpta_secondary_withdups_ordered_obverse,
+ *    fpta_secondary_withdups_ordered_obverse_nullable,
+ *    fpta_secondary_withdups_ordered_reverse,
+ *    fpta_secondary_withdups_ordered_reverse_nullable,
+ *    fpta_secondary_withdups_unordered,
+ *    fpta_secondary_withdups_unordered_nullable_obverse,
+ *    fpta_secondary_withdups_unordered_nullable_reverse                   */
+
+#if !(defined(stpcpy) ||                                                       \
+      (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200809L) ||              \
+      __GLIBC_PREREQ(2, 10))
+static char *local_stpcpy(char *dest, const char *src) {
+  size_t len = strlen(src);
+  memcpy(dest, src, len + 1);
+  return dest + len;
+}
+#define stpcpy(dest, src) local_stpcpy(dest, src)
+#endif /* stpcpy() stub */
+
+static const char *to_cstr(const fpta_index_type index, const bool composite,
+                           char *buffer) {
+  char *p = buffer;
+  if (fpta_is_indexed(index)) {
+    p = stpcpy(p, fpta_index_is_secondary(index) ? "Secondary" : "Primary");
+    p = stpcpy(p, fpta_index_is_unique(index) ? "Unique" : "Withdups");
+    p = stpcpy(p, fpta_index_is_ordered(index) ? "Ordered" : "Unordered");
+    p = stpcpy(p, fpta_index_is_obverse(index) ? "Obverse" : "Reverse");
+  } else {
+    p = stpcpy(p, "Noindex");
+    assert(!composite);
+  }
+
+  if (fpta_column_is_nullable(index))
+    p = stpcpy(p, composite ? "Tersely" : "Nullable");
+
+  return buffer;
+}
+
+using CompositeTestParamsTuple =
+    GTEST_TUPLE_NAMESPACE_::tuple<fptu_type, fptu_type, fptu_type, fptu_type,
+                                  fpta_index_type, fpta_index_type,
+                                  fpta_index_type, fpta_index_type>;
+
+struct CompositeCombineParams {
+  const fptu_type a_type, b_type, c_type, d_type;
+  const fpta_index_type ab_index, cd_index, b_index, d_index;
+  const uint64_t checksum_salt;
+
+  CompositeCombineParams(const CompositeTestParamsTuple &params)
+      : a_type(GTEST_TUPLE_NAMESPACE_::get<0>(params)),
+        b_type(GTEST_TUPLE_NAMESPACE_::get<1>(params)),
+        c_type(GTEST_TUPLE_NAMESPACE_::get<2>(params)),
+        d_type(GTEST_TUPLE_NAMESPACE_::get<3>(params)),
+        ab_index(GTEST_TUPLE_NAMESPACE_::get<4>(params)),
+        cd_index(GTEST_TUPLE_NAMESPACE_::get<5>(params)),
+        b_index(GTEST_TUPLE_NAMESPACE_::get<6>(params)),
+        d_index(GTEST_TUPLE_NAMESPACE_::get<7>(params)),
+        checksum_salt(t1ha2_atonce(&params, sizeof(params),
+                                   UINT64_C(2688146592618233))) {}
+
+  std::string params_to_string() const {
+    char buf1[128];
+    char buf2[128];
+    char buf3[128];
+    char buf4[128];
+    return fptu::format(
+        "%s_%s_%s_%s_%s_%s_%s_%s", fptu_type_name(a_type),
+        fptu_type_name(b_type), fptu_type_name(c_type), fptu_type_name(d_type),
+        to_cstr(ab_index, true, buf1) + 7, to_cstr(cd_index, true, buf2) + 9,
+        to_cstr(b_index, false, buf3) + 9, to_cstr(d_index, false, buf4) + 9);
+  }
+
+  bool is_valid_params() const {
+    if (fpta_index_is_unique(ab_index) && fpta_index_is_unique(b_index))
+      return false;
+
+    if (fpta_index_is_unique(cd_index) && fpta_index_is_unique(d_index))
+      return false;
+
+    if (fpta_index_is_reverse(b_index)) {
+      if (fpta_index_is_unordered(b_index) || b_type < fptu_96)
+        return false;
+      if (!(fpta_is_indexed_and_nullable(b_index) &&
+            fpta_nullable_reverse_sensitive(b_type)))
+        return false;
+      if (fpta_index_is_ordered(ab_index) && fpta_index_is_ordered(b_index) &&
+          fpta_index_is_reverse(ab_index))
+        return false;
+    }
+
+    if (fpta_index_is_reverse(d_index)) {
+      if (fpta_index_is_unordered(d_index) || d_type < fptu_96)
+        return false;
+      if (!(fpta_is_indexed_and_nullable(d_index) &&
+            fpta_nullable_reverse_sensitive(d_type)))
+        return false;
+      if (fpta_index_is_ordered(cd_index) && fpta_index_is_ordered(d_index) &&
+          fpta_index_is_reverse(cd_index))
+        return false;
+    }
+
+    return true;
+  }
+
+  bool is_preferable_to_skip() const {
+#if 0
+    if (b_index == d_index || b_index == cd_index || d_index == cd_index ||
+        ((cd_index ^ ab_index) & ~fpta_index_fsecondary) == 0 ||
+        ((b_index ^ ab_index) & ~fpta_index_fsecondary) == 0 ||
+        ((d_index ^ ab_index) & ~fpta_index_fsecondary) == 0)
+      return true;
+
+    if (a_type == c_type || b_type == d_type)
+      return true;
+#endif
+    return false;
+  }
+};
+
+#ifdef INSTANTIATE_TEST_SUITE_P /* not available in gtest 1.8.1 */
+
+class CompositeCombineFixture : public ::testing::Test,
+                                public CompositeCombineParams {
+protected:
+  struct SharedResources {
+    scoped_db_guard db_quard;
+  };
+  static SharedResources *shared_resource_;
+
+  fptu::tuple_ptr row_foo, row_bar, row_baz;
+  scoped_cursor_guard cursor_guard;
+  scoped_txn_guard txn_guard;
+
+  std::string a_col_name, b_col_name, c_col_name, d_col_name;
+  std::string ab_col_name, cd_col_name;
+
+  fpta_name table, col_a, col_b, col_c, col_d;
+  fpta_name col_ab, col_cd, col_linear, col_checksum;
+
+  bool should_drop_table = false;
+  bool should_drop_names = false;
+  unsigned nops = 0;
+
+public:
+  CompositeCombineFixture(const CompositeTestParamsTuple &params)
+      : CompositeCombineParams(params) {}
+
+  // Per-test-suite set-up.
+  // Called before the first test in this test suite.
+  static void SetUpTestSuite() {
+    shared_resource_ = new SharedResources;
+    if (REMOVE_FILE(testdb_name) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+    if (REMOVE_FILE(testdb_name_lck) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+  }
+
+  // Per-test-suite tear-down.
+  // Called after the last test in this test suite.
+  static void TearDownTestSuite() {
+    delete shared_resource_;
+    shared_resource_ = NULL;
+    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+  }
+
+  static fpta_db *db() { return shared_resource_->db_quard.get(); }
+
+  fpta_txn *txn() {
+    if (!txn_guard) {
+      // начинаем транзакцию записи
+      fpta_txn *txn = nullptr;
+      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db(), fpta_write, &txn));
+      ASSERT_NE(nullptr, txn), nullptr;
+      txn_guard.reset(txn);
+
+      // связываем идентификаторы с ранее созданной схемой
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_a));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_b));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_c));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_d));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_ab));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_cd));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_linear));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_checksum));
+    }
+    return txn_guard.get();
+  }
+
+  void commit() {
+    cursor_guard.reset();
+    ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn_guard.release(), false));
+  }
+
+  void abort() {
+    cursor_guard.reset();
+    txn_guard.reset();
+  }
+
+  // You can define per-test set-up logic as usual.
+  virtual void SetUp() {
+    // нужно простое число, иначе сломается переупорядочивание
+    ASSERT_TRUE(isPrime(NNN_UNIQ) && isPrime(NNN_WITHDUP));
+    // иначе не сможем проверить fptu_uint16
+    ASSERT_GE(65535 / 2, NNN);
+    ASSERT_LE(2, NNN_UNIQ / NNN_WITHDUP);
+
+    if (!is_valid_params()) {
+      GTEST_SKIP();
+      return;
+    }
+
+    if (GTEST_IS_EXECUTION_TIMEOUT()) {
+      GTEST_SKIP();
+      return;
+    }
+
+    // создаём или открываем БД
+    if (!db()) {
+      fpta_db *db = nullptr;
+      ASSERT_EQ(FPTA_OK,
+                fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing, 0644,
+                             megabytes, true, &db));
+      ASSERT_NE(nullptr, db);
+      shared_resource_->db_quard.reset(db);
+    }
+
+    // инициализируем идентификаторы колонок
+    char buf[128];
+    a_col_name = fptu::format("a_%s", fptu_type_name(a_type));
+    b_col_name = fptu::format("b_%s_%s", fptu_type_name(a_type),
+                              to_cstr(b_index, false, buf));
+    c_col_name = fptu::format("c_%s", fptu_type_name(c_type));
+    d_col_name = fptu::format("d_%s_%s", fptu_type_name(d_type),
+                              to_cstr(d_index, false, buf));
+    ab_col_name = fptu::format("ab_%s", to_cstr(ab_index, true, buf));
+    cd_col_name = fptu::format("cd_%s", to_cstr(cd_index, true, buf));
+
+    EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_a, a_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_b, b_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_c, c_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_d, d_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_ab, ab_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_cd, cd_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_linear, "linear"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_checksum, "checksum"));
+    should_drop_names = true;
+
+    // определяем схему
+    fpta_column_set def;
+    fpta_column_set_init(&def);
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(a_col_name.c_str(), a_type,
+                                            fpta_index_none, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(b_col_name.c_str(), b_type, b_index, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(c_col_name.c_str(), c_type,
+                                            fpta_index_none, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(d_col_name.c_str(), d_type, d_index, &def));
+    EXPECT_EQ(FPTA_OK, fpta::describe_composite_index(
+                           ab_col_name.c_str(), ab_index, &def,
+                           a_col_name.c_str(), b_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta::describe_composite_index(
+                           cd_col_name.c_str(), cd_index, &def,
+                           c_col_name.c_str(), d_col_name.c_str()));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe("linear", fptu_int32,
+                                            fpta_index_none, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe("checksum", fptu_uint64,
+                                            fpta_index_none, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+    // создаем таблицу
+    fpta_txn *txn = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db(), fpta_schema, &txn));
+    ASSERT_NE(nullptr, txn);
+    txn_guard.reset(txn);
+    EXPECT_EQ(FPTA_NOTFOUND, fpta_table_drop(txn, "table"));
+    ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
+    ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn_guard.release(), false));
+    txn = nullptr;
+    should_drop_table = true;
+
+    // разрушаем описание таблицы
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+    EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+    row_foo.reset(fptu_alloc(6, fpta_max_keylen * 42));
+    ASSERT_TRUE(row_foo);
+    row_bar.reset(fptu_alloc(6, fpta_max_keylen * 42));
+    ASSERT_TRUE(row_bar);
+    row_baz.reset(fptu_alloc(6, fpta_max_keylen * 42));
+    ASSERT_TRUE(row_baz);
+  }
+
+  // You can define per-test tear-down logic as usual.
+  virtual void TearDown() {
+    if (should_drop_names) {
+      // разрушаем привязанные идентификаторы
+      fpta_name_destroy(&table);
+      fpta_name_destroy(&col_a);
+      fpta_name_destroy(&col_b);
+      fpta_name_destroy(&col_c);
+      fpta_name_destroy(&col_d);
+      fpta_name_destroy(&col_ab);
+      fpta_name_destroy(&col_cd);
+      fpta_name_destroy(&col_linear);
+      fpta_name_destroy(&col_checksum);
+      should_drop_names = false;
+    }
+
+    cursor_guard.reset();
+    txn_guard.reset();
+    if (should_drop_table) {
+      // удаляем таблицу
+      fpta_txn *txn = nullptr;
+      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db(), fpta_schema, &txn));
+      ASSERT_NE(nullptr, txn);
+      txn_guard.reset(txn);
+      EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table"));
+      EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_guard.release(), false));
+      should_drop_table = false;
+    }
+  }
+
+  int a_order(const int linear, const int age) const {
+    return map_linear2stochastic<0>(linear, (age && age % 4 == 0),
+                                    unsigned(checksum_salt));
+  }
+
+  int b_order(const int linear, const int age) const {
+    return map_linear2stochastic<1>(linear, (age && age % 4 == 1),
+                                    unsigned(checksum_salt >> 10));
+  }
+
+  int c_order(const int linear, const int age) const {
+    return map_linear2stochastic<2>(linear, (age && age % 4 == 2),
+                                    unsigned(checksum_salt >> 21));
+  }
+
+  int d_order(const int linear, const int age) const {
+    return map_linear2stochastic<3>(linear, (age && age % 4 == 3),
+                                    unsigned(checksum_salt >> 32));
+  }
+
+  fpta_value col_value(const int order, any_keygen &keygen) const {
+    assert(order > -1 && order < NNN_UNIQ);
+    const fpta_value value =
+        fpta_index_is_unique(keygen.get_index())
+            ? keygen.make(order, NNN_UNIQ)
+            : keygen.make(order % NNN_WITHDUP, NNN_WITHDUP);
+    return value;
+  }
+
+  fptu_ro make_row(const int linear, any_keygen &keygen_a, any_keygen &keygen_b,
+                   any_keygen &keygen_c, any_keygen &keygen_d,
+                   fptu::tuple_ptr &row_holder, const int age = 0) const {
+    // формируем кортеж-запись по заданному линейному номеру.
+    EXPECT_EQ(FPTU_OK, fptu_clear(row_holder.get()));
+
+    /* Генераторы ключей для не-числовых типов используют общий статический
+     * буфер, из-за этого генерация следующего значения может повредить
+     * предыдущее. Поэтому следующее значение можно генерировать только после
+     * вставки в кортеж предыдущего. */
+    fpta_value value;
+
+    value = col_value(a_order(linear, age), keygen_a);
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column_ex(row_holder.get(), &col_a, value, true));
+
+    value = col_value(b_order(linear, age), keygen_b);
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column_ex(row_holder.get(), &col_b, value, true));
+
+    value = col_value(c_order(linear, age), keygen_c);
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column_ex(row_holder.get(), &col_c, value, true));
+
+    value = col_value(d_order(linear, age), keygen_d);
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column_ex(row_holder.get(), &col_d, value, true));
+
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(row_holder.get(), &col_linear,
+                                          fpta_value_sint(linear)));
+
+    value =
+        fpta_value_uint(t1ha2_atonce(&linear, sizeof(linear), checksum_salt));
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(row_holder.get(), &col_checksum, value));
+
+    EXPECT_STREQ(nullptr, fptu::check(row_holder.get()));
+    return fptu_take_noshrink(row_holder.get());
+  }
+
+  void batch_cond_commit() {
+    if (txn_guard && ++nops > NBATCH) {
+      commit();
+      nops = 0;
+    }
+  }
+
+  void LOG(const std::string &msg) {
+    std::cout << msg << "\n";
+    std::cout.flush();
+  }
+
+  static unsigned update_via_index(unsigned changed_col, unsigned alter_salt) {
+    /* выбор индексов (AB=0, CD=1, B=2, D=3), через которые можно обовлять
+       строку, при измененни соответствующей колонки (A=0, B=1, C=2, D=3) */
+    switch (changed_col % 4) {
+    default:
+      assert(false);
+      __unreachable();
+    case 0:
+      /* Изменение в колонке А, можно обновлять через индексы: CD, B, D */
+      return "123"[alter_salt % 3] - '0';
+    case 1:
+      /* Изменение в колонке B, можно обновлять через индексы: CD, D */
+      return "13"[alter_salt % 2] - '0';
+    case 2:
+      /* Изменение в колонке C, можно обновлять через индексы: AB, B, D */
+      return "023"[alter_salt % 3] - '0';
+    case 3:
+      /* Изменение в колонке D, можно обновлять через индексы: AB, B */
+      return "02"[alter_salt % 2] - '0';
+    }
+  }
+};
+
+CompositeCombineFixture::SharedResources
+    *CompositeCombineFixture::shared_resource_;
+
+class CompositeCombineCRUD : public CompositeCombineFixture {
+public:
+  CompositeCombineCRUD(const CompositeTestParamsTuple &params_tuple)
+      : CompositeCombineFixture(params_tuple) {}
+  void TestBody() override {
+    any_keygen keygen_a(a_type, ab_index);
+    any_keygen keygen_b(b_type, b_index);
+    any_keygen keygen_c(c_type, cd_index);
+    any_keygen keygen_d(d_type, d_index);
+
+    int linear = 0;
+    while (linear < NNN) {
+      txn();
+
+      // вставляем первую запись из пары
+      const auto foo_linear = linear++;
+      const fptu_ro foo =
+          make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d, row_foo);
+      // LOG("uphill-insert-1: linear " + std::to_string(foo_linear) + " " +
+      //    std::to_string(foo));
+      ASSERT_EQ(FPTA_OK, fpta_insert_row(txn(), &table, foo));
+      batch_cond_commit();
+
+      const auto baz_linear = (linear < NNN) ? linear++ : -1;
+      fptu_ro baz = {0, 0};
+      if (baz_linear > -1) {
+        // вставляем вторую запись из пары
+        baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
+                       row_baz);
+        // LOG("uphill-insert-2: linear " + std::to_string(baz_linear) + " " +
+        //    std::to_string(baz));
+        ASSERT_EQ(FPTA_OK, fpta_insert_row(txn(), &table, baz));
+        batch_cond_commit();
+      }
+
+      // обновляем данные в первой записи
+      const int update_diff_salt =
+          int((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
+               checksum_salt) %
+              4673) +
+          1;
+      const int alter_mode_salt =
+          (((foo_linear + 607750243) ^ (foo_linear * 16458383)) ^
+           (update_diff_salt >> 2)) %
+          7151;
+      const fptu_ro bar = make_row(foo_linear, keygen_a, keygen_b, keygen_c,
+                                   keygen_d, row_bar, update_diff_salt);
+      const int update_via =
+          update_via_index(update_diff_salt, alter_mode_salt);
+      // LOG("uphill-update-1: diff-alter " +
+      //     std::to_string(update_diff_salt % 4) + ", update-via " +
+      //     std::to_string(update_via) + " " + std::to_string(foo) + " ==>> " +
+      //     std::to_string(bar));
+      fpta_cursor *cursor = nullptr;
+      switch (update_via) {
+      default:
+        assert(false);
+        GTEST_FAIL();
+        break;
+      case 0:
+        // обновляем через первичный составной индекс по колонкам A и B
+        if ((update_diff_salt ^ alter_mode_salt) % 11 > 5) {
+          // обновляем без курсора через PK
+          ASSERT_EQ(FPTA_OK, fpta_update_row(txn(), &table, bar));
+        } else {
+          ASSERT_EQ(FPTA_OK,
+                    fpta_cursor_open(txn(), &col_ab, fpta_value_begin(),
+                                     fpta_value_end(), nullptr,
+                                     fpta_unsorted_dont_fetch, &cursor));
+        }
+        break;
+      case 1:
+        // обновляем через вторичный составной индекс по колонкам C и D
+        ASSERT_EQ(FPTA_OK, fpta_cursor_open(txn(), &col_cd, fpta_value_begin(),
+                                            fpta_value_end(), nullptr,
+                                            fpta_unsorted_dont_fetch, &cursor));
+        break;
+      case 2:
+        // обновляем через дополнительный индекс по колонке B
+        ASSERT_EQ(FPTA_OK, fpta_cursor_open(txn(), &col_b, fpta_value_begin(),
+                                            fpta_value_end(), nullptr,
+                                            fpta_unsorted_dont_fetch, &cursor));
+        break;
+      case 3:
+        // обновляем через дополнительный индекс по колонке D
+        ASSERT_EQ(FPTA_OK, fpta_cursor_open(txn(), &col_d, fpta_value_begin(),
+                                            fpta_value_end(), nullptr,
+                                            fpta_unsorted_dont_fetch, &cursor));
+        break;
+      }
+      cursor_guard.reset(cursor);
+      if (cursor) {
+        ASSERT_EQ(FPTA_OK, fpta_cursor_locate(cursor, true, nullptr, &foo));
+        ASSERT_EQ(FPTA_OK, fpta_cursor_update(cursor, bar));
+      }
+      batch_cond_commit();
+
+      if (baz_linear > -1) {
+        // удаляем вторую запись
+        // LOG("uphill-delete-2: linear " + std::to_string(baz_linear) + " " +
+        //     std::to_string(baz));
+        if (cursor_guard) {
+          // удаляем через открытый курсор
+          ASSERT_EQ(FPTA_OK, fpta_cursor_locate(cursor, true, nullptr, &baz));
+          ASSERT_EQ(FPTA_OK, fpta_cursor_delete(cursor));
+        } else {
+          // удаляем через PK
+          ASSERT_EQ(FPTA_OK, fpta_delete(txn(), &table, baz));
+        }
+        batch_cond_commit();
+      }
+    }
+
+    //--------------------------------------------------------------------------
+
+    while (linear >= 0) {
+      // обновляем первую запись из пары
+      const auto foo_linear = (linear & 1) ? --linear : -1;
+      fptu_ro foo = {0, 0};
+      fptu_ro bar = {0, 0};
+      fpta_cursor *cursor = nullptr;
+      if (foo_linear > -1) {
+        const int update_diff_salt =
+            int((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
+                 checksum_salt) %
+                4673) +
+            1;
+        const int alter_mode_salt =
+            (((foo_linear + 607750243) ^ (foo_linear * 16458383)) ^
+             (update_diff_salt >> 2)) %
+            7151;
+        foo = make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d,
+                       row_foo);
+        bar = make_row(foo_linear, keygen_a, keygen_b, keygen_c, keygen_d,
+                       row_bar, update_diff_salt);
+        const int update_via =
+            update_via_index(update_diff_salt, alter_mode_salt);
+        // LOG("downhill-update-1: diff-alter " +
+        //     std::to_string(update_diff_salt % 4) + ", update-via " +
+        //     std::to_string(update_via) + " " + std::to_string(bar) + " ==>> "
+        //     + std::to_string(foo));
+        switch (update_via) {
+        default:
+          assert(false);
+          GTEST_FAIL();
+          break;
+        case 0:
+          // обновляем через первичный составной индекс по колонкам A и B
+          if ((update_diff_salt ^ alter_mode_salt) % 11 > 5) {
+            // обновляем без курсора через PK
+            ASSERT_EQ(FPTA_OK, fpta_update_row(txn(), &table, foo));
+          } else {
+            ASSERT_EQ(FPTA_OK,
+                      fpta_cursor_open(txn(), &col_ab, fpta_value_begin(),
+                                       fpta_value_end(), nullptr,
+                                       fpta_unsorted_dont_fetch, &cursor));
+          }
+          break;
+        case 1:
+          // обновляем через вторичный составной индекс по колонкам C и D
+          ASSERT_EQ(FPTA_OK,
+                    fpta_cursor_open(txn(), &col_cd, fpta_value_begin(),
+                                     fpta_value_end(), nullptr,
+                                     fpta_unsorted_dont_fetch, &cursor));
+          break;
+        case 2:
+          // обновляем через дополнительный индекс по колонке B
+          ASSERT_EQ(FPTA_OK,
+                    fpta_cursor_open(txn(), &col_b, fpta_value_begin(),
+                                     fpta_value_end(), nullptr,
+                                     fpta_unsorted_dont_fetch, &cursor));
+          break;
+        case 3:
+          // обновляем через дополнительный индекс по колонке D
+          ASSERT_EQ(FPTA_OK,
+                    fpta_cursor_open(txn(), &col_d, fpta_value_begin(),
+                                     fpta_value_end(), nullptr,
+                                     fpta_unsorted_dont_fetch, &cursor));
+          break;
+        }
+        cursor_guard.reset(cursor);
+        if (cursor) {
+          ASSERT_EQ(FPTA_OK, fpta_cursor_locate(cursor, true, nullptr, &bar));
+          ASSERT_EQ(FPTA_OK, fpta_cursor_update(cursor, foo));
+        }
+        // batch_cond_commit();
+        commit();
+      }
+
+      // вставляем вторую запись из пары
+      const auto baz_linear = --linear;
+      fptu_ro baz = {0, 0};
+      if (baz_linear > -1) {
+        // вставляем вторую запись из пары
+        baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
+                       row_baz);
+        // LOG("downhill-insert-2: linear " + std::to_string(baz_linear) + " " +
+        //     std::to_string(baz));
+        ASSERT_EQ(FPTA_OK, fpta_insert_row(txn(), &table, baz));
+        batch_cond_commit();
+      }
+
+      if (foo_linear > -1) {
+        // удаляем первую запись
+        // LOG("downhill-delete-1: linear " + std::to_string(foo_linear) + " " +
+        //     std::to_string(foo));
+        ASSERT_EQ(FPTA_OK, fpta_delete(txn(), &table, foo));
+        batch_cond_commit();
+      }
+
+      // удаляем вторую запись
+      if (baz_linear > -1) {
+        // удаляем вторую запись
+        // LOG("downhill-delete-2: linear " + std::to_string(baz_linear) + " " +
+        //     std::to_string(baz));
+        if (cursor_guard) {
+          // удаляем через открытый курсор
+          ASSERT_EQ(FPTA_OK, fpta_cursor_locate(cursor_guard.get(), true,
+                                                nullptr, &baz));
+          ASSERT_EQ(FPTA_OK, fpta_cursor_delete(cursor_guard.get()));
+        } else {
+          // удаляем через PK
+          ASSERT_EQ(FPTA_OK, fpta_delete(txn(), &table, baz));
+        }
+        batch_cond_commit();
+      }
+    }
+    commit();
+  }
+};
+
+#endif /* INSTANTIATE_TEST_SUITE_P */
+
+unsigned CompositeTest_Combine(bool just_count) {
+  unsigned count = 0;
+  for (fptu_type a_type : {CompositeTest_ColumtA_TypeList}) {
+    for (fptu_type b_type : {CompositeTest_ColumtB_TypeList}) {
+      for (fptu_type c_type : {CompositeTest_ColumtC_TypeList}) {
+        for (fptu_type d_type : {CompositeTest_ColumtD_TypeList}) {
+          for (fpta_index_type ab_index : {CompositeTest_PK_IndexAB_List}) {
+            for (fpta_index_type cd_index : {CompositeTest_SE_IndexCD_List}) {
+              for (fpta_index_type b_index : {CompositeTest_SE_IndexB_List}) {
+                for (fpta_index_type d_index : {CompositeTest_SE_IndexD_List}) {
+                  const CompositeTestParamsTuple tuple(
+                      a_type, b_type, c_type, d_type, ab_index, cd_index,
+                      b_index, d_index);
+                  const CompositeCombineParams params(tuple);
+                  if (!params.is_valid_params())
+                    continue;
+                  if (params.is_preferable_to_skip())
+                    continue;
+
+                  if (!just_count) {
+#ifdef INSTANTIATE_TEST_SUITE_P
+                    const std::string info = params.params_to_string();
+                    const std::string caption = "CRUD_" + info;
+                    ::testing::RegisterTest(
+                        "CompositeCombine", caption.c_str(), nullptr, nullptr,
+                        __FILE__, __LINE__, [=]() -> CompositeCombineFixture * {
+                          return new CompositeCombineCRUD(tuple);
+                        });
+#endif /* INSTANTIATE_TEST_SUITE_P */
+                  }
+                  ++count;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return count;
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
+  printf("Total CompositeTest Combinations %u\n", CompositeTest_Combine(true));
+  fflush(nullptr);
+#ifdef INSTANTIATE_TEST_SUITE_P
+  CompositeTest_Combine(false);
+#endif /* INSTANTIATE_TEST_SUITE_P */
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
