@@ -11,3 +11,9 @@
    fun:tail64_le_unaligned
    fun:t1ha2_atonce
 }
+{
+   t1ha_oneshot_read-Ox_gcc9
+   Memcheck:Addr8
+   fun:UnknownInlinedFun
+   fun:t1ha2_atonce
+}
