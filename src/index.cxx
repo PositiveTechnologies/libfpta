@@ -768,7 +768,7 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
       goto return_corrupted;
     value.type = fpta_shoved;
     value.binary_data = mdbx.iov_base;
-    value.binary_length = fpta_shoved_keylen;
+    value.binary_length = mdbx.iov_len;
     return FPTA_SUCCESS;
 
   case fptu_uint16: {
