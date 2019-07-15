@@ -701,8 +701,7 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
 
-    value.uint = *(uint64_t *)mdbx.iov_base;
-    value.binary_data = &value.uint;
+    value.binary_data = mdbx.iov_base;
     value.binary_length = sizeof(uint64_t);
     value.type = fpta_shoved;
     return FPTA_SUCCESS;
