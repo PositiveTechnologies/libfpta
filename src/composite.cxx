@@ -254,7 +254,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     }
 
     const struct iovec iov = fptu_field_as_iovec(field);
-    if (likely(!tersely)) {
+    if (likely(!tersely) && type >= fptu_cstr) {
       /* for variable-length columns, add one of present-markers,
        * but only if TERSELY is OFF */
       concat_bytes(

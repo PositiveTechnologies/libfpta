@@ -153,13 +153,21 @@ typedef struct _FILE_PROVIDER_EXTERNAL_INFO_V1 {
 
 /*----------------------------------------------------------------------------*/
 
-#if !defined(_MSC_VER) &&                                                      \
+#if _POSIX_C_SOURCE > 200212 &&                                                \
     /* workaround for avoid musl libc wrong prototype */ (                     \
         defined(__GLIBC__) || defined(__GNU_LIBRARY__))
 /* Prototype should match libc runtime. ISO POSIX (2003) & LSB 1.x-3.x */
 __nothrow __noreturn void __assert_fail(const char *assertion, const char *file,
                                         unsigned line, const char *function);
-#endif /* _MSC_VER */
+#elif (defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||  \
+       defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||         \
+       defined(__DragonFly__))
+__nothrow __noreturn void __assert(const char *function, const char *file,
+                                   int line, const char *assertion);
+#define __assert_fail(assertion, file, line, function)                         \
+  __assert(function, file, line, assertion)
+
+#endif /* __assert_fail */
 
 void __cold mdbx_assert_fail(const MDBX_env *env, const char *msg,
                              const char *func, int line) {
@@ -271,12 +279,15 @@ int mdbx_memalign_alloc(size_t alignment, size_t bytes, void **result) {
   (void)alignment;
   *result = VirtualAlloc(NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
   return *result ? MDBX_SUCCESS : MDBX_ENOMEM /* ERROR_OUTOFMEMORY */;
-#elif __GLIBC_PREREQ(2, 16) || __STDC_VERSION__ >= 201112L
-  *result = memalign(alignment, bytes);
+#elif defined(_ISOC11_SOURCE)
+  *result = aligned_alloc(alignment, bytes);
   return *result ? MDBX_SUCCESS : errno;
 #elif _POSIX_VERSION >= 200112L
   *result = nullptr;
   return posix_memalign(result, alignment, bytes);
+#elif __GLIBC_PREREQ(2, 16) || __STDC_VERSION__ >= 201112L
+  *result = memalign(alignment, bytes);
+  return *result ? MDBX_SUCCESS : errno;
 #else
 #error FIXME
 #endif
@@ -1136,11 +1147,21 @@ retry_mapview:;
   return rc;
 #else
   if (limit != map->length) {
-    void *ptr = mremap(map->address, map->length, limit, MREMAP_MAYMOVE);
-    if (ptr == MAP_FAILED)
-      return errno;
+#if defined(_GNU_SOURCE) && !defined(__FreeBSD__)
+    void *ptr = mremap(map->address, map->length, limit,
+                       /* LY: in case changing the mapping size calling code
+                          must guarantees the absence of competing threads, and
+                          a willingness to another base address */
+                       MREMAP_MAYMOVE);
+    if (ptr == MAP_FAILED) {
+      int err = errno;
+      return (err == EAGAIN || err == ENOMEM) ? MDBX_RESULT_TRUE : err;
+    }
     map->address = ptr;
     map->length = limit;
+#else
+    return MDBX_RESULT_TRUE;
+#endif /* mremap() <= _GNU_SOURCE && !__FreeBSD__ */
   }
   return (flags & MDBX_RDONLY) ? MDBX_SUCCESS : mdbx_ftruncate(map->fd, size);
 #endif

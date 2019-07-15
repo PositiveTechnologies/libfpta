@@ -1676,6 +1676,81 @@ public:
     return fptu_take_noshrink(row_holder.get());
   }
 
+  static size_t composite_item_keylen(const bool tersely, const fptu_ro &row,
+                                      fpta_name *column) {
+    const fptu_type type = fpta_name_coltype(column);
+    unsigned length = (type == fptu_uint16) ? 2 : fptu_internal_map_t2b[type];
+
+    fpta_value value;
+    int err = fpta_get_column(row, column, &value);
+    if (err == FPTA_NODATA) {
+      // null, i.e no nay value
+      EXPECT_TRUE(fpta_column_is_nullable(column->shove));
+      if (type >= fptu_cstr)
+        return tersely ? 0 : 1;
+      if (tersely)
+        return 1;
+      return length;
+    }
+
+    EXPECT_EQ(FPTA_OK, err);
+    if (type < fptu_cstr) {
+      if (fpta_column_is_nullable(column->shove) && tersely)
+        /* present-marker for fixed-length nullable columns if TERSELY is ON */
+        length += 1;
+    } else {
+      length = value.binary_length;
+      if (!tersely)
+        /* present-marker for variable-length columns if TERSELY is OFF */
+        length += 1;
+    }
+    return length;
+  }
+
+  void check_composite_keys(fpta_name *column) {
+    scoped_cursor_guard guard;
+    fpta_cursor *cursor = nullptr;
+    ASSERT_EQ(FPTA_OK, fpta_cursor_open(txn(), column, fpta_value_begin(),
+                                        fpta_value_end(), nullptr,
+                                        fpta_unsorted, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    guard.reset(cursor);
+
+    const bool tersely = fpta_column_is_nullable(column->shove);
+    while (true) {
+      int err = fpta_cursor_move(cursor, fpta_next);
+      if (err != FPTA_OK) {
+        ASSERT_EQ(FPTA_NODATA, err);
+        break;
+      }
+
+      fptu_ro row;
+      ASSERT_EQ(FPTA_OK, fpta_cursor_get(cursor, &row));
+
+      size_t expected_keylen = sizeof(uint64_t);
+      if (fpta_index_is_ordered(column->shove)) {
+        if (column == &col_ab) {
+          expected_keylen = composite_item_keylen(tersely, row, &col_a) +
+                            composite_item_keylen(tersely, row, &col_b);
+        } else {
+          assert(column == &col_cd);
+          expected_keylen = composite_item_keylen(tersely, row, &col_c) +
+                            composite_item_keylen(tersely, row, &col_d);
+        }
+      }
+
+      fpta_value key;
+      ASSERT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key));
+      fpta_value4key check_key;
+      EXPECT_EQ(FPTA_OK, fpta_get_column4key(row, column, &check_key));
+      EXPECT_EQ(key.binary_length, check_key.value.binary_length);
+      EXPECT_EQ((expected_keylen > fpta_max_keylen)
+                    ? fpta_max_keylen + sizeof(uint64_t)
+                    : expected_keylen,
+                key.binary_length);
+    }
+  }
+
   void batch_cond_commit() {
     if (txn_guard && ++nops > NBATCH) {
       commit();
@@ -1737,7 +1812,7 @@ public:
       ASSERT_EQ(FPTA_OK, fpta_insert_row(txn(), &table, foo));
       batch_cond_commit();
 
-      fptu_ro baz = {0, 0};
+      fptu_ro baz = {{0, 0}};
       if (baz_linear < NNN) {
         // вставляем вторую запись из пары
         baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
@@ -1828,13 +1903,18 @@ public:
 
     //--------------------------------------------------------------------------
 
+    check_composite_keys(&col_ab);
+    check_composite_keys(&col_cd);
+
+    //--------------------------------------------------------------------------
+
     for (unsigned linear = 0; linear < NNN; linear += 2) {
       const auto foo_linear = linear;
       const auto baz_linear = linear + 1;
 
       // обновляем первую запись из пары
-      fptu_ro foo = {0, 0};
-      fptu_ro bar = {0, 0};
+      fptu_ro foo = {{0, 0}};
+      fptu_ro bar = {{0, 0}};
       fpta_cursor *cursor = nullptr;
       const unsigned update_diff_salt =
           unsigned((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
@@ -1899,7 +1979,7 @@ public:
       batch_cond_commit();
 
       // вставляем вторую запись из пары
-      fptu_ro baz = {0, 0};
+      fptu_ro baz = {{0, 0}};
       if (baz_linear < NNN) {
         // вставляем вторую запись из пары
         baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
