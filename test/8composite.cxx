@@ -1737,7 +1737,7 @@ public:
       ASSERT_EQ(FPTA_OK, fpta_insert_row(txn(), &table, foo));
       batch_cond_commit();
 
-      fptu_ro baz = {0, 0};
+      fptu_ro baz = {{0, 0}};
       if (baz_linear < NNN) {
         // вставляем вторую запись из пары
         baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
@@ -1833,8 +1833,8 @@ public:
       const auto baz_linear = linear + 1;
 
       // обновляем первую запись из пары
-      fptu_ro foo = {0, 0};
-      fptu_ro bar = {0, 0};
+      fptu_ro foo = {{0, 0}};
+      fptu_ro bar = {{0, 0}};
       fpta_cursor *cursor = nullptr;
       const unsigned update_diff_salt =
           unsigned((((foo_linear + 144746611) ^ (foo_linear * 2618173)) ^
@@ -1899,7 +1899,7 @@ public:
       batch_cond_commit();
 
       // вставляем вторую запись из пары
-      fptu_ro baz = {0, 0};
+      fptu_ro baz = {{0, 0}};
       if (baz_linear < NNN) {
         // вставляем вторую запись из пары
         baz = make_row(baz_linear, keygen_a, keygen_b, keygen_c, keygen_d,
