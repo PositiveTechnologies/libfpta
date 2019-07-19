@@ -245,8 +245,8 @@ public:
 #endif
 
     fpta_db *db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                    0644, megabytes, true, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                    megabytes, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -278,8 +278,8 @@ public:
     ASSERT_EQ(FPTA_SUCCESS, fpta_db_close(db_quard.release()));
     db = nullptr;
     // открываем заново
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                    0644, megabytes, false, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                    megabytes, false, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 

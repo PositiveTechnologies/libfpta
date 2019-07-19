@@ -262,8 +262,8 @@ TEST(Threaded, SimpleSelect) {
   }
 
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
-                                  true, &db));
+  ASSERT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, true, &db));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database opened");
 
@@ -297,8 +297,8 @@ TEST(Threaded, SimpleSelect) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
-                                  false, &db));
+  ASSERT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, false, &db));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
 
@@ -513,8 +513,8 @@ TEST(Threaded, SimpleVisitor) {
   }
 
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
-                                  true, &db));
+  ASSERT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, true, &db));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database opened");
 
@@ -546,8 +546,8 @@ TEST(Threaded, SimpleVisitor) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
-                                  false, &db));
+  ASSERT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, false, &db));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
 
@@ -615,8 +615,8 @@ TEST(Threaded, ParallelOpen) {
   }
 
   fpta_db *db = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
-                                  true, &db));
+  EXPECT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, true, &db));
   ASSERT_NE(db, (fpta_db *)nullptr);
 
   fpta_column_set def;
@@ -640,8 +640,8 @@ TEST(Threaded, ParallelOpen) {
   // переоткрываем базу
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
   db = nullptr;
-  EXPECT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0644, 1,
-                                  false, &db));
+  EXPECT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, false, &db));
   ASSERT_NE(db, (fpta_db *)nullptr);
 
   // начинаем транзакцию fpta_write

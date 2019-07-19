@@ -72,8 +72,8 @@ TEST(SmokeIndex, Primary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками и одним PK
@@ -334,8 +334,8 @@ TEST(SmokeIndex, Secondary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками,
@@ -753,8 +753,8 @@ public:
 
     // открываем/создаем базульку в 1 мегабайт
     fpta_db *db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0644, 1, true, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    1, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -1584,8 +1584,8 @@ public:
 
     // открываем/создаем базульку в 1 мегабайт
     fpta_db *db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0644, 1, true, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    1, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -2429,8 +2429,8 @@ TEST(SmokeCrud, OneRowOneColumn) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с одним PK
@@ -2539,8 +2539,8 @@ TEST(Smoke, DirectDirtyDeletions) {
 
   // создаем базу
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // начинаем транзакцию с добавлениями
@@ -2771,8 +2771,8 @@ TEST(Smoke, UpdateViolateUnique) {
 
   // создаем базу
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // начинаем транзакцию с добавлениями
@@ -3012,8 +3012,8 @@ public:
 
     // создаем базу
     fpta_db *db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
-                                    0644, 1, true, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                    1, true, &db));
     ASSERT_NE(nullptr, db);
     db_quard.reset(db);
 
@@ -3274,8 +3274,8 @@ TEST(Smoke, ReOpenAfterAbort) {
 
   // открываем/создаем базу
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с одним PK (int64) и колонками (_last_changed,
@@ -3313,8 +3313,8 @@ TEST(Smoke, ReOpenAfterAbort) {
   db = nullptr;
 
   // открываем базу
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0644, 1, false, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, false, &db));
   ASSERT_NE(nullptr, db);
 
   fpta_name table_id;
@@ -3378,8 +3378,7 @@ TEST(Smoke, Kamerades) {
   {
     // открываем/создаем базульку в 1 мегабайт
     ASSERT_EQ(FPTA_OK,
-              fpta_db_open(testdb_name, fpta_weak, fpta_regime_default, 0644, 1,
-                           true,
+              test_db_open(testdb_name, fpta_weak, fpta_regime_default, 1, true,
                            &commander_db)); // таблица создаётся из "коммандера"
     ASSERT_NE(nullptr, commander_db);
 
@@ -3419,8 +3418,8 @@ TEST(Smoke, Kamerades) {
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table_1"));
 
     // открываем из коррелятора
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0644, 1, false, &correlator_db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    1, false, &correlator_db));
     ASSERT_NE(nullptr, correlator_db);
 
     // начинаем транзакцию для вставки данных
@@ -3470,8 +3469,8 @@ TEST(Smoke, Kamerades) {
       // вновь открываем из коммандера
       ASSERT_EQ(
           FPTA_OK,
-          fpta_db_open(
-              testdb_name, fpta_weak, fpta_regime_default, 0644, 1, false,
+          test_db_open(
+              testdb_name, fpta_weak, fpta_regime_default, 1, false,
               &commander_db)); // теперь пытаемся только читать из "коммандера"
       ASSERT_NE(nullptr, commander_db);
     }
@@ -3543,8 +3542,8 @@ TEST(Smoke, OverchargeOnCommit) {
 
   // открываем/создаем базу
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0664, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с одним PK
@@ -3584,8 +3583,8 @@ TEST(Smoke, OverchargeOnCommit) {
   db = nullptr;
 
   // открываем базу
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0664, 1, false, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, false, &db));
   ASSERT_NE(nullptr, db);
 
   fpta_name table_id, primary_key, host, id, last_changed, name, date;
@@ -3691,8 +3690,8 @@ TEST(Smoke, AsyncSchemaChange) {
     }
 
     fpta_db *db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                    0644, 1, true, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                    1, true, &db));
     ASSERT_NE(nullptr, db);
 
     // описываем простейшую таблицу с одним PK (int64) и колонками
@@ -3735,8 +3734,8 @@ TEST(Smoke, AsyncSchemaChange) {
 
   // открываем базу в "корреляторе"
   fpta_db *db_correlator = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0644, 1, false, &db_correlator));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, false, &db_correlator));
   ASSERT_NE(nullptr, db_correlator);
 
   fpta_txn *txn_correlator = nullptr;
@@ -3806,8 +3805,8 @@ TEST(Smoke, AsyncSchemaChange) {
   {
     // открываем базу в "командоре"
     fpta_db *db_commander = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                    0644, 1, true, &db_commander));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                    1, true, &db_commander));
     ASSERT_NE(nullptr, db_commander);
 
     fpta_txn *txn_commander = nullptr;
@@ -3826,7 +3825,7 @@ TEST(Smoke, AsyncSchemaChange) {
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_commander));
   db_commander = nullptr;
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing, 0644, 1, true,
+  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing, 1, true,
                                   &db_commander));
   ASSERT_NE(nullptr, db_commander);
   EXPECT_EQ(FPTA_OK,
@@ -3947,8 +3946,8 @@ TEST(Smoke, FilterAndRange) {
 
   // создаем базу
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_sync, fpta_regime_default,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // начинаем транзакцию с добавлениями
@@ -4097,8 +4096,8 @@ TEST(Smoke, Migration) {
   // из "коммандера" создаем базу и таблицу
   {
     // создаем базу в 16 мегабайт
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0644, 16, true, &commander_db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    16, true, &commander_db));
     ASSERT_NE(nullptr, commander_db);
 
     // описываем таблицу с тремя колонками
@@ -4147,8 +4146,8 @@ TEST(Smoke, Migration) {
     EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_z, "z"));
 
     // открываем из коррелятора
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0644, 16, false, &correlator_db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    16, false, &correlator_db));
     ASSERT_NE(nullptr, correlator_db);
 
     for (unsigned n = 0; n < 1000; ++n) {
@@ -4206,8 +4205,8 @@ TEST(Smoke, Migration) {
     EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
 
     // вновь открываем из коммандера
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0644, 16, true, &commander_db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    16, true, &commander_db));
     ASSERT_NE(nullptr, commander_db);
 
     // начинаем "толстую" транзакцию из "коммандера"
@@ -4266,8 +4265,8 @@ TEST(Smoke, Migration) {
     }
 
     // до завершения транзакции снова открываем базу в "корреляторе"
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0644, 16, false, &correlator_db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    16, false, &correlator_db));
     ASSERT_NE(nullptr, correlator_db);
 
     // фиксируем транзакцию
@@ -4315,8 +4314,8 @@ TEST(Smoke, Migration) {
   // переоткрываем базу в корреляторе
   ASSERT_EQ(FPTA_SUCCESS, fpta_db_close(correlator_db));
   correlator_db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0644, 16, false, &correlator_db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  16, false, &correlator_db));
   ASSERT_NE(nullptr, correlator_db);
 
   // В "корреляторе" снова стартуем транзакцию и получаем сведения о таблице
@@ -4366,8 +4365,8 @@ TEST(SmokeFilter, ChoppedLookup) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   { // create table
@@ -4419,8 +4418,8 @@ TEST(SmokeFilter, ChoppedLookup) {
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
   db = nullptr;
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_saferam, 0664, 1,
-                                  false, &db));
+  ASSERT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, false, &db));
   ASSERT_NE(nullptr, db);
 
   fpta_name table, _id, date, id_str, desc, score, threat, sha256, sha1, md5;
@@ -4838,14 +4837,14 @@ TEST(Smoke, TransacionRestart) {
 
   // создаем базу
   fpta_db *rw_db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0664, 1, true, &rw_db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, true, &rw_db));
   ASSERT_NE(nullptr, rw_db);
 
   // параллельно открываем базу для чтения
   fpta_db *ro_db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_readonly,
-                                  fpta_regime_default, 0664, 1, true, &ro_db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_readonly,
+                                  fpta_regime_default, 1, true, &ro_db));
   ASSERT_NE(nullptr, ro_db);
   // сразу запускаем транзакцию чтения
   fpta_txn *ro_txn = nullptr;
@@ -5055,15 +5054,15 @@ public:
 
     // создаем базу
     fpta_db *db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                    0664, 1, true, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    1, true, &db));
     ASSERT_NE(nullptr, db);
     rw_db_guard.reset(db);
 
     // параллельно открываем базу для чтения
     db = nullptr;
-    ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_readonly,
-                                    fpta_regime_default, 0664, 1, true, &db));
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_readonly,
+                                    fpta_regime_default, 1, true, &db));
     ASSERT_NE(nullptr, db);
     ro_db_guard.reset(db);
 
@@ -5420,14 +5419,14 @@ TEST(Smoke, CursorRERERE_drop_table) {
 
   // создаем базу
   fpta_db *rw_db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0664, 1, true, &rw_db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, true, &rw_db));
   ASSERT_NE(nullptr, rw_db);
 
   // параллельно открываем базу для чтения
   fpta_db *ro_db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_readonly,
-                                  fpta_regime_default, 0664, 1, true, &ro_db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_readonly,
+                                  fpta_regime_default, 1, true, &ro_db));
   ASSERT_NE(nullptr, ro_db);
   // сразу запускаем транзакцию чтения
   fpta_txn *ro_txn = nullptr;

@@ -153,3 +153,7 @@ extern runtime_limiter ci_runtime_limiter;
 
 static constexpr fpta_regime_flags fpta_regime4testing =
     fpta_regime_default | fpta_allow_clumsy;
+
+int test_db_open(const char *path, fpta_durability durability,
+                 fpta_regime_flags regime_flags, size_t megabytes,
+                 bool alterable_schema, fpta_db **db);

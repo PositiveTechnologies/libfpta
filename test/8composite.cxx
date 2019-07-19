@@ -59,8 +59,8 @@ TEST(SmokeComposite, Primary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками и одним составным PK
@@ -383,8 +383,8 @@ TEST(SmokeIndex, Secondary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками,
@@ -766,8 +766,8 @@ TEST(SmokeIndex, MissingFieldOfCompositeKey) {
 
   // открываем/создаем базульку в 1 мегабайт
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками и одним PK
@@ -863,8 +863,8 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
 
   // открываем/создаем базульку в 1 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                  0644, 1, true, &db));
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  1, true, &db));
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками и одним составным PK
@@ -1503,7 +1503,7 @@ public:
     if (!db()) {
       fpta_db *db = nullptr;
       ASSERT_EQ(FPTA_OK,
-                fpta_db_open(testdb_name, fpta_weak, fpta_regime4testing, 0644,
+                test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
                              megabytes, true, &db));
       ASSERT_NE(nullptr, db);
       shared_resource_->db_quard.reset(db);
