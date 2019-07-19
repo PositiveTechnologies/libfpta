@@ -91,31 +91,6 @@ void fpta_cursor_free(fpta_db *db, fpta_cursor *cursor) {
 
 //----------------------------------------------------------------------------
 
-int fpta_db_open(const char *path, fpta_durability durability,
-                 fpta_regime_flags regime_flags, mode_t file_mode,
-                 size_t megabytes, bool alterable_schema, fpta_db **pdb) {
-
-  if (megabytes == 0 || durability == fpta_readonly)
-    return fpta_db_open_existing(path, durability, regime_flags,
-                                 alterable_schema, pdb);
-  if (unlikely(pdb == nullptr))
-    return FPTA_EINVAL;
-  *pdb = nullptr;
-
-  if (megabytes > SIZE_MAX >> 22)
-    return FPTA_ETOO_LARGE;
-
-  fpta_db_creation_params_t creation_params;
-  creation_params.params_size = sizeof(creation_params);
-  creation_params.file_mode = file_mode;
-  creation_params.size_lower = creation_params.size_upper = megabytes << 20;
-  creation_params.pagesize = -1;
-  creation_params.growth_step = 0;
-  creation_params.shrink_threshold = 0;
-  return fpta_db_create_or_open(path, durability, regime_flags,
-                                alterable_schema, pdb, &creation_params);
-}
-
 int fpta_db_create_or_open(const char *path, fpta_durability durability,
                            fpta_regime_flags regime_flags,
                            bool alterable_schema, fpta_db **pdb,
