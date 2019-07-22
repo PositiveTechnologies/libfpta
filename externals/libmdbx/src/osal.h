@@ -382,14 +382,14 @@ static __inline void mdbx_memory_barrier(void) {
 /*----------------------------------------------------------------------------*/
 /* Cache coherence and invalidation */
 
-#ifndef MDBX_CACHE_IS_COHERENT
+#ifndef MDBX_CPU_WRITEBACK_IS_COHERENT
 #if defined(__ia32__) || defined(__e2k__) || defined(__hppa) ||                \
     defined(__hppa__)
-#define MDBX_CACHE_IS_COHERENT 1
+#define MDBX_CPU_WRITEBACK_IS_COHERENT 1
 #else
-#define MDBX_CACHE_IS_COHERENT 0
+#define MDBX_CPU_WRITEBACK_IS_COHERENT 0
 #endif
-#endif /* MDBX_CACHE_IS_COHERENT */
+#endif /* MDBX_CPU_WRITEBACK_IS_COHERENT */
 
 #ifndef MDBX_CACHELINE_SIZE
 #if defined(SYSTEM_CACHE_ALIGNMENT_SIZE)
@@ -401,34 +401,47 @@ static __inline void mdbx_memory_barrier(void) {
 #endif
 #endif /* MDBX_CACHELINE_SIZE */
 
-#if MDBX_CACHE_IS_COHERENT
-#define mdbx_coherent_barrier() mdbx_compiler_barrier()
+#if MDBX_CPU_WRITEBACK_IS_COHERENT
+#define mdbx_flush_noncoherent_cpu_writeback() mdbx_compiler_barrier()
 #else
-#define mdbx_coherent_barrier() mdbx_memory_barrier()
+#define mdbx_flush_noncoherent_cpu_writeback() mdbx_memory_barrier()
 #endif
 
-#if defined(__mips) || defined(__mips__) || defined(__mips64) ||               \
-    defined(__mips64) || defined(_M_MRX000) || defined(_MIPS_)
-/* Only MIPS has explicit cache control */
+#if __has_include(<sys/cachectl.h>)
+#include <sys/cachectl.h>
+#elif defined(__mips) || defined(__mips__) || defined(__mips64) ||             \
+    defined(__mips64__) || defined(_M_MRX000) || defined(_MIPS_) ||            \
+    defined(__MWERKS__) || defined(__sgi)
+/* MIPS should have explicit cache control */
 #include <sys/cachectl.h>
 #endif
 
-static __inline void mdbx_invalidate_cache(void *addr, size_t nbytes) {
-  mdbx_coherent_barrier();
+#ifndef MDBX_CPU_CACHE_MMAP_NONCOHERENT
 #if defined(__mips) || defined(__mips__) || defined(__mips64) ||               \
-    defined(__mips64) || defined(_M_MRX000) || defined(_MIPS_)
-#if defined(DCACHE)
+    defined(__mips64__) || defined(_M_MRX000) || defined(_MIPS_) ||            \
+    defined(__MWERKS__) || defined(__sgi)
+/* MIPS has cache coherency issues. */
+#define MDBX_CPU_CACHE_MMAP_NONCOHERENT 1
+#else
+/* LY: assume no relevant mmap/dcache issues. */
+#define MDBX_CPU_CACHE_MMAP_NONCOHERENT 0
+#endif
+#endif /* ndef MDBX_CPU_CACHE_MMAP_NONCOHERENT */
+
+static __inline void mdbx_invalidate_mmap_noncoherent_cache(void *addr,
+                                                            size_t nbytes) {
+#if MDBX_CPU_CACHE_MMAP_NONCOHERENT
+#ifdef DCACHE
   /* MIPS has cache coherency issues.
    * Note: for any nbytes >= on-chip cache size, entire is flushed. */
   cacheflush(addr, nbytes, DCACHE);
 #else
-#error "Sorry, cacheflush() for MIPS not implemented"
-#endif /* __mips__ */
-#else
-  /* LY: assume no relevant mmap/dcache issues. */
+#error "Oops, cacheflush() not available"
+#endif /* DCACHE */
+#else  /* MDBX_CPU_CACHE_MMAP_NONCOHERENT */
   (void)addr;
   (void)nbytes;
-#endif
+#endif /* MDBX_CPU_CACHE_MMAP_NONCOHERENT */
 }
 
 /*----------------------------------------------------------------------------*/
@@ -448,6 +461,10 @@ int mdbx_vasprintf(char **strp, const char *fmt, va_list ap);
 
 /* max bytes to write in one call */
 #define MAX_WRITE UINT32_C(0x3fff0000)
+
+#if defined(__linux__) || defined(__gnu_linux__)
+extern uint32_t linux_kernel_version;
+#endif /* Linux */
 
 /* Get the size of a memory page for the system.
  * This is the basic size that the platform's memory manager uses, and is
