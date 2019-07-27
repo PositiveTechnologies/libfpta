@@ -1,4 +1,8 @@
-﻿libfptu
+## The [repository was moved](https://abf.io/erthink/libfptu) due to illegal discriminatory blocking of access from the territory of the Russian Crimea and for sovereign crimeans.
+
+---
+
+libfptu
 ==============================================
 Fast Positive Tuples, aka "Позитивные Кортежи"
 by [Positive Technologies](https://www.ptsecurity.ru).
