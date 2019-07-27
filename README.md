@@ -1,3 +1,7 @@
+## The [repository was moved](https://abf.io/erthink/libfpta) due to illegal discriminatory blocking of access from the territory of the Russian Crimea and for sovereign crimeans.
+
+---
+
 libfpta
 ==============================================
 Fast Positive Tables, aka "Позитивные Таблицы"
