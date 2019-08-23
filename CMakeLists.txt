@@ -116,12 +116,10 @@ endif()
 # Define GNU standard installation directories
 include(GNUInstallDirs)
 
-include(cmake.fptu/utils.cmake)
 # the order is significant: we need to know os and compiler to configure libs
-include(cmake.fptu/arch.cmake)
-include(cmake.fptu/os.cmake)
-include(cmake.fptu/profile.cmake)
-include(cmake.fptu/compiler.cmake)
+include(src/erthink/cmake/utils.cmake)
+include(src/erthink/cmake/profile.cmake)
+include(src/erthink/cmake/compiler.cmake)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
   message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTU."
@@ -218,7 +216,7 @@ if(NOT SUBPROJECT)
   if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD ${FPTU_CXX_STANDARD})
   endif()
-  include(cmake.fptu/testing.cmake)
+  include(src/erthink/cmake/testing.cmake)
 
   #
   # Enable 'make tags' target.
@@ -243,8 +241,6 @@ if(NOT SUBPROJECT)
       xargs ${CLANG_FORMAT} -i --style=file
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
   endif()
-
-  include(cmake.fptu/multilib.cmake)
 
   if(NOT "${PROJECT_BINARY_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
     add_custom_target(distclean)
