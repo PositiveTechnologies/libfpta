@@ -38,8 +38,10 @@ set_target_properties(${t1ha_target} PROPERTIES
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
   set(LIBMDBX_OSAL windows)
-else()
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   set(LIBMDBX_OSAL linux)
+else()
+  set(LIBMDBX_OSAL posix)
 endif()
 
 set(LIBMDBX_SOURCES
