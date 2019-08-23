@@ -104,6 +104,8 @@ else()
   set(fptu_target fptu)
 endif()
 
+target_compile_definitions(${fptu_target} PRIVATE "ERTHINK_D2A_PEDANTRY_ACCURATE=1")
+
 set_target_properties(${fptu_target} PROPERTIES
   PROJECT_LABEL "Fast Positive Tuples"
   FRAMEWORK TRUE
