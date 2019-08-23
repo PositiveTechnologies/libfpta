@@ -1153,7 +1153,7 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
   if (rc != FPTA_SUCCESS)
     return rc;
 
-  if ((txn->db->regime_flags & fpta_allow_clumsy) == 0) {
+  if ((txn->db->regime_flags & fpta_madness4testing) == 0) {
     if (!fpta_index_is_ordinal(column_set->shoves[0])) {
       unsigned clumsy_count = 0;
       for (size_t i = 1; i < column_set->count; ++i) {

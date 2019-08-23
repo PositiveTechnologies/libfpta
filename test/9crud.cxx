@@ -1466,5 +1466,8 @@ TEST(Nullable, SchemaReload) {
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
+  mdbx_setup_debug(MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_DUMP |
+                       MDBX_DBG_LEGACY_MULTIOPEN | MDBX_DBG_JITTER,
+                   nullptr);
   return RUN_ALL_TESTS();
 }
