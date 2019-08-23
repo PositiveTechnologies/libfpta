@@ -41,7 +41,6 @@
 
 /*----------------------------------------------------------------------------*/
 /* C99 includes */
-
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -55,9 +54,25 @@
 #include <time.h>
 #if !(defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
       defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||          \
-      defined(__DragonFly__))
+      defined(__DragonFly__) || defined(__APPLE__) || defined(__MACH__))
 #include <malloc.h>
 #endif /* xBSD */
+
+/* C11 stdalign.h */
+#if __has_include(<stdalign.h>)
+#include <stdalign.h>
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define alignas(N) _Alignas(N)
+#elif defined(_MSC_VER)
+#define alignas(N) __declspec(align(N))
+#elif __has_attribute(aligned) || defined(__GNUC__)
+#define alignas(N) __attribute__((aligned(N)))
+#else
+#error "FIXME: Required _alignas() or equivalent."
+#endif
+
+/*----------------------------------------------------------------------------*/
+/* Systems includes */
 
 #ifndef _POSIX_C_SOURCE
 #ifdef _POSIX_SOURCE
@@ -70,9 +85,6 @@
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 0
 #endif
-
-/*----------------------------------------------------------------------------*/
-/* Systems includes */
 
 #if defined(_WIN32) || defined(_WIN64)
 #define WIN32_LEAN_AND_MEAN
@@ -463,7 +475,7 @@ int mdbx_vasprintf(char **strp, const char *fmt, va_list ap);
 #define MAX_WRITE UINT32_C(0x3fff0000)
 
 #if defined(__linux__) || defined(__gnu_linux__)
-extern uint32_t linux_kernel_version;
+extern uint32_t mdbx_linux_kernel_version;
 #endif /* Linux */
 
 /* Get the size of a memory page for the system.
@@ -522,7 +534,13 @@ int mdbx_thread_create(mdbx_thread_t *thread,
                        void *arg);
 int mdbx_thread_join(mdbx_thread_t thread);
 
-int mdbx_filesync(mdbx_filehandle_t fd, bool fullsync);
+enum mdbx_syncmode_bits {
+  MDBX_SYNC_DATA = 1,
+  MDBX_SYNC_SIZE = 2,
+  MDBX_SYNC_IODQ = 4
+};
+
+int mdbx_filesync(mdbx_filehandle_t fd, enum mdbx_syncmode_bits mode_bits);
 int mdbx_filesize_sync(mdbx_filehandle_t fd);
 int mdbx_ftruncate(mdbx_filehandle_t fd, uint64_t length);
 int mdbx_fseek(mdbx_filehandle_t fd, uint64_t pos);
@@ -581,6 +599,8 @@ static __inline mdbx_tid_t mdbx_thread_self(void) {
 }
 
 void mdbx_osal_jitter(bool tiny);
+uint64_t mdbx_osal_monotime(void);
+uint64_t mdbx_osal_16dot16_to_monotime(uint32_t seconds_16dot16);
 
 /*----------------------------------------------------------------------------*/
 /* lck stuff */
@@ -593,26 +613,81 @@ void mdbx_osal_jitter(bool tiny);
 #define MDBX_OSAL_LOCK_SIGN UINT32_C(0x8017)
 #endif /* MDBX_OSAL_LOCK */
 
-#ifdef MDBX_OSAL_LOCK
-#define MDBX_OSAL_LOCK_SIZE sizeof(MDBX_OSAL_LOCK)
-#else
-#define MDBX_OSAL_LOCK_SIZE 0
-#endif /* MDBX_OSAL_LOCK_SIZE */
-
+/// \brief Инициализация объектов синхронизации внутри текущего процесса
+///   связанных с экземпляром MDBX_env.
+/// \return Код ошибки или 0 в случае успеха.
 int mdbx_lck_init(MDBX_env *env);
 
-int mdbx_lck_seize(MDBX_env *env);
-int mdbx_lck_downgrade(MDBX_env *env, bool complete);
+/// \brief Отключение от общих межпроцесных объектов и разрушение объектов
+///   синхронизации внутри текущего процесса связанных с экземпляром MDBX_env.
 void mdbx_lck_destroy(MDBX_env *env);
 
+/// \brief Подключение к общим межпроцесным объектам блокировки с попыткой
+///   захвата блокировки максимального уровня (разделяемой при недоступности
+///   эксклюзивной).
+///   В зависимости от реализации и/или платформы (Windows) может
+///   захватывать блокировку не-операционного супер-уровня (например, для
+///   инициализации разделяемых объектов синхронизации), которая затем будет
+///   понижена до операционно-эксклюзивной или разделяемой посредством
+///   явного вызова mdbx_lck_downgrade().
+/// \return
+///   MDBX_RESULT_TRUE (-1) - если удалось захватить эксклюзивную блокировку и,
+///     следовательно, текущий процесс является первым и единственным
+///     после предыдущего использования БД.
+///   MDBX_RESULT_FALSE (0) - если удалось захватить только разделяемую
+///     блокировку и, следовательно, БД уже открыта и используется другими
+///     процессами.
+///   Иначе (не 0 и не -1) - код ошибки.
+int mdbx_lck_seize(MDBX_env *env);
+
+/// \brief Снижает уровень первоначальной захваченной блокировки до
+///   операционного уровня определяемого аргументом.
+/// \param
+///   complete = TRUE - понижение до разделяемой блокировки.
+///   complete = FALSE - понижение до эксклюзивной операционной блокировки.
+/// \return Код ошибки или 0 в случае успеха.
+int mdbx_lck_downgrade(MDBX_env *env, bool complete);
+
+/// \brief Блокирует lck-файл и/или таблицу читателей для (де)регистрации.
+/// \return Код ошибки или 0 в случае успеха.
 int mdbx_rdt_lock(MDBX_env *env);
+
+/// \brief Разблокирует lck-файл и/или таблицу читателей после (де)регистрации.
 void mdbx_rdt_unlock(MDBX_env *env);
 
+/// \brief Захватывает блокировку для изменения БД (при старте пишущей
+/// транзакции). Транзакции чтения при этом никак не блокируются.
+/// \return Код ошибки или 0 в случае успеха.
 LIBMDBX_API int mdbx_txn_lock(MDBX_env *env, bool dontwait);
+
+/// \brief Освобождает блокировку по окончанию изменения БД (после завершения
+/// пишущей транзакции).
 LIBMDBX_API void mdbx_txn_unlock(MDBX_env *env);
 
+/// \brief Устанавливает alive-флажок присутствия (индицирующую блокировку)
+///   читателя для pid текущего процесса. Функции может выполнить не более
+///   необходимого минимума для корректной работы mdbx_rpid_check() в других
+///   процессах.
+/// \return Код ошибки или 0 в случае успеха.
 int mdbx_rpid_set(MDBX_env *env);
+
+/// \brief Снимает alive-флажок присутствия (индицирующую блокировку)
+///   читателя для pid текущего процесса. Функции может выполнить не более
+///   необходимого минимума для корректной работы mdbx_rpid_check() в других
+///   процессах.
+/// \return Код ошибки или 0 в случае успеха.
 int mdbx_rpid_clear(MDBX_env *env);
+
+/// \brief Проверяет жив ли процесс-читатель с заданным pid
+///   по alive-флажку присутствия (индицирующей блокировку),
+///   либо любым другим способом.
+/// \return
+///   MDBX_RESULT_TRUE (-1) - если процесс-читатель с соответствующим pid жив
+///     и работает с БД (индицирующая блокировка присутствует).
+///   MDBX_RESULT_FALSE (0) - если процесс-читатель с соответствующим pid
+///     отсутствует или не работает с БД (индицирующая блокировка отсутствует).
+///   Иначе (не 0 и не -1) - код ошибки.
+int mdbx_rpid_check(MDBX_env *env, mdbx_pid_t pid);
 
 #if defined(_WIN32) || defined(_WIN64)
 typedef union MDBX_srwlock {
@@ -664,14 +739,6 @@ typedef NTSTATUS(NTAPI *MDBX_NtFsControlFile)(
 extern MDBX_NtFsControlFile mdbx_NtFsControlFile;
 
 #endif /* Windows */
-
-/* Checks reader by pid.
- *
- * Returns:
- *   MDBX_RESULT_TRUE, if pid is live (unable to acquire lock)
- *   MDBX_RESULT_FALSE, if pid is dead (lock acquired)
- *   or otherwise the errcode. */
-int mdbx_rpid_check(MDBX_env *env, mdbx_pid_t pid);
 
 /*----------------------------------------------------------------------------*/
 /* Atomics */
