@@ -157,6 +157,7 @@ CHECK_SYMBOL_EXISTS(nanf math.h HAVE_nanf)
 CHECK_INCLUDE_FILES(ieee754.h HAVE_IEEE754_H)
 
 if(NOT SUBPROJECT)
+  set(CMAKE_MACOSX_RPATH ON)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
 

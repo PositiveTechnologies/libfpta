@@ -90,8 +90,12 @@
 #endif
 
 #include <limits.h>
-#include <malloc.h>
 #include <string.h>
+#if !(defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
+      defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||          \
+      defined(__DragonFly__) || defined(__APPLE__) || defined(__MACH__))
+#include <malloc.h>
+#endif /* xBSD */
 
 #include <cinttypes> // for PRId64, PRIu64
 #include <cmath>     // for exp2()
@@ -356,18 +360,30 @@
 /* clang-format on */
 //----------------------------------------------------------------------------
 
-/* Prototype should match libc runtime. ISO POSIX (2003) & LSB 3.1 */
-__extern_C void __assert_fail(const char *assertion, const char *filename,
-                              unsigned line, const char *function)
-#ifdef __GNUC__
-#ifdef __THROW
-    __THROW
-#else
-    __nothrow
-#endif
-    __noreturn
-#endif
-    ;
+#if _POSIX_C_SOURCE > 200212 &&                                                \
+    /* workaround for avoid musl libc wrong prototype */ (                     \
+        defined(__GLIBC__) || defined(__GNU_LIBRARY__))
+/* Prototype should match libc runtime. ISO POSIX (2003) & LSB 1.x-3.x */
+__extern_C __nothrow __noreturn void __assert_fail(const char *assertion,
+                                                   const char *file,
+                                                   unsigned line,
+                                                   const char *function);
+#elif defined(__APPLE__) || defined(__MACH__)
+__extern_C __nothrow __noreturn void __assert_rtn(const char *function,
+                                                  const char *file, int line,
+                                                  const char *assertion);
+#define __assert_fail(assertion, file, line, function)                         \
+  __assert_rtn(function, file, line, assertion)
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
+    defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||            \
+    defined(__DragonFly__)
+__extern_C __nothrow __noreturn void __assert(const char *function,
+                                              const char *file, int line,
+                                              const char *assertion);
+#define __assert_fail(assertion, file, line, function)                         \
+  __assert(function, file, line, assertion)
+
+#endif /* __assert_fail */
 
 static __inline bool is_filter(fptu_type_or_filter type_or_filter) {
   return (((uint32_t)type_or_filter) >= fptu_ffilter) ? true : false;

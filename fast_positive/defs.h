@@ -45,6 +45,12 @@
 #	include <cassert>
 #endif
 
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||     \
+    defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||            \
+    defined(__DragonFly__)
+#include </usr/include/sys/cdefs.h>
+#endif /* BSD */
+
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -259,13 +265,13 @@
 #	endif
 #endif /* __const_function */
 
-#ifndef __dll_hidden
+#ifndef __hidden
 #	if defined(__GNUC__) || __has_attribute(visibility)
 #		define __hidden __attribute__((visibility("hidden")))
 #	else
 #		define __hidden
 #	endif
-#endif /* __dll_hidden */
+#endif /* __hidden */
 
 #ifndef __dll_export
 # if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)

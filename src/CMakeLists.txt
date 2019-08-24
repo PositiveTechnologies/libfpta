@@ -108,7 +108,6 @@ target_compile_definitions(${fptu_target} PRIVATE "ERTHINK_D2A_PEDANTRY_ACCURATE
 
 set_target_properties(${fptu_target} PROPERTIES
   PROJECT_LABEL "Fast Positive Tuples"
-  FRAMEWORK TRUE
   VERSION "${FPTU_VERSION}"
   PUBLIC_HEADER "../fast_positive/defs.h;../fast_positive/tuples.h;${FAST_POSITIVE_CONFIG_H}"
   PRIVATE_HEADER ../fast_positive/tuples_internal.h

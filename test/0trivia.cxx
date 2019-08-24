@@ -58,7 +58,7 @@ TEST(Trivia, Denil) {
   denil64 = {fptu_fp64_denil()};
   EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
 #ifdef HAVE_nan
-  denil64 = {-nan("4503599627370495")};
+  denil64 = {-nan("0x000FffffFFFFffff")};
 #ifdef FPTU_DENIL_FP64_MAS
   EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
 #else
@@ -77,7 +77,7 @@ TEST(Trivia, Denil) {
   denil32 = {fptu_fp32_denil()};
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
 #ifdef HAVE_nanf
-  denil32 = {-nanf("8388607")};
+  denil32 = {-nanf("0x007FFFFF")};
 #ifdef FPTU_DENIL_FP32_MAS
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
 #else

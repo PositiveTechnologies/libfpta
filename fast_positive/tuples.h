@@ -603,7 +603,7 @@ FPTU_API fptu_time fptu_now_coarse(void);
 
 #define FPTU_DENIL_FP32_BIN UINT32_C(0xFFFFffff)
 #ifndef _MSC_VER /* MSVC provides invalid nanf(), leave it undefined */
-#define FPTU_DENIL_FP32_MAS "8388607"
+#define FPTU_DENIL_FP32_MAS "0x007FFFFF"
 #endif /* ! _MSC_VER */
 
 #if defined(_MSC_VER) && /* obsolete and trouble full */ _MSC_VER < 1910
@@ -631,7 +631,7 @@ static __inline constexpr float fptu_fp32_denil(void) {
 
 #define FPTU_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
 #ifndef _MSC_VER /* MSVC provides invalid nan(), leave it undefined */
-#define FPTU_DENIL_FP64_MAS "4503599627370495"
+#define FPTU_DENIL_FP64_MAS "0x000FffffFFFFffff"
 #endif /* ! _MSC_VER */
 
 #if defined(_MSC_VER) && /* obsolete and trouble full */ _MSC_VER < 1910
