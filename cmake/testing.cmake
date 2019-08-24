@@ -18,6 +18,15 @@ include(CTest)
 if(BUILD_TESTING)
   cmake_policy(PUSH)
 
+  cmake_policy(SET CMP0054 NEW)
+  if(NOT CMAKE_VERSION VERSION_LESS 3.9)
+    cmake_policy(SET CMP0068 NEW)
+    cmake_policy(SET CMP0069 NEW)
+  endif()
+  if(NOT CMAKE_VERSION VERSION_LESS 3.12)
+    cmake_policy(SET CMP0075 NEW)
+  endif()
+
   # Expected GTest was already found and/or pointed via ${gtest_root},
   # otherwise will search at ${gtest_paths} locations, if defined or default ones.
   find_package(GTest)
