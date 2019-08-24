@@ -22,6 +22,16 @@
 #include "erthink_defs.h"
 #include "erthink_intrin.h"
 
+#pragma push_macro("bswap16")
+#pragma push_macro("bswap32")
+#pragma push_macro("bswap64")
+
+#undef bswap16
+#undef bswap32
+#undef bswap64
+
+//------------------------------------------------------------------------------
+
 #ifdef __cplusplus
 namespace erthink {
 #endif
@@ -121,3 +131,7 @@ template <> inline constexpr_intrin int64_t bswap<int64_t>(int64_t v) {
 }
 }
 #endif
+
+#pragma pop_macro("bswap16")
+#pragma pop_macro("bswap32")
+#pragma pop_macro("bswap64")

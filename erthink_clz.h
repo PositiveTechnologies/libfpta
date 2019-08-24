@@ -33,7 +33,7 @@ namespace erthink {
 
 template <typename T> inline constexpr int clz(T v);
 
-static inline int fallback_clz8(uint8_t v) {
+static __maybe_unused inline int fallback_clz8(uint8_t v) {
   static const int8_t lut[256] = {
       8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3,
       3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
@@ -44,7 +44,7 @@ static inline int fallback_clz8(uint8_t v) {
   return lut[v];
 }
 
-static inline int fallback_clz32(uint32_t v) {
+static __maybe_unused inline int fallback_clz32(uint32_t v) {
   // LY: strive for branchless (SSA-optimizer must solve this)
   int r = 24, s = (v > 0xFFFF) << 4;
   v >>= s;
@@ -57,7 +57,7 @@ static inline int fallback_clz32(uint32_t v) {
   return r + fallback_clz8(static_cast<uint8_t>(v));
 }
 
-static inline int fallback_clz64(uint64_t v) {
+static __maybe_unused inline int fallback_clz64(uint64_t v) {
 #ifdef ERTHINK_ARCH32
   const uint32_t hi = static_cast<uint32_t>(v >> 32);
   return (hi ? 0 : 32) + fallback_clz32(hi ? hi : static_cast<uint32_t>(v));
@@ -112,8 +112,8 @@ template <> inline int clz<uint64_t>(uint64_t v) { return fallback_clz64(v); }
 
 #endif /* compiler */
 
-static __always_inline int clz64(uint64_t v) { return clz(v); }
+static __maybe_unused __always_inline int clz64(uint64_t v) { return clz(v); }
 
-static __always_inline int clz32(uint32_t v) { return clz(v); }
+static __maybe_unused __always_inline int clz32(uint32_t v) { return clz(v); }
 
 } // namespace erthink
