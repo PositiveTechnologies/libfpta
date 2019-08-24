@@ -1,3 +1,7 @@
+### The [repository now only mirrored on the Github](https://abf.io/erthink/libfpta) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
+<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
+-----
+
 libfpta
 ==============================================
 Fast Positive Tables, aka "Позитивные Таблицы"
@@ -7,7 +11,8 @@ multiprocessing with zero-overhead, full ACID semantics with MVCC,
 variety of indexes, saturation, sequences and much more.
 
 
-*The Future will Positive. Всё будет хорошо.*
+*The Future will (be) [Positive](https://www.ptsecurity.com). Всё будет хорошо.*
+
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 [![Build Status](https://travis-ci.org/leo-yuriev/libfpta.svg?branch=master)](https://travis-ci.org/leo-yuriev/libfpta)
 [![Build status](https://ci.appveyor.com/api/projects/status/wiixsody1o9474g9/branch/master?svg=true)](https://ci.appveyor.com/project/leo-yuriev/libfpta/branch/master)
