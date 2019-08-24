@@ -152,7 +152,7 @@ extern runtime_limiter ci_runtime_limiter;
 #define GTEST_IS_EXECUTION_TIMEOUT() ci_runtime_limiter.is_timeout()
 
 static constexpr fpta_regime_flags fpta_regime4testing =
-    fpta_regime_default | fpta_allow_clumsy;
+    fpta_regime_default | fpta_madness4testing;
 
 int test_db_open(const char *path, fpta_durability durability,
                  fpta_regime_flags regime_flags, size_t megabytes,

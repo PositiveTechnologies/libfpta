@@ -33,6 +33,7 @@
  */
 
 #pragma once
+#define FPTA_INTERNALS
 
 #ifdef _MSC_VER
 #if _MSC_VER < 1900

@@ -164,6 +164,13 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
     return (fpta_error)rc;
   }
 
+  if (unlikely(regime_flags & fpta_madness4testing)) {
+    mdbx_setup_debug(MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_DUMP |
+                         MDBX_DBG_LEGACY_MULTIOPEN | MDBX_DBG_JITTER,
+                     reinterpret_cast<MDBX_debug_func *>(
+                         intptr_t(-1 /* means "don't change" */)));
+  }
+
   rc = mdbx_env_create(&db->mdbx_env);
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;
