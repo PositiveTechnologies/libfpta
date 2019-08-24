@@ -24,7 +24,7 @@
 ##  to machining, including cases with shared memory.
 ##  Please see README.md at https://github.com/leo-yuriev/libfptu
 ##
-##  The Future will Positive. Всё будет хорошо.
+##  The Future will (be) Positive. Всё будет хорошо.
 ##
 ##  "Позитивные Кортежи" дают легковесное линейное представление небольших
 ##  JSON-подобных структур в экстремально удобной для машины форме,
