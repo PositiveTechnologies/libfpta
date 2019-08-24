@@ -406,7 +406,7 @@ static __inline bool tag_match_fixedsize(uint_fast16_t tag, size_t units) {
          units == fptu_internal_map_t2u[fptu_get_type(tag)];
 }
 
-size_t fptu_field_units(const fptu_field *pf);
+__pure_function size_t fptu_field_units(const fptu_field *pf);
 
 static __inline const void *fptu_ro_detent(fptu_ro ro) {
   return (char *)ro.sys.iov_base + ro.sys.iov_len;

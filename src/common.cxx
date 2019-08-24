@@ -19,7 +19,11 @@
 
 #include "fast_positive/tuples_internal.h"
 
-__hot size_t fptu_field_units(const fptu_field *pf) {
+#if defined(__GNUC__) && __GNUC__ == 8
+__noinline
+#endif /* workaround for GCC 8.x bug */
+    __hot size_t
+    fptu_field_units(const fptu_field *pf) {
   fptu_type type = pf->type();
   if (likely(type < fptu_cstr)) {
     // fixed length type
