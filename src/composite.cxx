@@ -20,6 +20,8 @@
 #include "details.h"
 #include <cstdarg>
 
+#include "externals/libfptu/src/erthink/erthink_endian.h"
+
 // #define DONT_USE_BITSET
 #ifndef DONT_USE_BITSET
 #include <bitset>
@@ -158,8 +160,8 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     case fptu_datetime: {
       fptu_time stub;
       /* convert byte order for proper comparison result in a index kind. */
-      stub.fixedpoint = obverse ? htobe(FPTA_DENIL_DATETIME_BIN)
-                                : htole(FPTA_DENIL_DATETIME_BIN);
+      stub.fixedpoint = obverse ? erthink::h2be(FPTA_DENIL_DATETIME_BIN)
+                                : erthink::h2le(FPTA_DENIL_DATETIME_BIN);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -167,7 +169,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     case fptu_uint16: {
       uint16_t stub = (uint16_t)numeric_traits<fptu_uint16>::denil(shove);
       /* convert byte order for proper comparison result in a index kind. */
-      stub = obverse ? htobe(stub) : htole(stub);
+      stub = obverse ? erthink::h2be(stub) : erthink::h2le(stub);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -175,7 +177,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     case fptu_uint32: {
       uint32_t stub = (uint32_t)numeric_traits<fptu_uint32>::denil(shove);
       /* convert byte order for proper comparison result in a index kind. */
-      stub = obverse ? htobe(stub) : htole(stub);
+      stub = obverse ? erthink::h2be(stub) : erthink::h2le(stub);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -183,7 +185,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     case fptu_uint64: {
       uint64_t stub = (uint64_t)numeric_traits<fptu_uint64>::denil(shove);
       /* convert byte order for proper comparison result in a index kind. */
-      stub = obverse ? htobe(stub) : htole(stub);
+      stub = obverse ? erthink::h2be(stub) : erthink::h2le(stub);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -192,7 +194,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
       int32_t stub = (int32_t)numeric_traits<fptu_int32>::denil(shove);
       stub -= INT32_MIN /* rebase signed min-value to binary all-zeros */;
       /* convert byte order for proper comparison result in a index kind. */
-      stub = obverse ? htobe(stub) : htole(stub);
+      stub = obverse ? erthink::h2be(stub) : erthink::h2le(stub);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -201,7 +203,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
       int64_t stub = (int64_t)numeric_traits<fptu_int64>::denil(shove);
       stub -= INT64_MIN /* rebase signed min-value to binary all-zeros */;
       /* convert byte order for proper comparison result in a index kind. */
-      stub = obverse ? htobe(stub) : htole(stub);
+      stub = obverse ? erthink::h2be(stub) : erthink::h2le(stub);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -217,7 +219,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
       stub.u32 = (stub.i32 < 0) ? UINT32_C(0xffffFFFF) - stub.u32
                                 : stub.u32 + UINT32_C(0x80000000);
       /* convert byte order for proper comparison result in a index kind. */
-      stub.u32 = obverse ? htobe(stub.u32) : htole(stub.u32);
+      stub.u32 = obverse ? erthink::h2be(stub.u32) : erthink::h2le(stub.u32);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -233,7 +235,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
       stub.u64 = (stub.i64 < 0) ? UINT64_C(0xffffFFFFffffFFFF) - stub.u64
                                 : stub.u64 + UINT64_C(0x8000000000000000);
       /* convert byte order for proper comparison result in a index kind. */
-      stub.u64 = obverse ? htobe(stub.u64) : htole(stub.u64);
+      stub.u64 = obverse ? erthink::h2be(stub.u64) : erthink::h2le(stub.u64);
       /* concatenate to the resulting key */
       return concat_bytes(key, &stub, sizeof(stub));
     }
@@ -269,8 +271,8 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   case fptu_datetime: {
     fptu_time value = field->payload()->dt;
     /* convert byte order for proper comparison result in a index kind. */
-    value.fixedpoint =
-        obverse ? htobe(value.fixedpoint) : htole(value.fixedpoint);
+    value.fixedpoint = obverse ? erthink::h2be(value.fixedpoint)
+                               : erthink::h2le(value.fixedpoint);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
@@ -278,7 +280,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   case fptu_uint16: {
     uint16_t value = (uint16_t)field->get_payload_uint16();
     /* convert byte order for proper comparison result in a index kind. */
-    value = obverse ? htobe(value) : htole(value);
+    value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
@@ -286,7 +288,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   case fptu_uint32: {
     uint32_t value = field->payload()->u32;
     /* convert byte order for proper comparison result in a index kind. */
-    value = obverse ? htobe(value) : htole(value);
+    value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
@@ -294,7 +296,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   case fptu_uint64: {
     uint64_t value = field->payload()->u64;
     /* convert byte order for proper comparison result in a index kind. */
-    value = obverse ? htobe(value) : htole(value);
+    value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
@@ -303,7 +305,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     int32_t value = field->payload()->i32;
     value -= INT32_MIN /* rebase signed min-value to binary all-zeros */;
     /* convert byte order for proper comparison result in a index kind. */
-    value = obverse ? htobe(value) : htole(value);
+    value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
@@ -312,7 +314,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     int64_t value = field->payload()->i64;
     value -= INT64_MIN /* rebase signed min-value to binary all-zeros */;
     /* convert byte order for proper comparison result in a index kind. */
-    value = obverse ? htobe(value) : htole(value);
+    value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
@@ -328,7 +330,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     value.u32 = (value.i32 < 0) ? UINT32_C(0xffffFFFF) - value.u32
                                 : value.u32 + UINT32_C(0x80000000);
     /* convert byte order for proper comparison result in a index kind. */
-    value.u32 = obverse ? htobe(value.u32) : htole(value.u32);
+    value.u32 = obverse ? erthink::h2be(value.u32) : erthink::h2le(value.u32);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
@@ -344,7 +346,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
     value.u64 = (value.i64 < 0) ? UINT64_C(0xffffFFFFffffFFFF) - value.u64
                                 : value.u64 + UINT64_C(0x8000000000000000);
     /* convert byte order for proper comparison result in a index kind. */
-    value.u64 = obverse ? htobe(value.u64) : htole(value.u64);
+    value.u64 = obverse ? erthink::h2be(value.u64) : erthink::h2le(value.u64);
     /* concatenate to the resulting key */
     return concat_bytes(key, &value, sizeof(value));
   }
