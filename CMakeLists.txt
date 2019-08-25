@@ -112,13 +112,10 @@ message(STATUS "Use C++${FPTA_CXX_STANDARD} for libfpta")
 # Define GNU standard installation directories
 include(GNUInstallDirs)
 
-include(cmake.fpta/utils.cmake)
+include(externals/libfptu/src/erthink/cmake/utils.cmake)
 # the order is significant: we need to know os and compiler to configure libs
-include(cmake.fpta/arch.cmake)
-include(cmake.fpta/os.cmake)
-include(cmake.fpta/profile.cmake)
-include(cmake.fpta/compiler.cmake)
-# include(cmake.fpta/atomic.cmake)
+include(externals/libfptu/src/erthink/cmake/profile.cmake)
+include(externals/libfptu/src/erthink/cmake/compiler.cmake)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
   message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTA."
@@ -188,7 +185,7 @@ if(VALGRIND)
     CACHE STRING "Valgrind options" FORCE)
   set(VALGRIND_COMMAND_OPTIONS "${MEMORYCHECK_COMMAND_OPTIONS}" CACHE STRING "Valgrind options" FORCE)
 endif()
-include(cmake.fpta/testing.cmake)
+include(externals/libfptu/src/erthink/cmake/testing.cmake)
 
 find_program(ECHO echo)
 find_program(CAT cat)
@@ -248,8 +245,6 @@ if(CLANG_FORMAT AND UNIX)
       xargs ${CLANG_FORMAT} -i --style=file
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()
-
-include(cmake.fpta/multilib.cmake)
 
 if(NOT "${PROJECT_BINARY_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
   add_custom_target(distclean)
