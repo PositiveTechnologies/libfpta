@@ -1549,7 +1549,7 @@ inline uint_fast16_t make_tag(unsigned column, fptu_type type) {
 
 FPTU_API std::string format(const char *fmt, ...)
 #ifdef __GNUC__
-    __attribute__((format(printf, 1, 2)))
+    __attribute__((__format__(printf, 1, 2)))
 #endif
     ;
 FPTU_API std::string format_va(const char *fmt, va_list ap);

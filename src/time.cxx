@@ -108,7 +108,7 @@ static uint32_t coarse_resolution_ns;
 static clockid_t coarse_clockid;
 static uint_fast32_t coarse_resolution_ns;
 
-static void __attribute__((constructor)) fptu_clock_init(void) {
+static void __attribute__((__constructor__)) fptu_clock_init(void) {
   struct timespec resolution;
   /* LY: Получаем точность coarse-таймеров, одновременно проверяя
    * поддерживается ли CLOCK_REALTIME_COARSE ядром.
