@@ -510,7 +510,8 @@ __cold string to_string(const fptu_time &time) {
 //----------------------------------------------------------------------------
 
 #ifdef __SANITIZE_ADDRESS__
-extern "C" FPTU_API __attribute__((weak)) const char *__asan_default_options() {
+extern "C" FPTU_API __attribute__((__weak__)) const char *
+__asan_default_options() {
   return "symbolize=1:allow_addr2line=1:"
 #ifdef _DEBUG
          "debug=1:"

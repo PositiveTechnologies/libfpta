@@ -1,6 +1,6 @@
 language: cpp
 sudo: required
-dist: trusty
+dist: xenial
 
 env:
   global:
@@ -32,6 +32,7 @@ compiler:
 
 os:
   - linux
+  - osx
 
 before_install: >
   if [ "${COVERITY_SCAN_BRANCH}" = 1 ]; then

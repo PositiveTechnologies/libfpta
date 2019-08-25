@@ -24,7 +24,7 @@
 ##  to machining, including cases with shared memory.
 ##  Please see README.md at https://github.com/leo-yuriev/libfptu
 ##
-##  The Future will Positive. Всё будет хорошо.
+##  The Future will (be) Positive. Всё будет хорошо.
 ##
 ##  "Позитивные Кортежи" дают легковесное линейное представление небольших
 ##  JSON-подобных структур в экстремально удобной для машины форме,
@@ -104,9 +104,10 @@ else()
   set(fptu_target fptu)
 endif()
 
+target_compile_definitions(${fptu_target} PRIVATE "ERTHINK_D2A_PEDANTRY_ACCURATE=1")
+
 set_target_properties(${fptu_target} PROPERTIES
   PROJECT_LABEL "Fast Positive Tuples"
-  FRAMEWORK TRUE
   VERSION "${FPTU_VERSION}"
   PUBLIC_HEADER "../fast_positive/defs.h;../fast_positive/tuples.h;${FAST_POSITIVE_CONFIG_H}"
   PRIVATE_HEADER ../fast_positive/tuples_internal.h
