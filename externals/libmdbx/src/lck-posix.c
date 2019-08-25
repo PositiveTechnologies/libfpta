@@ -28,11 +28,13 @@
 /*----------------------------------------------------------------------------*/
 /* rthc */
 
-static __cold __attribute__((constructor)) void mdbx_global_constructor(void) {
+static __cold __attribute__((__constructor__)) void
+mdbx_global_constructor(void) {
   mdbx_rthc_global_init();
 }
 
-static __cold __attribute__((destructor)) void mdbx_global_destructor(void) {
+static __cold __attribute__((__destructor__)) void
+mdbx_global_destructor(void) {
   mdbx_rthc_global_dtor();
 }
 
@@ -150,7 +152,8 @@ int __cold mdbx_lck_seize(MDBX_env *env) {
                        (env->me_flags & MDBX_RDONLY) ? F_RDLCK : F_WRLCK, 0,
                        OFF_T_MAX);
   if (rc == 0) {
-    /* got dxb-exclusive, try lck-exclusive */
+  continue_exclusive:
+    /* got dxb-exclusive, continue lck-exclusive */
     rc = mdbx_lck_op(env->me_lfd, OP_SETLKW, F_WRLCK, 0, OFF_T_MAX);
     if (rc == 0) {
       /* got both exclusive */
@@ -167,7 +170,14 @@ int __cold mdbx_lck_seize(MDBX_env *env) {
                      (env->me_flags & MDBX_RDONLY) ? F_RDLCK : F_WRLCK,
                      env->me_pid, 1);
     if (rc == 0) {
-      /* got dxb-shared, try lck-shared */
+      /* got dxb-shared, try again dxb-exclusive */
+      rc = mdbx_lck_op(env->me_fd, OP_SETLK,
+                       (env->me_flags & MDBX_RDONLY) ? F_RDLCK : F_WRLCK, 0,
+                       OFF_T_MAX);
+      if (rc == 0)
+        goto continue_exclusive;
+
+      /* continue lck-shared */
       rc = mdbx_lck_op(env->me_lfd, OP_SETLKW, F_RDLCK, 0, 1);
       if (rc == 0) {
         /* got both dxb and lck shared lock */
@@ -261,10 +271,25 @@ void __cold mdbx_lck_destroy(MDBX_env *env) {
   /* File locks would be released (by kernel) while the file-descriptors
    * will be closed. But to avoid false-positive EDEADLK from the kernel,
    * locks should be released here explicitly with properly order. */
-  if (env->me_lfd != INVALID_HANDLE_VALUE)
+  if (env->me_lfd != INVALID_HANDLE_VALUE) {
+    /* try get exclusive access */
+    if (env->me_lck &&
+        mdbx_lck_op(env->me_fd, OP_SETLK,
+                    (env->me_flags & MDBX_RDONLY) ? F_RDLCK : F_WRLCK, 0,
+                    OFF_T_MAX) == 0 &&
+        mdbx_lck_op(env->me_lfd, OP_SETLK, F_WRLCK, 0, OFF_T_MAX) == 0) {
+      mdbx_info("%s: got exclusive, drown mutexes", mdbx_func_);
+      int rc = pthread_mutex_destroy(&env->me_lck->mti_rmutex);
+      if (rc == 0)
+        rc = pthread_mutex_destroy(&env->me_lck->mti_wmutex);
+      assert(rc == 0);
+      (void)rc;
+      msync(env->me_lck, env->me_os_psize, MS_ASYNC);
+    }
     (void)mdbx_lck_op(env->me_lfd, OP_SETLK, F_UNLCK, 0, OFF_T_MAX);
-  assert(env->me_fd != INVALID_HANDLE_VALUE);
-  (void)mdbx_lck_op(env->me_fd, OP_SETLK, F_UNLCK, 0, OFF_T_MAX);
+  }
+  if (env->me_fd != INVALID_HANDLE_VALUE)
+    (void)mdbx_lck_op(env->me_fd, OP_SETLK, F_UNLCK, 0, OFF_T_MAX);
 }
 
 static int mdbx_robust_lock(MDBX_env *env, pthread_mutex_t *mutex) {
