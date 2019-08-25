@@ -1,3 +1,7 @@
+# GNU Makefile for t1ha, https://abf.io/erthink/t1ha
+
+########################################################################
+
 # T1HA_USE_FAST_ONESHOT_READ:
 # Define it to 1 for little bit faster code.
 # Unfortunately this may triggering a false-positive alarms from Valgrind,
@@ -31,11 +35,13 @@ TARGET_ARCH := e2k
 CFLAGS += -mtune=native
 OBJ_LIST += t1ha0_aes_noavx.o t1ha0_aes_avx.o
 BENCH_EXTRA += 4bench_t1ha0_aes_noavx.o 4bench_t1ha0_aes_avx.o
+BENCH_EXTRA += meow1_aes.o
 else ifeq ($(TARGET_ARCH_ia32),yes)
 TARGET_ARCH := ia32
 CFLAGS += -mtune=native
 OBJ_LIST += t1ha0_aes_noavx.o t1ha0_aes_avx.o t1ha0_aes_avx2.o
 BENCH_EXTRA += 4bench_t1ha0_aes_noavx.o 4bench_t1ha0_aes_avx.o 4bench_t1ha0_aes_avx2.o
+BENCH_EXTRA += meow1_aes.o
 else
 TARGET_ARCH := portable
 endif
@@ -88,6 +94,10 @@ t1ha0_aes_avx2.o: t1ha.h src/t1ha_bits.h src/t1ha0_ia32aes_a.h src/t1ha0_ia32aes
 4bench_t1ha0_aes_avx2.o: t1ha.h src/t1ha_bits.h src/t1ha0_ia32aes_a.h src/t1ha0_ia32aes_b.h tests/4bench_t1ha0_ia32aes_avx2.c Makefile
 	$(CC) $(CFLAGS_LIB) $($(@)_ARCH_$(TARGET_ARCH)_CFLAGS) -c -o $@ tests/4bench_t1ha0_ia32aes_avx2.c
 
+meow1_aes.o_ARCH_ia32_CFLAGS = -march=native -maes
+meow1_aes.o: tests/meowhash/meow_hash.h tests/meowhash/meow1_thunk.c Makefile
+	$(CC) $(CFLAGS_LIB) -save-temps $($(@)_ARCH_$(TARGET_ARCH)_CFLAGS) -c -o $@ tests/meowhash/meow1_thunk.c
+
 t1ha1.o: t1ha.h src/t1ha_bits.h src/t1ha1.c Makefile
 	$(CC) $(CFLAGS_LIB) -c -o $@ src/t1ha1.c
 
@@ -121,8 +131,8 @@ test.o: t1ha.h tests/common.h tests/mera.h tests/test.c \
 	$(CC) $(CFLAGS_TEST) -c -o $@ tests/test.c
 
 4bench_xxhash.o: tests/xxhash/xxhash.h tests/xxhash/xxhash.c \
-		Makefile
-	$(CC) $(CFLAGS_TEST) -Wno-error -c -o $@ tests/xxhash/xxhash.c
+		tests/xxhash/xxh_thunk.c Makefile
+	$(CC) $(CFLAGS_TEST) -Wno-error -c -o $@ tests/xxhash/xxh_thunk.c
 
 4bench_highwayhash_pure_c.o: tests/highwayhash/pure_c.h \
 		tests/highwayhash/pure_c.c \
