@@ -2405,6 +2405,16 @@ TEST_P(SmokeSelect, Filter) {
   cursor = nullptr;
 }
 
+#ifdef INSTANTIATE_TEST_SUITE_P
+INSTANTIATE_TEST_SUITE_P(
+    Combine, SmokeSelect,
+    ::testing::Combine(::testing::Values(fpta_primary_unique_ordered_obverse,
+                                         fpta_primary_withdups_ordered_obverse,
+                                         fpta_primary_unique_unordered,
+                                         fpta_primary_withdups_unordered),
+                       ::testing::Values(fpta_unsorted, fpta_ascending,
+                                         fpta_descending)));
+#else
 INSTANTIATE_TEST_CASE_P(
     Combine, SmokeSelect,
     ::testing::Combine(::testing::Values(fpta_primary_unique_ordered_obverse,
@@ -2413,6 +2423,7 @@ INSTANTIATE_TEST_CASE_P(
                                          fpta_primary_withdups_unordered),
                        ::testing::Values(fpta_unsorted, fpta_ascending,
                                          fpta_descending)));
+#endif
 
 //----------------------------------------------------------------------------
 
@@ -5392,6 +5403,16 @@ TEST_P(Smoke_CursorRERERE, following_multival) {
   EXPECT_EQ(after_last, Current());
 }
 
+#ifdef INSTANTIATE_TEST_SUITE_P
+INSTANTIATE_TEST_SUITE_P(
+    Combine, Smoke_CursorRERERE,
+    ::testing::Combine(
+        ::testing::Values(fpta_primary_withdups_ordered_obverse,
+                          fpta_primary_unique_ordered_obverse,
+                          fpta_secondary_unique_ordered_obverse,
+                          fpta_secondary_withdups_ordered_obverse),
+        ::testing::Values(fpta_ascending, fpta_descending, fpta_unsorted)));
+#else
 INSTANTIATE_TEST_CASE_P(
     Combine, Smoke_CursorRERERE,
     ::testing::Combine(
@@ -5400,6 +5421,7 @@ INSTANTIATE_TEST_CASE_P(
                           fpta_secondary_unique_ordered_obverse,
                           fpta_secondary_withdups_ordered_obverse),
         ::testing::Values(fpta_ascending, fpta_descending, fpta_unsorted)));
+#endif
 
 //----------------------------------------------------------------------------
 

@@ -712,11 +712,19 @@ typedef ::testing::Types<glue<fptu_96>, glue<fptu_cstr>, glue<fptu_opaque>,
 
 template <typename TypeParam>
 struct Value2Key_AllString : public ::testing::Test {};
+#ifdef TYPED_TEST_SUITE
+TYPED_TEST_SUITE(Value2Key_AllString, AllStringTypes);
+#else
 TYPED_TEST_CASE(Value2Key_AllString, AllStringTypes);
+#endif
 
 template <typename TypeParam>
 struct Value2Key_VariableString : public ::testing::Test {};
+#ifdef TYPED_TEST_SUITE
+TYPED_TEST_SUITE(Value2Key_VariableString, VariableStringTypes);
+#else
 TYPED_TEST_CASE(Value2Key_VariableString, VariableStringTypes);
+#endif
 
 template <fptu_type data_type, fpta_index_type index_type>
 void expect_lt(const fpta_value &left, const fpta_value &right) {

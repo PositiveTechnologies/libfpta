@@ -2048,7 +2048,7 @@ unsigned CompositeTest_Combine(bool just_count) {
                         __FILE__, __LINE__, [=]() -> CompositeCombineFixture * {
                           return new CompositeCombineCRUD(tuple);
                         });
-#endif /* INSTANTIATE_TEST_SUITE_P */
+#endif /*   */
                   }
                   ++count;
                 }

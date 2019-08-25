@@ -408,7 +408,11 @@ template <fptu_type type, fpta_index_type index> void TestPrimary() {
 //----------------------------------------------------------------------------
 
 template <typename TypeParam> class PrimaryIndex : public ::testing::Test {};
+#ifdef TYPED_TEST_SUITE_P
+TYPED_TEST_SUITE_P(PrimaryIndex);
+#else
 TYPED_TEST_CASE_P(PrimaryIndex);
+#endif
 
 template <fptu_type _type> struct glue {
   static constexpr fptu_type type = _type;
@@ -422,7 +426,11 @@ typedef ::testing::Types<glue<fptu_null>, glue<fptu_uint16>, glue<fptu_int32>,
                          /* glue<fptu_nested>, */ glue<fptu_farray>>
     ColumnTypes;
 
+#ifdef TYPED_TEST_SUITE
+TYPED_TEST_SUITE(PrimaryIndex, ColumnTypes);
+#else
 TYPED_TEST_CASE(PrimaryIndex, ColumnTypes);
+#endif
 
 TYPED_TEST(PrimaryIndex, obverse_unique) {
   TestPrimary<TypeParam::type, fpta_primary_unique_ordered_obverse>();

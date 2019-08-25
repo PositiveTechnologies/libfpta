@@ -304,12 +304,21 @@ TEST_P(CrudSimple, Nulls) {
   }
 }
 
+#ifdef INSTANTIATE_TEST_SUITE_P
+INSTANTIATE_TEST_SUITE_P(
+    Combine, CrudSimple,
+    ::testing::Combine(::testing::Values(true, false),
+                       ::testing::Values(1, 2, 3, 4, 5, 6, 7, 8, 9),
+                       ::testing::Values(0, 1, 2, 3, 4, 5, 6, 7, 8),
+                       ::testing::Values(0, 1, 2), ::testing::Values(0, 1, 2)));
+#else
 INSTANTIATE_TEST_CASE_P(
     Combine, CrudSimple,
     ::testing::Combine(::testing::Values(true, false),
                        ::testing::Values(1, 2, 3, 4, 5, 6, 7, 8, 9),
                        ::testing::Values(0, 1, 2, 3, 4, 5, 6, 7, 8),
                        ::testing::Values(0, 1, 2), ::testing::Values(0, 1, 2)));
+#endif
 
 //----------------------------------------------------------------------------
 
