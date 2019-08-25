@@ -383,8 +383,16 @@ enum fpta_error {
   FPTA_ENOENT = ENOENT /* No such file or directory (POSIX) */,
   FPTA_EPERM = EPERM /* Operation not permitted (POSIX) */,
   FPTA_EBUSY = EBUSY /* Device or resource busy (POSIX) */,
-  FPTA_ENAME = EKEYREJECTED /* FPTA_EINVAL */,
-  FPTA_EFLAG = EBADRQC /* FPTA_EINVAL */,
+#ifdef EKEYREJECTED
+  FPTA_ENAME = EKEYREJECTED,
+#else
+  FPTA_ENAME = FPTA_EINVAL,
+#endif
+#ifdef EBADRQC
+  FPTA_EFLAG = EBADRQC,
+#else
+  FPTA_EFLAG = FPTA_EINVAL,
+#endif
 #endif
 
   /************************************************* MDBX's error codes ***/
@@ -3219,10 +3227,6 @@ FPTA_API void *__fpta_index_shove2comparator(fpta_shove_t shove);
 static __inline bool fpta_is_under_valgrind(void) {
   return fptu_is_under_valgrind();
 }
-
-FPTA_API uint64_t fpta_umul_64x64_128(uint64_t a, uint64_t b, uint64_t *h);
-FPTA_API uint64_t fpta_umul_32x32_64(uint32_t a, uint32_t b);
-FPTA_API uint64_t fpta_umul_64x64_high(uint64_t a, uint64_t b);
 
 typedef struct fpta_version_info {
   uint8_t major;

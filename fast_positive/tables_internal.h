@@ -86,9 +86,13 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <malloc.h>
 #include <stdlib.h>
 #include <time.h>
+#if !(defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
+      defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||          \
+      defined(__DragonFly__) || defined(__APPLE__) || defined(__MACH__))
+#include <malloc.h>
+#endif /* xBSD */
 
 __extern_C int_fast32_t mrand64(void);
 
