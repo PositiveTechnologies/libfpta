@@ -258,11 +258,19 @@ public:
         bytes += 1 + length(vector[i]);
       result.reserve(bytes);
 
-      result.assign(take(vector.front()));
+#if HAVE_cxx17_std_string_view
+      result.assign(std::string_view(take(vector.front())));
       for (size_t i = 1; i < vector.size(); ++i) {
         result.append(1, delimiter);
-        result.append(take(vector[i]));
+        result.append(std::string_view(take(vector[i])));
       }
+#else
+      result.assign(std::string(take(vector.front())));
+      for (size_t i = 1; i < vector.size(); ++i) {
+        result.append(1, delimiter);
+        result.append(std::string(take(vector[i])));
+      }
+#endif
     }
     return result;
   }
