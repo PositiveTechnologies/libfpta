@@ -45,6 +45,7 @@ typedef ::testing::Types<
 template <typename TypeParam> class ShortAlloc : public ::testing::Test {};
 #ifdef TYPED_TEST_SUITE_P
 TYPED_TEST_SUITE_P(ShortAlloc);
+TYPED_TEST_SUITE(ShortAlloc, Sizes);
 #else
 TYPED_TEST_CASE_P(ShortAlloc);
 TYPED_TEST_CASE(ShortAlloc, Sizes);

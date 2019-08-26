@@ -574,7 +574,8 @@ typedef _Complex float __cfloat128 __attribute__((__mode__(__TC__)));
 
 //------------------------------------------------------------------------------
 
-#if defined(__cplusplus) && !defined(DEFINE_ENUM_FLAG_OPERATORS)
+#ifndef DEFINE_ENUM_FLAG_OPERATORS
+#if defined(__cplusplus)
 // Define operator overloads to enable bit operations on enum values that are
 // used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM)                                       \
@@ -602,3 +603,4 @@ typedef _Complex float __cfloat128 __attribute__((__mode__(__TC__)));
 #else                                    /* __cplusplus */
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM) /* nope, C allows these operators */
 #endif                                   /* !__cplusplus */
+#endif                                   /* DEFINE_ENUM_FLAG_OPERATORS */

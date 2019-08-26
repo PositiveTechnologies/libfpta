@@ -54,4 +54,6 @@ script: >
       fi) &&
     make --keep-going all &&
     make --keep-going test && test/fptu_c_mode;
-  fi
+  else
+    [ ! -s cov-int/scm_log.txt ] || cat cov-int/scm_log.txt;
+  fi && sleep 3
