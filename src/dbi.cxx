@@ -266,7 +266,7 @@ __cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def,
       if (!db->dbi_handles[i] || db->dbi_tsns[i] >= tardy_tsn)
         continue;
 
-      int rc = mdbx_dbi_close(db->mdbx_env, db->dbi_handles[i]);
+      rc = mdbx_dbi_close(db->mdbx_env, db->dbi_handles[i]);
       if (rc != MDBX_SUCCESS && rc != MDBX_BAD_DBI)
         return rc;
       db->dbi_handles[i] = 0;

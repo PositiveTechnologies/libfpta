@@ -36,10 +36,10 @@ __hot int fpta_check_nonnullable(const fpta_table_schema *table_def,
  * nullable колонки идут последними, т.е. дальше проверять нечего */
 #ifndef NDEBUG
         while (++i < table_def->column_count()) {
-          const auto shove = table_def->column_shove(i);
-          const auto index = fpta_shove2index(shove);
-          assert(!fpta_is_indexed(index));
-          assert(index & fpta_index_fnullable);
+          const auto chk_shove = table_def->column_shove(i);
+          const auto chk_index = fpta_shove2index(chk_shove);
+          assert(!fpta_is_indexed(chk_index));
+          assert(chk_index & fpta_index_fnullable);
         }
 #endif
         break;
@@ -235,16 +235,16 @@ static void index_stat2cost(MDBX_stat &stat,
   info.bytes =
       (info.branch_pages + info.leaf_pages + info.large_pages) * stat.ms_psize;
 
-  info.scan_O1N = (8 * info.bytes + info.items) / (info.items + 1);
+  info.scan_O1N = unsigned((8 * info.bytes + info.items) / (info.items + 1));
   const size_t records_per_leaf =
       42 + (info.items + info.leaf_pages) / (info.leaf_pages + 1);
   const size_t records_per_branch =
       (info.items + info.branch_pages) / (info.branch_pages + 1);
-  info.search_OlogN =
+  info.search_OlogN = unsigned(
       42 + (records_per_leaf + records_per_branch * info.btree_depth + 1) *
-               info.scan_O1N;
+               info.scan_O1N);
   info.clumsy_factor =
-      (info.btree_depth * info.bytes + info.items) / (info.items + 1);
+      unsigned((info.btree_depth * info.bytes + info.items) / (info.items + 1));
 }
 
 int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
@@ -330,9 +330,9 @@ int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
         stat->branch_pages += (size_t)mdbx_stat.ms_branch_pages;
         stat->large_pages += (size_t)mdbx_stat.ms_overflow_pages;
 
-        stat->index_costs_total = i + 1;
+        stat->index_costs_total = unsigned(i + 1);
         if (space4costs >= stat->index_costs_total) {
-          stat->index_costs_provided = i + 1;
+          stat->index_costs_provided = unsigned(i + 1);
           index_stat2cost(mdbx_stat, stat->index_costs[i]);
           stat->index_costs[i].column_shove =
               table_id->table_schema->column_shove(i);
@@ -346,8 +346,8 @@ int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
 
     /* LY: Исходим из того, что для сканирования всех записей потребуется
      * прочитать и обработать все страницы */
-    stat->cost_scan_O1N =
-        42 + (8 * stat->total_bytes + stat->row_count) / (stat->row_count + 1);
+    stat->cost_scan_O1N = unsigned(
+        42 + (8 * stat->total_bytes + stat->row_count) / (stat->row_count + 1));
 
     /* LY: Поиск одной записи по значению ключа потребует бинарного поиска в
      * одной странице на каждом уровне дерева. Исходим из того, что стоимость
@@ -359,18 +359,19 @@ int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
         (stat->row_count + stat->leaf_pages) / (stat->leaf_pages + 1);
     const size_t records_per_branch =
         (stat->row_count + stat->branch_pages) / (stat->branch_pages + 1);
-    stat->cost_search_OlogN =
+    stat->cost_search_OlogN = unsigned(
         42 + (records_per_leaf + records_per_branch * stat->btree_depth + 1) *
-                 stat->cost_scan_O1N;
+                 stat->cost_scan_O1N);
 
     /* LY: При обновлении записи потребуется обновлять дерево отдельно для
      * каждого индекса, что проще оценить относительно поиска, через количество
      * деревьев и сумму их высот. Кроме этого, потребуется выделение и
      * копирование страниц, перебалансировка деревьев, а также обслуживание
      * списков страниц. */
-    stat->cost_alter_MOlogN = 42 + (records_per_leaf * number_of_trees +
-                                    records_per_branch * summary_depth + 1) *
-                                       stat->cost_scan_O1N * 3;
+    stat->cost_alter_MOlogN =
+        unsigned(42 + (records_per_leaf * number_of_trees +
+                       records_per_branch * summary_depth + 1) *
+                          stat->cost_scan_O1N * 3);
 
     /* LY: Аналогично оцениваем амортизационные затраты на поиск при проверке
      * уникальности для всех вторичных индексов с контролем уникальности. */
@@ -384,9 +385,10 @@ int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
 
     const size_t uniq_O1N =
         (8 * uniq_total_bytes + uniq_total_items) / (uniq_total_items + 1);
-    stat->cost_uniq_MOlogN = (uniq_per_leaf * uniq_trees +
-                              uniq_per_branch * uniq_summary_depth + 1) *
-                             uniq_O1N;
+    stat->cost_uniq_MOlogN =
+        unsigned((uniq_per_leaf * uniq_trees +
+                  uniq_per_branch * uniq_summary_depth + 1) *
+                 uniq_O1N);
   }
 
   if (likely(row_count)) {

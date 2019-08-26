@@ -250,8 +250,7 @@ int fpta_get_column2buffer(fptu_ro row, const fpta_name *column_id,
     fpta_key *key = (fpta_key *)buffer;
     const fpta_table_schema *table_schema =
         column_id->column.table->table_schema;
-    int rc =
-        fpta_composite_row2key(table_schema, column_id->column.num, row, *key);
+    rc = fpta_composite_row2key(table_schema, column_id->column.num, row, *key);
     if (unlikely(rc != FPTA_SUCCESS))
       return rc;
 
@@ -269,8 +268,8 @@ int fpta_get_column2buffer(fptu_ro row, const fpta_name *column_id,
 
   if (value->type >= fpta_string) {
     assert(value->type <= fpta_binary);
-    size_t needed_bytes = value->binary_length +
-                          (fptu_cstr == fpta_name_coltype(column_id) ? 1 : 0);
+    unsigned needed_bytes = value->binary_length +
+                            (fptu_cstr == fpta_name_coltype(column_id) ? 1 : 0);
     assert((value->type == fpta_string) ==
            (fptu_cstr == fpta_name_coltype(column_id)));
     if (unlikely(needed_bytes > buffer_length)) {

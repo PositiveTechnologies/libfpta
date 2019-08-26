@@ -1433,7 +1433,7 @@ int fpta_table_column_count_ex(const fpta_name *table_id,
 
   const fpta_table_schema *schema = table_id->table_schema;
   if (likely(total_columns))
-    *total_columns = schema->column_count();
+    *total_columns = unsigned(schema->column_count());
   if (composite_count) {
     unsigned count = 0;
     for (size_t i = 0; i < schema->column_count(); ++i) {
@@ -1705,7 +1705,7 @@ static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
       return r;
 
     r.items += item_count;
-    for (size_t k = 0; k < item_count; ++k) {
+    for (unsigned k = 0; k < item_count; ++k) {
       fpta_name item_id;
       r.err = fpta_composite_column_get(column_id, k, &item_id);
       if (unlikely(r.err != FPTA_SUCCESS))
