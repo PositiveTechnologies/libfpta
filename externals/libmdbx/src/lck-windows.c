@@ -352,8 +352,61 @@ int mdbx_resume_threads_after_remap(mdbx_handle_array_t *array) {
  E-E  = exclusive-write
 */
 
-int mdbx_lck_init(MDBX_env *env) {
+static void lck_unlock(MDBX_env *env) {
+  int rc;
+
+  if (env->me_lfd != INVALID_HANDLE_VALUE) {
+    /* double `unlock` for robustly remove overlapped shared/exclusive locks */
+    while (funlock(env->me_lfd, LCK_LOWER))
+      ;
+    rc = GetLastError();
+    assert(rc == ERROR_NOT_LOCKED);
+    (void)rc;
+    SetLastError(ERROR_SUCCESS);
+
+    while (funlock(env->me_lfd, LCK_UPPER))
+      ;
+    rc = GetLastError();
+    assert(rc == ERROR_NOT_LOCKED);
+    (void)rc;
+    SetLastError(ERROR_SUCCESS);
+  }
+
+  if (env->me_fd != INVALID_HANDLE_VALUE) {
+    /* explicitly unlock to avoid latency for other processes (windows kernel
+     * releases such locks via deferred queues) */
+    while (funlock(env->me_fd, LCK_BODY))
+      ;
+    rc = GetLastError();
+    assert(rc == ERROR_NOT_LOCKED);
+    (void)rc;
+    SetLastError(ERROR_SUCCESS);
+
+    while (funlock(env->me_fd, LCK_META))
+      ;
+    rc = GetLastError();
+    assert(rc == ERROR_NOT_LOCKED);
+    (void)rc;
+    SetLastError(ERROR_SUCCESS);
+
+    while (funlock(env->me_fd, LCK_WHOLE))
+      ;
+    rc = GetLastError();
+    assert(rc == ERROR_NOT_LOCKED);
+    (void)rc;
+    SetLastError(ERROR_SUCCESS);
+  }
+}
+
+int mdbx_lck_init(MDBX_env *env, int global_uniqueness_flag) {
   (void)env;
+  (void)global_uniqueness_flag;
+  return MDBX_SUCCESS;
+}
+
+int mdbx_lck_destroy(MDBX_env *env, MDBX_env *inprocess_neighbor) {
+  (void)inprocess_neighbor;
+  lck_unlock(env);
   return MDBX_SUCCESS;
 }
 
@@ -443,7 +496,7 @@ int mdbx_lck_seize(MDBX_env *env) {
       mdbx_error("%s(%s) failed: errcode %u", mdbx_func_,
                  "lock-against-without-lck", rc);
       mdbx_jitter4testing(false);
-      mdbx_lck_destroy(env);
+      lck_unlock(env);
     } else {
       mdbx_jitter4testing(false);
       if (!funlock(env->me_fd, LCK_BODY))
@@ -494,52 +547,6 @@ int mdbx_lck_downgrade(MDBX_env *env, bool complete) {
   return MDBX_SUCCESS /* 7) now at S-? (used), done */;
 }
 
-void mdbx_lck_destroy(MDBX_env *env) {
-  int rc;
-
-  if (env->me_lfd != INVALID_HANDLE_VALUE) {
-    /* double `unlock` for robustly remove overlapped shared/exclusive locks */
-    while (funlock(env->me_lfd, LCK_LOWER))
-      ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
-    SetLastError(ERROR_SUCCESS);
-
-    while (funlock(env->me_lfd, LCK_UPPER))
-      ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
-    SetLastError(ERROR_SUCCESS);
-  }
-
-  if (env->me_fd != INVALID_HANDLE_VALUE) {
-    /* explicitly unlock to avoid latency for other processes (windows kernel
-     * releases such locks via deferred queues) */
-    while (funlock(env->me_fd, LCK_BODY))
-      ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
-    SetLastError(ERROR_SUCCESS);
-
-    while (funlock(env->me_fd, LCK_META))
-      ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
-    SetLastError(ERROR_SUCCESS);
-
-    while (funlock(env->me_fd, LCK_WHOLE))
-      ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
-    SetLastError(ERROR_SUCCESS);
-  }
-}
-
 /*----------------------------------------------------------------------------*/
 /* reader checking (by pid) */
 
@@ -574,7 +581,7 @@ int mdbx_rpid_check(MDBX_env *env, mdbx_pid_t pid) {
 
   switch (rc) {
   case ERROR_INVALID_PARAMETER:
-    /* pid seem invalid */
+    /* pid seems invalid */
     return MDBX_RESULT_FALSE;
   case WAIT_OBJECT_0:
     /* process just exited */
@@ -663,10 +670,21 @@ MDBX_srwlock_function mdbx_srwlock_Init, mdbx_srwlock_AcquireShared,
 
 /*----------------------------------------------------------------------------*/
 
+static DWORD WINAPI stub_DiscardVirtualMemory(PVOID VirtualAddress,
+                                              SIZE_T Size) {
+  return VirtualAlloc(VirtualAddress, Size, MEM_RESET, PAGE_NOACCESS)
+             ? ERROR_SUCCESS
+             : GetLastError();
+}
+
+/*----------------------------------------------------------------------------*/
+
 MDBX_GetFileInformationByHandleEx mdbx_GetFileInformationByHandleEx;
 MDBX_GetVolumeInformationByHandleW mdbx_GetVolumeInformationByHandleW;
 MDBX_GetFinalPathNameByHandleW mdbx_GetFinalPathNameByHandleW;
 MDBX_SetFileInformationByHandle mdbx_SetFileInformationByHandle;
+MDBX_PrefetchVirtualMemory mdbx_PrefetchVirtualMemory;
+MDBX_DiscardVirtualMemory mdbx_DiscardVirtualMemory;
 MDBX_NtFsControlFile mdbx_NtFsControlFile;
 
 static void mdbx_winnt_import(void) {
@@ -691,21 +709,17 @@ static void mdbx_winnt_import(void) {
     mdbx_srwlock_ReleaseExclusive = stub_srwlock_ReleaseExclusive;
   }
 
-  mdbx_GetFileInformationByHandleEx =
-      (MDBX_GetFileInformationByHandleEx)GetProcAddress(
-          hKernel32dll, "GetFileInformationByHandleEx");
+#define GET_KERNEL32_PROC(ENTRY)                                               \
+  mdbx_##ENTRY = (MDBX_##ENTRY)GetProcAddress(hKernel32dll, #ENTRY)
 
-  mdbx_GetVolumeInformationByHandleW =
-      (MDBX_GetVolumeInformationByHandleW)GetProcAddress(
-          hKernel32dll, "GetVolumeInformationByHandleW");
-
-  mdbx_GetFinalPathNameByHandleW =
-      (MDBX_GetFinalPathNameByHandleW)GetProcAddress(
-          hKernel32dll, "GetFinalPathNameByHandleW");
-
-  mdbx_SetFileInformationByHandle =
-      (MDBX_SetFileInformationByHandle)GetProcAddress(
-          hKernel32dll, "SetFileInformationByHandle");
+  GET_KERNEL32_PROC(GetFileInformationByHandleEx);
+  GET_KERNEL32_PROC(GetVolumeInformationByHandleW);
+  GET_KERNEL32_PROC(GetFinalPathNameByHandleW);
+  GET_KERNEL32_PROC(SetFileInformationByHandle);
+  GET_KERNEL32_PROC(PrefetchVirtualMemory);
+  GET_KERNEL32_PROC(DiscardVirtualMemory);
+  if (!mdbx_DiscardVirtualMemory)
+    mdbx_DiscardVirtualMemory = stub_DiscardVirtualMemory;
 
   const HINSTANCE hNtdll = GetModuleHandleA("ntdll.dll");
   mdbx_NtFsControlFile =

@@ -192,6 +192,24 @@ typedef pthread_mutex_t mdbx_fastmutex_t;
 #define SSIZE_MAX INTPTR_MAX
 #endif
 
+#if !defined(MADV_DODUMP) && defined(MADV_CORE)
+#define MADV_DODUMP MADV_CORE
+#endif /* MADV_CORE -> MADV_DODUMP */
+
+#if !defined(MADV_DONTDUMP) && defined(MADV_NOCORE)
+#define MADV_DONTDUMP MADV_NOCORE
+#endif /* MADV_NOCORE -> MADV_DONTDUMP */
+
+#ifndef MADV_REMOVE_OR_FREE_OR_DONTNEED
+#ifdef MADV_REMOVE
+#define MADV_REMOVE_OR_FREE_OR_DONTNEED MADV_REMOVE
+#elif defined(MADV_FREE)
+#define MADV_REMOVE_OR_FREE_OR_DONTNEED MADV_FREE
+#elif defined(MADV_DONTNEED)
+#define MADV_REMOVE_OR_FREE_OR_DONTNEED MADV_DONTNEED
+#endif
+#endif /* MADV_REMOVE_OR_FREE_OR_DONTNEED */
+
 #if defined(i386) || defined(__386) || defined(__i386) || defined(__i386__) || \
     defined(i486) || defined(__i486) || defined(__i486__) ||                   \
     defined(i586) | defined(__i586) || defined(__i586__) || defined(i686) ||   \
@@ -615,14 +633,39 @@ uint64_t mdbx_osal_16dot16_to_monotime(uint32_t seconds_16dot16);
 #define MDBX_OSAL_LOCK_SIGN UINT32_C(0x8017)
 #endif /* MDBX_OSAL_LOCK */
 
-/// \brief Инициализация объектов синхронизации внутри текущего процесса
-///   связанных с экземпляром MDBX_env.
+/// \brief Инициализация объектов синхронизации связанных с экземпляром MDBX_env
+///   как общик в LCK-файле, так и внутри текущего процесса.
+/// \param
+///   global_uniqueness_flag = true - означает что сейчас в системе нет других
+///     процессов работающих с БД и LCK-файлом. Соответственно функция ДОЛЖНА
+///     инициализировать разделяемые объекты синхронизации расположенные
+///     в отображенном в память LCK-файле.
+///   global_uniqueness_flag = false - означает что в системе есть хотя-бы
+///     один другой процесс уже работающий с БД и LCK-файлом, в том числе
+///     БД уже может быть открыта текущим процессом. Соответственно функция
+///     НЕ должна инициализировать уже используемые разделяемые объекты
+///     синхронизации расположенные в отображенном в память LCK-файле.
 /// \return Код ошибки или 0 в случае успеха.
-int mdbx_lck_init(MDBX_env *env);
+int mdbx_lck_init(MDBX_env *env, int global_uniqueness_flag);
 
 /// \brief Отключение от общих межпроцесных объектов и разрушение объектов
 ///   синхронизации внутри текущего процесса связанных с экземпляром MDBX_env.
-void mdbx_lck_destroy(MDBX_env *env);
+/// \param
+///   inprocess_neighbor = NULL - если в текущем процессе нет других экземпляров
+///     MDBX_env связанных с закрываемой БД. Соответственно функция ДОЛЖНА
+///     своими средствами проверить, есть ли другие процесса работающие с БД
+///     и LCK-файлом, и в зависимости от этого разрушить или сохранить бъекты
+///     синхронизации расположенные в отображенном в память LCK-файле.
+///   inprocess_neighbor = не-NULL - тогда он указывает на другой (любой
+///     в случае нескольких) экземпляр MDBX_env работающей с БД и LCK-файлом
+///     внутри текущего процесса. Соответственно, функция НЕ должна пытаться
+///     захватывать эксклюзивную блокировки и/или пытаться разрушить общие
+///     объекты синхронизации связанные с БД и LCK-файлом. Кроме этого,
+///     реализация ДОЛЖНА обеспечить корректность работы других экземпляров
+///     MDBX_env внутри процесса - например, восстановить POSIX-fcntl блокировки
+///     после закрытия файловых дескрипторов.
+/// \return Код ошибки (MDBX_PANIC) или 0 в случае успеха.
+int mdbx_lck_destroy(MDBX_env *env, MDBX_env *inprocess_neighbor);
 
 /// \brief Подключение к общим межпроцесным объектам блокировки с попыткой
 ///   захвата блокировки максимального уровня (разделяемой при недоступности
@@ -716,7 +759,6 @@ typedef BOOL(WINAPI *MDBX_GetVolumeInformationByHandleW)(
     _Out_opt_ LPDWORD lpMaximumComponentLength,
     _Out_opt_ LPDWORD lpFileSystemFlags,
     _Out_opt_ LPWSTR lpFileSystemNameBuffer, _In_ DWORD nFileSystemNameSize);
-
 extern MDBX_GetVolumeInformationByHandleW mdbx_GetVolumeInformationByHandleW;
 
 typedef DWORD(WINAPI *MDBX_GetFinalPathNameByHandleW)(_In_ HANDLE hFile,
@@ -728,7 +770,6 @@ extern MDBX_GetFinalPathNameByHandleW mdbx_GetFinalPathNameByHandleW;
 typedef BOOL(WINAPI *MDBX_SetFileInformationByHandle)(
     _In_ HANDLE hFile, _In_ FILE_INFO_BY_HANDLE_CLASS FileInformationClass,
     _Out_ LPVOID lpFileInformation, _In_ DWORD dwBufferSize);
-
 extern MDBX_SetFileInformationByHandle mdbx_SetFileInformationByHandle;
 
 typedef NTSTATUS(NTAPI *MDBX_NtFsControlFile)(
@@ -737,8 +778,23 @@ typedef NTSTATUS(NTAPI *MDBX_NtFsControlFile)(
     OUT PIO_STATUS_BLOCK IoStatusBlock, IN ULONG FsControlCode,
     IN OUT PVOID InputBuffer, IN ULONG InputBufferLength,
     OUT OPTIONAL PVOID OutputBuffer, IN ULONG OutputBufferLength);
-
 extern MDBX_NtFsControlFile mdbx_NtFsControlFile;
+
+#if !defined(_WIN32_WINNT_WIN8) || _WIN32_WINNT < _WIN32_WINNT_WIN8
+typedef struct _WIN32_MEMORY_RANGE_ENTRY {
+  PVOID VirtualAddress;
+  SIZE_T NumberOfBytes;
+} WIN32_MEMORY_RANGE_ENTRY, *PWIN32_MEMORY_RANGE_ENTRY;
+#endif /* Windows 8.x */
+
+typedef BOOL(WINAPI *MDBX_PrefetchVirtualMemory)(
+    HANDLE hProcess, ULONG_PTR NumberOfEntries,
+    PWIN32_MEMORY_RANGE_ENTRY VirtualAddresses, ULONG Flags);
+extern MDBX_PrefetchVirtualMemory mdbx_PrefetchVirtualMemory;
+
+typedef DWORD(WINAPI *MDBX_DiscardVirtualMemory)(PVOID VirtualAddress,
+                                                 SIZE_T Size);
+extern MDBX_DiscardVirtualMemory mdbx_DiscardVirtualMemory;
 
 #endif /* Windows */
 
@@ -845,8 +901,8 @@ static __inline bool mdbx_atomic_compare_and_swap64(volatile uint64_t *p,
 
 /*----------------------------------------------------------------------------*/
 
-#if defined(_MSC_VER) && _MSC_VER >= 1900 && _MSC_VER < 1920
-/* LY: MSVC 2015/2017 has buggy/inconsistent PRIuPTR/PRIxPTR macros
+#if defined(_MSC_VER) && _MSC_VER >= 1900
+/* LY: MSVC 2015/2017/2019 has buggy/inconsistent PRIuPTR/PRIxPTR macros
  * for internal format-args checker. */
 #undef PRIuPTR
 #undef PRIiPTR

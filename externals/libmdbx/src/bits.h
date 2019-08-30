@@ -15,10 +15,16 @@
 /* *INDENT-OFF* */
 /* clang-format off */
 
+/* In case the MDBX_DEBUG is undefined set it corresponding to NDEBUG */
 #ifndef MDBX_DEBUG
+#ifdef NDEBUG
 #   define MDBX_DEBUG 0
+#else
+#   define MDBX_DEBUG 1
+#endif
 #endif
 
+/* Undefine the NDEBUG if debugging is enforced by MDBX_DEBUG */
 #if MDBX_DEBUG
 #   undef NDEBUG
 #endif
@@ -451,6 +457,12 @@ typedef struct MDBX_lockinfo {
    * Zero means timed auto-sync is disabled. */
   volatile uint64_t mti_autosync_period;
 
+  /* Marker to distinguish uniqueness of DB/CLK.*/
+  volatile uint64_t mti_bait_uniqueness;
+
+  /* /proc/sys/kernel/random/boot_id */
+  volatile uint64_t mti_boot_id;
+
   alignas(MDBX_CACHELINE_SIZE) /* cacheline ---------------------------------*/
 #ifdef MDBX_OSAL_LOCK
       /* Mutex protecting write-txn. */
@@ -468,6 +480,9 @@ typedef struct MDBX_lockinfo {
 
   /* Number un-synced-with-disk pages for auto-sync feature. */
   volatile pgno_t mti_unsynced_pages;
+
+  /* Number of page which was discarded last time by madvise(MADV_FREE). */
+  volatile pgno_t mti_discarded_tail;
 
   alignas(MDBX_CACHELINE_SIZE) /* cacheline ---------------------------------*/
 
@@ -814,6 +829,7 @@ struct MDBX_env {
   volatile uint64_t *me_autosync_period;
   volatile pgno_t *me_unsynced_pages;
   volatile pgno_t *me_autosync_threshold;
+  volatile pgno_t *me_discarded_tail;
   MDBX_oom_func *me_oom_func; /* Callback for kicking laggard readers */
   struct {
 #ifdef MDBX_OSAL_LOCK
@@ -824,6 +840,7 @@ struct MDBX_env {
     uint64_t autosync_period;
     pgno_t autosync_pending;
     pgno_t autosync_threshold;
+    pgno_t discarded_tail;
   } me_lckless_stub;
 #if MDBX_DEBUG
   MDBX_assert_func *me_assert_func; /*  Callback for assertion failures */
@@ -831,6 +848,7 @@ struct MDBX_env {
 #ifdef USE_VALGRIND
   int me_valgrind_handle;
 #endif
+  MDBX_env *me_lcklist_next;
 
   struct {
     size_t lower;  /* minimal size of datafile */
@@ -858,7 +876,9 @@ typedef struct MDBX_ntxn {
 /*----------------------------------------------------------------------------*/
 /* Debug and Logging stuff */
 
+#ifndef mdbx_runtime_flags /* avoid override from tools */
 extern int mdbx_runtime_flags;
+#endif
 extern MDBX_debug_func *mdbx_debug_logger;
 extern txnid_t mdbx_debug_edge;
 
