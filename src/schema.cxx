@@ -1540,24 +1540,20 @@ enum {
 const char *fpta_schema2json_tag2name(const void *schema_ctx, unsigned tag) {
   (void)schema_ctx;
 
-  static constexpr std::array<const char *, colnum_max> names = {
+  static constexpr std::array<const char *, colnum_max> names = {{
       "schema_format" /* colnum_schema_format */,
-      "schema_t1ha" /* colnum_schema_t1ha */,
-      "table" /* colnum_tbl */,
-      "name" /* colnum_tbl_name */,
-      "column" /* colnum_col */,
-      "name" /* colnum_col_name */,
-      "number" /* colnum_col_number */,
+      "schema_t1ha" /* colnum_schema_t1ha */, "table" /* colnum_tbl */,
+      "name" /* colnum_tbl_name */, "column" /* colnum_col */,
+      "name" /* colnum_col_name */, "number" /* colnum_col_number */,
       "datatype" /* colnum_col_datatype */,
-      "nullable" /* colnum_col_is_nullable */,
-      "index" /* colnum_index_kind */,
+      "nullable" /* colnum_col_is_nullable */, "index" /* colnum_index_kind */,
       "unique" /* colnum_index_is_unique */,
       "unordered" /* colnum_index_is_unordered */,
       "reverse" /* colnum_index_is_reverse */,
       "tersely" /* colnum_index_is_tersely */,
       "composite_items" /* colnum_index_composite_items */,
       "mdbx" /* colnum_index_mdbx_name */
-  };
+  }};
 
   const unsigned colnum = fptu_get_colnum(tag);
   if (colnum >= colnum_max) {
