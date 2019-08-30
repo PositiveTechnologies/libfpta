@@ -17,6 +17,11 @@ cmake_minimum_required(VERSION 3.8.2)
 cmake_policy(PUSH)
 cmake_policy(VERSION 3.8.2)
 
+if (CMAKE_VERSION MATCHES ".*MSVC.*")
+  message(FATAL_ERROR "CMake from MSVC kit is unfit! "
+    "Please use the original CMake from https://cmake.org/download/")
+endif()
+
 if (NOT (CMAKE_C_COMPILER_LOADED OR CMAKE_CXX_COMPILER_LOADED))
   message(FATAL_ERROR "This module required C or C++ to be enabled")
 endif()
