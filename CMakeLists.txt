@@ -75,6 +75,7 @@ include(CheckStructHasMember)
 include(CMakeDependentOption)
 
 if(NOT CMAKE_VERSION VERSION_LESS 3.9)
+  cmake_policy(SET CMP0068 NEW)
   cmake_policy(SET CMP0069 NEW)
   include(CheckIPOSupported)
   check_ipo_supported(RESULT CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
@@ -92,6 +93,7 @@ endif()
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
 option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
+set(CMAKE_MACOSX_RPATH ON)
 
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)

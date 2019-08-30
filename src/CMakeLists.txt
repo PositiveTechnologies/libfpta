@@ -77,7 +77,6 @@ add_library(fpta ${LIBFPTA_TYPE}
 
 set_target_properties(fpta PROPERTIES
   PROJECT_LABEL "Fast Positive Tables"
-  FRAMEWORK TRUE
   VERSION "${FPTA_VERSION}"
   PUBLIC_HEADER "../fast_positive/tables.h;${FAST_POSITIVE_CONFIG_H};../externals/libfptu/fast_positive/defs.h;../externals/libfptu/fast_positive/tuples.h"
   PRIVATE_HEADER "../fast_positive/tables_internal.h;../externals/libfptu/fast_positive/tuples_internal.h;../externals/libmdbx/mdbx.h;../externals/t1ha/t1ha.h"
