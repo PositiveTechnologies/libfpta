@@ -305,17 +305,21 @@ TEST(Schema, Base) {
   EXPECT_EQ(1u, schema_info.tables_count);
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &schema_info.tables_names[0]));
   int err;
-  EXPECT_EQ("table_1",
-            std::string(fpta::schema_symbol(&schema_info, &table, err)));
+  EXPECT_EQ(
+      "table_1",
+      fpta::schema_symbol(&schema_info, &table, err).operator std::string());
   EXPECT_EQ(FPTA_OK, err);
-  EXPECT_EQ("pk_str_uniq",
-            std::string(fpta::schema_symbol(&schema_info, &col_pk, err)));
+  EXPECT_EQ(
+      "pk_str_uniq",
+      fpta::schema_symbol(&schema_info, &col_pk, err).operator std::string());
   EXPECT_EQ(FPTA_OK, err);
-  EXPECT_EQ("first_uint",
-            std::string(fpta::schema_symbol(&schema_info, &col_a, err)));
+  EXPECT_EQ(
+      "first_uint",
+      fpta::schema_symbol(&schema_info, &col_a, err).operator std::string());
   EXPECT_EQ(FPTA_OK, err);
-  EXPECT_EQ("second_fp",
-            std::string(fpta::schema_symbol(&schema_info, &col_b, err)));
+  EXPECT_EQ(
+      "second_fp",
+      fpta::schema_symbol(&schema_info, &col_b, err).operator std::string());
   EXPECT_EQ(FPTA_OK, err);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
