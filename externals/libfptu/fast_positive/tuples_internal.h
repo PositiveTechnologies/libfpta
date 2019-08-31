@@ -434,8 +434,8 @@ fptu_depleted2lge(const iterator &left_pos, const iterator &left_end,
 #define assert _ASSERTE
 #endif
 
-#if _MSC_VER >= 1900 && !defined(PRIuSIZE)
-/* LY: MSVC 2015/2017 has buggy/inconsistent PRIuPTR/PRIxPTR macros
+#if _MSC_VER >= 1900
+/* LY: MSVC 2015/2017/2019 has buggy/inconsistent PRIuPTR/PRIxPTR macros
  * for internal format-args checker. */
 #undef PRIuPTR
 #undef PRIiPTR
@@ -449,7 +449,7 @@ fptu_depleted2lge(const iterator &left_pos, const iterator &left_end,
 #define PRIiSIZE "zi"
 #define PRIdSIZE "zd"
 #define PRIxSIZE "zx"
-#endif /* fix PRI*PTR for _MSC_VER */
+#endif /* fix PRI*PTR for _MSC_VER >= 1900 */
 
 #endif /* _MSC_VER */
 
@@ -458,7 +458,7 @@ fptu_depleted2lge(const iterator &left_pos, const iterator &left_end,
 #define PRIiSIZE PRIiPTR
 #define PRIdSIZE PRIdPTR
 #define PRIxSIZE PRIxPTR
-#endif /* PRI*SIZE macros */
+#endif /* PRI*SIZE macros for MSVC */
 
 /*----------------------------------------------------------------------------*/
 /* LY: temporary workaround for Elbrus's memcmp() bug. */
