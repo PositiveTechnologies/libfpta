@@ -90,7 +90,7 @@ set_target_properties(fpta PROPERTIES
 target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
 add_dependencies(fpta t1ha)
 target_link_libraries(fpta
-  PRIVATE fptu mdbx t1ha
+  PRIVATE fptu mdbx-static t1ha
   PUBLIC ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
 if(UNIX AND NOT APPLE)
   target_link_libraries(fpta LINK_PUBLIC rt)

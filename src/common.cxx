@@ -479,7 +479,9 @@ int fpta_internal_abort(fpta_txn *txn, int errnum, bool txn_maybe_dead) {
   int rc = mdbx_txn_abort(txn->mdbx_txn);
   if (unlikely(rc != MDBX_SUCCESS)) {
     switch (rc) {
-    case MDBX_EBADSIGN /* already aborted txn */:
+    case MDBX_EBADSIGN /* already aborted read-only txn */:
+    /* fallthrough */
+    case MDBX_BAD_TXN /* already aborted read-write txn */:
     /* fallthrough */
     case MDBX_THREAD_MISMATCH /* already aborted and started in other thread */:
       if (txn_maybe_dead)
