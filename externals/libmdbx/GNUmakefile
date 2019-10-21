@@ -19,11 +19,9 @@ mandir  ?= $(prefix)/man
 suffix  ?=
 
 CC      ?= gcc
-CXX     ?= g++
 LD      ?= ld
-MDBX_OPTIONS ?= -D_GNU_SOURCE=1 -DNDEBUG=1
-CFLAGS  ?= -O2 -g3 -Wall -Werror -Wextra -ffunction-sections -fPIC -fvisibility=hidden -std=gnu11 -pthread
-CXXFLAGS = -std=c++11 $(filter-out -std=gnu11,$(CFLAGS))
+MDBX_OPTIONS ?= -DNDEBUG=1
+CFLAGS  ?= -Os -g3 -Wall -Werror -Wextra -ffunction-sections -fPIC -fvisibility=hidden -std=gnu11 -pthread -Wno-tautological-compare
 
 # LY: '--no-as-needed,-lrt' for ability to built with modern glibc, but then run with the old
 LDFLAGS ?= $(shell $(LD) --help 2>/dev/null | grep -q -- --gc-sections && echo '-Wl,--gc-sections,-z,relro,-O1')$(shell $(LD) --help 2>/dev/null | grep -q -- -dead_strip && echo '-Wl,-dead_strip')
@@ -46,7 +44,7 @@ LIBRARIES  := libmdbx.a libmdbx.$(SO_SUFFIX)
 TOOLS      := mdbx_stat mdbx_copy mdbx_dump mdbx_load mdbx_chk
 MANPAGES   := mdbx_stat.1 mdbx_copy.1 mdbx_dump.1 mdbx_load.1 mdbx_chk.1
 
-.PHONY: mdbx all install clean check coverage
+.PHONY: mdbx all install clean test dist check
 
 all: $(LIBRARIES) $(TOOLS)
 
@@ -75,7 +73,6 @@ MAN_SRCDIR := man1/
 
 config.h: mdbx.c $(lastword $(MAKEFILE_LIST))
 	(echo '#define MDBX_BUILD_TIMESTAMP "$(shell date +%Y-%m-%dT%H:%M:%S%z)"' \
-	&& echo '#define MDBX_BUILD_OPTIONS_STRING "$(MDBX_OPTIONS)"' \
 	&& echo '#define MDBX_BUILD_FLAGS "$(CFLAGS) $(LDFLAGS)"' \
 	&& echo '#define MDBX_BUILD_COMPILER "$(shell set -o pipefail; $(CC) --version | head -1 || echo 'Please use GCC or CLANG compatible compiler')"' \
 	&& echo '#define MDBX_BUILD_TARGET "$(shell set -o pipefail; LC_ALL=C $(CC) -v 2>&1 | grep -i '^Target:' | cut -d ' ' -f 2- || echo 'Please use GCC or CLANG compatible compiler')"' \
@@ -119,7 +116,7 @@ clean-bench:
 re-bench: clean-bench bench
 
 define bench-rule
-bench-$(1)_$(2).txt: $(3) $(IOARENA) Makefile
+bench-$(1)_$(2).txt: $(3) $(IOARENA) $(lastword $(MAKEFILE_LIST))
 	LD_LIBRARY_PATH="./:$$$${LD_LIBRARY_PATH}" \
 		$(IOARENA) -D $(1) -B crud -m nosync -n $(2) \
 		| tee $$@ | grep throughput && \
