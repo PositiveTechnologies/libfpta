@@ -643,6 +643,13 @@ extern "C" {
 #endif
 
 /**** MDBX version information ************************************************/
+
+#if defined(LIBMDBX_IMPORTS)
+#define LIBMDBX_VERINFO_API __dll_import
+#else
+#define LIBMDBX_VERINFO_API __dll_export
+#endif /* LIBMDBX_VERINFO_API */
+
 typedef struct mdbx_version_info {
   uint8_t major;
   uint8_t minor;
@@ -656,7 +663,7 @@ typedef struct mdbx_version_info {
   } git;
   const char *sourcery /* sourcery anchor for pinning */;
 } mdbx_version_info;
-extern LIBMDBX_API const mdbx_version_info mdbx_version;
+extern LIBMDBX_VERINFO_API const mdbx_version_info mdbx_version;
 
 /* MDBX build information.
  * WARNING: Some strings could be NULL in case no corresponding information was
@@ -668,8 +675,7 @@ typedef struct mdbx_build_info {
   const char *compiler /* compiler */;
   const char *flags /* CFLAGS */;
 } mdbx_build_info;
-
-extern LIBMDBX_API const mdbx_build_info mdbx_build;
+extern LIBMDBX_VERINFO_API const mdbx_build_info mdbx_build;
 
 #if defined(_WIN32) || defined(_WIN64)
 #if !MDBX_BUILD_SHARED_LIBRARY
@@ -1565,12 +1571,13 @@ LIBMDBX_API int mdbx_env_copy2fd(MDBX_env *env, mdbx_filehandle_t fd,
 /* Statistics for a database in the environment */
 typedef struct MDBX_stat {
   uint32_t ms_psize;          /* Size of a database page.
-                               * This is currently the same for all databases. */
+                               * This is the same for all databases. */
   uint32_t ms_depth;          /* Depth (height) of the B-tree */
   uint64_t ms_branch_pages;   /* Number of internal (non-leaf) pages */
   uint64_t ms_leaf_pages;     /* Number of leaf pages */
   uint64_t ms_overflow_pages; /* Number of overflow pages */
   uint64_t ms_entries;        /* Number of data items */
+  uint64_t ms_mod_txnid;      /* Transaction ID of commited last modification */
 } MDBX_stat;
 
 /* Return statistics about the MDBX environment.

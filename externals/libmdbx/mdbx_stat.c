@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 2bba95418ea260a304d946a21918de2e567d5c1e6f832f9b730f0fa690b93d05_v0_3_1_278_g411ed3e57
+#define MDBX_BUILD_SOURCERY af084301706c95f64165f4ab45b35bc8a91dea7555cbfd60a080d4380be33885_v0_3_1_290_g3702dcf08
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -116,6 +116,7 @@
 #pragma warning(disable : 4820) /* bytes padding added after data member for aligment */
 #pragma warning(disable : 4548) /* expression before comma has no effect; expected expression with side - effect */
 #pragma warning(disable : 4366) /* the result of the unary '&' operator may be unaligned */
+#pragma warning(disable : 4200) /* nonstandard extension used: zero-sized array in struct/union */
 #endif                          /* _MSC_VER (warnings) */
 
 #include "mdbx.h"
@@ -749,7 +750,9 @@ typedef _Complex float __cfloat128 __attribute__ ((__mode__ (__TC__)));
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <tlhelp32.h>
 #include <windows.h>
 #include <winnt.h>
@@ -898,8 +901,11 @@ typedef pthread_mutex_t mdbx_fastmutex_t;
 #endif /* all x86 */
 
 #if !defined(MDBX_UNALIGNED_OK)
-#if (defined(__ia32__) || defined(__e2k__) ||                                  \
-     defined(__ARM_FEATURE_UNALIGNED)) &&                                      \
+#if defined(_MSC_VER)
+#define MDBX_UNALIGNED_OK 1 /* avoid MSVC misoptimization */
+#elif __CLANG_PREREQ(5, 0) || __GNUC_PREREQ(5, 0)
+#define MDBX_UNALIGNED_OK 0 /* expecting optimization is well done */
+#elif (defined(__ia32__) || defined(__ARM_FEATURE_UNALIGNED)) &&               \
     !defined(__ALIGNED__)
 #define MDBX_UNALIGNED_OK 1
 #else
@@ -1759,7 +1765,7 @@ typedef struct MDBX_db {
   pgno_t md_overflow_pages; /* number of overflow pages */
   uint64_t md_seq;          /* table sequence counter */
   uint64_t md_entries;      /* number of data items */
-  uint64_t md_merkle;       /* Merkle tree checksum */
+  uint64_t md_mod_txnid;    /* txnid of last commited modification */
 } MDBX_db;
 
 /* database size-related parameters */
@@ -1861,15 +1867,11 @@ typedef struct MDBX_page {
   pgno_t mp_pgno; /* page number */
 
   /* dynamic size */
-  union {
-    indx_t mp_ptrs[1];
-    MDBX_meta mp_meta;
-    uint8_t mp_data[1];
-  };
+  indx_t mp_ptrs[/* C99 */];
 } MDBX_page;
 
 /* Size of the page header, excluding dynamic data at the end */
-#define PAGEHDRSZ ((unsigned)offsetof(MDBX_page, mp_data))
+#define PAGEHDRSZ ((unsigned)offsetof(MDBX_page, mp_ptrs))
 
 #pragma pack(pop)
 
@@ -2023,7 +2025,7 @@ typedef struct MDBX_lockinfo {
   volatile unsigned mti_readers_refresh_flag;
 
   alignas(MDBX_CACHELINE_SIZE) /* cacheline ---------------------------------*/
-      MDBX_reader mti_readers[1];
+      MDBX_reader mti_readers[/* C99 */];
 } MDBX_lockinfo;
 
 /* Lockfile format signature: version, features and field layout */
@@ -2031,7 +2033,8 @@ typedef struct MDBX_lockinfo {
   (MDBX_OSAL_LOCK_SIGN * 27733 + (unsigned)sizeof(MDBX_reader) * 13 +          \
    (unsigned)offsetof(MDBX_reader, mr_snapshot_pages_used) * 251 +             \
    (unsigned)offsetof(MDBX_lockinfo, mti_oldest_reader) * 83 +                 \
-   (unsigned)offsetof(MDBX_lockinfo, mti_numreaders) * 29)
+   (unsigned)offsetof(MDBX_lockinfo, mti_numreaders) * 37 +                    \
+   (unsigned)offsetof(MDBX_lockinfo, mti_readers) * 29)
 
 #define MDBX_DATA_MAGIC ((MDBX_MAGIC << 8) + MDBX_DATA_VERSION)
 #define MDBX_DATA_MAGIC_DEVEL ((MDBX_MAGIC << 8) + 255)
@@ -2056,8 +2059,8 @@ typedef struct MDBX_lockinfo {
  * demand-pager to read our data and page it out when memory
  * pressure from other processes is high. So until OSs have
  * actual paging support for Huge pages, they're not viable. */
-#define MAX_PAGESIZE 0x10000u
-#define MIN_PAGESIZE 256u
+#define MAX_PAGESIZE 0x10000
+#define MIN_PAGESIZE 256
 
 #define MIN_MAPSIZE (MIN_PAGESIZE * MIN_PAGENO)
 #if defined(_WIN32) || defined(_WIN64)
@@ -2070,7 +2073,7 @@ typedef struct MDBX_lockinfo {
 #if MDBX_WORDBITS >= 64
 #define MAX_MAPSIZE MAX_MAPSIZE64
 #define MDBX_READERS_LIMIT                                                     \
-  ((65536 - sizeof(MDBX_lockinfo)) / sizeof(MDBX_reader) + 1)
+  ((65536 - sizeof(MDBX_lockinfo)) / sizeof(MDBX_reader))
 #else
 #define MDBX_READERS_LIMIT 1024
 #define MAX_MAPSIZE MAX_MAPSIZE32
@@ -2173,7 +2176,7 @@ struct MDBX_txn {
 #define mt_end_pgno mt_geo.now
 
   /* Transaction Flags */
-/* mdbx_txn_begin() flags */
+  /* mdbx_txn_begin() flags */
 #define MDBX_TXN_BEGIN_FLAGS                                                   \
   (MDBX_NOMETASYNC | MDBX_NOSYNC | MDBX_MAPASYNC | MDBX_RDONLY | MDBX_TRYTXN)
   /* internal txn flags */
@@ -2182,7 +2185,7 @@ struct MDBX_txn {
 #define MDBX_TXN_DIRTY 0x04     /* must write, even if dirty list is empty */
 #define MDBX_TXN_SPILLS 0x08    /* txn or a parent has spilled pages */
 #define MDBX_TXN_HAS_CHILD 0x10 /* txn has an MDBX_txn.mt_child */
-/* most operations on the txn are currently illegal */
+  /* most operations on the txn are currently illegal */
 #define MDBX_TXN_BLOCKED                                                       \
   (MDBX_TXN_FINISHED | MDBX_TXN_ERROR | MDBX_TXN_HAS_CHILD)
   unsigned mt_flags;
@@ -2198,7 +2201,7 @@ struct MDBX_txn {
   /* Array of sequence numbers for each DB handle */
   unsigned *mt_dbiseqs;
 
-/* Transaction DB Flags */
+  /* Transaction DB Flags */
 #define DB_DIRTY MDBX_TBL_DIRTY /* DB was written in this txn */
 #define DB_STALE MDBX_TBL_STALE /* Named-DB record is older than txnID */
 #define DB_FRESH MDBX_TBL_FRESH /* Named-DB handle opened in this txn */
@@ -2259,7 +2262,11 @@ struct MDBX_txn {
 /* Enough space for 2^32 nodes with minimum of 2 keys per node. I.e., plenty.
  * At 4 keys per node, enough for 2^64 nodes, so there's probably no need to
  * raise this on a 64 bit machine. */
-#define CURSOR_STACK 32
+#if MDBX_WORDBITS >= 64
+#define CURSOR_STACK 28
+#else
+#define CURSOR_STACK 20
+#endif
 
 struct MDBX_xcursor;
 
@@ -2326,21 +2333,6 @@ typedef struct MDBX_cursor_couple {
   MDBX_xcursor inner;
 } MDBX_cursor_couple;
 
-/* Check if there is an inited xcursor, so XCURSOR_REFRESH() is proper */
-#define XCURSOR_INITED(mc)                                                     \
-  ((mc)->mc_xcursor && ((mc)->mc_xcursor->mx_cursor.mc_flags & C_INITIALIZED))
-
-/* Update sub-page pointer, if any, in mc->mc_xcursor.
- * Needed when the node which contains the sub-page may have moved.
- * Called with mp = mc->mc_pg[mc->mc_top], ki = mc->mc_ki[mc->mc_top]. */
-#define XCURSOR_REFRESH(mc, mp, ki)                                            \
-  do {                                                                         \
-    MDBX_page *xr_pg = (mp);                                                   \
-    MDBX_node *xr_node = NODEPTR(xr_pg, ki);                                   \
-    if ((xr_node->mn_flags & (F_DUPDATA | F_SUBDATA)) == F_DUPDATA)            \
-      (mc)->mc_xcursor->mx_cursor.mc_pg[0] = NODEDATA(xr_node);                \
-  } while (0)
-
 /* The database environment. */
 struct MDBX_env {
 #define MDBX_ME_SIGNATURE UINT32_C(0x9A899641)
@@ -2353,13 +2345,13 @@ struct MDBX_env {
 #define me_lfd me_lck_mmap.fd
 #define me_lck me_lck_mmap.lck
 
-/* Failed to update the meta page. Probably an I/O error. */
+  /* Failed to update the meta page. Probably an I/O error. */
 #define MDBX_FATAL_ERROR UINT32_C(0x80000000)
-/* Additional flag for mdbx_sync_locked() */
+  /* Additional flag for mdbx_sync_locked() */
 #define MDBX_SHRINK_ALLOWED UINT32_C(0x40000000)
-/* Some fields are initialized. */
+  /* Some fields are initialized. */
 #define MDBX_ENV_ACTIVE UINT32_C(0x20000000)
-/* me_txkey is set */
+  /* me_txkey is set */
 #define MDBX_ENV_TXKEY UINT32_C(0x10000000)
   uint32_t me_flags;      /* see mdbx_env */
   unsigned me_psize;      /* DB page size, inited from me_os_psize */
@@ -2636,30 +2628,13 @@ MDBX_INTERNAL_FUNC void mdbx_rthc_thread_dtor(void *ptr);
 /* Default size of memory map.
  * This is certainly too small for any actual applications. Apps should
  * always set  the size explicitly using mdbx_env_set_mapsize(). */
-#define DEFAULT_MAPSIZE 1048576
+#define DEFAULT_MAPSIZE MEGABYTE
 
 /* Number of slots in the reader table.
  * This value was chosen somewhat arbitrarily. The 61 is a prime number,
  * and such readers plus a couple mutexes fit into single 4KB page.
  * Applications should set the table size using mdbx_env_set_maxreaders(). */
 #define DEFAULT_READERS 61
-
-/* Address of first usable data byte in a page, after the header */
-#define PAGEDATA(p) ((void *)((char *)(p) + PAGEHDRSZ))
-
-/* Number of nodes on a page */
-#define NUMKEYS(p) ((unsigned)(p)->mp_lower >> 1)
-
-/* The amount of space remaining in the page */
-#define SIZELEFT(p) ((indx_t)((p)->mp_upper - (p)->mp_lower))
-
-/* The percentage of space used in the page, in tenths of a percent. */
-#define PAGEFILL(env, p)                                                       \
-  (1024UL * ((env)->me_psize - PAGEHDRSZ - SIZELEFT(p)) /                      \
-   ((env)->me_psize - PAGEHDRSZ))
-/* The minimum page fill factor, in tenths of a percent.
- * Pages emptier than this are candidates for merging. */
-#define FILL_THRESHOLD 256
 
 /* Test if a page is a leaf page */
 #define IS_LEAF(p) (((p)->mp_flags & P_LEAF) != 0)
@@ -2675,9 +2650,6 @@ MDBX_INTERNAL_FUNC void mdbx_rthc_thread_dtor(void *ptr);
 #define IS_DIRTY(p) (((p)->mp_flags & P_DIRTY) != 0)
 
 #define PAGETYPE(p) ((p)->mp_flags & (P_BRANCH | P_LEAF | P_LEAF2 | P_OVERFLOW))
-
-/* The number of overflow pages needed to store the given size. */
-#define OVPAGES(env, size) (bytes2pgno(env, PAGEHDRSZ - 1 + (size)) + 1)
 
 /* Header for a single key/data pair within a page.
  * Used in pages of type P_BRANCH and P_LEAF without P_LEAF2.
@@ -2701,11 +2673,13 @@ typedef struct MDBX_node {
     uint32_t mn_dsize;
     uint32_t mn_pgno32;
   };
-  uint16_t mn_flags; /* see mdbx_node */
+  uint8_t mn_flags; /* see mdbx_node flags */
+  uint8_t mn_extra;
   uint16_t mn_ksize; /* key size */
 #else
   uint16_t mn_ksize; /* key size */
-  uint16_t mn_flags; /* see mdbx_node */
+  uint8_t mn_extra;
+  uint8_t mn_flags; /* see mdbx_node flags */
   union {
     uint32_t mn_pgno32;
     uint32_t mn_dsize;
@@ -2715,59 +2689,15 @@ typedef struct MDBX_node {
   };
 #endif
 
-/* mdbx_node Flags */
+  /* mdbx_node Flags */
 #define F_BIGDATA 0x01 /* data put on overflow page */
 #define F_SUBDATA 0x02 /* data is a sub-database */
 #define F_DUPDATA 0x04 /* data has duplicates */
 
-/* valid flags for mdbx_node_add() */
+  /* valid flags for mdbx_node_add() */
 #define NODE_ADD_FLAGS (F_DUPDATA | F_SUBDATA | MDBX_RESERVE | MDBX_APPEND)
-  uint8_t mn_data[1]; /* key and data are appended here */
+  uint8_t mn_data[/* C99 */]; /* key and data are appended here */
 } MDBX_node;
-
-/* Size of the node header, excluding dynamic data at the end */
-#define NODESIZE offsetof(MDBX_node, mn_data)
-
-/* Bit position of top word in page number, for shifting mn_flags */
-#define PGNO_TOPWORD ((pgno_t)-1 > 0xffffffffu ? 32 : 0)
-
-/* Size of a node in a branch page with a given key.
- * This is just the node header plus the key, there is no data. */
-#define INDXSIZE(k) (NODESIZE + ((k) == NULL ? 0 : (k)->iov_len))
-
-/* Size of a node in a leaf page with a given key and data.
- * This is node header plus key plus data size. */
-#define LEAFSIZE(k, d) (NODESIZE + (k)->iov_len + (d)->iov_len)
-
-/* Address of the key for the node */
-#define NODEKEY(node) (void *)((node)->mn_data)
-
-/* Address of the data for a node */
-#define NODEDATA(node) (void *)((char *)(node)->mn_data + (node)->mn_ksize)
-
-/* The size of a key in a node */
-#define NODEKSZ(node) ((node)->mn_ksize)
-
-/* The address of a key in a LEAF2 page.
- * LEAF2 pages are used for MDBX_DUPFIXED sorted-duplicate sub-DBs.
- * There are no node headers, keys are stored contiguously. */
-#define LEAF2KEY(p, i, ks) ((char *)(p) + PAGEHDRSZ + ((i) * (ks)))
-
-/* Set the node's key into keyptr, if requested. */
-#define MDBX_GET_MAYNULL_KEYPTR(node, keyptr)                                  \
-  do {                                                                         \
-    if ((keyptr) != NULL) {                                                    \
-      (keyptr)->iov_len = NODEKSZ(node);                                       \
-      (keyptr)->iov_base = NODEKEY(node);                                      \
-    }                                                                          \
-  } while (0)
-
-/* Set the node's key into key. */
-#define MDBX_GET_KEYVALUE(node, key)                                           \
-  do {                                                                         \
-    key.iov_len = NODEKSZ(node);                                               \
-    key.iov_base = NODEKEY(node);                                              \
-  } while (0)
 
 #define MDBX_VALID 0x8000 /* DB handle is valid, for me_dbflags */
 #define PERSISTENT_FLAGS (0xffff & ~(MDBX_VALID))
@@ -2783,18 +2713,18 @@ typedef struct MDBX_node {
 #define MDBX_COMMIT_PAGES IOV_MAX
 #endif
 
-/* LY: fast enough on most systems
- *
+/*
  *                /
  *                | -1, a < b
- * cmp2int(a,b) = <  0, a == b
+ * CMP2INT(a,b) = <  0, a == b
  *                |  1, a > b
  *                \
  */
 #if 1
-#define mdbx_cmp2int(a, b) (((b) > (a)) ? -1 : (a) > (b))
+/* LY: fast enough on most systems */
+#define CMP2INT(a, b) (((b) > (a)) ? -1 : (a) > (b))
 #else
-#define mdbx_cmp2int(a, b) (((a) > (b)) - ((b) > (a)))
+#define CMP2INT(a, b) (((a) > (b)) - ((b) > (a)))
 #endif
 
 /* Do not spill pages to disk if txn is getting full, may fail instead */
