@@ -23,6 +23,7 @@
 #include <malloc.h>
 #endif
 
+#include <algorithm>
 #include <deque>
 #include <memory>
 #include <stack>
