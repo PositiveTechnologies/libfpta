@@ -272,6 +272,7 @@ int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
         (space4stat - offsetof(fpta_table_stat, index_costs)) /
         sizeof(stat->index_costs[0]);
 
+    stat->mod_txnid = mdbx_stat.ms_mod_txnid;
     stat->total_items = stat->row_count = (size_t)mdbx_stat.ms_entries;
     stat->btree_depth = mdbx_stat.ms_depth;
     stat->leaf_pages = (size_t)mdbx_stat.ms_leaf_pages;
