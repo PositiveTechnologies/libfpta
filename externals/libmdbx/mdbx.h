@@ -555,6 +555,7 @@ typedef DWORD mdbx_tid_t;
 #define MDBX_EPERM ERROR_INVALID_FUNCTION
 #define MDBX_EINTR ERROR_CANCELLED
 #define MDBX_ENOFILE ERROR_FILE_NOT_FOUND
+#define MDBX_EREMOTE ERROR_REMOTE_STORAGE_MEDIA_ERROR
 
 #else
 
@@ -580,6 +581,7 @@ typedef pthread_t mdbx_tid_t;
 #define MDBX_EPERM EPERM
 #define MDBX_EINTR EINTR
 #define MDBX_ENOFILE ENOENT
+#define MDBX_EREMOTE ENOTBLK
 
 #endif
 
@@ -767,7 +769,16 @@ struct iovec {
 #define HAVE_STRUCT_IOVEC
 #endif /* HAVE_STRUCT_IOVEC */
 
+#if defined(__sun) || defined(__SVR4) || defined(__svr4__)
+/* The `iov_len` is signed on Sun/Solaris.
+ * So define custom MDBX_val to avoid a lot of warings. */
+typedef struct MDBX_val {
+  void *iov_base /* pointer to some data */;
+  size_t iov_len /* the length of data in bytes */;
+} MDBX_val;
+#else
 typedef struct iovec MDBX_val;
+#endif
 
 /* The maximum size of a data item.
  * MDBX only store a 32 bit value for node sizes. */
@@ -834,8 +845,8 @@ typedef void MDBX_assert_func(const MDBX_env *env, const char *msg,
 LIBMDBX_API int mdbx_env_set_assert(MDBX_env *env, MDBX_assert_func *func);
 
 /* FIXME: Complete description */
-LIBMDBX_API char *mdbx_dump_val(const MDBX_val *key, char *const buf,
-                                const size_t bufsize);
+LIBMDBX_API const char *mdbx_dump_val(const MDBX_val *key, char *const buf,
+                                      const size_t bufsize);
 
 /**** THE FILES ****************************************************************
  * At the file system level, the environment corresponds to a pair of files. */
@@ -970,6 +981,12 @@ LIBMDBX_API char *mdbx_dump_val(const MDBX_val *key, char *const buf,
  * by default. This option turns it off if the OS supports it. Turning it off
  * may help random read performance when the DB is larger than RAM and system
  * RAM is full.
+ *
+ * By default libmdbx dynamically enables/disables readahead depending on the
+ * actual database size and currently available memory. On the other hand, such
+ * automation has some limitation, i.e. could be performed only when DB size
+ * changing but can't tracks and reacts changing a free RAM availability, since
+ * it changes independently and asynchronously.
  *
  * NOTE: The mdbx_is_readahead_reasonable() function allows to quickly find out
  *       whether to use readahead or not based on the size of the data and the
@@ -1457,13 +1474,13 @@ LIBMDBX_API int mdbx_env_create(MDBX_env **penv);
  * Indifferently this function will fails or not, the mdbx_env_close() must be
  * called later to discard the MDBX_env handle and release associated resources.
  *
- * [in] env    An environment handle returned by mdbx_env_create()
- * [in] path   The directory in which the database files reside.
- *             This directory must already exist and be writable.
- * [in] flags  Special options for this environment. This parameter
- *             must be set to 0 or by bitwise OR'ing together one
- *             or more of the values described above in the
- *             "ENVIRONMENT FLAGS" and "SYNC MODES" sections.
+ * [in] env       An environment handle returned by mdbx_env_create()
+ * [in] pathname  The directory in which the database files reside.
+ *                This directory must already exist and be writable.
+ * [in] flags     Special options for this environment. This parameter
+ *                must be set to 0 or by bitwise OR'ing together one
+ *                or more of the values described above in the
+ *                "ENVIRONMENT FLAGS" and "SYNC MODES" sections.
  *
  * Flags set by mdbx_env_set_flags() are also used:
  *  - MDBX_NOSUBDIR, MDBX_RDONLY, MDBX_EXCLUSIVE, MDBX_WRITEMAP, MDBX_NOTLS,
@@ -1514,8 +1531,8 @@ LIBMDBX_API int mdbx_env_create(MDBX_env **penv);
  *                             after a system crash.
  *   - MDBX_TOO_LARGE        = Database is too large for this process, i.e.
  *                             32-bit process tries to open >4Gb database. */
-LIBMDBX_API int mdbx_env_open(MDBX_env *env, const char *path, unsigned flags,
-                              mode_t mode);
+LIBMDBX_API int mdbx_env_open(MDBX_env *env, const char *pathname,
+                              unsigned flags, mode_t mode);
 
 /* Copy an MDBX environment to the specified path, with options.
  *
@@ -1527,7 +1544,7 @@ LIBMDBX_API int mdbx_env_open(MDBX_env *env, const char *path, unsigned flags,
  *
  * [in] env    An environment handle returned by mdbx_env_create(). It must
  *             have already been opened successfully.
- * [in] path   The directory in which the copy will reside. This directory
+ * [in] dest   The directory in which the copy will reside. This directory
  *             must already exist and be writable but must otherwise be empty.
  * [in] flags  Special options for this operation. This parameter must be set
  *             to 0 or by bitwise OR'ing together one or more of the values
@@ -1540,8 +1557,7 @@ LIBMDBX_API int mdbx_env_open(MDBX_env *env, const char *path, unsigned flags,
  *      account skipping free pages.
  *
  * Returns A non-zero error value on failure and 0 on success. */
-LIBMDBX_API int mdbx_env_copy(MDBX_env *env, const char *dest_path,
-                              unsigned flags);
+LIBMDBX_API int mdbx_env_copy(MDBX_env *env, const char *dest, unsigned flags);
 
 /* Copy an MDBX environment to the specified file descriptor,
  * with options.
@@ -1821,14 +1837,14 @@ LIBMDBX_API int mdbx_env_get_flags(MDBX_env *env, unsigned *flags);
 /* Return the path that was used in mdbx_env_open().
  *
  * [in] env     An environment handle returned by mdbx_env_create()
- * [out] path   Address of a string pointer to contain the path.
+ * [out] dest   Address of a string pointer to contain the path.
  *              This is the actual string in the environment, not a copy.
  *              It should not be altered in any way.
  *
  * Returns A non-zero error value on failure and 0 on success, some
  * possible errors are:
  *  - MDBX_EINVAL   = an invalid parameter was specified. */
-LIBMDBX_API int mdbx_env_get_path(MDBX_env *env, const char **path);
+LIBMDBX_API int mdbx_env_get_path(MDBX_env *env, const char **dest);
 
 /* Return the file descriptor for the given environment.
  *
@@ -2040,7 +2056,7 @@ LIBMDBX_API int mdbx_is_readahead_reasonable(size_t volume,
                                              intptr_t redundancy);
 
 /* The minimal database page size in bytes. */
-#define MDBX_MIN_PAGESIZE 512
+#define MDBX_MIN_PAGESIZE 256
 __inline intptr_t mdbx_limits_pgsize_min(void) { return MDBX_MIN_PAGESIZE; }
 
 /* The maximal database page size in bytes. */
