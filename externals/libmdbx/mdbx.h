@@ -3,8 +3,9 @@
  * libmdbx is superior to LMDB (https://bit.ly/26ts7tL) in terms of features
  * and reliability, not inferior in performance. In comparison to LMDB, libmdbx
  * makes many things just work perfectly, not silently and catastrophically
- * break down. libmdbx supports Linux, Windows, MacOS, FreeBSD and other
- * systems compliant with POSIX.1-2008.
+ * break down. libmdbx supports Linux, Windows, MacOS, FreeBSD, DragonFly,
+ * Solaris, OpenSolaris, OpenIndiana, NetBSD, OpenBSD and other systems
+ * compliant with POSIX.1-2008.
  *
  * Look below for API description, for other information (build, embedding and
  * amalgamation, improvements over LMDB, benchmarking, etc) please refer to
@@ -593,7 +594,17 @@ typedef pthread_t mdbx_tid_t;
 
 #ifndef __has_attribute
 #define __has_attribute(x) (0)
+#endif /* __has_attribute */
+
+#ifndef __deprecated
+#if defined(__GNUC__) || __has_attribute(__deprecated__)
+#define __deprecated __attribute__((__deprecated__))
+#elif defined(_MSC_VER)
+#define __deprecated __declspec(deprecated)
+#else
+#define __deprecated
 #endif
+#endif /* __deprecated */
 
 #ifndef __dll_export
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -628,7 +639,7 @@ typedef pthread_t mdbx_tid_t;
 /*----------------------------------------------------------------------------*/
 
 #define MDBX_VERSION_MAJOR 0
-#define MDBX_VERSION_MINOR 3
+#define MDBX_VERSION_MINOR 4
 
 #ifndef LIBMDBX_API
 #if defined(LIBMDBX_EXPORTS)
@@ -921,6 +932,22 @@ LIBMDBX_API const char *mdbx_dump_val(const MDBX_val *key, char *const buf,
  * This flag affects only at environment opening but can't be changed after. */
 #define MDBX_EXCLUSIVE 0x400000u
 
+/* MDBX_ACCEDE = using database which already opened by another process(es).
+ *
+ * The MDBX_ACCEDE flag avoid MDBX_INCOMPATIBLE error while opening If the
+ * database is already used by another process(es) and environment mode/flags
+ * isn't compatible. In such cases, when using the MDBX_ACCEDE flag, instead of
+ * the specified incompatible options, the mode in which the database is already
+ * opened by other processes will be used, including MDBX_LIFORECLAIM,
+ * MDBX_COALESCE and MDBX_NORDAHEAD. The MDBX_ACCEDE flag is useful to open a
+ * database that already used by another process(es) and used mode/flags isn't
+ * known.
+ *
+ * MDBX_ACCEDE has no effect if the current process is the only one either
+ * opening the DB in read-only mode or other process(es) uses the DB in
+ * read-only mode. */
+#define MDBX_ACCEDE 0x40000000u
+
 /* MDBX_WRITEMAP = map data into memory with write permission.
  *
  * Use a writeable memory map unless MDBX_RDONLY is set. This uses fewer mallocs
@@ -1053,7 +1080,7 @@ LIBMDBX_API const char *mdbx_dump_val(const MDBX_val *key, char *const buf,
  * This flag may be changed at any time using mdbx_env_set_flags(). */
 #define MDBX_LIFORECLAIM 0x4000000u
 
-/* Debuging option, fill/perturb released pages. */
+/* Debugging option, fill/perturb released pages. */
 #define MDBX_PAGEPERTURB 0x8000000u
 
 /**** SYNC MODES ***************************************************************
@@ -1615,7 +1642,8 @@ typedef struct MDBX_stat {
  * Returns A non-zero error value on failure and 0 on success. */
 LIBMDBX_API int mdbx_env_stat_ex(const MDBX_env *env, const MDBX_txn *txn,
                                  MDBX_stat *stat, size_t bytes);
-LIBMDBX_API int mdbx_env_stat(MDBX_env *env, MDBX_stat *stat, size_t bytes);
+__deprecated LIBMDBX_API int mdbx_env_stat(MDBX_env *env, MDBX_stat *stat,
+                                           size_t bytes);
 
 /* Information about the environment */
 typedef struct MDBX_envinfo {
@@ -1640,16 +1668,19 @@ typedef struct MDBX_envinfo {
   uint32_t mi_dxb_pagesize; /* database pagesize */
   uint32_t mi_sys_pagesize; /* system pagesize */
 
-  uint64_t
-      mi_bootid[2]; /* A mostly unique ID that is regenerated on each boot.
-                       As such it can be used to identify the local
-                       machine's current boot. MDBX uses such when open
-                       the database to determine whether rollback required
-                       to the last steady sync point or not. I.e. if current
-                       bootid is differ from the value within a database then
-                       the system was rebooted and all changes since last steady
-                       sync must be reverted for data integrity. Zeros mean that
-                       no relevant information is available from the system. */
+  struct {
+    /* A mostly unique ID that is regenerated on each boot. As such it can be
+       used to identify the local machine's current boot. MDBX uses such when
+       open the database to determine whether rollback required to the last
+       steady sync point or not. I.e. if current bootid is differ from the value
+       within a database then the system was rebooted and all changes since last
+       steady sync must be reverted for data integrity. Zeros mean that no
+       relevant information is available from the system. */
+    struct {
+      uint64_t l, h;
+    } current, meta0, meta1, meta2;
+  } mi_bootid;
+
   uint64_t mi_unsync_volume; /* bytes not explicitly synchronized to disk */
   uint64_t mi_autosync_threshold;        /* current auto-sync threshold, see
                                             mdbx_env_set_syncbytes(). */
@@ -1685,7 +1716,8 @@ typedef struct MDBX_envinfo {
  * Returns A non-zero error value on failure and 0 on success. */
 LIBMDBX_API int mdbx_env_info_ex(const MDBX_env *env, const MDBX_txn *txn,
                                  MDBX_envinfo *info, size_t bytes);
-LIBMDBX_API int mdbx_env_info(MDBX_env *env, MDBX_envinfo *info, size_t bytes);
+__deprecated LIBMDBX_API int mdbx_env_info(MDBX_env *env, MDBX_envinfo *info,
+                                           size_t bytes);
 
 /* Flush the environment data buffers to disk.
  *
@@ -2039,7 +2071,7 @@ LIBMDBX_API int mdbx_env_set_geometry(MDBX_env *env, intptr_t size_lower,
                                       intptr_t growth_step,
                                       intptr_t shrink_threshold,
                                       intptr_t pagesize);
-LIBMDBX_API int mdbx_env_set_mapsize(MDBX_env *env, size_t size);
+__deprecated LIBMDBX_API int mdbx_env_set_mapsize(MDBX_env *env, size_t size);
 
 /* Find out whether to use readahead or not, based on the given database size
  * and the amount of available memory.
@@ -2064,19 +2096,21 @@ __inline intptr_t mdbx_limits_pgsize_min(void) { return MDBX_MIN_PAGESIZE; }
 __inline intptr_t mdbx_limits_pgsize_max(void) { return MDBX_MAX_PAGESIZE; }
 
 /* Returns minimal database size in bytes for given page size,
- * or the negative error code. */
+ * or -1 if pagesize is invalid. */
 LIBMDBX_API intptr_t mdbx_limits_dbsize_min(intptr_t pagesize);
 
 /* Returns maximal database size in bytes for given page size,
- * or the negative error code. */
+ * or -1 if pagesize is invalid. */
 LIBMDBX_API intptr_t mdbx_limits_dbsize_max(intptr_t pagesize);
 
-/* Returns maximal key size in bytes for given page size,
- * or the negative error code. */
-LIBMDBX_API intptr_t mdbx_limits_keysize_max(intptr_t pagesize);
+/* Returns maximal key and data size in bytes for given page size
+ * and database flags (see mdbx_dbi_open_ex() description),
+ * or -1 if pagesize is invalid. */
+LIBMDBX_API intptr_t mdbx_limits_keysize_max(intptr_t pagesize, unsigned flags);
+LIBMDBX_API intptr_t mdbx_limits_valsize_max(intptr_t pagesize, unsigned flags);
 
 /* Returns maximal write transaction size (i.e. limit for summary volume of
- * dirty pages) in bytes for given page size, or the negative error code. */
+ * dirty pages) in bytes for given page size, or -1 if pagesize is invalid. */
 LIBMDBX_API intptr_t mdbx_limits_txnsize_max(intptr_t pagesize);
 
 /* Set the maximum number of threads/reader slots for the environment.
@@ -2130,12 +2164,17 @@ LIBMDBX_API int mdbx_env_get_maxreaders(MDBX_env *env, unsigned *readers);
  *  - MDBX_EPERM    = the environment is already open. */
 LIBMDBX_API int mdbx_env_set_maxdbs(MDBX_env *env, MDBX_dbi dbs);
 
-/* Get the maximum size of keys and MDBX_DUPSORT data we can write.
+/* Get the maximum size of keys and data we can write.
  *
- * [in] env  An environment handle returned by mdbx_env_create().
+ * [in] env    An environment handle returned by mdbx_env_create().
+ * [in] flags  Database options (MDBX_DUPSORT, MDBX_INTEGERKEY ans so on),
+ *             see mdbx_dbi_open_ex() description.
  *
- * Returns The maximum size of a key we can write. */
-LIBMDBX_API int mdbx_env_get_maxkeysize(MDBX_env *env);
+ * Returns The maximum size of a key we can write,
+ * or -1 if something is wrong. */
+LIBMDBX_API int mdbx_env_get_maxkeysize_ex(MDBX_env *env, unsigned flags);
+LIBMDBX_API int mdbx_env_get_maxvalsize_ex(MDBX_env *env, unsigned flags);
+__deprecated LIBMDBX_API int mdbx_env_get_maxkeysize(MDBX_env *env);
 
 /* Set application information associated with the MDBX_env.
  *
@@ -3201,13 +3240,14 @@ LIBMDBX_API int mdbx_reader_check(MDBX_env *env, int *dead);
  *
  * Returns an information for estimate how much given read-only
  * transaction is lagging relative the to actual head.
+ * This is deprecated function, use mdbx_txn_info() instead.
  *
  * [in] txn       A transaction handle returned by mdbx_txn_begin().
  * [out] percent  Percentage of page allocation in the database.
  *
  * Returns Number of transactions committed after the given was started for
  * read, or negative value on failure. */
-LIBMDBX_API int mdbx_txn_straggler(MDBX_txn *txn, int *percent);
+__deprecated LIBMDBX_API int mdbx_txn_straggler(MDBX_txn *txn, int *percent);
 
 /* A lack-of-space callback function to resolve issues with a laggard readers.
  *
