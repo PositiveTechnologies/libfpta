@@ -514,10 +514,22 @@ int fpta_transaction_lag(fpta_txn *txn, unsigned *lag, unsigned *percent) {
   if (unlikely(err != MDBX_SUCCESS))
     return err;
 
+  if (unlikely(txn->level != fpta_read))
+    return FPTA_EPERM;
+
   if (unlikely(!lag))
     return FPTA_EINVAL;
 
-  *lag = mdbx_txn_straggler(txn->mdbx_txn, (int *)percent);
+  MDBX_txn_info info;
+  err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  *lag = (unsigned)info.txn_reader_lag;
+  if (percent)
+    *percent = (unsigned)(info.txn_space_used * 100 /
+                          (info.txn_space_used + info.txn_space_leftover));
+
   return FPTA_SUCCESS;
 }
 
@@ -529,7 +541,12 @@ int fpta_transaction_restart(fpta_txn *txn) {
   if (unlikely(txn->level != fpta_read))
     return FPTA_EPERM;
 
-  if (mdbx_txn_straggler(txn->mdbx_txn, nullptr) == 0)
+  MDBX_txn_info info;
+  err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (info.txn_reader_lag == 0)
     return FPTA_SUCCESS;
 
 retry:

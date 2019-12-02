@@ -24,6 +24,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 #define _STL_WARNING_LEVEL 3
+#pragma warning(disable : 4996) /* 'xyz': is deprecated... */
 #pragma warning(disable : 4625) /* constructor was implicitly defined          \
                                    as deleted */
 #pragma warning(disable : 4626) /* assignment operator was implicitly defined  \
@@ -50,6 +51,10 @@
 #pragma warning(disable : 4738) /* storing 32-bit float result in memory,      \
                                    possible loss of performance */
 #endif                          /* _MSC_VER (warnings) */
+
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 
 #include <gtest/gtest.h>
 

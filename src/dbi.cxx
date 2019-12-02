@@ -160,7 +160,7 @@ static __cold int fpta_dbicache_validate_locked(
       return rc;
 
     MDBX_envinfo info;
-    rc = mdbx_env_info(db->mdbx_env, &info, sizeof(info));
+    rc = mdbx_env_info_ex(nullptr, txn->mdbx_txn, &info, sizeof(info));
     if (unlikely(rc != FPTA_SUCCESS))
       return rc;
 
@@ -227,7 +227,7 @@ __cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def,
   }
 
   MDBX_envinfo info;
-  int rc = mdbx_env_info(db->mdbx_env, &info, sizeof(info));
+  int rc = mdbx_env_info_ex(nullptr, txn->mdbx_txn, &info, sizeof(info));
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 

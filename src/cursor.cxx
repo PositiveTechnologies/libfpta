@@ -1242,9 +1242,17 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  if (cursor->txn->level > fpta_read ||
-      mdbx_txn_straggler(cursor->txn->mdbx_txn, nullptr) == 0)
-    /* ничего не делаем для пишущих транзакций, либо если нет отставания */
+  if (cursor->txn->level > fpta_read)
+    /* ничего не делаем для пишущих транзакций */
+    return FPTA_SUCCESS;
+
+  MDBX_txn_info info;
+  rc = mdbx_txn_info(cursor->txn->mdbx_txn, &info, false);
+  if (unlikely(rc != MDBX_SUCCESS))
+    return rc;
+
+  if (info.txn_reader_lag == 0)
+    /* ничего не делаем если нет отставания */
     return FPTA_SUCCESS;
 
   MDBX_val save_key, save_data;
