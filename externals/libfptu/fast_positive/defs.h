@@ -281,7 +281,7 @@
 #if defined(__GNUC__) || __has_attribute(__deprecated__)
 #define __deprecated __attribute__((__deprecated__))
 #elif defined(_MSC_VER)
-#define __deprecated __declspec(__deprecated__)
+#define __deprecated __declspec(deprecated)
 #else
 #define __deprecated
 #endif
