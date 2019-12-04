@@ -36,9 +36,9 @@ set_target_properties(${t1ha_target} PROPERTIES
 
 ###############################################################################
 
+set(MDBX_BUILD_SHARED_LIBRARY OFF)
 add_subdirectory(libmdbx)
 target_compile_definitions(mdbx-static PRIVATE LIBMDBX_EXPORTS)
-set_target_properties(mdbx PROPERTIES EXCLUDE_FROM_ALL TRUE)
 if(ENABLE_VALGRIND)
   target_compile_definitions(mdbx-static PRIVATE MDBX_USE_VALGRIND)
 endif()
