@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 81e14d7fe55f95f1bc6c2b5bccc59af100e3ead5ed97c0b7e85c7e11e99d6b5d_v0_4_0_7_g5cb7989e8d
+#define MDBX_BUILD_SOURCERY ba1d21552214d285549898389b9c2417cf44cd3945e414a32a3b8bd88aae0910_v0_4_0_9_g54158367f
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -13485,8 +13485,7 @@ static int mdbx_cursor_touch(MDBX_cursor *mc) {
 int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
                     unsigned flags) {
   MDBX_env *env;
-  MDBX_page *fp, *sub_root = NULL;
-  uint16_t fp_flags;
+  MDBX_page *sub_root = NULL;
   MDBX_val xdata, *rdata, dkey, olddata;
   MDBX_db nested_dupdb;
   unsigned mcount = 0, dcount = 0, nospill;
@@ -13674,6 +13673,8 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
 
   bool insert_key, insert_data, do_sub = false;
   insert_key = insert_data = (rc != MDBX_SUCCESS);
+  uint16_t fp_flags = P_LEAF | P_DIRTY;
+  MDBX_page *fp = env->me_pbuf;
   if (insert_key) {
     /* The key does not exist */
     mdbx_debug("inserting key at index %i", mc->mc_ki[mc->mc_top]);
@@ -13682,8 +13683,6 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
             /* See note inside leaf_size() */ env->me_branch_nodemax) {
       /* Too big for a node, insert in sub-DB.  Set up an empty
        * "old sub-page" for prep_subDB to expand to a full page. */
-      fp_flags = P_LEAF | P_DIRTY;
-      fp = env->me_pbuf;
       fp->mp_leaf2_ksize = (uint16_t)data->iov_len /* used if MDBX_DUPFIXED */;
       fp->mp_lower = fp->mp_upper = 0;
       olddata.iov_len = PAGEHDRSZ;
@@ -22106,9 +22105,9 @@ __dll_export
         0,
         4,
         0,
-        1687,
-        {"2019-12-03T15:45:24+03:00", "52a08cf88ccf2d953f91857e992ea92d60a931ba", "5cb7989e8d82f191409a5f3e9c82d595b93c013c",
-         "v0.4.0-7-g5cb7989e8d"},
+        1689,
+        {"2019-12-04T17:07:40+03:00", "d2543758c92ddf43d78114a1b5addfaef2da0521", "54158367f69913964bfc710e0eab5c883361a8d3",
+         "v0.4.0-9-g54158367f"},
         sourcery};
 
 __dll_export
