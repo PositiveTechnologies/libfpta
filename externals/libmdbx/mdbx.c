@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY ba1d21552214d285549898389b9c2417cf44cd3945e414a32a3b8bd88aae0910_v0_4_0_9_g54158367f
+#define MDBX_BUILD_SOURCERY f8d94bb78718a1ce020bd679f0dc0ee468e12441b7728cad2c7631de3f120161_v0_4_0_12_g3dccbb25a7
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -6755,7 +6755,7 @@ __cold static int mdbx_wipe_steady(MDBX_env *env, const txnid_t last_steady) {
                       SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER))
     err = errno;
 #else
-  err = mdbx_filesync(env->me_fd, MDBX_SYNC_DATA | MDBX_SYNC_IODQ);
+  err = mdbx_filesync(env->me_fd, MDBX_SYNC_DATA);
 #endif
   if (unlikely(err != MDBX_SUCCESS))
     return err;
@@ -17233,7 +17233,7 @@ int __cold mdbx_env_copy2fd(MDBX_env *env, mdbx_filehandle_t fd,
 
   if (!dest_is_pipe) {
     if (likely(rc == MDBX_SUCCESS))
-      rc = mdbx_filesync(fd, MDBX_SYNC_DATA | MDBX_SYNC_SIZE | MDBX_SYNC_IODQ);
+      rc = mdbx_filesync(fd, MDBX_SYNC_DATA | MDBX_SYNC_SIZE);
 
     /* Write actual meta */
     if (likely(rc == MDBX_SUCCESS))
@@ -22105,9 +22105,9 @@ __dll_export
         0,
         4,
         0,
-        1689,
-        {"2019-12-04T17:07:40+03:00", "d2543758c92ddf43d78114a1b5addfaef2da0521", "54158367f69913964bfc710e0eab5c883361a8d3",
-         "v0.4.0-9-g54158367f"},
+        1692,
+        {"2019-12-05T01:43:57+03:00", "456d64170249e6108e90da02648de8c7707e2ed0", "3dccbb25a7710d4eff5fb136182b7bb0abfc4914",
+         "v0.4.0-12-g3dccbb25a7"},
         sourcery};
 
 __dll_export
