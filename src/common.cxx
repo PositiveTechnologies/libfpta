@@ -539,6 +539,7 @@ int fpta_transaction_restart(fpta_txn *txn) {
   if (unlikely(txn->level != fpta_read))
     return FPTA_EPERM;
 
+#ifndef NDEBUG
   MDBX_txn_info info;
   err = mdbx_txn_info(txn->mdbx_txn, &info, false);
   if (unlikely(err != MDBX_SUCCESS))
@@ -546,6 +547,7 @@ int fpta_transaction_restart(fpta_txn *txn) {
 
   if (info.txn_reader_lag == 0)
     return FPTA_SUCCESS;
+#endif /* !NDEBUG */
 
 retry:
   err = mdbx_txn_reset(txn->mdbx_txn);
@@ -582,4 +584,61 @@ retry:
   }
 
   return FPTA_SUCCESS;
+}
+
+int fpta_transaction_lag_ex(fpta_txn *txn, size_t *lag, size_t *retired,
+                            size_t *left) {
+
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (unlikely(txn->level != fpta_read))
+    return FPTA_EPERM;
+
+  if (unlikely(!lag && !retired && !left))
+    return FPTA_EINVAL;
+
+  MDBX_txn_info info;
+  err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (lag)
+    *lag = (info.txn_reader_lag < SIZE_MAX) ? (size_t)info.txn_reader_lag
+                                            : SIZE_MAX;
+  if (retired)
+    *retired = (info.txn_space_retired < SIZE_MAX)
+                   ? (size_t)info.txn_space_retired
+                   : SIZE_MAX;
+  if (left) {
+    const uint64_t limit =
+        info.txn_space_leftover +
+        (info.txn_space_limit_hard - info.txn_space_limit_soft);
+    *left = (limit < SIZE_MAX) ? (size_t)limit : SIZE_MAX;
+  }
+  return FPTA_SUCCESS;
+}
+
+int fpta_enough_for_restart(fpta_txn *txn, size_t lag_threshold,
+                            size_t retired_threshold, size_t space_threshold) {
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (likely(txn->level == fpta_read)) {
+    MDBX_txn_info info;
+    err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+    if (unlikely(err != MDBX_SUCCESS))
+      return err;
+
+    if (info.txn_reader_lag < lag_threshold &&
+        info.txn_space_retired < retired_threshold &&
+        info.txn_space_leftover +
+                (info.txn_space_limit_hard - info.txn_space_limit_soft) >
+            space_threshold)
+      return FPTA_SUCCESS;
+  }
+
+  return FPTA_NODATA;
 }

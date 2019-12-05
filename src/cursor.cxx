@@ -1244,14 +1244,15 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
     /* ничего не делаем для пишущих транзакций */
     return FPTA_SUCCESS;
 
+#ifndef NDEBUG
   MDBX_txn_info info;
   rc = mdbx_txn_info(cursor->txn->mdbx_txn, &info, false);
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
 
   if (info.txn_reader_lag == 0)
-    /* ничего не делаем если нет отставания */
-    return FPTA_SUCCESS;
+    return FPTA_EINVAL;
+#endif /* !NDEBUG */
 
   MDBX_val save_key, save_data;
   /* запоминаем позицию только если курсор установлен */
