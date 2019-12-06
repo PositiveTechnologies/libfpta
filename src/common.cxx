@@ -111,7 +111,7 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
       return FPTA_EINVAL;
   }
 
-  unsigned mdbx_flags = MDBX_NOSUBDIR;
+  unsigned mdbx_flags = MDBX_NOSUBDIR | MDBX_ACCEDE;
   switch (durability) {
   default:
     return FPTA_EFLAG;
