@@ -1,20 +1,18 @@
-﻿##
-##  Copyright 2016-2018 libfptu authors: please see AUTHORS file.
 ##
-##  This file is part of libfptu, aka "Fast Positive Tuples".
+##  Fast Positive Tuples (libfptu), aka Позитивные Кортежи
+##  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
 ##
-##  libfptu is free software: you can redistribute it and/or modify
-##  it under the terms of the GNU General Public License as published by
-##  the Free Software Foundation, either version 3 of the License, or
-##  (at your option) any later version.
+##  Licensed under the Apache License, Version 2.0 (the "License");
+##  you may not use this file except in compliance with the License.
+##  You may obtain a copy of the License at
 ##
-##  libfptu is distributed in the hope that it will be useful,
-##  but WITHOUT ANY WARRANTY; without even the implied warranty of
-##  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-##  GNU General Public License for more details.
+##      http://www.apache.org/licenses/LICENSE-2.0
 ##
-##  You should have received a copy of the GNU General Public License
-##  along with libfptu.  If not, see <http://www.gnu.org/licenses/>.
+##  Unless required by applicable law or agreed to in writing, software
+##  distributed under the License is distributed on an "AS IS" BASIS,
+##  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+##  See the License for the specific language governing permissions and
+##  limitations under the License.
 ##
 
 ##
@@ -24,7 +22,7 @@
 ##  to machining, including cases with shared memory.
 ##  Please see README.md at https://github.com/leo-yuriev/libfptu
 ##
-##  The Future will Positive. Всё будет хорошо.
+##  The Future will (be) Positive. Всё будет хорошо.
 ##
 ##  "Позитивные Кортежи" дают легковесное линейное представление небольших
 ##  JSON-подобных структур в экстремально удобной для машины форме,
@@ -116,12 +114,10 @@ endif()
 # Define GNU standard installation directories
 include(GNUInstallDirs)
 
-include(cmake.fptu/utils.cmake)
 # the order is significant: we need to know os and compiler to configure libs
-include(cmake.fptu/arch.cmake)
-include(cmake.fptu/os.cmake)
-include(cmake.fptu/profile.cmake)
-include(cmake.fptu/compiler.cmake)
+include(src/erthink/cmake/utils.cmake)
+include(src/erthink/cmake/profile.cmake)
+include(src/erthink/cmake/compiler.cmake)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
   message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTU."
@@ -159,6 +155,7 @@ CHECK_SYMBOL_EXISTS(nanf math.h HAVE_nanf)
 CHECK_INCLUDE_FILES(ieee754.h HAVE_IEEE754_H)
 
 if(NOT SUBPROJECT)
+  set(CMAKE_MACOSX_RPATH ON)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
 
@@ -218,7 +215,7 @@ if(NOT SUBPROJECT)
   if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD ${FPTU_CXX_STANDARD})
   endif()
-  include(cmake.fptu/testing.cmake)
+  include(src/erthink/cmake/testing.cmake)
 
   #
   # Enable 'make tags' target.
@@ -243,8 +240,6 @@ if(NOT SUBPROJECT)
       xargs ${CLANG_FORMAT} -i --style=file
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
   endif()
-
-  include(cmake.fptu/multilib.cmake)
 
   if(NOT "${PROJECT_BINARY_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
     add_custom_target(distclean)

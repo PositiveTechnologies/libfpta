@@ -1,6 +1,6 @@
 language: cpp
 sudo: required
-dist: trusty
+dist: xenial
 
 env:
   global:
@@ -32,6 +32,7 @@ compiler:
 
 os:
   - linux
+  - osx
 
 before_install: >
   if [ "${COVERITY_SCAN_BRANCH}" = 1 ]; then
@@ -53,4 +54,6 @@ script: >
       fi) &&
     make --keep-going all &&
     make --keep-going test && test/fptu_c_mode;
-  fi
+  else
+    [ ! -s cov-int/scm_log.txt ] || cat cov-int/scm_log.txt;
+  fi && sleep 3

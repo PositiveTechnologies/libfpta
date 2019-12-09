@@ -1,20 +1,18 @@
 ﻿/*
- * Copyright 2016-2019 libfpta authors: please see AUTHORS file.
+ *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
+ *  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
  *
- * This file is part of libfpta, aka "Fast Positive Tables".
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- * libfpta is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * libfpta is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with libfpta.  If not, see <http://www.gnu.org/licenses/>.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
 
 #include "details.h"
@@ -113,7 +111,7 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
       return FPTA_EINVAL;
   }
 
-  unsigned mdbx_flags = MDBX_NOSUBDIR;
+  unsigned mdbx_flags = MDBX_NOSUBDIR | MDBX_ACCEDE;
   switch (durability) {
   default:
     return FPTA_EFLAG;
@@ -165,7 +163,8 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
   }
 
   if (unlikely(regime_flags & fpta_madness4testing)) {
-    mdbx_setup_debug(MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_DUMP |
+    mdbx_setup_debug(MDBX_LOG_WARN,
+                     MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_DUMP |
                          MDBX_DBG_LEGACY_MULTIOPEN | MDBX_DBG_JITTER,
                      reinterpret_cast<MDBX_debug_func *>(
                          intptr_t(-1 /* means "don't change" */)));
@@ -479,7 +478,9 @@ int fpta_internal_abort(fpta_txn *txn, int errnum, bool txn_maybe_dead) {
   int rc = mdbx_txn_abort(txn->mdbx_txn);
   if (unlikely(rc != MDBX_SUCCESS)) {
     switch (rc) {
-    case MDBX_EBADSIGN /* already aborted txn */:
+    case MDBX_EBADSIGN /* already aborted read-only txn */:
+    /* fallthrough */
+    case MDBX_BAD_TXN /* already aborted read-write txn */:
     /* fallthrough */
     case MDBX_THREAD_MISMATCH /* already aborted and started in other thread */:
       if (txn_maybe_dead)
@@ -511,10 +512,22 @@ int fpta_transaction_lag(fpta_txn *txn, unsigned *lag, unsigned *percent) {
   if (unlikely(err != MDBX_SUCCESS))
     return err;
 
+  if (unlikely(txn->level != fpta_read))
+    return FPTA_EPERM;
+
   if (unlikely(!lag))
     return FPTA_EINVAL;
 
-  *lag = mdbx_txn_straggler(txn->mdbx_txn, (int *)percent);
+  MDBX_txn_info info;
+  err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  *lag = (unsigned)info.txn_reader_lag;
+  if (percent)
+    *percent = (unsigned)(info.txn_space_used * 100 /
+                          (info.txn_space_used + info.txn_space_leftover));
+
   return FPTA_SUCCESS;
 }
 
@@ -526,8 +539,15 @@ int fpta_transaction_restart(fpta_txn *txn) {
   if (unlikely(txn->level != fpta_read))
     return FPTA_EPERM;
 
-  if (mdbx_txn_straggler(txn->mdbx_txn, nullptr) == 0)
+#ifndef NDEBUG
+  MDBX_txn_info info;
+  err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (info.txn_reader_lag == 0)
     return FPTA_SUCCESS;
+#endif /* !NDEBUG */
 
 retry:
   err = mdbx_txn_reset(txn->mdbx_txn);
@@ -564,4 +584,61 @@ retry:
   }
 
   return FPTA_SUCCESS;
+}
+
+int fpta_transaction_lag_ex(fpta_txn *txn, size_t *lag, size_t *retired,
+                            size_t *left) {
+
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (unlikely(txn->level != fpta_read))
+    return FPTA_EPERM;
+
+  if (unlikely(!lag && !retired && !left))
+    return FPTA_EINVAL;
+
+  MDBX_txn_info info;
+  err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (lag)
+    *lag = (info.txn_reader_lag < SIZE_MAX) ? (size_t)info.txn_reader_lag
+                                            : SIZE_MAX;
+  if (retired)
+    *retired = (info.txn_space_retired < SIZE_MAX)
+                   ? (size_t)info.txn_space_retired
+                   : SIZE_MAX;
+  if (left) {
+    const uint64_t limit =
+        info.txn_space_leftover +
+        (info.txn_space_limit_hard - info.txn_space_limit_soft);
+    *left = (limit < SIZE_MAX) ? (size_t)limit : SIZE_MAX;
+  }
+  return FPTA_SUCCESS;
+}
+
+int fpta_enough_for_restart(fpta_txn *txn, size_t lag_threshold,
+                            size_t retired_threshold, size_t space_threshold) {
+  int err = fpta_txn_validate(txn, fpta_read);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  if (likely(txn->level == fpta_read)) {
+    MDBX_txn_info info;
+    err = mdbx_txn_info(txn->mdbx_txn, &info, false);
+    if (unlikely(err != MDBX_SUCCESS))
+      return err;
+
+    if (info.txn_reader_lag < lag_threshold &&
+        info.txn_space_retired < retired_threshold &&
+        info.txn_space_leftover +
+                (info.txn_space_limit_hard - info.txn_space_limit_soft) >
+            space_threshold)
+      return FPTA_SUCCESS;
+  }
+
+  return FPTA_NODATA;
 }

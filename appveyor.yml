@@ -2,14 +2,14 @@ version: 0.2.0.{build}
 
 environment:
   GTEST_SHUFFLE: 1
-  GTEST_RUNTIME_LIMIT: 142
+  GTEST_RUNTIME_LIMIT: 199
   matrix:
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-      CMAKE_GENERATOR: Visual Studio 14 2015
-      TOOLSET: v140
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      CMAKE_GENERATOR: Visual Studio 16 2019
+      TOOLSET: 142
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
       CMAKE_GENERATOR: Visual Studio 15 2017
-      TOOLSET: v141
+      TOOLSET: 141
 
 branches:
   except:
@@ -20,39 +20,41 @@ configuration:
 - Release
 
 platform:
-- x86
+- Win32
 - x64
 
 artifacts:
   - path: '_build/Testing/Temporary/*'
     name: test_results
 
-install:
-- git submodule sync
-- git submodule update --init --recursive
-- git fetch --tags --prune
-- git submodule foreach --recursive git fetch --tags --prune
-- cmake --version
-- ps: choco install windbg
-
 before_build:
+- git submodule sync
+- git fetch --tags --prune
+- git submodule update --init --recursive
+- git submodule foreach --recursive git fetch --tags --prune
+# - ps: choco install windbg
+- cmake --version
+
+build_script:
 - ps: |
     Write-Output "*******************************************************************************"
     Write-Output "Configuration: $env:CONFIGURATION"
     Write-Output "Platform: $env:PLATFORM"
-    $generator = $env:CMAKE_GENERATOR
-    if ($env:PLATFORM -eq "x64") {
-        $generator = "$generator Win64"
-    }
-    Write-Output "Toolchain: $generator ($env:TOOLSET)"
+    Write-Output "Toolchain: $env:CMAKE_GENERATOR v$env:TOOLSET"
     Write-Output "*******************************************************************************"
 
-build_script:
-- ps: |
     md _build -Force | Out-Null
     cd _build
 
-    & cmake -G "$generator" -DCMAKE_CONFIGURATION_TYPES="Debug;Release" ..
+    $generator = $env:CMAKE_GENERATOR
+    if ($env:TOOLSET -lt 142) {
+        if ($env:PLATFORM -eq "x64") {
+            $generator = "$generator Win64"
+        }
+        & cmake -G "$generator" -DCMAKE_CONFIGURATION_TYPES="Debug;Release" ..
+    } else {
+        & cmake -G "$generator" -A $env:PLATFORM -DCMAKE_CONFIGURATION_TYPES="Debug;Release" ..
+    }
     if ($LastExitCode -ne 0) {
         throw "Exec: $ErrorMessage"
     }
@@ -81,12 +83,12 @@ test_script:
     & externals/libfptu/test/$env:CONFIGURATION/fptu_c_mode.exe
     & test/$env:CONFIGURATION/fpta_c_mode.exe
 
-on_failure:
-- ps: |-
-    $symPath = 'SRV*c:\symbols\*http://msdl.microsoft.com/download/symbols'
-    $files = Get-ChildItem -Path "$($env:LOCALAPPDATA)\CrashDumps"
-    ForEach ($file in $files) {
-      Write-Output "Analyzing crash dump: $file"
-      "C:\Program Files (x86)\Windows Kits\10\Debuggers\$($env:PLATFORM)\cdb.exe" `
-        -y $symPath -z $file -c '!analyze -v; q'
-    }
+# on_failure:
+# - ps: |-
+#     $symPath = 'SRV*c:\symbols\*http://msdl.microsoft.com/download/symbols'
+#     $files = Get-ChildItem -Path "$($env:LOCALAPPDATA)\CrashDumps"
+#     ForEach ($file in $files) {
+#       Write-Output "Analyzing crash dump: $file"
+#       "C:\Program Files (x86)\Windows Kits\10\Debuggers\$($env:PLATFORM)\cdb.exe" `
+#         -y $symPath -z $file -c '!analyze -v; q'
+#     }

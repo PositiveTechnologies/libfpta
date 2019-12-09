@@ -1,20 +1,18 @@
 /*
- * Copyright 2016-2018 libfptu authors: please see AUTHORS file.
+ *  Fast Positive Tuples (libfptu), aka Позитивные Кортежи
+ *  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
  *
- * This file is part of libfptu, aka "Fast Positive Tuples".
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- * libfptu is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * libfptu is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with libfptu.  If not, see <http://www.gnu.org/licenses/>.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
 
 /*
@@ -24,7 +22,7 @@
  * to machining, including cases with shared memory.
  * Please see README.md at https://github.com/leo-yuriev/libfptu
  *
- * The Future will Positive. Всё будет хорошо.
+ * The Future will (be) Positive. Всё будет хорошо.
  *
  * "Позитивные Кортежи" дают легковесное линейное представление небольших
  * JSON-подобных структур в экстремально удобной для машины форме,
@@ -90,8 +88,12 @@
 #endif
 
 #include <limits.h>
-#include <malloc.h>
 #include <string.h>
+#if !(defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
+      defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||          \
+      defined(__DragonFly__) || defined(__APPLE__) || defined(__MACH__))
+#include <malloc.h>
+#endif /* xBSD */
 
 #include <cinttypes> // for PRId64, PRIu64
 #include <cmath>     // for exp2()
@@ -130,82 +132,6 @@
 
 //----------------------------------------------------------------------------
 
-#ifndef __optimize
-#	if defined(__OPTIMIZE__)
-#		if defined(__clang__) && !__has_attribute(optimize)
-#			define __optimize(ops)
-#		elif defined(__GNUC__) || __has_attribute(optimize)
-#			define __optimize(ops) __attribute__((optimize(ops)))
-#		else
-#			define __optimize(ops)
-#		endif
-#	else
-#		define __optimize(ops)
-#	endif
-#endif /* __optimize */
-
-#ifndef __hot
-#	if defined(__OPTIMIZE__)
-#		if defined(__e2k__)
-#			define __hot __attribute__((hot)) __optimize(3)
-#		elif defined(__clang__) && !__has_attribute(hot)
-			/* just put frequently used functions in separate section */
-#			define __hot __attribute__((section("text.hot"))) __optimize("O3")
-#		elif defined(__GNUC__) || __has_attribute(hot)
-#			define __hot __attribute__((hot)) __optimize("O3")
-#		else
-#			define __hot  __optimize("O3")
-#		endif
-#	else
-#		define __hot
-#	endif
-#endif /* __hot */
-
-#ifndef __cold
-#	if defined(__OPTIMIZE__)
-#		if defined(__e2k__)
-#			define __cold __optimize(1) __attribute__((cold))
-#		elif defined(__clang__) && !__has_attribute(cold)
-			/* just put infrequently used functions in separate section */
-#			define __cold __attribute__((section("text.unlikely"))) __optimize("Os")
-#		elif defined(__GNUC__) || __has_attribute(cold)
-#			define __cold __attribute__((cold)) __optimize("Os")
-#		else
-#			define __cold __optimize("Os")
-#		endif
-#	else
-#		define __cold
-#	endif
-#endif /* __cold */
-
-#ifndef __flatten
-#	if defined(__OPTIMIZE__) && (defined(__GNUC__) || __has_attribute(flatten))
-#		define __flatten __attribute__((flatten))
-#	else
-#		define __flatten
-#	endif
-#endif /* __flatten */
-
-#ifndef __noinline
-#	if defined(__GNUC__) || __has_attribute(noinline)
-#		define __noinline __attribute__((noinline))
-#	elif defined(_MSC_VER)
-#		define __noinline __declspec(noinline)
-#	elif defined(__SUNPRO_C) || defined(__sun) || defined(sun)
-#		define __noinline inline
-#	elif !defined(__INTEL_COMPILER)
-#		define __noinline /* FIXME ? */
-#	endif
-#endif /* __noinline */
-
-#ifndef __maybe_unused
-#	if defined(__GNUC__) || __has_attribute(unused)
-#		define __maybe_unused __attribute__((unused))
-#	else
-#		define __maybe_unused
-#	endif
-#endif /* __maybe_unused */
-
 #ifdef __cplusplus
 #	define FPT_NONCOPYABLE(typename) \
 		typename(const typename&) = delete; \
@@ -234,14 +160,6 @@
 #		define __noop(...) do {} while(0)
 #	endif
 #endif /* __noop */
-
-#ifndef __fallthrough
-#	if __GNUC_PREREQ(7, 0) || __has_attribute(fallthrough)
-#		define __fallthrough __attribute__((fallthrough))
-#	else
-#		define __fallthrough __noop()
-#	endif
-#endif /* __fallthrough */
 
 #ifndef __unreachable
 #	if __GNUC_PREREQ(4,5)
@@ -287,7 +205,7 @@
 
 #ifndef __aligned
 #	if defined(__GNUC__) || defined(__clang__)
-#		define __aligned(N) __attribute__((aligned(N)))
+#		define __aligned(N) __attribute__((__aligned__(N)))
 #	elif defined(_MSC_VER)
 #		define __aligned(N) __declspec(align(N))
 #	else
@@ -356,18 +274,52 @@
 /* clang-format on */
 //----------------------------------------------------------------------------
 
-/* Prototype should match libc runtime. ISO POSIX (2003) & LSB 3.1 */
-__extern_C void __assert_fail(const char *assertion, const char *filename,
+#if _POSIX_C_SOURCE > 200212 &&                                                \
+    /* workaround for avoid musl libc wrong prototype */ (                     \
+        defined(__GLIBC__) || defined(__GNU_LIBRARY__))
+/* Prototype should match libc runtime. ISO POSIX (2003) & LSB 1.x-3.x */
+__extern_C void __assert_fail(const char *assertion, const char *file,
                               unsigned line, const char *function)
-#ifdef __GNUC__
 #ifdef __THROW
     __THROW
 #else
     __nothrow
-#endif
+#endif /* __THROW */
+    __noreturn;
+
+#elif defined(__APPLE__) || defined(__MACH__)
+__extern_C void __assert_rtn(const char *function, const char *file, int line,
+                             const char *assertion) /* __nothrow */
+#ifdef __dead2
+    __dead2
+#else
     __noreturn
-#endif
+#endif /* __dead2 */
+#ifdef __disable_tail_calls
+    __disable_tail_calls
+#endif /* __disable_tail_calls */
     ;
+
+#define __assert_fail(assertion, file, line, function)                         \
+  __assert_rtn(function, file, line, assertion)
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
+    defined(__BSD__) || defined(__NETBSD__) || defined(__bsdi__) ||            \
+    defined(__DragonFly__)
+__extern_C void __assert(const char *function, const char *file, int line,
+                         const char *assertion) /* __nothrow */
+#ifdef __dead2
+    __dead2
+#else
+    __noreturn
+#endif /* __dead2 */
+#ifdef __disable_tail_calls
+    __disable_tail_calls
+#endif /* __disable_tail_calls */
+    ;
+#define __assert_fail(assertion, file, line, function)                         \
+  __assert(function, file, line, assertion)
+
+#endif /* __assert_fail */
 
 static __inline bool is_filter(fptu_type_or_filter type_or_filter) {
   return (((uint32_t)type_or_filter) >= fptu_ffilter) ? true : false;
@@ -406,7 +358,7 @@ static __inline bool tag_match_fixedsize(uint_fast16_t tag, size_t units) {
          units == fptu_internal_map_t2u[fptu_get_type(tag)];
 }
 
-size_t fptu_field_units(const fptu_field *pf);
+__pure_function size_t fptu_field_units(const fptu_field *pf);
 
 static __inline const void *fptu_ro_detent(fptu_ro ro) {
   return (char *)ro.sys.iov_base + ro.sys.iov_len;
@@ -480,8 +432,8 @@ fptu_depleted2lge(const iterator &left_pos, const iterator &left_end,
 #define assert _ASSERTE
 #endif
 
-#if _MSC_VER >= 1900 && !defined(PRIuSIZE)
-/* LY: MSVC 2015/2017 has buggy/inconsistent PRIuPTR/PRIxPTR macros
+#if _MSC_VER >= 1900
+/* LY: MSVC 2015/2017/2019 has buggy/inconsistent PRIuPTR/PRIxPTR macros
  * for internal format-args checker. */
 #undef PRIuPTR
 #undef PRIiPTR
@@ -495,7 +447,7 @@ fptu_depleted2lge(const iterator &left_pos, const iterator &left_end,
 #define PRIiSIZE "zi"
 #define PRIdSIZE "zd"
 #define PRIxSIZE "zx"
-#endif /* fix PRI*PTR for _MSC_VER */
+#endif /* fix PRI*PTR for _MSC_VER >= 1900 */
 
 #endif /* _MSC_VER */
 
@@ -504,7 +456,7 @@ fptu_depleted2lge(const iterator &left_pos, const iterator &left_end,
 #define PRIiSIZE PRIiPTR
 #define PRIdSIZE PRIdPTR
 #define PRIxSIZE PRIxPTR
-#endif /* PRI*SIZE macros */
+#endif /* PRI*SIZE macros for MSVC */
 
 /*----------------------------------------------------------------------------*/
 /* LY: temporary workaround for Elbrus's memcmp() bug. */

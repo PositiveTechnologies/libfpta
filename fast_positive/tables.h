@@ -1,20 +1,18 @@
 ﻿/*
- * Copyright 2016-2019 libfpta authors: please see AUTHORS file.
+ *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
+ *  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
  *
- * This file is part of libfpta, aka "Fast Positive Tables".
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- * libfpta is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * libfpta is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with libfpta.  If not, see <http://www.gnu.org/licenses/>.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
 
 /*
@@ -25,7 +23,7 @@
  * variety of indexes, saturation, sequences and much more.
  * Please see README.md at https://github.com/leo-yuriev/libfpta
  *
- * The Future will Positive. Всё будет хорошо.
+ * The Future will (be) Positive. Всё будет хорошо.
  *
  * "Позитивные таблицы" предназначены для построения высокоскоростных
  * локальных хранилищ структурированных данных, с целевой производительностью
@@ -383,8 +381,16 @@ enum fpta_error {
   FPTA_ENOENT = ENOENT /* No such file or directory (POSIX) */,
   FPTA_EPERM = EPERM /* Operation not permitted (POSIX) */,
   FPTA_EBUSY = EBUSY /* Device or resource busy (POSIX) */,
-  FPTA_ENAME = EKEYREJECTED /* FPTA_EINVAL */,
-  FPTA_EFLAG = EBADRQC /* FPTA_EINVAL */,
+#ifdef EKEYREJECTED
+  FPTA_ENAME = EKEYREJECTED,
+#else
+  FPTA_ENAME = FPTA_EINVAL,
+#endif
+#ifdef EBADRQC
+  FPTA_EFLAG = EBADRQC,
+#else
+  FPTA_EFLAG = FPTA_EINVAL,
+#endif
 #endif
 
   /************************************************* MDBX's error codes ***/
@@ -820,7 +826,7 @@ FPTA_API extern const fpta_fp64_t fpta_fp64_denil;
 #define FPTA_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
 
 #ifndef _MSC_VER /* MSVC provides invalid nan() */
-#define FPTA_DENIL_FP64_MAS "4503599627370495"
+#define FPTA_DENIL_FP64_MAS "0x000FffffFFFFffff"
 #endif /* ! _MSC_VER */
 
 #if __GNUC_PREREQ(3, 3) || __has_builtin(nan)
@@ -923,9 +929,6 @@ typedef enum fpta_regime_flags {
                     * исключит возможность их непосредственного
                     * повреждения вследствие некорректно использования
                     * указателей в коде приложения. */
-  ,
-  fpta_openweakness = 16 /* При открытии базы не производить откат
-                          * к сильной точке фиксации. */
   ,
 #ifdef FPTA_INTERNALS
   /* "Безумный" режим для работы юнит-тестов: Позволяет двойное открытие
@@ -1081,13 +1084,14 @@ FPTA_API MDBX_txn *fpta_mdbx_txn(fpta_txn *txn);
 /* Возвращает очередное 64-битное значение из линейной последовательности
  * связанной с базой данных.
  *
- * Аргумент result служит для получения значение, а increment задает требуемое
+ * Аргумент result служит для получения значения, а increment задает требуемое
  * приращение.
  *
  * Функция считывает в result текущее значение линейного счетчика, который
- * существует в контексте базы данных. После считывания к счетчику добавляется
- * значение аргумента increment. При переполнении счетчика будет возвращена
- * ошибка FPTA_NODATA, а в result попадет исходное значение счетчика.
+ * существует в контексте базы данных и равен нулю после её создания. После
+ * считывания к счетчику добавляется значение аргумента increment. В случае
+ * переполнения будет возвращена ошибка FPTA_NODATA, а значение счетчика не
+ * изменится.
  *
  * Измененное значение счетчика будет сохранено и станет видимыми из других
  * транзакций и процессов только после успешной фиксации транзакции. Если же
@@ -1214,12 +1218,16 @@ static __inline int fpta_transaction_abort(fpta_txn *txn) {
   return fpta_transaction_end(txn, true);
 }
 
-/* Возвращает отставание переданной (читающей) транзакции от самой последней
- * версии БД (успешно завершенной пишущей транзакции).
+/* Возвращает отставание текущей читающей транзакции от самой свежей версии
+ * данных, сформированной последней успешно завершенной пишущей транзакцией.
  *
  * В обязательный аргумент lag будет возвращено отставание по количеству
- * зафиксированных транзакций. А в опциональный аргумент percent текущий объем
- * заполнения БД в процентах.
+ * зафиксированных транзакций. А в опциональный аргумент retired будет возвращен
+ * суммарный объем страниц БД с устаревшими данными, которые текущая транзакция
+ * удерживает от повторного использования. Опциональный аргумент left позволяет
+ * получить объем оставшегося в БД свободного места (с учетом возможного
+ * увеличения БД до максимального размера). Для получения более полной
+ * информации следует использовать функцию mdbx_txn_info() из libmdbx.
  *
  * Функция позволяет прикладному коду примерно определить момент когда следует
  * перезапускать долгую транзакцию чтения. Наличие долгой транзакции
@@ -1227,27 +1235,32 @@ static __inline int fpta_transaction_abort(fpta_txn *txn) {
  * используемых/читаемых снимков БД. Соответственно, продолжающиеся обновления
  * данных будут требовать выделение новых страниц, что сначала ведет к снижению
  * производительности, а потом к исчерпанию места (в БД и/или на диске).
- * Более подробно см https://bit.ly/2VZGKFe
- *
- *  - Если результат lag достаточно большой, то по-возможности лучше
- *    перезапусить читающую транзакцию.
- *  - Если же и база почти заполнена (percent близок к 100), то следует
- *    перезапускать во избежания приостановки изменений из-за переполнения.
- *
- * При этом следует учитывать, что вес каждой транзакции в страницах
- * определяется только объемом и характером изменений данных произведенных
- * в рамках транзакции. Поэтому отставание возвращаемое в lag невозможно
- * как-либо однозначно соотнести с объемом занятых/неосвобожденных страниц.
- *
- * Следует отметить, что в libmdbx реализована поддержка MVCC без возможности
- * обратиться из одной транзакции к данным другой. Более того, пишущие и
- * читающие транзакции не блокируют друг друга, кроме случаев переполнения БД.
- * Поэтому пока (в текущей версии) нет возможности получить величину отставания
- * читающий транзакции в количестве измененных страниц.
  *
  * В случае успеха возвращает ноль, иначе код ошибки. */
-FPTA_API int fpta_transaction_lag(fpta_txn *txn, unsigned *lag,
-                                  unsigned *percent);
+FPTA_API int fpta_transaction_lag_ex(fpta_txn *txn, size_t *lag,
+                                     size_t *retired, size_t *left);
+__deprecated FPTA_API int fpta_transaction_lag(fpta_txn *txn, unsigned *lag,
+                                               unsigned *percent);
+
+/* Оценивает необходимость перезапуска транзакции чтения по превышению хотя-бы
+ * одного из задаваемых аргументами порогов.
+ *
+ * Функция оценивает три фактора:
+ *  - Отставание текущей читающей транзакции от самой свежей версии данных,
+ *    сформированной последней успешно завершенной пишущей транзакцией,
+ *    т.е. количество зафиксированных пишущих транзакций после старта текущей
+ *    читающей транзакции.
+ *  - Суммарный объем страниц БД с устаревшими данными, которые текущая
+ *    транзакция удерживает от повторного использования.
+ *  - Объем оставшегося в БД свободного места, с учетом возможного увеличения
+ *    БД до максимального размера.
+ *
+ * При отсутствии ошибок функция возвращает FPTA_SUCCESS (0) если превышен
+ * хотя-бы один из указанных порогов, либо FPTA_NODATA (-1) если ни один из
+ * порогов не достигнут. Иначе возвращается код ошибки. */
+FPTA_API int fpta_enough_for_restart(fpta_txn *txn, size_t lag_threshold,
+                                     size_t retired_threshold,
+                                     size_t space_threshold);
 
 /* Перезапускает транзакцию чтения (и только чтения).
  *
@@ -1799,16 +1812,17 @@ static __inline bool fpta_column_is_composite(const fpta_name *column_id) {
 /* Разрушает операционные идентификаторы таблиц и колонок. */
 FPTA_API void fpta_name_destroy(fpta_name *id);
 
-/* Возвращает очередное 64-битное значение из линейной, связанной с таблицей,
- * последовательности.
+/* Возвращает очередное 64-битное значение из линейной последовательности
+ * связанной с таблицей.
  *
  * Аргументом table_id выбирается требуемая таблица. Аргумент result служит
  * для получения значение, а increment задает требуемое приращение.
  *
  * Функция считывает в result текущее значение линейного счетчика, который
- * существует в контексте таблицы. После считывания к счетчику добавляется
- * значение аргумента increment. При переполнении счетчика будет возвращена
- * ошибка FPTA_NODATA, а в result попадет исходное значение счетчика.
+ * существует в контексте таблицы и равен нулю при её создании. После
+ * считывания к счетчику добавляется значение аргумента increment. В случае
+ * переполнения будет возвращена ошибка FPTA_NODATA, а значение счетчика не
+ * изменится.
  *
  * Измененное значение счетчика будет сохранено и станет видимыми из других
  * транзакций и процессов только после успешной фиксации транзакции. Если же
@@ -1875,6 +1889,12 @@ FPTA_API int fpta_table_clear(fpta_txn *txn, fpta_name *table_id,
  *         index_costs[0].scan_O1N
  */
 typedef struct fpta_table_stat {
+  uint64_t mod_txnid; /* Номер последней зафиксированной транзакции, в которой
+                         таблица была изменена:
+                           - значение НЕ отражает изменение таблица в текущей
+                             т.е. еще НЕ зафиксированной транзакции;
+                           - если таблица была создана в текущей транзакции,
+                             то значение mod_txnid будет равно 0. */
   size_t row_count /* Количество строк-записей. */;
   size_t total_items /* Суммарное количество записей, включая все индексы. */;
   size_t total_bytes /* Занимаемое место, включая все индексы. */;
@@ -3219,10 +3239,6 @@ FPTA_API void *__fpta_index_shove2comparator(fpta_shove_t shove);
 static __inline bool fpta_is_under_valgrind(void) {
   return fptu_is_under_valgrind();
 }
-
-FPTA_API uint64_t fpta_umul_64x64_128(uint64_t a, uint64_t b, uint64_t *h);
-FPTA_API uint64_t fpta_umul_32x32_64(uint32_t a, uint32_t b);
-FPTA_API uint64_t fpta_umul_64x64_high(uint64_t a, uint64_t b);
 
 typedef struct fpta_version_info {
   uint8_t major;

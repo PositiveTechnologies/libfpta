@@ -382,10 +382,10 @@ int main(int argc, const char *argv[]) {
       hash_function = thunk_HighwayHash64_pure_c;
       hash_name = "HighwayHash64";
     } else if (is_selected(bench_64 | bench_xxhash)) {
-      hash_function = XXH64;
+      hash_function = XXH_64;
       hash_name = "xxhash64";
     } else if (is_selected(bench_32 | bench_xxhash)) {
-      hash_function = thunk_XXH32;
+      hash_function = XXH_32;
       hash_name = "xxhash32";
     } else if (is_selected(bench_64 | bench_stadtx)) {
       hash_function = thunk_StadtX;
@@ -415,8 +415,8 @@ int main(int argc, const char *argv[]) {
       hash_name = "t1ha0";
 #endif
     } else if (is_selected(bench_xxhash)) {
-      hash_function = XXH64;
-      hash_name = "xxhash64";
+      hash_function = XXH3_64;
+      hash_name = "xxh3_64";
     } else {
       fprintf(stderr, "hash-function should be selected explicitly\n");
       return EXIT_FAILURE;
@@ -495,9 +495,17 @@ int main(int argc, const char *argv[]) {
   printf(" - measure granularity and overhead: ");
   fflush(NULL);
   double mats /* MeasurAble TimeSlice */ = bench_mats();
-  printf("%g %s%s, %g iteration%s/%s\n", mats, mera.units,
-         (mats > 1.5) ? "s" : "", 1 / mats, (1 / mats > 1.5) ? "s" : "",
-         mera.units);
+  printf(
+      "%g %s%s, %g iteration%s/%s\n", mats, mera.units,
+      ((mera.flags & (timestamp_cycles | timestamp_ticks)) != 0 && mats > 1.5)
+          ? "s"
+          : "",
+      1 / mats,
+      ((mera.flags & (timestamp_cycles | timestamp_ticks)) != 0 &&
+       1 / mats > 1.5)
+          ? "s"
+          : "",
+      mera.units);
 
   if (is_option_set(bench_verbose)) {
     printf(" - convergence: ");

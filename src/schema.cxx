@@ -1,20 +1,18 @@
 ﻿/*
- * Copyright 2016-2019 libfpta authors: please see AUTHORS file.
+ *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
+ *  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
  *
- * This file is part of libfpta, aka "Fast Positive Tables".
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- * libfpta is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * libfpta is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with libfpta.  If not, see <http://www.gnu.org/licenses/>.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
 
 #include "details.h"
@@ -258,11 +256,19 @@ public:
         bytes += 1 + length(vector[i]);
       result.reserve(bytes);
 
-      result.assign(take(vector.front()));
+#if HAVE_cxx17_std_string_view
+      result.assign(std::string_view(take(vector.front())));
       for (size_t i = 1; i < vector.size(); ++i) {
         result.append(1, delimiter);
-        result.append(take(vector[i]));
+        result.append(std::string_view(take(vector[i])));
       }
+#else
+      result.assign(std::string(take(vector.front())));
+      for (size_t i = 1; i < vector.size(); ++i) {
+        result.append(1, delimiter);
+        result.append(std::string(take(vector[i])));
+      }
+#endif
     }
     return result;
   }
@@ -1425,7 +1431,7 @@ int fpta_table_column_count_ex(const fpta_name *table_id,
 
   const fpta_table_schema *schema = table_id->table_schema;
   if (likely(total_columns))
-    *total_columns = schema->column_count();
+    *total_columns = unsigned(schema->column_count());
   if (composite_count) {
     unsigned count = 0;
     for (size_t i = 0; i < schema->column_count(); ++i) {
@@ -1532,24 +1538,20 @@ enum {
 const char *fpta_schema2json_tag2name(const void *schema_ctx, unsigned tag) {
   (void)schema_ctx;
 
-  static constexpr std::array<const char *, colnum_max> names = {
+  static constexpr std::array<const char *, colnum_max> names = {{
       "schema_format" /* colnum_schema_format */,
-      "schema_t1ha" /* colnum_schema_t1ha */,
-      "table" /* colnum_tbl */,
-      "name" /* colnum_tbl_name */,
-      "column" /* colnum_col */,
-      "name" /* colnum_col_name */,
-      "number" /* colnum_col_number */,
+      "schema_t1ha" /* colnum_schema_t1ha */, "table" /* colnum_tbl */,
+      "name" /* colnum_tbl_name */, "column" /* colnum_col */,
+      "name" /* colnum_col_name */, "number" /* colnum_col_number */,
       "datatype" /* colnum_col_datatype */,
-      "nullable" /* colnum_col_is_nullable */,
-      "index" /* colnum_index_kind */,
+      "nullable" /* colnum_col_is_nullable */, "index" /* colnum_index_kind */,
       "unique" /* colnum_index_is_unique */,
       "unordered" /* colnum_index_is_unordered */,
       "reverse" /* colnum_index_is_reverse */,
       "tersely" /* colnum_index_is_tersely */,
       "composite_items" /* colnum_index_composite_items */,
       "mdbx" /* colnum_index_mdbx_name */
-  };
+  }};
 
   const unsigned colnum = fptu_get_colnum(tag);
   if (colnum >= colnum_max) {
@@ -1697,7 +1699,7 @@ static __cold tuple4xyz_result tuple4column(const fpta_schema_info *info,
       return r;
 
     r.items += item_count;
-    for (size_t k = 0; k < item_count; ++k) {
+    for (unsigned k = 0; k < item_count; ++k) {
       fpta_name item_id;
       r.err = fpta_composite_column_get(column_id, k, &item_id);
       if (unlikely(r.err != FPTA_SUCCESS))

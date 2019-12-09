@@ -1,20 +1,18 @@
 ##
-##  Copyright 2016-2019 libfpta authors: please see AUTHORS file.
+##  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
+##  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
 ##
-##  This file is part of libfpta, aka "Fast Positive Tables".
+##  Licensed under the Apache License, Version 2.0 (the "License");
+##  you may not use this file except in compliance with the License.
+##  You may obtain a copy of the License at
 ##
-##  libfpta is free software: you can redistribute it and/or modify
-##  it under the terms of the GNU General Public License as published by
-##  the Free Software Foundation, either version 3 of the License, or
-##  (at your option) any later version.
+##      http://www.apache.org/licenses/LICENSE-2.0
 ##
-##  libfpta is distributed in the hope that it will be useful,
-##  but WITHOUT ANY WARRANTY; without even the implied warranty of
-##  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-##  GNU General Public License for more details.
-##
-##  You should have received a copy of the GNU General Public License
-##  along with libfpta.  If not, see <http://www.gnu.org/licenses/>.
+##  Unless required by applicable law or agreed to in writing, software
+##  distributed under the License is distributed on an "AS IS" BASIS,
+##  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+##  See the License for the specific language governing permissions and
+##  limitations under the License.
 ##
 
 ##
@@ -25,7 +23,7 @@
 ##  variety of indexes, saturation, sequences and much more.
 ##  Please see README.md at https://github.com/leo-yuriev/libfpta
 ##
-##  The Future will Positive. Всё будет хорошо.
+##  The Future will (be) Positive. Всё будет хорошо.
 ##
 ##  "Позитивные таблицы" предназначены для построения высокоскоростных
 ##  локальных хранилищ структурированных данных, с целевой производительностью
@@ -75,6 +73,7 @@ include(CheckStructHasMember)
 include(CMakeDependentOption)
 
 if(NOT CMAKE_VERSION VERSION_LESS 3.9)
+  cmake_policy(SET CMP0068 NEW)
   cmake_policy(SET CMP0069 NEW)
   include(CheckIPOSupported)
   check_ipo_supported(RESULT CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
@@ -92,6 +91,7 @@ endif()
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
 option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
+set(CMAKE_MACOSX_RPATH ON)
 
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
@@ -112,13 +112,10 @@ message(STATUS "Use C++${FPTA_CXX_STANDARD} for libfpta")
 # Define GNU standard installation directories
 include(GNUInstallDirs)
 
-include(cmake.fpta/utils.cmake)
+include(externals/libfptu/src/erthink/cmake/utils.cmake)
 # the order is significant: we need to know os and compiler to configure libs
-include(cmake.fpta/arch.cmake)
-include(cmake.fpta/os.cmake)
-include(cmake.fpta/profile.cmake)
-include(cmake.fpta/compiler.cmake)
-# include(cmake.fpta/atomic.cmake)
+include(externals/libfptu/src/erthink/cmake/profile.cmake)
+include(externals/libfptu/src/erthink/cmake/compiler.cmake)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
   message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTA."
@@ -188,7 +185,7 @@ if(VALGRIND)
     CACHE STRING "Valgrind options" FORCE)
   set(VALGRIND_COMMAND_OPTIONS "${MEMORYCHECK_COMMAND_OPTIONS}" CACHE STRING "Valgrind options" FORCE)
 endif()
-include(cmake.fpta/testing.cmake)
+include(externals/libfptu/src/erthink/cmake/testing.cmake)
 
 find_program(ECHO echo)
 find_program(CAT cat)
@@ -248,8 +245,6 @@ if(CLANG_FORMAT AND UNIX)
       xargs ${CLANG_FORMAT} -i --style=file
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()
-
-include(cmake.fpta/multilib.cmake)
 
 if(NOT "${PROJECT_BINARY_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
   add_custom_target(distclean)

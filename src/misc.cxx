@@ -1,20 +1,18 @@
 ﻿/*
- * Copyright 2016-2019 libfpta authors: please see AUTHORS file.
+ *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
+ *  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
  *
- * This file is part of libfpta, aka "Fast Positive Tables".
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- * libfpta is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * libfpta is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with libfpta.  If not, see <http://www.gnu.org/licenses/>.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
 
 #include "details.h"
@@ -574,33 +572,6 @@ void fpta_pollute(void *ptr, size_t bytes, uintptr_t xormask) {
       memcpy(ptr, &tail, bytes);
     }
   }
-}
-
-static __inline unsigned add_with_carry(uint64_t *sum, uint64_t addend) {
-  *sum += addend;
-  return *sum < addend;
-}
-
-uint64_t fpta_umul_64x64_128(uint64_t a, uint64_t b, uint64_t *h) {
-#ifdef umul_64x64_128
-  return umul_64x64_128(a, b, h);
-#else
-  /* performs 64x64 to 128 bit multiplication */
-  uint64_t ll = umul_32x32_64((uint32_t)a, (uint32_t)b);
-  uint64_t lh = umul_32x32_64(a >> 32, (uint32_t)b);
-  uint64_t hl = umul_32x32_64((uint32_t)a, b >> 32);
-  *h = umul_32x32_64(a >> 32, b >> 32) + (lh >> 32) + (hl >> 32) +
-       add_with_carry(&ll, lh << 32) + add_with_carry(&ll, hl << 32);
-  return ll;
-#endif
-}
-
-uint64_t fpta_umul_32x32_64(uint32_t a, uint32_t b) {
-  return umul_32x32_64(a, b);
-}
-
-uint64_t fpta_umul_64x64_high(uint64_t a, uint64_t b) {
-  return umul_64x64_high(a, b);
 }
 
 //----------------------------------------------------------------------------

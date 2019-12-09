@@ -1,20 +1,18 @@
 ﻿/*
- * Copyright 2016-2019 libfpta authors: please see AUTHORS file.
+ *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
+ *  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
  *
- * This file is part of libfpta, aka "Fast Positive Tables".
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- * libfpta is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * libfpta is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with libfpta.  If not, see <http://www.gnu.org/licenses/>.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
 
 #ifdef _MSC_VER
@@ -2405,6 +2403,16 @@ TEST_P(SmokeSelect, Filter) {
   cursor = nullptr;
 }
 
+#ifdef INSTANTIATE_TEST_SUITE_P
+INSTANTIATE_TEST_SUITE_P(
+    Combine, SmokeSelect,
+    ::testing::Combine(::testing::Values(fpta_primary_unique_ordered_obverse,
+                                         fpta_primary_withdups_ordered_obverse,
+                                         fpta_primary_unique_unordered,
+                                         fpta_primary_withdups_unordered),
+                       ::testing::Values(fpta_unsorted, fpta_ascending,
+                                         fpta_descending)));
+#else
 INSTANTIATE_TEST_CASE_P(
     Combine, SmokeSelect,
     ::testing::Combine(::testing::Values(fpta_primary_unique_ordered_obverse,
@@ -2413,6 +2421,7 @@ INSTANTIATE_TEST_CASE_P(
                                          fpta_primary_withdups_unordered),
                        ::testing::Values(fpta_unsorted, fpta_ascending,
                                          fpta_descending)));
+#endif
 
 //----------------------------------------------------------------------------
 
@@ -5392,6 +5401,16 @@ TEST_P(Smoke_CursorRERERE, following_multival) {
   EXPECT_EQ(after_last, Current());
 }
 
+#ifdef INSTANTIATE_TEST_SUITE_P
+INSTANTIATE_TEST_SUITE_P(
+    Combine, Smoke_CursorRERERE,
+    ::testing::Combine(
+        ::testing::Values(fpta_primary_withdups_ordered_obverse,
+                          fpta_primary_unique_ordered_obverse,
+                          fpta_secondary_unique_ordered_obverse,
+                          fpta_secondary_withdups_ordered_obverse),
+        ::testing::Values(fpta_ascending, fpta_descending, fpta_unsorted)));
+#else
 INSTANTIATE_TEST_CASE_P(
     Combine, Smoke_CursorRERERE,
     ::testing::Combine(
@@ -5400,6 +5419,7 @@ INSTANTIATE_TEST_CASE_P(
                           fpta_secondary_unique_ordered_obverse,
                           fpta_secondary_withdups_ordered_obverse),
         ::testing::Values(fpta_ascending, fpta_descending, fpta_unsorted)));
+#endif
 
 //----------------------------------------------------------------------------
 
@@ -5551,9 +5571,141 @@ TEST(Smoke, CursorRERERE_drop_table) {
 
 //----------------------------------------------------------------------------
 
+TEST(SmokeCrud, TableVersion) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // открываем/создаем базульку в 1 мегабайт
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // описываем простейшую таблицу с одним PK
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  ASSERT_EQ(FPTA_OK,
+            fpta_column_describe("StrColumn", fptu_cstr,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  ASSERT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  // инициализируем идентификаторы таблицы и её колонок
+  fpta_name table, col_pk;
+  ASSERT_EQ(FPTA_OK, fpta_table_init(&table, "Table"));
+  ASSERT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk, "StrColumn"));
+
+  // запускам транзакцию и создаем таблицу с обозначенным набором колонок
+  fpta_txn *txn = nullptr;
+  ASSERT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "Table", &def));
+
+  // проверяем mod_txnid сразу после создания
+  uint64_t txnid_creation = 0;
+  ASSERT_EQ(FPTA_OK, fpta_transaction_versions(txn, &txnid_creation, nullptr));
+  ASSERT_NE(0u, txnid_creation);
+  fpta_table_stat stat;
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  EXPECT_EQ(0u, stat.mod_txnid);
+
+  // фиксируем транзакцию создания таблицы
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // разрушаем описание таблицы
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  // начинаем транзакцию для вставки данных
+  ASSERT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+
+  // проверяем mod_txnid до изменений
+  uint64_t txnid_update = 0;
+  ASSERT_EQ(FPTA_OK, fpta_transaction_versions(txn, &txnid_update, nullptr));
+  ASSERT_GT(txnid_update, txnid_creation);
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  EXPECT_EQ(txnid_creation, stat.mod_txnid);
+
+  // создаем кортеж, который станет первой записью в таблице
+  fptu_rw *pt1 = fptu_alloc(1, 42);
+  ASSERT_NE(nullptr, pt1);
+  ASSERT_EQ(nullptr, fptu::check(pt1));
+
+  // refresh нужен для использвание col_pk в fpta_upsert_column(),
+  // ибо fpta_upsert_column() не принимает транзакцию в параметрах
+  // и не может сделать reshresh автоматически.
+  ASSERT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_pk));
+
+  // добавляем значения колонки
+  ASSERT_EQ(FPTA_OK,
+            fpta_upsert_column(pt1, &col_pk, fpta_value_cstr("login")));
+  ASSERT_EQ(nullptr, fptu::check(pt1));
+
+  // вставляем строку в таблицу
+  ASSERT_EQ(FPTA_OK, fpta_upsert_row(txn, &table, fptu_take(pt1)));
+
+  // освобождаем кортеж/строку
+  free(pt1);
+  pt1 = nullptr;
+
+  // проверяем mod_txnid после изменений, но до фиксации транзакции
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  EXPECT_EQ(txnid_creation, stat.mod_txnid);
+
+  // фиксируем изменения
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // проверяем в читающей транзакции
+  ASSERT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  EXPECT_EQ(txnid_update, stat.mod_txnid);
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+
+  // проверяем в пишуей транзакции c последующей очисткой
+  ASSERT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  EXPECT_EQ(txnid_update, stat.mod_txnid);
+  // проверяем после очистки
+  ASSERT_EQ(FPTA_OK, fpta_table_clear(txn, &table, true));
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  EXPECT_EQ(txnid_update, stat.mod_txnid);
+  uint64_t txnid_clear = 0;
+  ASSERT_EQ(FPTA_OK, fpta_transaction_versions(txn, &txnid_clear, nullptr));
+  ASSERT_GT(txnid_clear, txnid_update);
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+
+  // проверяем в пишуей транзакции c последующим удалением
+  ASSERT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
+  EXPECT_EQ(txnid_clear, stat.mod_txnid);
+  // проверяем после удаления
+  ASSERT_EQ(FPTA_OK, fpta_table_drop(txn, "Table"));
+  EXPECT_EQ(FPTA_NOTFOUND, fpta_table_info(txn, &table, nullptr, &stat));
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
+
+  // разрушаем привязанные идентификаторы
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&col_pk);
+
+  // закрываем базу
+  ASSERT_EQ(FPTA_OK, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
-  mdbx_setup_debug(MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_DUMP |
+  mdbx_setup_debug(MDBX_LOG_WARN,
+                   MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_DUMP |
                        MDBX_DBG_LEGACY_MULTIOPEN | MDBX_DBG_JITTER,
                    nullptr);
   return RUN_ALL_TESTS();
