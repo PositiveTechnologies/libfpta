@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY f8d94bb78718a1ce020bd679f0dc0ee468e12441b7728cad2c7631de3f120161_v0_4_0_12_g3dccbb25a7
+#define MDBX_BUILD_SOURCERY a2dba9e4b08069a59961ae64a3f4a49a4cdd9490fc24863785a283dd468c8d32_v0_4_0_21_gbf6d09a87
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -3440,9 +3440,10 @@ static __inline void get_key_optional(const MDBX_node *node,
 }
 
 /*------------------------------------------------------------------------------
- * LY: temporary workaround for Elbrus's memcmp() bug. */
-
-#if defined(__e2k__) && !__GLIBC_PREREQ(2, 24)
+ * Workaround for mmaped-lookahead-cross-page-boundary bug
+ * in an obsolete versions of Elbrus's libc and kernels. */
+#if defined(__e2k__) && defined(MDBX_E2K_MLHCPB_WORKAROUND) &&                 \
+    MDBX_E2K_MLHCPB_WORKAROUND
 int __hot mdbx_e2k_memcmp_bug_workaround(const void *s1, const void *s2,
                                          size_t n) {
   if (unlikely(n > 42
@@ -3550,7 +3551,7 @@ size_t __hot mdbx_e2k_strnlen_bug_workaround(const char *s, size_t maxlen) {
   }
   return n;
 }
-#endif /* Elbrus's memcmp() bug. */
+#endif /* MDBX_E2K_MLHCPB_WORKAROUND */
 
 /*------------------------------------------------------------------------------
  * safe read/write volatile 64-bit fields on 32-bit architectures. */
@@ -16712,22 +16713,26 @@ static THREAD_RESULT __cold THREAD_CALL mdbx_env_copythr(void *arg) {
   mdbx_copy *my = arg;
   uint8_t *ptr;
   int toggle = 0;
-  int rc;
 
   mdbx_condmutex_lock(&my->mc_condmutex);
   while (!my->mc_error) {
-    while (!my->mc_new)
-      mdbx_condmutex_wait(&my->mc_condmutex);
+    while (!my->mc_new && !my->mc_error) {
+      int err = mdbx_condmutex_wait(&my->mc_condmutex);
+      if (err != MDBX_SUCCESS) {
+        my->mc_error = err;
+        goto bailout;
+      }
+    }
     if (my->mc_new == 0 + MDBX_EOF) /* 0 buffers, just EOF */
       break;
     size_t wsize = my->mc_wlen[toggle];
     ptr = my->mc_wbuf[toggle];
   again:
     if (wsize > 0 && !my->mc_error) {
-      rc = mdbx_write(my->mc_fd, ptr, wsize);
-      if (rc != MDBX_SUCCESS) {
-        my->mc_error = rc;
-        break;
+      int err = mdbx_write(my->mc_fd, ptr, wsize);
+      if (err != MDBX_SUCCESS) {
+        my->mc_error = err;
+        goto bailout;
       }
     }
 
@@ -16744,6 +16749,7 @@ static THREAD_RESULT __cold THREAD_CALL mdbx_env_copythr(void *arg) {
     my->mc_new--;
     mdbx_condmutex_signal(&my->mc_condmutex);
   }
+bailout:
   mdbx_condmutex_unlock(&my->mc_condmutex);
   return (THREAD_RESULT)0;
 }
@@ -16756,8 +16762,11 @@ static int __cold mdbx_env_cthr_toggle(mdbx_copy *my, int adjust) {
   mdbx_condmutex_lock(&my->mc_condmutex);
   my->mc_new += (short)adjust;
   mdbx_condmutex_signal(&my->mc_condmutex);
-  while (my->mc_new & 2) /* both buffers in use */
-    mdbx_condmutex_wait(&my->mc_condmutex);
+  while (!my->mc_error && (my->mc_new & 2) /* both buffers in use */) {
+    int err = mdbx_condmutex_wait(&my->mc_condmutex);
+    if (err != MDBX_SUCCESS)
+      my->mc_error = err;
+  }
   mdbx_condmutex_unlock(&my->mc_condmutex);
 
   my->mc_toggle ^= (adjust & 1);
@@ -20346,11 +20355,11 @@ MDBX_INTERNAL_FUNC int mdbx_condmutex_init(mdbx_condmutex_t *condmutex) {
 #if defined(_WIN32) || defined(_WIN64)
   int rc = MDBX_SUCCESS;
   condmutex->event = NULL;
-  condmutex->mutex = CreateMutex(NULL, FALSE, NULL);
+  condmutex->mutex = CreateMutexW(NULL, FALSE, NULL);
   if (!condmutex->mutex)
     return GetLastError();
 
-  condmutex->event = CreateEvent(NULL, FALSE, FALSE, NULL);
+  condmutex->event = CreateEventW(NULL, TRUE, FALSE, NULL);
   if (!condmutex->event) {
     rc = GetLastError();
     (void)CloseHandle(condmutex->mutex);
@@ -20434,8 +20443,11 @@ MDBX_INTERNAL_FUNC int mdbx_condmutex_wait(mdbx_condmutex_t *condmutex) {
 #if defined(_WIN32) || defined(_WIN64)
   DWORD code =
       SignalObjectAndWait(condmutex->mutex, condmutex->event, INFINITE, FALSE);
-  if (code == WAIT_OBJECT_0)
+  if (code == WAIT_OBJECT_0) {
     code = WaitForSingleObject(condmutex->mutex, INFINITE);
+    if (code == WAIT_OBJECT_0)
+      return ResetEvent(condmutex->event) ? MDBX_SUCCESS : GetLastError();
+  }
   return waitstatus2errcode(code);
 #else
   return pthread_cond_wait(&condmutex->cond, &condmutex->mutex);
@@ -20516,7 +20528,7 @@ MDBX_INTERNAL_FUNC int mdbx_openfile(const char *pathname, int flags,
   case O_WRONLY: /* assume for MDBX_env_copy() and friends output */
     DesiredAccess = GENERIC_WRITE;
     ShareMode = 0;
-    FlagsAndAttributes |= FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH;
+    FlagsAndAttributes |= FILE_FLAG_WRITE_THROUGH;
     break;
   case O_RDWR:
     DesiredAccess = GENERIC_READ | GENERIC_WRITE;
@@ -21500,12 +21512,8 @@ retry_mapview:;
   }
 
   if (limit != map->limit) {
-#if defined(_GNU_SOURCE) && (defined(__linux__) || defined(__gnu_linux__))
-    void *ptr = mremap(map->address, map->limit, limit,
-                       /* LY: in case changing the mapping size calling code
-                          must guarantees the absence of competing threads,
-                          and a willingness to another base address */
-                       MREMAP_MAYMOVE);
+#if defined(MREMAP_MAYMOVE)
+    void *ptr = mremap(map->address, map->limit, limit, 0);
     if (ptr == MAP_FAILED) {
       rc = errno;
       return (rc == EAGAIN || rc == ENOMEM) ? MDBX_RESULT_TRUE : rc;
@@ -21516,15 +21524,17 @@ retry_mapview:;
 #ifdef MADV_DONTFORK
     if (unlikely(madvise(map->address, map->limit, MADV_DONTFORK) != 0))
       return errno;
-#endif
+#endif /* MADV_DONTFORK */
 
 #ifdef MADV_NOHUGEPAGE
     (void)madvise(map->address, map->limit, MADV_NOHUGEPAGE);
-#endif
+#endif /* MADV_NOHUGEPAGE */
 
-#else
+#else  /* MREMAP_MAYMOVE */
+    /* TODO: Perhaps here it is worth to implement suspend/resume threads
+     *       and perform unmap/map as like for Windows. */
     rc = MDBX_RESULT_TRUE;
-#endif /* _GNU_SOURCE && __linux__ */
+#endif /* !MREMAP_MAYMOVE */
   }
 #endif
   return rc;
@@ -22105,9 +22115,9 @@ __dll_export
         0,
         4,
         0,
-        1692,
-        {"2019-12-05T01:43:57+03:00", "456d64170249e6108e90da02648de8c7707e2ed0", "3dccbb25a7710d4eff5fb136182b7bb0abfc4914",
-         "v0.4.0-12-g3dccbb25a7"},
+        1701,
+        {"2019-12-09T10:59:57+03:00", "d1db5ce45b63181ad811c63069604745f21e3753", "bf6d09a87853614062c56b54e86d44ee0a9f7549",
+         "v0.4.0-21-gbf6d09a87"},
         sourcery};
 
 __dll_export

@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY f8d94bb78718a1ce020bd679f0dc0ee468e12441b7728cad2c7631de3f120161_v0_4_0_12_g3dccbb25a7
+#define MDBX_BUILD_SOURCERY a2dba9e4b08069a59961ae64a3f4a49a4cdd9490fc24863785a283dd468c8d32_v0_4_0_21_gbf6d09a87
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -3712,18 +3712,19 @@ bailout:
 }
 
 static void usage(char *prog) {
-  fprintf(stderr,
-          "usage: %s [-V] [-v] [-n] [-q] [-c] [-w] [-d] [-i] [-s subdb] dbpath\n"
-          "  -V\t\tprint version and exit\n"
-          "  -v\t\tmore verbose, could be used multiple times\n"
-          "  -n\t\tNOSUBDIR mode for open\n"
-          "  -q\t\tbe quiet\n"
-          "  -c\t\tforce cooperative mode (don't try exclusive)\n"
-          "  -w\t\tlock DB for writing while checking\n"
-          "  -d\t\tdisable page-by-page traversal of B-tree\n"
-          "  -i\t\tignore wrong order errors (for custom comparators case)\n"
-          "  -s subdb\tprocess a specific subdatabase only\n",
-          prog);
+  fprintf(
+      stderr,
+      "usage: %s [-V] [-v] [-n] [-q] [-c] [-w] [-d] [-i] [-s subdb] dbpath\n"
+      "  -V\t\tprint version and exit\n"
+      "  -v\t\tmore verbose, could be used multiple times\n"
+      "  -n\t\tNOSUBDIR mode for open\n"
+      "  -q\t\tbe quiet\n"
+      "  -c\t\tforce cooperative mode (don't try exclusive)\n"
+      "  -w\t\tlock DB for writing while checking\n"
+      "  -d\t\tdisable page-by-page traversal of B-tree\n"
+      "  -i\t\tignore wrong order errors (for custom comparators case)\n"
+      "  -s subdb\tprocess a specific subdatabase only\n",
+      prog);
   exit(EXIT_INTERRUPTED);
 }
 
