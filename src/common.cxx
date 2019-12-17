@@ -122,19 +122,18 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
     mdbx_flags |= MDBX_UTTERLY_NOSYNC;
   /* fall through */
   case fpta_lazy:
-    mdbx_flags |= MDBX_NOSYNC | MDBX_NOMETASYNC;
+    mdbx_flags |= MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC;
     if (0 == (regime_flags & fpta_saferam))
       mdbx_flags |= MDBX_WRITEMAP;
   /* fall through */
   case fpta_sync:
     if (regime_flags & fpta_frendly4hdd) {
       // LY: nothing for now
-    } else {
-      if (regime_flags & fpta_frendly4writeback)
-        mdbx_flags |= MDBX_LIFORECLAIM;
-      if (regime_flags & fpta_frendly4compaction)
-        mdbx_flags |= MDBX_COALESCE;
     }
+    if (regime_flags & fpta_frendly4writeback)
+      mdbx_flags |= MDBX_LIFORECLAIM;
+    if (regime_flags & fpta_frendly4compaction)
+      mdbx_flags |= MDBX_COALESCE;
     break;
   }
 
