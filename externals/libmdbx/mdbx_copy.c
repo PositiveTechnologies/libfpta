@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY a2dba9e4b08069a59961ae64a3f4a49a4cdd9490fc24863785a283dd468c8d32_v0_4_0_21_gbf6d09a87
+#define MDBX_BUILD_SOURCERY 892f426f8bf254943568eef334e4f6d079ce38b27647300aa590351712e25e76_v0_4_0_26_g66ca7a519
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -2270,7 +2270,8 @@ struct MDBX_txn {
   /* Transaction Flags */
   /* mdbx_txn_begin() flags */
 #define MDBX_TXN_BEGIN_FLAGS                                                   \
-  (MDBX_NOMETASYNC | MDBX_NOSYNC | MDBX_MAPASYNC | MDBX_RDONLY | MDBX_TRYTXN)
+  (MDBX_NOMETASYNC | MDBX_SAFE_NOSYNC | MDBX_MAPASYNC | MDBX_RDONLY |          \
+   MDBX_TRYTXN)
   /* internal txn flags */
 #define MDBX_TXN_FINISHED 0x01  /* txn is finished or never began */
 #define MDBX_TXN_ERROR 0x02     /* txn is unusable after an error */
