@@ -1,7 +1,3 @@
-### The [repository now only mirrored on the Github](https://abf.io/erthink/libfpta) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
-<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
------
-
 libfpta
 ==============================================
 Fast Positive Tables, aka "Позитивные Таблицы"
@@ -13,7 +9,7 @@ variety of indexes, saturation, sequences and much more.
 
 *The Future will (be) [Positive](https://www.ptsecurity.com). Всё будет хорошо.*
 
-[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Build Status](https://travis-ci.org/leo-yuriev/libfpta.svg?branch=master)](https://travis-ci.org/leo-yuriev/libfpta)
 [![Build status](https://ci.appveyor.com/api/projects/status/wiixsody1o9474g9/branch/master?svg=true)](https://ci.appveyor.com/project/leo-yuriev/libfpta/branch/master)
 [![CircleCI](https://circleci.com/gh/leo-yuriev/libfpta/tree/master.svg?style=svg)](https://circleci.com/gh/leo-yuriev/libfpta/tree/master)
@@ -33,7 +29,7 @@ _"Позитивные Таблицы"_ основываются на [B+Tree](h
 1. Одновременный многопоточный доступ к данным из нескольких процессов на
 одном сервере.
   > Поддерживаются операционные системы
-  > Linux (kernel >= 2.6.32, GNU libc >= 2.12, GCC >= 4.2) и
+  > Linux (kernel >= 2.6.32, GNU libc >= 2.12, GCC >= 4.2), Mac OS (начиная с 10.11 "El Capitan") и
   > Windows (Windows 7/8/10, Windows Server 2008/2012/2016, MSVC 2015/2017).
 
 2. Обслуживание нескольких читателей без блокировок с линейным
@@ -80,23 +76,26 @@ $ objdump -f -h -j .text libfpta.so
 libfpta.so:     file format elf64-x86-64
 architecture: i386:x86-64, flags 0x00000150:
 HAS_SYMS, DYNAMIC, D_PAGED
-start address 0x00007380
+start address 0x000000000000af30
 
 Sections:
-Idx Name          Size      VMA       LMA       File off  Algn
- 11 .text         0002a96e  00007380  00007380  00007380  2**4
+Idx Name          Size      VMA               LMA               File off  Algn
+ 11 .text         00048130  000000000000af30  000000000000af30  0000af30  2**4
                   CONTENTS, ALLOC, LOAD, READONLY, CODE
 ```
 
 ```
 $ ldd libfpta.so
-	linux-vdso.so.1 =>  (0x0000effc092e1000)
-	libfptu.so.0.0.3 => ../lib/libfptu.so.0.0.3 (0x0000eff54322a000)
-	libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x0000eff542fe8000)
-	libstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x0000eff542c5e000)
-	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x0000eff542a47000)
-	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x0000eff54267c000)
-	librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x0000eff542474000)
-	/lib64/ld-linux-x86-64.so.2 (0x0000e623d17f8000)
-	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x0000eff54216b000)
+	linux-vdso.so.1 (0x00007ffc379c3000)
+	libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f710092c000)
+	librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00007f7100724000)
+	libstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007f7100344000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f70fffa6000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f70ffd8e000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f70ff99d000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f7100db0000)
 ```
+
+-----
+### The [repository now only mirrored on the Github](https://abf.io/erthink/libfpta) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
+<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
