@@ -1,7 +1,3 @@
-### The [repository was moved out from Github](https://abf.io/erthink/t1ha) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
-<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
------
-
 t1ha
 =====
 Fast Positive Hash, aka "Позитивный Хэш"
@@ -446,3 +442,7 @@ sha1_32a        	|       531.44	|  1222.44 |
 MurmurOAAT      	|       465.12	|   107.61 | poor (collisions, 99.99% distrib)
 md5_32a         	|       433.03	|   508.98 |
 crc32           	|       342.27	|   142.06 | poor (insecure, 8589.93x collisions, distrib)
+
+-----
+### The [repository was moved out from Github](https://abf.io/erthink/t1ha) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
+<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
