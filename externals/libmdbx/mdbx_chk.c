@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 892f426f8bf254943568eef334e4f6d079ce38b27647300aa590351712e25e76_v0_4_0_26_g66ca7a519
+#define MDBX_BUILD_SOURCERY fffaffbbc681f75d42034f906386f5f572684eb8456a839b550d2bc4b9d9c103_v0_4_0_186_g2acaaeb2f
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1173,13 +1173,23 @@ enum mdbx_syncmode_bits {
 };
 
 MDBX_INTERNAL_FUNC int mdbx_filesync(mdbx_filehandle_t fd,
-                                     enum mdbx_syncmode_bits mode_bits);
+                                     const enum mdbx_syncmode_bits mode_bits);
 MDBX_INTERNAL_FUNC int mdbx_ftruncate(mdbx_filehandle_t fd, uint64_t length);
 MDBX_INTERNAL_FUNC int mdbx_fseek(mdbx_filehandle_t fd, uint64_t pos);
 MDBX_INTERNAL_FUNC int mdbx_filesize(mdbx_filehandle_t fd, uint64_t *length);
-MDBX_INTERNAL_FUNC int mdbx_openfile(const char *pathname, int flags,
-                                     mode_t mode, mdbx_filehandle_t *fd,
-                                     bool exclusive);
+
+enum mdbx_openfile_purpose {
+  MDBX_OPEN_DXB_READ = 0,
+  MDBX_OPEN_DXB_LAZY = 1,
+  MDBX_OPEN_DXB_DSYNC = 2,
+  MDBX_OPEN_LCK = 3,
+  MDBX_OPEN_COPY = 4
+};
+
+MDBX_INTERNAL_FUNC int mdbx_openfile(const enum mdbx_openfile_purpose purpose,
+                                     const MDBX_env *env, const char *pathname,
+                                     mdbx_filehandle_t *fd,
+                                     mode_t unix_mode_bits);
 MDBX_INTERNAL_FUNC int mdbx_closefile(mdbx_filehandle_t fd);
 MDBX_INTERNAL_FUNC int mdbx_removefile(const char *pathname);
 MDBX_INTERNAL_FUNC int mdbx_is_pipe(mdbx_filehandle_t fd);
@@ -1778,6 +1788,7 @@ typedef uint32_t pgno_t;
 typedef uint64_t txnid_t;
 #define PRIaTXN PRIi64
 #define MIN_TXNID UINT64_C(1)
+#define INVALID_TXNID UINT64_MAX
 /* LY: for testing non-atomic 64-bit txnid on 32-bit arches.
  * #define MDBX_TXNID_STEP (UINT32_MAX / 3) */
 #ifndef MDBX_TXNID_STEP
@@ -1823,7 +1834,7 @@ typedef union mdbx_safe64 {
 typedef struct MDBX_db {
   uint16_t md_flags;        /* see mdbx_dbi_open */
   uint16_t md_depth;        /* depth of this tree */
-  uint32_t md_xsize;        /* also ksize for LEAF2 pages */
+  uint32_t md_xsize;        /* key-size for MDBX_DUPFIXED (LEAF2 pages) */
   pgno_t md_root;           /* the root page of this tree */
   pgno_t md_branch_pages;   /* number of internal pages */
   pgno_t md_leaf_pages;     /* number of leaf pages */
@@ -1914,8 +1925,7 @@ typedef struct MDBX_meta {
 typedef struct MDBX_page {
   union {
     struct MDBX_page *mp_next; /* for in-memory list of freed pages */
-    uint64_t mp_validator;     /* checksum of page content or a txnid during
-                                * which the page has been updated */
+    uint64_t mp_txnid;         /* txnid during which the page has been COW-ed */
   };
   uint16_t mp_leaf2_ksize; /* key size if this is a LEAF2 page */
 #define P_BRANCH 0x01      /* branch page */
@@ -2432,7 +2442,8 @@ struct MDBX_env {
   size_t me_signature;
   mdbx_mmap_t me_dxb_mmap; /*  The main data file */
 #define me_map me_dxb_mmap.dxb
-#define me_fd me_dxb_mmap.fd
+#define me_lazy_fd me_dxb_mmap.fd
+  mdbx_filehandle_t me_dsync_fd;
   mdbx_mmap_t me_lck_mmap; /*  The lock file */
 #define me_lfd me_lck_mmap.fd
 #define me_lck me_lck_mmap.lck
@@ -2576,7 +2587,7 @@ MDBX_INTERNAL_FUNC void mdbx_panic(const char *fmt, ...) __printf_args(1, 2);
 
 #define mdbx_audit_enabled() (0)
 
-#if !defined(NDEBUG) || defined(MDBX_FORCE_ASSERT)
+#if !defined(NDEBUG) || defined(MDBX_FORCE_ASSERTIONS)
 #define mdbx_assert_enabled() (1)
 #else
 #define mdbx_assert_enabled() (0)
@@ -3048,7 +3059,7 @@ size_t userdb_count, skipped_subdb;
 uint64_t total_unused_bytes, reclaimable_pages, gc_pages, alloc_pages,
     unused_pages, backed_pages;
 unsigned verbose;
-bool ignore_wrong_order, quiet;
+bool ignore_wrong_order, quiet, dont_traversal;
 const char *only_subdb;
 
 struct problem {
@@ -3581,22 +3592,23 @@ static int process_db(MDBX_dbi dbi_handle, char *dbi_name, visitor *handler,
     error("too many DBIs or out of memory\n");
     return MDBX_ENOMEM;
   }
-  const uint64_t subtotal_pages =
-      ms.ms_branch_pages + ms.ms_leaf_pages + ms.ms_overflow_pages;
-  if (subtotal_pages != dbi->pages.total)
-    error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n", "subtotal",
-          subtotal_pages, dbi->pages.total);
-  if (ms.ms_branch_pages != dbi->pages.branch)
-    error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n", "branch",
-          ms.ms_branch_pages, dbi->pages.branch);
-  const uint64_t allleaf_pages = dbi->pages.leaf + dbi->pages.leaf_dupfixed;
-  if (ms.ms_leaf_pages != allleaf_pages)
-    error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n", "all-leaf",
-          ms.ms_leaf_pages, allleaf_pages);
-  if (ms.ms_overflow_pages != dbi->pages.large_volume)
-    error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n",
-          "large/overlow", ms.ms_overflow_pages, dbi->pages.large_volume);
-
+  if (!dont_traversal) {
+    const uint64_t subtotal_pages =
+        ms.ms_branch_pages + ms.ms_leaf_pages + ms.ms_overflow_pages;
+    if (subtotal_pages != dbi->pages.total)
+      error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n",
+            "subtotal", subtotal_pages, dbi->pages.total);
+    if (ms.ms_branch_pages != dbi->pages.branch)
+      error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n", "branch",
+            ms.ms_branch_pages, dbi->pages.branch);
+    const uint64_t allleaf_pages = dbi->pages.leaf + dbi->pages.leaf_dupfixed;
+    if (ms.ms_leaf_pages != allleaf_pages)
+      error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n",
+            "all-leaf", ms.ms_leaf_pages, allleaf_pages);
+    if (ms.ms_overflow_pages != dbi->pages.large_volume)
+      error("%s pages mismatch (%" PRIu64 " != walked %" PRIu64 ")\n",
+            "large/overlow", ms.ms_overflow_pages, dbi->pages.large_volume);
+  }
   rc = mdbx_cursor_open(txn, dbi_handle, &mc);
   if (rc) {
     error("mdbx_cursor_open failed, error %d %s\n", rc, mdbx_strerror(rc));
@@ -3868,7 +3880,6 @@ int main(int argc, char *argv[]) {
   char *prog = argv[0];
   char *envname;
   int problems_maindb = 0, problems_freedb = 0, problems_meta = 0;
-  bool dont_traversal = false;
   bool locked = false;
 
   double elapsed;
@@ -4127,6 +4138,14 @@ int main(int argc, char *argv[]) {
     }
     printf(", %" PRIu64 " pages\n",
            envinfo.mi_geo.current / envinfo.mi_dxb_pagesize);
+#if defined(_WIN32) || defined(_WIN64)
+    if (envinfo.mi_geo.shrink && envinfo.mi_geo.current != envinfo.mi_geo.upper)
+      print("                     WARNING: Due Windows system limitations a "
+            "file couldn't\n                     be truncated while database "
+            "is opened. So, the size of\n                     database file "
+            "may by large than the database itself,\n                     "
+            "until it will be closed or reopened in read-write mode.\n");
+#endif
     print(" - transactions: recent %" PRIu64 ", latter reader %" PRIu64
           ", lag %" PRIi64 "\n",
           envinfo.mi_recent_txnid, envinfo.mi_latter_reader_txnid,
