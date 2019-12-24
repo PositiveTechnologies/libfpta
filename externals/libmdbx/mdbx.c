@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY fffaffbbc681f75d42034f906386f5f572684eb8456a839b550d2bc4b9d9c103_v0_4_0_186_g2acaaeb2f
+#define MDBX_BUILD_SOURCERY 2d03283113dfc8a5b08b4c887018e6119d22d89d19b9b8921a736d04fcdf0a4c_v0_4_1_0_g7b6880bdc
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -6794,7 +6794,7 @@ __cold static int mdbx_wipe_steady(MDBX_env *env, const txnid_t last_steady) {
     if (unlikely(err != MDBX_SUCCESS))
       return err;
   } else {
-#if defined(__linux__) || defined(__gnu_linux__)
+#if (defined(__linux__) || defined(__gnu_linux__)) && !defined(MDBX_SAFE4QEMU)
     if (sync_file_range(env->me_lazy_fd, 0, pgno2bytes(env, NUM_METAS),
                         SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER))
       err = errno;
@@ -7919,6 +7919,7 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
     txn->mt_dbxs = env->me_dbxs; /* mostly static anyway */
     mdbx_ensure(env, txn->mt_txnid >=
                          /* paranoia is appropriate here */ *env->me_oldest);
+    txn->mt_numdbs = env->me_numdbs;
   } else {
     /* Not yet touching txn == env->me_txn0, it may be active */
     mdbx_jitter4testing(false);
@@ -7961,7 +7962,8 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
     if (txn->tw.lifo_reclaimed)
       MDBX_PNL_SIZE(txn->tw.lifo_reclaimed) = 0;
     env->me_txn = txn;
-    memcpy(txn->mt_dbiseqs, env->me_dbiseqs, env->me_maxdbs * sizeof(unsigned));
+    txn->mt_numdbs = env->me_numdbs;
+    memcpy(txn->mt_dbiseqs, env->me_dbiseqs, txn->mt_numdbs * sizeof(unsigned));
     /* Copy the DB info and flags */
     memcpy(txn->mt_dbs, meta->mm_dbs, CORE_DBS * sizeof(MDBX_db));
     /* Moved to here to avoid a data race in read TXNs */
@@ -7970,7 +7972,6 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
   }
 
   /* Setup db info */
-  txn->mt_numdbs = env->me_numdbs;
   mdbx_compiler_barrier();
   for (unsigned i = CORE_DBS; i < txn->mt_numdbs; i++) {
     unsigned x = env->me_dbflags[i];
@@ -10339,21 +10340,29 @@ static int mdbx_sync_locked(MDBX_env *env, unsigned flags,
     }
 #endif /* MDBX_USE_VALGRIND */
 #if defined(MADV_DONTNEED)
-    const size_t largest_aligned2os_bytes =
-        pgno_align2os_bytes(env, largest_pgno);
-    const pgno_t largest_aligned2os_pgno =
-        bytes2pgno(env, largest_aligned2os_bytes);
+    const size_t largest_bytes = pgno2bytes(env, largest_pgno);
+    const size_t madvise_gap = (largest_bytes < 65536 * 256)
+                                   ? 65536
+                                   : (largest_bytes > MEGABYTE * 4 * 256)
+                                         ? MEGABYTE * 4
+                                         : largest_bytes >> 8;
+    const size_t discard_edge_bytes = bytes_align2os_bytes(
+        env,
+        (MDBX_RDONLY & (env->me_lck ? env->me_lck->mti_envmode : env->me_flags))
+            ? largest_bytes
+            : largest_bytes + madvise_gap);
+    const pgno_t discard_edge_pgno = bytes2pgno(env, discard_edge_bytes);
     const pgno_t prev_discarded_pgno = *env->me_discarded_tail;
     if (prev_discarded_pgno >
-        largest_aligned2os_pgno +
-            /* 1M threshold to avoid unreasonable madvise() call */
-            bytes2pgno(env, MEGABYTE)) {
+        discard_edge_pgno +
+            /* threshold to avoid unreasonable frequent madvise() calls */
+            bytes2pgno(env, madvise_gap)) {
       mdbx_notice("open-MADV_%s %u..%u", "DONTNEED", *env->me_discarded_tail,
                   largest_pgno);
-      *env->me_discarded_tail = largest_aligned2os_pgno;
+      *env->me_discarded_tail = discard_edge_pgno;
       const size_t prev_discarded_bytes =
           pgno2bytes(env, prev_discarded_pgno) & ~(env->me_os_psize - 1);
-      mdbx_ensure(env, prev_discarded_bytes > largest_aligned2os_bytes);
+      mdbx_ensure(env, prev_discarded_bytes > discard_edge_bytes);
       int advise = MADV_DONTNEED;
 #if defined(MADV_FREE) &&                                                      \
     0 /* MADV_FREE works for only anonymous vma at the moment */
@@ -10361,8 +10370,8 @@ static int mdbx_sync_locked(MDBX_env *env, unsigned flags,
           mdbx_linux_kernel_version > 0x04050000)
         advise = MADV_FREE;
 #endif /* MADV_FREE */
-      int err = madvise(env->me_map + largest_aligned2os_bytes,
-                        prev_discarded_bytes - largest_aligned2os_bytes, advise)
+      int err = madvise(env->me_map + discard_edge_bytes,
+                        prev_discarded_bytes - discard_edge_bytes, advise)
                     ? ignore_enosys(errno)
                     : MDBX_SUCCESS;
       if (unlikely(MDBX_IS_ERROR(err)))
@@ -11862,21 +11871,21 @@ int __cold mdbx_env_open(MDBX_env *env, const char *pathname, unsigned flags,
         ~(MDBX_WRITEMAP | MDBX_MAPASYNC | MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC |
           MDBX_COALESCE | MDBX_LIFORECLAIM | MDBX_NOMEMINIT | MDBX_ACCEDE);
   } else {
-#ifdef __OpenBSD__
-    /* Temporary `workaround` for OpenBSD kernel's bug.
+#if MDBX_MMAP_INCOHERENT_FILE_WRITE
+    /* Temporary `workaround` for OpenBSD kernel's flaw.
      * See https://github.com/leo-yuriev/libmdbx/issues/67 */
     if ((flags & MDBX_WRITEMAP) == 0) {
       if (flags & MDBX_ACCEDE)
         flags |= MDBX_WRITEMAP;
       else {
         mdbx_debug_log(MDBX_LOG_ERROR, __func__, __LINE__,
-                       "OpenBSD requires MDBX_WRITEMAP because of an internal "
-                       "bug(s) in a file/buffer/page cache.\n");
+                       "System (i.e. OpenBSD) requires MDBX_WRITEMAP because "
+                       "of an internal flaw(s) in a file/buffer/page cache.\n");
         rc = 42 /* ENOPROTOOPT */;
         goto bailout;
       }
     }
-#endif /* __OpenBSD__ */
+#endif /* MDBX_MMAP_INCOHERENT_FILE_WRITE */
     env->me_dirtylist = mdbx_calloc(MDBX_DPL_TXNFULL + 1, sizeof(MDBX_DP));
     if (!env->me_dirtylist)
       rc = MDBX_ENOMEM;
@@ -12135,7 +12144,7 @@ static int __cold mdbx_env_close0(MDBX_env *env) {
   }
 
   if (env->me_dbxs) {
-    for (unsigned i = env->me_maxdbs; --i >= CORE_DBS;)
+    for (unsigned i = env->me_numdbs; --i >= CORE_DBS;)
       mdbx_free(env->me_dbxs[i].md_name.iov_base);
     mdbx_free(env->me_dbxs);
   }
@@ -17261,7 +17270,7 @@ static int __cold mdbx_env_copy_asis(MDBX_env *env, MDBX_txn *read_txn,
       buffer + roundup_powerof2(meta_bytes, env->me_os_psize);
   for (size_t offset = meta_bytes; rc == MDBX_SUCCESS && offset < used_size;) {
     if (dest_is_pipe) {
-#if defined(__linux__) || defined(__gnu_linux__)
+#if defined(__linux__) || defined(__gnu_linux__) && !defined(MDBX_SAFE4QEMU)
       off_t in_offset = offset;
       const intptr_t written =
           sendfile(fd, env->me_lazy_fd, &in_offset, used_size - offset);
@@ -17273,7 +17282,7 @@ static int __cold mdbx_env_copy_asis(MDBX_env *env, MDBX_txn *read_txn,
       continue;
 #endif
     } else {
-#if __GLIBC_PREREQ(2, 27) && defined(_GNU_SOURCE)
+#if __GLIBC_PREREQ(2, 27) && defined(_GNU_SOURCE) && !defined(MDBX_SAFE4QEMU)
       off_t in_offset = offset, out_offset = offset;
       ssize_t bytes_copied = copy_file_range(
           env->me_lazy_fd, &in_offset, fd, &out_offset, used_size - offset, 0);
@@ -17974,8 +17983,9 @@ int __cold mdbx_dbi_stat(MDBX_txn *txn, MDBX_dbi dbi, MDBX_stat *dest,
 }
 
 static int mdbx_dbi_close_locked(MDBX_env *env, MDBX_dbi dbi) {
-  if (unlikely(dbi < CORE_DBS || dbi >= env->me_maxdbs))
-    return MDBX_EINVAL;
+  mdbx_assert(env, dbi >= CORE_DBS);
+  if (unlikely(dbi >= env->me_numdbs))
+    return MDBX_BAD_DBI;
 
   char *ptr = env->me_dbxs[dbi].md_name.iov_base;
   /* If there was no name, this was already closed */
@@ -21484,13 +21494,16 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
   }
 
   if (limit > map->limit) {
-    /* check ability of address space for growth before umnap */
+    /* check ability of address space for growth before unmap */
     PVOID BaseAddress = (PBYTE)map->address + map->limit;
     SIZE_T RegionSize = limit - map->limit;
     status = NtAllocateVirtualMemory(GetCurrentProcess(), &BaseAddress, 0,
                                      &RegionSize, MEM_RESERVE, PAGE_NOACCESS);
-    if (!NT_SUCCESS(status))
+    if (!NT_SUCCESS(status)) {
+      if (status == /* STATUS_INVALID_ADDRESS */ 0xC0000141)
+        status = /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018;
       return ntstatus2errcode(status);
+    }
 
     status = NtFreeVirtualMemory(GetCurrentProcess(), &BaseAddress, &RegionSize,
                                  MEM_RELEASE);
@@ -21530,7 +21543,8 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
                                    &ReservedSize, MEM_RESERVE, PAGE_NOACCESS);
   if (!NT_SUCCESS(status)) {
     ReservedAddress = NULL;
-    if (status != /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018)
+    if (status != /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 &&
+        status != /* STATUS_INVALID_ADDRESS */ 0xC0000141)
       goto bailout_ntstatus /* no way to recovery */;
 
     /* assume we can change base address if mapping size changed or prev address
@@ -21590,7 +21604,8 @@ retry_mapview:;
       (flags & MDBX_WRITEMAP) ? PAGE_READWRITE : PAGE_READONLY);
 
   if (!NT_SUCCESS(status)) {
-    if (status == /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 &&
+    if ((status == /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 ||
+         status == /* STATUS_INVALID_ADDRESS */ 0xC0000141) &&
         map->address) {
       /* try remap at another base address */
       map->address = NULL;
@@ -22242,10 +22257,10 @@ __dll_export
     const mdbx_version_info mdbx_version = {
         0,
         4,
-        0,
-        1855,
-        {"2019-12-22T14:01:50+03:00", "5bb30ab1ca1caf79fb77ddc682fdafba5a707104", "2acaaeb2ff98c7baa67836636ac3b2cf8c079a36",
-         "v0.4.0-186-g2acaaeb2f"},
+        1,
+        1860,
+        {"2019-12-25T00:46:01+03:00", "cb826039327f2815e55342a30933216e34754a83", "7b6880bdc9f2712a53b7ca2064c9181466d73bc2",
+         "v0.4.1-0-g7b6880bdc"},
         sourcery};
 
 __dll_export
