@@ -1189,6 +1189,28 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
       return rc;
   }
 
+  fpta_schema_info schema_info;
+  rc = fpta_schema_fetch(txn, &schema_info);
+  if (rc != FPTA_SUCCESS)
+    return rc;
+  if (schema_info.tables_count >= fpta_tables_max) {
+    fpta_schema_destroy(&schema_info);
+    return FPTA_TOOMANY;
+  }
+  unsigned dbi_count = schema_info.tables_count;
+  for (size_t n = 0; n < schema_info.tables_count; ++n) {
+    struct fpta_table_schema *table_schema =
+        schema_info.tables_names[n].table_schema;
+    for (unsigned i = 1; i < table_schema->column_count(); ++i) {
+      if (!fpta_is_indexed(table_schema->column_shove(i)))
+        break;
+      dbi_count += 1;
+    }
+  }
+  fpta_schema_destroy(&schema_info);
+  if (dbi_count >= fpta_max_indexes)
+    return FPTA_TOOMANY;
+
   MDBX_dbi dbi[fpta_max_indexes];
   memset(dbi, 0, sizeof(dbi));
 
@@ -1196,6 +1218,8 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     const auto shove = column_set->shoves[i];
     if (!fpta_is_indexed(shove))
       break;
+    if (++dbi_count >= fpta_max_indexes)
+      return FPTA_TOOMANY;
     assert(i < fpta_max_indexes);
 
     const unsigned dbi_flags = fpta_dbi_flags(column_set->shoves, i);
