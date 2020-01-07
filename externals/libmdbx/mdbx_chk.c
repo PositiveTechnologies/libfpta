@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 2d03283113dfc8a5b08b4c887018e6119d22d89d19b9b8921a736d04fcdf0a4c_v0_4_1_0_g7b6880bdc
+#define MDBX_BUILD_SOURCERY 95bfb1e453d0a7aaf5c06c29d4165858e9f52cc90c35c000a2cdf9b11d6c8967_v0_5_0_10_g8be0c8eaa
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -2526,7 +2526,7 @@ struct MDBX_env {
 #endif
 #if defined(MDBX_USE_VALGRIND) || defined(__SANITIZE_ADDRESS__)
   pgno_t me_poison_edge;
-#endif
+#endif /* MDBX_USE_VALGRIND || __SANITIZE_ADDRESS__ */
   MDBX_env *me_lcklist_next;
 
   /* struct me_dbgeo used for accepting db-geo params from user for the new

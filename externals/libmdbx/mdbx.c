@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 2d03283113dfc8a5b08b4c887018e6119d22d89d19b9b8921a736d04fcdf0a4c_v0_4_1_0_g7b6880bdc
+#define MDBX_BUILD_SOURCERY 95bfb1e453d0a7aaf5c06c29d4165858e9f52cc90c35c000a2cdf9b11d6c8967_v0_5_0_10_g8be0c8eaa
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -2504,7 +2504,7 @@ struct MDBX_env {
 #endif
 #if defined(MDBX_USE_VALGRIND) || defined(__SANITIZE_ADDRESS__)
   pgno_t me_poison_edge;
-#endif
+#endif /* MDBX_USE_VALGRIND || __SANITIZE_ADDRESS__ */
   MDBX_env *me_lcklist_next;
 
   /* struct me_dbgeo used for accepting db-geo params from user for the new
@@ -4343,18 +4343,477 @@ static int lcklist_detach_locked(MDBX_env *env) {
  *     shell-insertion-sort for small chunks (less than half of SORT_THRESHOLD).
  */
 
-/* LY: Large threshold give some boost due less overhead in the inner qsort
- *     loops, but also a penalty in cases reverse-sorted data.
- *     So, 42 is magically but reasonable:
- *      - 0-3% faster than std::sort (from GNU C++ STL 2018) in most cases.
- *      - slower by a few ticks in a few cases for sequences shorter than 21. */
-#define SORT_THRESHOLD 42
-
-#define SORT_SWAP(TYPE, a, b)                                                  \
+#define SORT_CMP_SWAP(TYPE, CMP, a, b)                                         \
   do {                                                                         \
     const TYPE swap_tmp = (a);                                                 \
-    (a) = (b);                                                                 \
-    (b) = swap_tmp;                                                            \
+    const bool swap_cmp = CMP(swap_tmp, b);                                    \
+    (a) = swap_cmp ? swap_tmp : b;                                             \
+    (b) = swap_cmp ? b : swap_tmp;                                             \
+  } while (0)
+
+#define SORT_BITONIC_2(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+  } while (0)
+
+#define SORT_BITONIC_3(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+  } while (0)
+
+#define SORT_BITONIC_4(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+  } while (0)
+
+#define SORT_BITONIC_5(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+  } while (0)
+
+#define SORT_BITONIC_6(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+  } while (0)
+
+#define SORT_BITONIC_7(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+  } while (0)
+
+#define SORT_BITONIC_8(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+  } while (0)
+
+#define SORT_BITONIC_9(TYPE, CMP, begin)                                       \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+  } while (0)
+
+#define SORT_BITONIC_10(TYPE, CMP, begin)                                      \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+  } while (0)
+
+#define SORT_BITONIC_11(TYPE, CMP, begin)                                      \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+  } while (0)
+
+#define SORT_BITONIC_12(TYPE, CMP, begin)                                      \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[11]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+  } while (0)
+
+#define SORT_BITONIC_13(TYPE, CMP, begin)                                      \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[11]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[12]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[11]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+  } while (0)
+
+#define SORT_BITONIC_14(TYPE, CMP, begin)                                      \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[11]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[12], begin[13]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[13]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[12]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[12]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+  } while (0)
+
+#define SORT_BITONIC_15(TYPE, CMP, begin)                                      \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[11]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[12], begin[13]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[12], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[14]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[13], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[13]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[12]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[12]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+  } while (0)
+
+#define SORT_BITONIC_16(TYPE, CMP, begin)                                      \
+  do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[11]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[12], begin[13]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[14], begin[15]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[12], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[13], begin[15]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[15]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[14]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[15]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[13], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[11]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[13]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[14]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[13]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[12]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[10], begin[12]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[9]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[10]);                             \
+    SORT_CMP_SWAP(TYPE, CMP, begin[11], begin[12]);                            \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
   } while (0)
 
 #define SORT_SHELLPASS(TYPE, CMP, begin, end, gap)                             \
@@ -4369,6 +4828,70 @@ static int lcklist_detach_locked(MDBX_env *env) {
       break;                                                                   \
     }                                                                          \
   }
+
+#define SORT_INTRA(TYPE, CMP, begin, end, len)                                 \
+  switch (len) {                                                               \
+  default:                                                                     \
+    SORT_SHELLPASS(TYPE, CMP, begin, end, 8);                                  \
+    SORT_SHELLPASS(TYPE, CMP, begin, end, 1);                                  \
+  case 0:                                                                      \
+  case 1:                                                                      \
+    break;                                                                     \
+  case 2:                                                                      \
+    SORT_BITONIC_2(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 3:                                                                      \
+    SORT_BITONIC_3(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 4:                                                                      \
+    SORT_BITONIC_4(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 5:                                                                      \
+    SORT_BITONIC_5(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 6:                                                                      \
+    SORT_BITONIC_6(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 7:                                                                      \
+    SORT_BITONIC_7(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 8:                                                                      \
+    SORT_BITONIC_8(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 9:                                                                      \
+    SORT_BITONIC_9(TYPE, CMP, begin);                                          \
+    break;                                                                     \
+  case 10:                                                                     \
+    SORT_BITONIC_10(TYPE, CMP, begin);                                         \
+    break;                                                                     \
+  case 11:                                                                     \
+    SORT_BITONIC_11(TYPE, CMP, begin);                                         \
+    break;                                                                     \
+  case 12:                                                                     \
+    SORT_BITONIC_12(TYPE, CMP, begin);                                         \
+    break;                                                                     \
+  case 13:                                                                     \
+    SORT_BITONIC_13(TYPE, CMP, begin);                                         \
+    break;                                                                     \
+  case 14:                                                                     \
+    SORT_BITONIC_14(TYPE, CMP, begin);                                         \
+    break;                                                                     \
+  case 15:                                                                     \
+    SORT_BITONIC_15(TYPE, CMP, begin);                                         \
+    break;                                                                     \
+  case 16:                                                                     \
+    SORT_BITONIC_16(TYPE, CMP, begin);                                         \
+    break;                                                                     \
+  }
+
+#define SORT_THRESHOLD 16
+
+#define SORT_SWAP(TYPE, a, b)                                                  \
+  do {                                                                         \
+    const TYPE swap_tmp = (a);                                                 \
+    (a) = (b);                                                                 \
+    (b) = swap_tmp;                                                            \
+  } while (0)
 
 #define SORT_PUSH(low, high)                                                   \
   do {                                                                         \
@@ -4391,69 +4914,53 @@ static int lcklist_detach_locked(MDBX_env *env) {
   } NAME##_stack;                                                              \
                                                                                \
   static __hot void NAME(TYPE *const begin, TYPE *const end) {                 \
-    const ptrdiff_t length = end - begin;                                      \
-    if (length < 2)                                                            \
-      return;                                                                  \
+    NAME##_stack stack[sizeof(unsigned) * CHAR_BIT], *top = stack;             \
                                                                                \
-    if (length > SORT_THRESHOLD / 2) {                                         \
-      NAME##_stack stack[sizeof(unsigned) * CHAR_BIT], *top = stack;           \
+    TYPE *hi = end - 1;                                                        \
+    TYPE *lo = begin;                                                          \
+    while (true) {                                                             \
+      const ptrdiff_t len = hi - lo;                                           \
+      if (len < SORT_THRESHOLD) {                                              \
+        SORT_INTRA(TYPE, CMP, lo, hi + 1, len + 1);                            \
+        if (top == stack)                                                      \
+          break;                                                               \
+        SORT_POP(lo, hi);                                                      \
+        continue;                                                              \
+      }                                                                        \
                                                                                \
-      TYPE *hi = end - 1;                                                      \
-      TYPE *lo = begin;                                                        \
-      while (true) {                                                           \
-        TYPE *mid = lo + ((hi - lo) >> 1);                                     \
-        if (CMP(*mid, *lo))                                                    \
-          SORT_SWAP(TYPE, *mid, *lo);                                          \
-        if (CMP(*hi, *mid)) {                                                  \
-          SORT_SWAP(TYPE, *hi, *mid);                                          \
-          if (CMP(*mid, *lo))                                                  \
-            SORT_SWAP(TYPE, *mid, *lo);                                        \
+      TYPE *mid = lo + (len >> 1);                                             \
+      SORT_CMP_SWAP(TYPE, CMP, *lo, *mid);                                     \
+      SORT_CMP_SWAP(TYPE, CMP, *mid, *hi);                                     \
+      SORT_CMP_SWAP(TYPE, CMP, *lo, *mid);                                     \
+                                                                               \
+      TYPE *right = hi - 1;                                                    \
+      TYPE *left = lo + 1;                                                     \
+      do {                                                                     \
+        while (CMP(*mid, *right))                                              \
+          --right;                                                             \
+        while (CMP(*left, *mid))                                               \
+          ++left;                                                              \
+        if (left < right) {                                                    \
+          SORT_SWAP(TYPE, *left, *right);                                      \
+          mid = (mid == left) ? right : (mid == right) ? left : mid;           \
+          ++left;                                                              \
+          --right;                                                             \
+        } else if (left == right) {                                            \
+          ++left;                                                              \
+          --right;                                                             \
+          break;                                                               \
         }                                                                      \
+      } while (left <= right);                                                 \
                                                                                \
-        TYPE *right = hi - 1;                                                  \
-        TYPE *left = lo + 1;                                                   \
-        do {                                                                   \
-          while (CMP(*mid, *right))                                            \
-            --right;                                                           \
-          while (CMP(*left, *mid))                                             \
-            ++left;                                                            \
-          if (left < right) {                                                  \
-            SORT_SWAP(TYPE, *left, *right);                                    \
-            if (mid == left)                                                   \
-              mid = right;                                                     \
-            else if (mid == right)                                             \
-              mid = left;                                                      \
-            ++left;                                                            \
-            --right;                                                           \
-          } else if (left == right) {                                          \
-            ++left;                                                            \
-            --right;                                                           \
-            break;                                                             \
-          }                                                                    \
-        } while (left <= right);                                               \
-                                                                               \
-        if (lo + SORT_THRESHOLD > right) {                                     \
-          if (left + SORT_THRESHOLD > hi) {                                    \
-            if (top == stack)                                                  \
-              break;                                                           \
-            else                                                               \
-              SORT_POP(lo, hi);                                                \
-          } else                                                               \
-            lo = left;                                                         \
-        } else if (left + SORT_THRESHOLD > hi)                                 \
-          hi = right;                                                          \
-        else if (right - lo > hi - left) {                                     \
-          SORT_PUSH(lo, right);                                                \
-          lo = left;                                                           \
-        } else {                                                               \
-          SORT_PUSH(left, hi);                                                 \
-          hi = right;                                                          \
-        }                                                                      \
+      if (right - lo > hi - left) {                                            \
+        SORT_PUSH(lo, right);                                                  \
+        lo = left;                                                             \
+      } else {                                                                 \
+        SORT_PUSH(left, hi);                                                   \
+        hi = right;                                                            \
       }                                                                        \
     }                                                                          \
                                                                                \
-    SORT_SHELLPASS(TYPE, CMP, begin, end, 8);                                  \
-    SORT_SHELLPASS(TYPE, CMP, begin, end, 1);                                  \
     for (TYPE *scan = begin + 1; scan < end; ++scan)                           \
       assert(CMP(scan[-1], scan[0]));                                          \
   }
@@ -6947,7 +7454,7 @@ skip_cache:
           goto fail;
         if (flags & MDBX_LIFORECLAIM) {
           /* Begin from oldest reader if any */
-          if (oldest > 2) {
+          if (oldest > MIN_TXNID) {
             last = oldest - 1;
             op = MDBX_SET_RANGE;
           }
@@ -7227,9 +7734,10 @@ skip_cache:
           goto done;
         }
 
-        mdbx_warning("unable growth datafile to %" PRIaPGNO
-                     " pages (+%" PRIaPGNO "), errcode %d",
-                     aligned, aligned - txn->mt_end_pgno, rc);
+        mdbx_error("unable growth datafile to %" PRIaPGNO " pages (+%" PRIaPGNO
+                   "), errcode %d",
+                   aligned, aligned - txn->mt_end_pgno, rc);
+        rc = (rc == MDBX_RESULT_TRUE) ? MDBX_MAP_FULL : rc;
       } else {
         mdbx_debug("gc-alloc: next %u > upper %u", next, txn->mt_geo.upper);
       }
@@ -7757,7 +8265,7 @@ static void mdbx_txn_valgrind(MDBX_env *env, MDBX_txn *txn) {
       mdbx_txn_unlock(env);
   }
 }
-#endif /* MDBX_USE_VALGRIND */
+#endif /* MDBX_USE_VALGRIND || __SANITIZE_ADDRESS__ */
 
 /* Common code for mdbx_txn_begin() and mdbx_txn_renew(). */
 static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
@@ -8008,9 +8516,13 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
         txn->mt_flags |= MDBX_SHRINK_ALLOWED;
         mdbx_srwlock_AcquireShared(&env->me_remap_guard);
       }
-#endif
+#endif /* Windows */
     } else {
       env->me_dxb_mmap.current = size;
+#if defined(_WIN32) || defined(_WIN64)
+      env->me_dxb_mmap.filesize =
+          (env->me_dxb_mmap.filesize < size) ? size : env->me_dxb_mmap.filesize;
+#endif /* Windows */
     }
 #if defined(MDBX_USE_VALGRIND) || defined(__SANITIZE_ADDRESS__)
     mdbx_txn_valgrind(env, txn);
@@ -8235,9 +8747,9 @@ int mdbx_txn_begin(MDBX_env *env, MDBX_txn *parent, unsigned flags,
       mdbx_free(txn);
   } else {
     mdbx_assert(env,
-                (txn->mt_flags &
-                 ~(MDBX_RDONLY | MDBX_WRITEMAP | MDBX_SHRINK_ALLOWED |
-                   MDBX_NOMETASYNC | MDBX_SAFE_NOSYNC | MDBX_MAPASYNC)) == 0);
+                (txn->mt_flags & ~(MDBX_NOTLS | MDBX_RDONLY | MDBX_WRITEMAP |
+                                   MDBX_SHRINK_ALLOWED | MDBX_NOMETASYNC |
+                                   MDBX_SAFE_NOSYNC | MDBX_MAPASYNC)) == 0);
     txn->mt_signature = MDBX_MT_SIGNATURE;
     *ret = txn;
     mdbx_debug("begin txn %" PRIaTXN "%c %p on env %p, root page %" PRIaPGNO
@@ -9886,6 +10398,7 @@ int mdbx_txn_commit(MDBX_txn *txn) {
       (txn->mt_flags & (MDBX_TXN_DIRTY | MDBX_TXN_SPILLS)) == 0) {
     for (int i = txn->mt_numdbs; --i >= 0;)
       mdbx_tassert(txn, (txn->mt_dbflags[i] & DB_DIRTY) == 0);
+    rc = MDBX_SUCCESS;
     goto done;
   }
 
@@ -10338,7 +10851,7 @@ static int mdbx_sync_locked(MDBX_env *env, unsigned flags,
       ASAN_POISON_MEMORY_REGION(env->me_map + pgno2bytes(env, largest_pgno),
                                 pgno2bytes(env, edge - largest_pgno));
     }
-#endif /* MDBX_USE_VALGRIND */
+#endif /* MDBX_USE_VALGRIND || __SANITIZE_ADDRESS__ */
 #if defined(MADV_DONTNEED)
     const size_t largest_bytes = pgno2bytes(env, largest_pgno);
     const size_t madvise_gap = (largest_bytes < 65536 * 256)
@@ -10644,12 +11157,10 @@ static void __cold mdbx_setup_pagesize(MDBX_env *env, const size_t pagesize) {
   mdbx_ensure(env, branch_nodemax > 42 && branch_nodemax < (int)UINT16_MAX &&
                        branch_nodemax % 2 == 0);
   env->me_branch_nodemax = (unsigned)branch_nodemax;
-  env->me_maxkey_nd = (uint16_t)mdbx_limits_keysize_max(env->me_psize, 0);
-  env->me_maxkey_ds =
-      (uint16_t)mdbx_limits_keysize_max(env->me_psize, MDBX_DUPSORT);
-  env->me_maxval_nd = (unsigned)mdbx_limits_valsize_max(env->me_psize, 0);
-  env->me_maxval_ds =
-      (unsigned)mdbx_limits_valsize_max(env->me_psize, MDBX_DUPSORT);
+  env->me_maxkey_nd = (uint16_t)mdbx_limits_keysize_max(pagesize, 0);
+  env->me_maxkey_ds = (uint16_t)mdbx_limits_keysize_max(pagesize, MDBX_DUPSORT);
+  env->me_maxval_nd = (unsigned)mdbx_limits_valsize_max(pagesize, 0);
+  env->me_maxval_ds = (unsigned)mdbx_limits_valsize_max(pagesize, MDBX_DUPSORT);
   mdbx_ensure(env, env->me_maxkey_nd ==
                        env->me_branch_nodemax - NODESIZE - sizeof(pgno_t));
   mdbx_ensure(env, env->me_maxkey_ds ==
@@ -10860,22 +11371,24 @@ mdbx_env_set_geometry(MDBX_env *env, intptr_t size_lower, intptr_t size_now,
     goto bailout;
   }
 
-  size_lower = roundup_powerof2(size_lower, env->me_os_psize);
-  size_upper = roundup_powerof2(size_upper, env->me_os_psize);
-  size_now = roundup_powerof2(size_now, env->me_os_psize);
+  const size_t unit =
+      (env->me_os_psize > (size_t)pagesize) ? env->me_os_psize : pagesize;
+  size_lower = roundup_powerof2(size_lower, unit);
+  size_upper = roundup_powerof2(size_upper, unit);
+  size_now = roundup_powerof2(size_now, unit);
 
   /* LY: подбираем значение size_upper:
-   *  - кратное размеру системной страницы
+   *  - кратное размеру страницы
    *  - без нарушения MAX_MAPSIZE и MAX_PAGENO */
   while (unlikely((size_t)size_upper > MAX_MAPSIZE ||
                   (uint64_t)size_upper / pagesize > MAX_PAGENO)) {
-    if ((size_t)size_upper < env->me_os_psize + MIN_MAPSIZE ||
-        (size_t)size_upper < env->me_os_psize * (MIN_PAGENO + 1)) {
+    if ((size_t)size_upper < unit + MIN_MAPSIZE ||
+        (size_t)size_upper < (size_t)pagesize * (MIN_PAGENO + 1)) {
       /* паранойа на случай переполнения при невероятных значениях */
       rc = MDBX_EINVAL;
       goto bailout;
     }
-    size_upper -= env->me_os_psize;
+    size_upper -= unit;
     if ((size_t)size_upper < (size_t)size_lower)
       size_lower = size_upper;
   }
@@ -10897,13 +11410,13 @@ mdbx_env_set_geometry(MDBX_env *env, intptr_t size_lower, intptr_t size_now,
   }
   if (growth_step == 0 && shrink_threshold > 0)
     growth_step = 1;
-  growth_step = roundup_powerof2(growth_step, env->me_os_psize);
+  growth_step = roundup_powerof2(growth_step, unit);
   if (bytes2pgno(env, growth_step) > UINT16_MAX)
     growth_step = pgno2bytes(env, UINT16_MAX);
 
   if (shrink_threshold < 0)
     shrink_threshold = growth_step + growth_step;
-  shrink_threshold = roundup_powerof2(shrink_threshold, env->me_os_psize);
+  shrink_threshold = roundup_powerof2(shrink_threshold, unit);
   if (bytes2pgno(env, shrink_threshold) > UINT16_MAX)
     shrink_threshold = pgno2bytes(env, UINT16_MAX);
 
@@ -11294,7 +11807,7 @@ static int __cold mdbx_setup_dxb(MDBX_env *env, const int lck_rc) {
   ASAN_POISON_MEMORY_REGION(env->me_map + used_bytes,
                             env->me_dxb_mmap.limit - used_bytes);
   env->me_poison_edge = bytes2pgno(env, env->me_dxb_mmap.limit);
-#endif /* MDBX_USE_VALGRIND */
+#endif /* MDBX_USE_VALGRIND || __SANITIZE_ADDRESS__ */
 
   /* NOTE: AddressSanitizer (at least GCC 7.x, 8.x) could generate
    *       false-positive alarm here. I have no other explanation for this
@@ -12087,6 +12600,9 @@ int __cold mdbx_env_open(MDBX_env *env, const char *pathname, unsigned flags,
 #endif
 
 bailout:
+#if defined(MDBX_USE_VALGRIND) || defined(__SANITIZE_ADDRESS__)
+  mdbx_txn_valgrind(env, nullptr);
+#endif
   if (rc) {
     rc = mdbx_env_close0(env) ? MDBX_PANIC : rc;
     env->me_flags = saved_me_flags | MDBX_FATAL_ERROR;
@@ -13823,7 +14339,7 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
     if (IS_LEAF2(mc->mc_pg[mc->mc_top])) {
       char *ptr;
       unsigned ksize = mc->mc_db->md_xsize;
-      if (key->iov_len != ksize)
+      if (unlikely(key->iov_len != ksize))
         return MDBX_BAD_VALSIZE;
       ptr = page_leaf2key(mc->mc_pg[mc->mc_top], mc->mc_ki[mc->mc_top], ksize);
       memcpy(ptr, key->iov_base, ksize);
@@ -13885,9 +14401,9 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
                     /* LY: add configurable threshold to keep reserve space */
                     dpages) {
         if (!IS_DIRTY(omp) && (level || (env->me_flags & MDBX_WRITEMAP))) {
-          rc = mdbx_page_unspill(mc->mc_txn, omp, &omp);
-          if (unlikely(rc))
-            return rc;
+          rc2 = mdbx_page_unspill(mc->mc_txn, omp, &omp);
+          if (unlikely(rc2))
+            return rc2;
           level = 0; /* dirty in this txn or clean */
         }
         /* Is it dirty? */
@@ -14054,8 +14570,8 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
           nested_dupdb.md_entries = page_numkeys(fp);
           xdata.iov_len = sizeof(nested_dupdb);
           xdata.iov_base = &nested_dupdb;
-          if ((rc = mdbx_page_alloc(mc, 1, &mp, MDBX_ALLOC_ALL)))
-            return rc;
+          if ((rc2 = mdbx_page_alloc(mc, 1, &mp, MDBX_ALLOC_ALL)))
+            return rc2;
           mc->mc_db->md_leaf_pages += 1;
           mdbx_cassert(mc, env->me_psize > olddata.iov_len);
           offset = env->me_psize - (unsigned)olddata.iov_len;
@@ -21450,10 +21966,14 @@ MDBX_INTERNAL_FUNC int mdbx_mmap(const int flags, mdbx_mmap_t *map,
 
 #endif
 
+  VALGRIND_MAKE_MEM_DEFINED(map->address, map->current);
+  ASAN_UNPOISON_MEMORY_REGION(map->address, map->current);
   return MDBX_SUCCESS;
 }
 
 MDBX_INTERNAL_FUNC int mdbx_munmap(mdbx_mmap_t *map) {
+  VALGRIND_MAKE_MEM_NOACCESS(map->address, map->current);
+  ASAN_POISON_MEMORY_REGION(map->address, map->current);
 #if defined(_WIN32) || defined(_WIN64)
   if (map->section)
     NtClose(map->section);
@@ -21485,12 +22005,12 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
     /* growth rw-section */
     SectionSize.QuadPart = size;
     status = NtExtendSection(map->section, &SectionSize);
-    if (NT_SUCCESS(status)) {
-      map->current = size;
-      if (map->filesize < size)
-        map->filesize = size;
-    }
-    return ntstatus2errcode(status);
+    if (!NT_SUCCESS(status))
+      return ntstatus2errcode(status);
+    map->current = size;
+    if (map->filesize < size)
+      map->filesize = size;
+    return MDBX_SUCCESS;
   }
 
   if (limit > map->limit) {
@@ -21499,11 +22019,10 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
     SIZE_T RegionSize = limit - map->limit;
     status = NtAllocateVirtualMemory(GetCurrentProcess(), &BaseAddress, 0,
                                      &RegionSize, MEM_RESERVE, PAGE_NOACCESS);
-    if (!NT_SUCCESS(status)) {
-      if (status == /* STATUS_INVALID_ADDRESS */ 0xC0000141)
-        status = /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018;
+    if (status == /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018)
+      return MDBX_RESULT_TRUE;
+    if (!NT_SUCCESS(status))
       return ntstatus2errcode(status);
-    }
 
     status = NtFreeVirtualMemory(GetCurrentProcess(), &BaseAddress, &RegionSize,
                                  MEM_RELEASE);
@@ -21530,9 +22049,13 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
   bailout:
     map->address = NULL;
     map->current = map->limit = 0;
-    if (ReservedAddress)
-      (void)NtFreeVirtualMemory(GetCurrentProcess(), &ReservedAddress,
-                                &ReservedSize, MEM_RELEASE);
+    if (ReservedAddress) {
+      ReservedSize = 0;
+      status = NtFreeVirtualMemory(GetCurrentProcess(), &ReservedAddress,
+                                   &ReservedSize, MEM_RELEASE);
+      assert(NT_SUCCESS(status));
+      (void)status;
+    }
     return err;
   }
 
@@ -21543,8 +22066,7 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
                                    &ReservedSize, MEM_RESERVE, PAGE_NOACCESS);
   if (!NT_SUCCESS(status)) {
     ReservedAddress = NULL;
-    if (status != /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 &&
-        status != /* STATUS_INVALID_ADDRESS */ 0xC0000141)
+    if (status != /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018)
       goto bailout_ntstatus /* no way to recovery */;
 
     /* assume we can change base address if mapping size changed or prev address
@@ -21584,6 +22106,7 @@ retry_file_and_section:
 
   if (ReservedAddress) {
     /* release reserved address space */
+    ReservedSize = 0;
     status = NtFreeVirtualMemory(GetCurrentProcess(), &ReservedAddress,
                                  &ReservedSize, MEM_RELEASE);
     ReservedAddress = NULL;
@@ -21604,8 +22127,7 @@ retry_mapview:;
       (flags & MDBX_WRITEMAP) ? PAGE_READWRITE : PAGE_READONLY);
 
   if (!NT_SUCCESS(status)) {
-    if ((status == /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 ||
-         status == /* STATUS_INVALID_ADDRESS */ 0xC0000141) &&
+    if (status == /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018 &&
         map->address) {
       /* try remap at another base address */
       map->address = NULL;
@@ -21656,7 +22178,7 @@ retry_mapview:;
       switch (rc) {
       case EAGAIN:
       case ENOMEM:
-      case EFAULT /* MADV_DODUMP / MADV_DONTDUMP are mixed for mmap-mange */:
+      case EFAULT /* MADV_DODUMP / MADV_DONTDUMP are mixed for mmap-range */:
         rc = MDBX_RESULT_TRUE;
       }
       return rc;
@@ -22236,7 +22758,7 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
 
 
 #if MDBX_VERSION_MAJOR != 0 ||                             \
-    MDBX_VERSION_MINOR != 4
+    MDBX_VERSION_MINOR != 5
 #error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
@@ -22256,11 +22778,11 @@ __dll_export
 #endif
     const mdbx_version_info mdbx_version = {
         0,
-        4,
-        1,
-        1860,
-        {"2019-12-25T00:46:01+03:00", "cb826039327f2815e55342a30933216e34754a83", "7b6880bdc9f2712a53b7ca2064c9181466d73bc2",
-         "v0.4.1-0-g7b6880bdc"},
+        5,
+        0,
+        1879,
+        {"2020-01-07T02:44:59+03:00", "53ae5402f4c4d6461c8fb256920816b55f72f9cb", "8be0c8eaae0dd603125d02732721dfc396db3e5f",
+         "v0.5.0-10-g8be0c8eaa"},
         sourcery};
 
 __dll_export
