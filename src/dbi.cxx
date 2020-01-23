@@ -213,15 +213,20 @@ __cold int fpta_dbicache_open(fpta_txn *txn, const fpta_shove_t dbi_shove,
   return rc;
 }
 
-__cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def,
-                                 bool locked) {
+__cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def) {
   fpta_db *db = txn->db;
-  fpta_lock_guard guard;
+  if (likely(db->schema_tsn >= txn->schema_tsn()))
+    return (db->schema_tsn == txn->schema_tsn()) ? FPTA_SUCCESS
+                                                 : FPTA_SCHEMA_CHANGED;
 
-  if (!locked && txn->level < fpta_schema) {
+  fpta_lock_guard guard;
+  if (txn->level < fpta_schema) {
     int err = guard.lock(&db->dbi_mutex);
     if (unlikely(err != 0))
       return err;
+    if (unlikely(db->schema_tsn >= txn->schema_tsn()))
+      return (db->schema_tsn == txn->schema_tsn()) ? FPTA_SUCCESS
+                                                   : FPTA_SCHEMA_CHANGED;
   }
 
   MDBX_envinfo info;
@@ -271,6 +276,9 @@ __cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def,
       db->dbi_shoves[i] = 0;
     }
   }
+
+  if (!table_def)
+    db->schema_tsn = txn->schema_tsn();
 
   return MDBX_SUCCESS;
 }

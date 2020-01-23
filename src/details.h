@@ -229,7 +229,7 @@ int fpta_dbicache_open(fpta_txn *txn, const fpta_shove_t shove,
 
 MDBX_dbi fpta_dbicache_remove(fpta_db *db, const fpta_shove_t shove,
                               unsigned *const cache_hint = nullptr);
-int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *def, bool locked);
+int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *def);
 
 //----------------------------------------------------------------------------
 

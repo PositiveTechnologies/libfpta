@@ -1088,7 +1088,7 @@ int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
       table_id->table_schema = nullptr;
     }
 
-    rc = fpta_dbicache_cleanup(txn, table_id->table_schema, false);
+    rc = fpta_dbicache_cleanup(txn, table_id->table_schema);
     if (unlikely(rc != FPTA_SUCCESS))
       return rc;
 
