@@ -146,16 +146,16 @@ TEST(d2a, trivia) {
 }
 
 static bool probe_d2a(uint64_t u64, char (&buffer)[23 + 1]) {
-  erthink::grisu::casting_union casting(u64);
-  switch (std::fpclassify(casting.f)) {
+  const double f64 = erthink::grisu::cast(u64);
+  switch (std::fpclassify(f64)) {
   case FP_NAN:
   case FP_INFINITE:
     return false;
   default:
-    probe_d2a(buffer, casting.f);
+    probe_d2a(buffer, f64);
   }
 
-  const float f32 = static_cast<float>(casting.f);
+  const float f32 = static_cast<float>(f64);
   switch (std::fpclassify(f32)) {
   case FP_NAN:
   case FP_INFINITE:
