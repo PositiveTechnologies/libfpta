@@ -33,28 +33,16 @@ namespace erthink {
 
 template <typename T> inline constexpr int clz(T v);
 
-static __maybe_unused inline int fallback_clz8(uint8_t v) {
-  static const int8_t lut[256] = {
-      8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3,
-      3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-      2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-  return lut[v];
-}
-
 static __maybe_unused inline int fallback_clz32(uint32_t v) {
-  // LY: strive for branchless (SSA-optimizer must solve this)
-  int r = 24, s = (v > 0xFFFF) << 4;
-  v >>= s;
-  r -= s;
-
-  s = (v > 0xFF) << 3;
-  v >>= s;
-  r -= s;
-
-  return r + fallback_clz8(static_cast<uint8_t>(v));
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  static const int8_t deBruijn_clz32[32] = {
+      31, 22, 30, 21, 18, 10, 29, 2,  20, 17, 15, 13, 9, 6,  28, 1,
+      23, 19, 11, 3,  16, 14, 7,  24, 12, 4,  8,  25, 5, 26, 27, 0};
+  return deBruijn_clz32[v * UINT32_C(0x07C4ACDD) >> 27];
 }
 
 static __maybe_unused inline int fallback_clz64(uint64_t v) {
