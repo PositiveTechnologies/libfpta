@@ -62,9 +62,18 @@ static __maybe_unused inline int fallback_clz64(uint64_t v) {
   const uint32_t hi = static_cast<uint32_t>(v >> 32);
   return (hi ? 0 : 32) + fallback_clz32(hi ? hi : static_cast<uint32_t>(v));
 #else
-  // LY: strive for branchless (SSA-optimizer must solve this)
-  const int s = (v > UINT32_C(0xFFFFffff)) << 5;
-  return 32 - s + fallback_clz32(static_cast<uint32_t>(v >> s));
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v |= v >> 32;
+  static const uint8_t deBruijn_clz64[64] = {
+      63, 16, 62, 7,  15, 36, 61, 3,  6,  14, 22, 26, 35, 47, 60, 2,
+      9,  5,  28, 11, 13, 21, 42, 19, 25, 31, 34, 40, 46, 52, 59, 1,
+      17, 8,  37, 4,  23, 27, 48, 10, 29, 12, 43, 20, 32, 41, 53, 18,
+      38, 24, 49, 30, 44, 33, 54, 39, 50, 45, 55, 51, 56, 57, 58, 0};
+  return deBruijn_clz64[v * UINT64_C(0x03F79D71B4CB0A89) >> 58];
 #endif
 }
 
