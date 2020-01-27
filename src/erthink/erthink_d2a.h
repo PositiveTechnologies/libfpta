@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright (c) 1994-2019 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/leo-yuriev/erthink
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -126,15 +126,6 @@ enum {
   GRISU_EXPONENT_BIAS = IEEE754_DOUBLE_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE
 };
 
-union casting_union {
-  double f;
-  int64_t i;
-  uint64_t u;
-  constexpr casting_union(double v) : f(v) {}
-  constexpr casting_union(uint64_t v) : u(v) {}
-  constexpr casting_union(int64_t v) : i(v) {}
-};
-
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4820 /* FOO bytes padding added                      \
@@ -144,9 +135,9 @@ struct diy_fp {
   uint64_t f;
   int e;
 
-  explicit diy_fp(const casting_union &value) {
-    const uint64_t exp_bits = (value.u & IEEE754_DOUBLE_EXPONENT_MASK);
-    const uint64_t mantissa = (value.u & IEEE754_DOUBLE_MANTISSA_MASK);
+  explicit diy_fp(const int64_t i64) {
+    const uint64_t exp_bits = (i64 & IEEE754_DOUBLE_EXPONENT_MASK);
+    const uint64_t mantissa = (i64 & IEEE754_DOUBLE_MANTISSA_MASK);
     f = mantissa + (exp_bits ? IEEE754_DOUBLE_IMPLICIT_LEAD : 0u);
     e = static_cast<int>(exp_bits >> IEEE754_DOUBLE_MANTISSA_SIZE) -
         (exp_bits ? GRISU_EXPONENT_BIAS : GRISU_EXPONENT_BIAS - 1);
@@ -489,17 +480,38 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
                      diy_fp::middle(upper, lower));
 }
 
+double inline cast(int64_t i64) {
+  static_assert(sizeof(double) == 8 && sizeof(int64_t), "WTF?");
+  double f64;
+  std::memcpy(&f64, &i64, 8);
+  return f64;
+}
+
+double inline cast(uint64_t u64) {
+  static_assert(sizeof(double) == 8 && sizeof(uint64_t), "WTF?");
+  double f64;
+  std::memcpy(&f64, &u64, 8);
+  return f64;
+}
+
+int64_t inline cast(double f64) {
+  static_assert(sizeof(double) == 8 && sizeof(int64_t), "WTF?");
+  int64_t i64;
+  std::memcpy(&i64, &f64, 8);
+  return i64;
+}
+
 } // namespace grisu
 
 static __maybe_unused char *
-d2a(const grisu::casting_union &value,
+d2a(const double &value,
     char *const buffer /* upto 23 chars for -22250738585072014e-324 */) {
-  assert(!std::isnan(value.f) && !std::isinf(value.f));
+  assert(!std::isnan(value) && !std::isinf(value));
+  const int64_t i64 = grisu::cast(value);
   // LY: strive for branchless (SSA-optimizer must solve this)
   *buffer = '-';
   int exponent;
-  char *ptr =
-      grisu::convert(grisu::diy_fp(value), buffer + (value.i < 0), exponent);
+  char *ptr = grisu::convert(grisu::diy_fp(i64), buffer + (i64 < 0), exponent);
   if (exponent != 0) {
     const branchless_abs<int> pair(exponent);
     ptr[0] = 'e';
