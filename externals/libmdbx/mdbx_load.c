@@ -1,7 +1,7 @@
 /* mdbx_load.c - memory-mapped database load tool */
 
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -22,7 +22,7 @@
 
 #define MDBX_TOOLS /* Avoid using internal mdbx_assert() */
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 95bfb1e453d0a7aaf5c06c29d4165858e9f52cc90c35c000a2cdf9b11d6c8967_v0_5_0_10_g8be0c8eaa
+#define MDBX_BUILD_SOURCERY ba9fb755baaf21d611cbaf51c1952cfa88916112b5ca389bd5ba2994db6872e1_v0_6_0_10_g2c08ec21f
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -115,7 +115,7 @@
 
 #include "mdbx.h"
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -269,7 +269,7 @@
 #endif /* __fallthrough */
 
 #ifndef __unreachable
-#	if __GNUC_PREREQ(4,5)
+#	if __GNUC_PREREQ(4,5) || __has_builtin(__builtin_unreachable)
 #		define __unreachable() __builtin_unreachable()
 #	elif defined(_MSC_VER)
 #		define __unreachable() __assume(0)
@@ -409,7 +409,7 @@
 #endif /* __flatten */
 
 #ifndef likely
-#   if (defined(__GNUC__) || defined(__clang__)) && !defined(__COVERITY__)
+#   if (defined(__GNUC__) || __has_builtin(__builtin_expect)) && !defined(__COVERITY__)
 #       define likely(cond) __builtin_expect(!!(cond), 1)
 #   else
 #       define likely(x) (x)
@@ -417,7 +417,7 @@
 #endif /* likely */
 
 #ifndef unlikely
-#   if (defined(__GNUC__) || defined(__clang__)) && !defined(__COVERITY__)
+#   if (defined(__GNUC__) || __has_builtin(__builtin_expect)) && !defined(__COVERITY__)
 #       define unlikely(cond) __builtin_expect(!!(cond), 0)
 #   else
 #       define unlikely(x) (x)
@@ -613,7 +613,7 @@ typedef _Complex float __cfloat128 __attribute__ ((__mode__ (__TC__)));
 /* https://en.wikipedia.org/wiki/Operating_system_abstraction_layer */
 
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -3021,7 +3021,7 @@ static int version;
 
 static int dbi_flags;
 static char *prog;
-static int Eof;
+static bool Eof;
 
 static MDBX_envinfo envinfo;
 static MDBX_val kbuf, dbuf;
@@ -3051,20 +3051,32 @@ static void readhdr(void) {
   dbi_flags = 0;
   while (fgets(dbuf.iov_base, (int)dbuf.iov_len, stdin) != NULL) {
     lineno++;
-    if (!strncmp(dbuf.iov_base, "db_pagesize=", STRLENOF("db_pagesize=")) ||
-        !strncmp(dbuf.iov_base, "duplicates=", STRLENOF("duplicates="))) {
-      /* LY: silently ignore information fields. */
+
+    if (!strncmp(dbuf.iov_base, "db_pagesize=", STRLENOF("db_pagesize="))) {
+      envinfo.mi_dxb_pagesize =
+          atoi((char *)dbuf.iov_base + STRLENOF("db_pagesize="));
       continue;
-    } else if (!strncmp(dbuf.iov_base, "VERSION=", STRLENOF("VERSION="))) {
+    }
+
+    if (!strncmp(dbuf.iov_base, "duplicates=", STRLENOF("duplicates="))) {
+      dbi_flags |= MDBX_DUPSORT;
+      continue;
+    }
+
+    if (!strncmp(dbuf.iov_base, "VERSION=", STRLENOF("VERSION="))) {
       version = atoi((char *)dbuf.iov_base + STRLENOF("VERSION="));
       if (version > 3) {
         fprintf(stderr, "%s: line %" PRIiSIZE ": unsupported VERSION %d\n",
                 prog, lineno, version);
         exit(EXIT_FAILURE);
       }
-    } else if (!strncmp(dbuf.iov_base, "HEADER=END", STRLENOF("HEADER=END"))) {
-      break;
-    } else if (!strncmp(dbuf.iov_base, "format=", STRLENOF("format="))) {
+      continue;
+    }
+
+    if (!strncmp(dbuf.iov_base, "HEADER=END", STRLENOF("HEADER=END")))
+      return;
+
+    if (!strncmp(dbuf.iov_base, "format=", STRLENOF("format="))) {
       if (!strncmp((char *)dbuf.iov_base + STRLENOF("FORMAT="), "print",
                    STRLENOF("print")))
         mode |= PRINT;
@@ -3074,21 +3086,30 @@ static void readhdr(void) {
                 lineno, (char *)dbuf.iov_base + STRLENOF("FORMAT="));
         exit(EXIT_FAILURE);
       }
-    } else if (!strncmp(dbuf.iov_base, "database=", STRLENOF("database="))) {
+      continue;
+    }
+
+    if (!strncmp(dbuf.iov_base, "database=", STRLENOF("database="))) {
       ptr = memchr(dbuf.iov_base, '\n', dbuf.iov_len);
       if (ptr)
         *ptr = '\0';
       if (subname)
         mdbx_free(subname);
       subname = mdbx_strdup((char *)dbuf.iov_base + STRLENOF("database="));
-    } else if (!strncmp(dbuf.iov_base, "type=", STRLENOF("type="))) {
+      continue;
+    }
+
+    if (!strncmp(dbuf.iov_base, "type=", STRLENOF("type="))) {
       if (strncmp((char *)dbuf.iov_base + STRLENOF("type="), "btree",
                   STRLENOF("btree"))) {
         fprintf(stderr, "%s: line %" PRIiSIZE ": unsupported type %s\n", prog,
                 lineno, (char *)dbuf.iov_base + STRLENOF("type="));
         exit(EXIT_FAILURE);
       }
-    } else if (!strncmp(dbuf.iov_base, "mapaddr=", STRLENOF("mapaddr="))) {
+      continue;
+    }
+
+    if (!strncmp(dbuf.iov_base, "mapaddr=", STRLENOF("mapaddr="))) {
       int i;
       ptr = memchr(dbuf.iov_base, '\n', dbuf.iov_len);
       if (ptr)
@@ -3100,7 +3121,10 @@ static void readhdr(void) {
                 lineno, (char *)dbuf.iov_base + STRLENOF("mapaddr="));
         exit(EXIT_FAILURE);
       }
-    } else if (!strncmp(dbuf.iov_base, "mapsize=", STRLENOF("mapsize="))) {
+      continue;
+    }
+
+    if (!strncmp(dbuf.iov_base, "mapsize=", STRLENOF("mapsize="))) {
       int i;
       ptr = memchr(dbuf.iov_base, '\n', dbuf.iov_len);
       if (ptr)
@@ -3112,8 +3136,10 @@ static void readhdr(void) {
                 lineno, (char *)dbuf.iov_base + STRLENOF("mapsize="));
         exit(EXIT_FAILURE);
       }
-    } else if (!strncmp(dbuf.iov_base,
-                        "maxreaders=", STRLENOF("maxreaders="))) {
+      continue;
+    }
+
+    if (!strncmp(dbuf.iov_base, "maxreaders=", STRLENOF("maxreaders="))) {
       int i;
       ptr = memchr(dbuf.iov_base, '\n', dbuf.iov_len);
       if (ptr)
@@ -3125,31 +3151,33 @@ static void readhdr(void) {
                 lineno, (char *)dbuf.iov_base + STRLENOF("maxreaders="));
         exit(EXIT_FAILURE);
       }
-    } else {
-      int i;
-      for (i = 0; dbflags[i].bit; i++) {
-        if (!strncmp(dbuf.iov_base, dbflags[i].name, dbflags[i].len) &&
-            ((char *)dbuf.iov_base)[dbflags[i].len] == '=') {
-          if (((char *)dbuf.iov_base)[dbflags[i].len + 1] == '1')
-            dbi_flags |= dbflags[i].bit;
-          break;
-        }
+      continue;
+    }
+
+    int i;
+    for (i = 0; dbflags[i].bit; i++) {
+      if (!strncmp(dbuf.iov_base, dbflags[i].name, dbflags[i].len) &&
+          ((char *)dbuf.iov_base)[dbflags[i].len] == '=') {
+        if (((char *)dbuf.iov_base)[dbflags[i].len + 1] == '1')
+          dbi_flags |= dbflags[i].bit;
+        break;
       }
-      if (!dbflags[i].bit) {
-        ptr = memchr(dbuf.iov_base, '=', dbuf.iov_len);
-        if (!ptr) {
-          fprintf(stderr, "%s: line %" PRIiSIZE ": unexpected format\n", prog,
-                  lineno);
-          exit(EXIT_FAILURE);
-        } else {
-          *ptr = '\0';
-          fprintf(stderr,
-                  "%s: line %" PRIiSIZE ": unrecognized keyword ignored: %s\n",
-                  prog, lineno, (char *)dbuf.iov_base);
-        }
+    }
+    if (!dbflags[i].bit) {
+      ptr = memchr(dbuf.iov_base, '=', dbuf.iov_len);
+      if (!ptr) {
+        fprintf(stderr, "%s: line %" PRIiSIZE ": unexpected format\n", prog,
+                lineno);
+        exit(EXIT_FAILURE);
+      } else {
+        *ptr = '\0';
+        fprintf(stderr,
+                "%s: line %" PRIiSIZE ": unrecognized keyword ignored: %s\n",
+                prog, lineno, (char *)dbuf.iov_base);
       }
     }
   }
+  Eof = true;
 }
 
 static void badend(void) {
@@ -3178,14 +3206,14 @@ static int readline(MDBX_val *out, MDBX_val *buf) {
   if (!(mode & NOHDR)) {
     c = fgetc(stdin);
     if (c == EOF) {
-      Eof = 1;
+      Eof = true;
       return EOF;
     }
     if (c != ' ') {
       lineno++;
       if (fgets(buf->iov_base, (int)buf->iov_len, stdin) == NULL) {
       badend:
-        Eof = 1;
+        Eof = true;
         badend();
         return EOF;
       }
@@ -3195,7 +3223,7 @@ static int readline(MDBX_val *out, MDBX_val *buf) {
     }
   }
   if (fgets(buf->iov_base, (int)buf->iov_len, stdin) == NULL) {
-    Eof = 1;
+    Eof = true;
     return EOF;
   }
   lineno++;
@@ -3208,7 +3236,7 @@ static int readline(MDBX_val *out, MDBX_val *buf) {
   while (c1[len - 1] != '\n') {
     buf->iov_base = mdbx_realloc(buf->iov_base, buf->iov_len * 2);
     if (!buf->iov_base) {
-      Eof = 1;
+      Eof = true;
       fprintf(stderr, "%s: line %" PRIiSIZE ": out of memory, line too long\n",
               prog, lineno);
       return EOF;
@@ -3216,7 +3244,7 @@ static int readline(MDBX_val *out, MDBX_val *buf) {
     c1 = buf->iov_base;
     c1 += l2;
     if (fgets((char *)c1, (int)buf->iov_len + 1, stdin) == NULL) {
-      Eof = 1;
+      Eof = true;
       badend();
       return EOF;
     }
@@ -3236,7 +3264,7 @@ static int readline(MDBX_val *out, MDBX_val *buf) {
           *c1++ = '\\';
         } else {
           if (c2 + 3 > end || !isxdigit(c2[1]) || !isxdigit(c2[2])) {
-            Eof = 1;
+            Eof = true;
             badend();
             return EOF;
           }
@@ -3251,13 +3279,13 @@ static int readline(MDBX_val *out, MDBX_val *buf) {
   } else {
     /* odd length not allowed */
     if (len & 1) {
-      Eof = 1;
+      Eof = true;
       badend();
       return EOF;
     }
     while (c2 < end) {
       if (!isxdigit(*c2) || !isxdigit(c2[1])) {
-        Eof = 1;
+        Eof = true;
         badend();
         return EOF;
       }
@@ -3332,7 +3360,7 @@ int main(int argc, char *argv[]) {
       break;
     case 'f':
       if (freopen(optarg, "r", stdin) == NULL) {
-        fprintf(stderr, "%s: %s: reopen: %s\n", prog, optarg,
+        fprintf(stderr, "%s: %s: open: %s\n", prog, optarg,
                 mdbx_strerror(errno));
         exit(EXIT_FAILURE);
       }
@@ -3399,16 +3427,20 @@ int main(int argc, char *argv[]) {
 
   mdbx_env_set_maxdbs(env, 2);
 
-  if (envinfo.mi_maxreaders)
-    mdbx_env_set_maxreaders(env, envinfo.mi_maxreaders);
+#ifdef MDBX_FIXEDMAP
+  if (info.mi_mapaddr)
+    envflags |= MDBX_FIXEDMAP;
+#endif
 
   if (envinfo.mi_mapsize) {
-    if (envinfo.mi_mapsize > SIZE_MAX) {
-      fprintf(stderr, "mdbx_env_set_mapsize failed, error %d %s\n", rc,
-              mdbx_strerror(MDBX_TOO_LARGE));
-      return EXIT_FAILURE;
+    if (envinfo.mi_mapsize > INTPTR_MAX) {
+      fprintf(stderr,
+              "Database size is too large for current system (mapsize=%" PRIu64
+              " is great than system-limit %zi)\n",
+              envinfo.mi_mapsize, INTPTR_MAX);
+      goto env_close;
     }
-    rc = mdbx_env_set_geometry(env, 0, -1, (size_t)envinfo.mi_mapsize, -1, -1,
+    rc = mdbx_env_set_geometry(env, 0, 0, (intptr_t)envinfo.mi_mapsize, -1, -1,
                                -1);
     if (rc) {
       fprintf(stderr, "mdbx_env_set_geometry failed, error %d %s\n", rc,
@@ -3416,11 +3448,6 @@ int main(int argc, char *argv[]) {
       goto env_close;
     }
   }
-
-#ifdef MDBX_FIXEDMAP
-  if (info.mi_mapaddr)
-    envflags |= MDBX_FIXEDMAP;
-#endif
 
   rc = mdbx_env_open(env, envname, envflags, 0664);
   if (rc) {
@@ -3430,7 +3457,7 @@ int main(int argc, char *argv[]) {
   }
 
   kbuf.iov_len = mdbx_env_get_maxvalsize_ex(env, MDBX_DUPSORT);
-  if (kbuf.iov_len >= SIZE_MAX / 4) {
+  if (kbuf.iov_len >= INTPTR_MAX / 4) {
     fprintf(stderr, "mdbx_env_get_maxkeysize failed, returns %zu\n",
             kbuf.iov_len);
     goto env_close;
@@ -3540,6 +3567,7 @@ int main(int argc, char *argv[]) {
       goto env_close;
     }
     mdbx_dbi_close(env, dbi);
+    subname = NULL;
 
     /* try read next header */
     if (!(mode & NOHDR))

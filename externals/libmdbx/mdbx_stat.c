@@ -1,7 +1,7 @@
 /* mdbx_stat.c - memory-mapped database status tool */
 
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -22,7 +22,7 @@
 
 #define MDBX_TOOLS /* Avoid using internal mdbx_assert() */
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 95bfb1e453d0a7aaf5c06c29d4165858e9f52cc90c35c000a2cdf9b11d6c8967_v0_5_0_10_g8be0c8eaa
+#define MDBX_BUILD_SOURCERY ba9fb755baaf21d611cbaf51c1952cfa88916112b5ca389bd5ba2994db6872e1_v0_6_0_10_g2c08ec21f
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -115,7 +115,7 @@
 
 #include "mdbx.h"
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -269,7 +269,7 @@
 #endif /* __fallthrough */
 
 #ifndef __unreachable
-#	if __GNUC_PREREQ(4,5)
+#	if __GNUC_PREREQ(4,5) || __has_builtin(__builtin_unreachable)
 #		define __unreachable() __builtin_unreachable()
 #	elif defined(_MSC_VER)
 #		define __unreachable() __assume(0)
@@ -409,7 +409,7 @@
 #endif /* __flatten */
 
 #ifndef likely
-#   if (defined(__GNUC__) || defined(__clang__)) && !defined(__COVERITY__)
+#   if (defined(__GNUC__) || __has_builtin(__builtin_expect)) && !defined(__COVERITY__)
 #       define likely(cond) __builtin_expect(!!(cond), 1)
 #   else
 #       define likely(x) (x)
@@ -417,7 +417,7 @@
 #endif /* likely */
 
 #ifndef unlikely
-#   if (defined(__GNUC__) || defined(__clang__)) && !defined(__COVERITY__)
+#   if (defined(__GNUC__) || __has_builtin(__builtin_expect)) && !defined(__COVERITY__)
 #       define unlikely(cond) __builtin_expect(!!(cond), 0)
 #   else
 #       define unlikely(x) (x)
@@ -613,7 +613,7 @@ typedef _Complex float __cfloat128 __attribute__ ((__mode__ (__TC__)));
 /* https://en.wikipedia.org/wiki/Operating_system_abstraction_layer */
 
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *

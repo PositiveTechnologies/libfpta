@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 95bfb1e453d0a7aaf5c06c29d4165858e9f52cc90c35c000a2cdf9b11d6c8967_v0_5_0_10_g8be0c8eaa
+#define MDBX_BUILD_SOURCERY ba9fb755baaf21d611cbaf51c1952cfa88916112b5ca389bd5ba2994db6872e1_v0_6_0_10_g2c08ec21f
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -93,7 +93,7 @@
 
 #include "mdbx.h"
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -247,7 +247,7 @@
 #endif /* __fallthrough */
 
 #ifndef __unreachable
-#	if __GNUC_PREREQ(4,5)
+#	if __GNUC_PREREQ(4,5) || __has_builtin(__builtin_unreachable)
 #		define __unreachable() __builtin_unreachable()
 #	elif defined(_MSC_VER)
 #		define __unreachable() __assume(0)
@@ -387,7 +387,7 @@
 #endif /* __flatten */
 
 #ifndef likely
-#   if (defined(__GNUC__) || defined(__clang__)) && !defined(__COVERITY__)
+#   if (defined(__GNUC__) || __has_builtin(__builtin_expect)) && !defined(__COVERITY__)
 #       define likely(cond) __builtin_expect(!!(cond), 1)
 #   else
 #       define likely(x) (x)
@@ -395,7 +395,7 @@
 #endif /* likely */
 
 #ifndef unlikely
-#   if (defined(__GNUC__) || defined(__clang__)) && !defined(__COVERITY__)
+#   if (defined(__GNUC__) || __has_builtin(__builtin_expect)) && !defined(__COVERITY__)
 #       define unlikely(cond) __builtin_expect(!!(cond), 0)
 #   else
 #       define unlikely(x) (x)
@@ -591,7 +591,7 @@ typedef _Complex float __cfloat128 __attribute__ ((__mode__ (__TC__)));
 /* https://en.wikipedia.org/wiki/Operating_system_abstraction_layer */
 
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -2874,7 +2874,7 @@ static __maybe_unused __inline void mdbx_jitter4testing(bool tiny) {
 #endif
 }
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -4339,9 +4339,9 @@ static int lcklist_detach_locked(MDBX_env *env) {
 }
 
 /*------------------------------------------------------------------------------
- * LY: State of the art quicksort-based sorting, with internal stack and
- *     shell-insertion-sort for small chunks (less than half of SORT_THRESHOLD).
- */
+ * LY: State of the art quicksort-based sorting, with internal stack
+ * and network-sort for small chunks.
+ * Thanks to John M. Gamble for the http://pages.ripco.net/~jgamble/nw.html */
 
 #define SORT_CMP_SWAP(TYPE, CMP, a, b)                                         \
   do {                                                                         \
@@ -4351,19 +4351,36 @@ static int lcklist_detach_locked(MDBX_env *env) {
     (b) = swap_cmp ? b : swap_tmp;                                             \
   } while (0)
 
-#define SORT_BITONIC_2(TYPE, CMP, begin)                                       \
-  do {                                                                         \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
-  } while (0)
-
-#define SORT_BITONIC_3(TYPE, CMP, begin)                                       \
+//  3 comparators, 3 parallel operations
+//  o-----^--^--o
+//        |  |
+//  o--^--|--v--o
+//     |  |
+//  o--v--v-----o
+//
+//  [[1,2]]
+//  [[0,2]]
+//  [[0,1]]
+#define SORT_NETWORK_3(TYPE, CMP, begin)                                       \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
   } while (0)
 
-#define SORT_BITONIC_4(TYPE, CMP, begin)                                       \
+//  5 comparators, 3 parallel operations
+//  o--^--^--------o
+//     |  |
+//  o--v--|--^--^--o
+//        |  |  |
+//  o--^--v--|--v--o
+//     |     |
+//  o--v-----v-----o
+//
+//  [[0,1],[2,3]]
+//  [[0,2],[1,3]]
+//  [[1,2]]
+#define SORT_NETWORK_4(TYPE, CMP, begin)                                       \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
@@ -4372,20 +4389,55 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
   } while (0)
 
-#define SORT_BITONIC_5(TYPE, CMP, begin)                                       \
+//  9 comparators, 5 parallel operations
+//  o--^--^-----^-----------o
+//     |  |     |
+//  o--|--|--^--v-----^--^--o
+//     |  |  |        |  |
+//  o--|--v--|--^--^--|--v--o
+//     |     |  |  |  |
+//  o--|-----v--|--v--|--^--o
+//     |        |     |  |
+//  o--v--------v-----v--v--o
+//
+//  [[0,4],[1,3]]
+//  [[0,2]]
+//  [[2,4],[0,1]]
+//  [[2,3],[1,4]]
+//  [[1,2],[3,4]]
+#define SORT_NETWORK_5(TYPE, CMP, begin)                                       \
   do {                                                                         \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
   } while (0)
 
-#define SORT_BITONIC_6(TYPE, CMP, begin)                                       \
+//  12 comparators, 6 parallel operations
+//  o-----^--^--^-----------------o
+//        |  |  |
+//  o--^--|--v--|--^--------^-----o
+//     |  |     |  |        |
+//  o--v--v-----|--|--^--^--|--^--o
+//              |  |  |  |  |  |
+//  o-----^--^--v--|--|--|--v--v--o
+//        |  |     |  |  |
+//  o--^--|--v-----v--|--v--------o
+//     |  |           |
+//  o--v--v-----------v-----------o
+//
+//  [[1,2],[4,5]]
+//  [[0,2],[3,5]]
+//  [[0,1],[3,4],[2,5]]
+//  [[0,3],[1,4]]
+//  [[2,4],[1,3]]
+//  [[2,3]]
+#define SORT_NETWORK_6(TYPE, CMP, begin)                                       \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
@@ -4401,50 +4453,122 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
   } while (0)
 
-#define SORT_BITONIC_7(TYPE, CMP, begin)                                       \
+//  16 comparators, 6 parallel operations
+//  o--^--------^-----^-----------------o
+//     |        |     |
+//  o--|--^-----|--^--v--------^--^-----o
+//     |  |     |  |           |  |
+//  o--|--|--^--v--|--^-----^--|--v-----o
+//     |  |  |     |  |     |  |
+//  o--|--|--|-----v--|--^--v--|--^--^--o
+//     |  |  |        |  |     |  |  |
+//  o--v--|--|--^-----v--|--^--v--|--v--o
+//        |  |  |        |  |     |
+//  o-----v--|--|--------v--v-----|--^--o
+//           |  |                 |  |
+//  o--------v--v-----------------v--v--o
+//
+//  [[0,4],[1,5],[2,6]]
+//  [[0,2],[1,3],[4,6]]
+//  [[2,4],[3,5],[0,1]]
+//  [[2,3],[4,5]]
+//  [[1,4],[3,6]]
+//  [[1,2],[3,4],[5,6]]
+#define SORT_NETWORK_7(TYPE, CMP, begin)                                       \
   do {                                                                         \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[6]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[3]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[5]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
   } while (0)
 
-#define SORT_BITONIC_8(TYPE, CMP, begin)                                       \
+//  19 comparators, 6 parallel operations
+//  o--^--------^-----^-----------------o
+//     |        |     |
+//  o--|--^-----|--^--v--------^--^-----o
+//     |  |     |  |           |  |
+//  o--|--|--^--v--|--^-----^--|--v-----o
+//     |  |  |     |  |     |  |
+//  o--|--|--|--^--v--|--^--v--|--^--^--o
+//     |  |  |  |     |  |     |  |  |
+//  o--v--|--|--|--^--v--|--^--v--|--v--o
+//        |  |  |  |     |  |     |
+//  o-----v--|--|--|--^--v--v-----|--^--o
+//           |  |  |  |           |  |
+//  o--------v--|--v--|--^--------v--v--o
+//              |     |  |
+//  o-----------v-----v--v--------------o
+//
+//  [[0,4],[1,5],[2,6],[3,7]]
+//  [[0,2],[1,3],[4,6],[5,7]]
+//  [[2,4],[3,5],[0,1],[6,7]]
+//  [[2,3],[4,5]]
+//  [[1,4],[3,6]]
+//  [[1,2],[3,4],[5,6]]
+#define SORT_NETWORK_8(TYPE, CMP, begin)                                       \
   do {                                                                         \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[2]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[3]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[6]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[7]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[4]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[7]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[5]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[6]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
-    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[6]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[4]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[6], begin[7]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[6]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[2]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
+    SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
   } while (0)
 
-#define SORT_BITONIC_9(TYPE, CMP, begin)                                       \
+//  25 comparators, 9 parallel operations
+//  o--^-----^--^-----^-----------------------------------o
+//     |     |  |     |
+//  o--v--^--v--|-----|--^-----^-----------^--------------o
+//        |     |     |  |     |           |
+//  o-----v-----|-----|--|-----|--^-----^--|--^-----^--^--o
+//              |     |  |     |  |     |  |  |     |  |
+//  o--^-----^--v--^--v--|-----|--|-----|--v--|-----|--v--o
+//     |     |     |     |     |  |     |     |     |
+//  o--v--^--v-----|-----v--^--v--|-----|-----|--^--v-----o
+//        |        |        |     |     |     |  |
+//  o-----v--------|--------|-----v--^--v--^--|--|--^-----o
+//                 |        |        |     |  |  |  |
+//  o--^-----^-----v--------|--------|-----|--v--v--v-----o
+//     |     |              |        |     |
+//  o--v--^--v--------------v--------|-----v--------------o
+//        |                          |
+//  o-----v--------------------------v--------------------o
+//
+//  [[0,1],[3,4],[6,7]]
+//  [[1,2],[4,5],[7,8]]
+//  [[0,1],[3,4],[6,7],[2,5]]
+//  [[0,3],[1,4],[5,8]]
+//  [[3,6],[4,7],[2,5]]
+//  [[0,3],[1,4],[5,7],[2,6]]
+//  [[1,3],[4,6]]
+//  [[2,4],[5,6]]
+//  [[2,3]]
+#define SORT_NETWORK_9(TYPE, CMP, begin)                                       \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[4]);                              \
@@ -4473,7 +4597,37 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
   } while (0)
 
-#define SORT_BITONIC_10(TYPE, CMP, begin)                                      \
+//  29 comparators, 9 parallel operations
+//  o--------------^-----^--^--^-----------------------o
+//                 |     |  |  |
+//  o-----------^--|--^--|--|--v--^--------^-----------o
+//              |  |  |  |  |     |        |
+//  o--------^--|--|--|--|--v--^--v-----^--|--^--------o
+//           |  |  |  |  |     |        |  |  |
+//  o-----^--|--|--|--|--v--^--|-----^--|--v--v--^-----o
+//        |  |  |  |  |     |  |     |  |        |
+//  o--^--|--|--|--|--v-----|--v--^--|--|--^-----v--^--o
+//     |  |  |  |  |        |     |  |  |  |        |
+//  o--|--|--|--|--v--^-----|--^--|--v--v--|-----^--v--o
+//     |  |  |  |     |     |  |  |        |     |
+//  o--|--|--|--v--^--|-----v--|--v--^-----|--^--v-----o
+//     |  |  |     |  |        |     |     |  |
+//  o--|--|--v-----|--|--^-----v--^--|-----v--v--------o
+//     |  |        |  |  |        |  |
+//  o--|--v--------|--v--|--^-----v--v-----------------o
+//     |           |     |  |
+//  o--v-----------v-----v--v--------------------------o
+//
+//  [[4,9],[3,8],[2,7],[1,6],[0,5]]
+//  [[1,4],[6,9],[0,3],[5,8]]
+//  [[0,2],[3,6],[7,9]]
+//  [[0,1],[2,4],[5,7],[8,9]]
+//  [[1,2],[4,6],[7,8],[3,5]]
+//  [[2,5],[6,8],[1,3],[4,7]]
+//  [[2,3],[6,7]]
+//  [[3,4],[5,6]]
+//  [[4,5]]
+#define SORT_NETWORK_10(TYPE, CMP, begin)                                      \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[9]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[3], begin[8]);                              \
@@ -4506,7 +4660,39 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[4], begin[5]);                              \
   } while (0)
 
-#define SORT_BITONIC_11(TYPE, CMP, begin)                                      \
+//  35 comparators, 9 parallel operations
+//  o--^-----^-----------------^--------^--------------------o
+//     |     |                 |        |
+//  o--v--^--|--^--^--------^--|--------|--^-----------------o
+//        |  |  |  |        |  |        |  |
+//  o--^--|--v--v--|-----^--|--|--------|--|-----^--^--------o
+//     |  |        |     |  |  |        |  |     |  |
+//  o--v--v--------|-----|--|--|--^-----|--|--^--v--|--^--^--o
+//                 |     |  |  |  |     |  |  |     |  |  |
+//  o--^-----^-----|-----|--|--v--|--^--v--v--|-----v--|--v--o
+//     |     |     |     |  |     |  |        |        |
+//  o--v--^--|--^--v--^--|--v-----|--|--------|--------v--^--o
+//        |  |  |     |  |        |  |        |           |
+//  o--^--|--v--v--^--|--v--^-----|--|--------|--------^--v--o
+//     |  |        |  |     |     |  |        |        |
+//  o--v--v--------|--|-----|-----v--|--^-----|-----^--|--^--o
+//                 |  |     |        |  |     |     |  |  |
+//  o--^--^--------|--|-----|--------v--|-----v--^--|--v--v--o
+//     |  |        |  |     |           |        |  |
+//  o--v--|--^-----|--v-----|-----------|--------v--v--------o
+//        |  |     |        |           |
+//  o-----v--v-----v--------v-----------v--------------------o
+//
+//  [[0,1],[2,3],[4,5],[6,7],[8,9]]
+//  [[1,3],[5,7],[0,2],[4,6],[8,10]]
+//  [[1,2],[5,6],[9,10],[0,4],[3,7]]
+//  [[1,5],[6,10],[4,8]]
+//  [[5,9],[2,6],[0,4],[3,8]]
+//  [[1,5],[6,10],[2,3],[8,9]]
+//  [[1,4],[7,10],[3,5],[6,8]]
+//  [[2,4],[7,9],[5,6]]
+//  [[3,4],[7,8]]
+#define SORT_NETWORK_11(TYPE, CMP, begin)                                      \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
@@ -4545,7 +4731,41 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
   } while (0)
 
-#define SORT_BITONIC_12(TYPE, CMP, begin)                                      \
+//  39 comparators, parallel operations
+//  o--^-----^-----------------^--------^--------------------o
+//     |     |                 |        |
+//  o--v--^--|--^--^--------^--|--------|--^-----------------o
+//        |  |  |  |        |  |        |  |
+//  o--^--|--v--v--|-----^--|--|--------|--|-----^--^--------o
+//     |  |        |     |  |  |        |  |     |  |
+//  o--v--v--------|-----|--|--|--^-----|--|--^--v--|--^--^--o
+//                 |     |  |  |  |     |  |  |     |  |  |
+//  o--^-----^-----|-----|--|--v--|--^--v--v--|-----v--|--v--o
+//     |     |     |     |  |     |  |        |        |
+//  o--v--^--|--^--v--^--|--v-----|--|--------|--------v--^--o
+//        |  |  |     |  |        |  |        |           |
+//  o--^--|--v--v--^--|--v--^-----|--|--------|--------^--v--o
+//     |  |        |  |     |     |  |        |        |
+//  o--v--v--------|--|-----|--^--v--|--^--^--|-----^--|--^--o
+//                 |  |     |  |     |  |  |  |     |  |  |
+//  o--^-----^-----|--|-----|--|-----v--|--|--v--^--|--v--v--o
+//     |     |     |  |     |  |        |  |     |  |
+//  o--v--^--|--^--|--v-----|--|--------|--|-----v--v--------o
+//        |  |  |  |        |  |        |  |
+//  o--^--|--v--v--v--------v--|--------|--v-----------------o
+//     |  |                    |        |
+//  o--v--v--------------------v--------v--------------------o
+//
+//  [[0,1],[2,3],[4,5],[6,7],[8,9],[10,11]]
+//  [[1,3],[5,7],[9,11],[0,2],[4,6],[8,10]]
+//  [[1,2],[5,6],[9,10],[0,4],[7,11]]
+//  [[1,5],[6,10],[3,7],[4,8]]
+//  [[5,9],[2,6],[0,4],[7,11],[3,8]]
+//  [[1,5],[6,10],[2,3],[8,9]]
+//  [[1,4],[7,10],[3,5],[6,8]]
+//  [[2,4],[7,9],[5,6]]
+//  [[3,4],[7,8]]
+#define SORT_NETWORK_12(TYPE, CMP, begin)                                      \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
@@ -4588,7 +4808,44 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[7], begin[8]);                              \
   } while (0)
 
-#define SORT_BITONIC_13(TYPE, CMP, begin)                                      \
+//  45 comparators, 10 parallel operations
+//  o--------^--^-----^-----------------------------^-----------------o
+//           |  |     |                             |
+//  o--^-----|--v-----|-----^--------------^-----^--|-----^-----------o
+//     |     |        |     |              |     |  |     |
+//  o--|-----|--^--^--v-----|--------------|--^--|--|--^--v--^--------o
+//     |     |  |  |        |              |  |  |  |  |     |
+//  o--|--^--|--|--v-----^--|--------^-----|--|--v--|--|--^--v-----^--o
+//     |  |  |  |        |  |        |     |  |     |  |  |        |
+//  o--|--v--|--|--^-----|--v-----^--v-----|--|--^--|--|--|--^--^--v--o
+//     |     |  |  |     |        |        |  |  |  |  |  |  |  |
+//  o--|--^--|--|--|--^--|--------|-----^--|--|--|--v--v--v--|--v--^--o
+//     |  |  |  |  |  |  |        |     |  |  |  |           |     |
+//  o--|--|--|--v--v--|--|--^-----|--^--v--|--v--|--^--------v--^--v--o
+//     |  |  |        |  |  |     |  |     |     |  |           |
+//  o--v--|--|-----^--|--v--|--^--|--|-----v-----v--|--^--------v-----o
+//        |  |     |  |     |  |  |  |              |  |
+//  o-----v--|--^--|--|-----|--v--|--|--^-----^-----v--v--^-----------o
+//           |  |  |  |     |     |  |  |     |           |
+//  o--^-----|--|--|--v-----|-----v--|--v--^--|--^--------v-----------o
+//     |     |  |  |        |        |     |  |  |
+//  o--|-----|--|--|--^-----|--------v--^--|--v--v--------------------o
+//     |     |  |  |  |     |           |  |
+//  o--v-----|--v--|--v-----|--^--------v--v--------------------------o
+//           |     |        |  |
+//  o--------v-----v--------v--v--------------------------------------o
+//
+//  [[1,7],[9,11],[3,4],[5,8],[0,12],[2,6]]
+//  [[0,1],[2,3],[4,6],[8,11],[7,12],[5,9]]
+//  [[0,2],[3,7],[10,11],[1,4],[6,12]]
+//  [[7,8],[11,12],[4,9],[6,10]]
+//  [[3,4],[5,6],[8,9],[10,11],[1,7]]
+//  [[2,6],[9,11],[1,3],[4,7],[8,10],[0,5]]
+//  [[2,5],[6,8],[9,10]]
+//  [[1,2],[3,5],[7,8],[4,6]]
+//  [[2,3],[4,5],[6,7],[8,9]]
+//  [[3,4],[5,6]]
+#define SORT_NETWORK_13(TYPE, CMP, begin)                                      \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[1], begin[7]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[9], begin[11]);                             \
@@ -4637,7 +4894,53 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[5], begin[6]);                              \
   } while (0)
 
-#define SORT_BITONIC_14(TYPE, CMP, begin)                                      \
+/* *INDENT-OFF* */
+/* clang-format off */
+
+//  51 comparators, 10 parallel operations
+//  o--^--^-----^-----------^-----------------------------------------------------------o
+//     |  |     |           |
+//  o--v--|--^--|--^--------|--^-----^-----------------------^--------------------------o
+//        |  |  |  |        |  |     |                       |
+//  o--^--v--|--|--|--^-----|--|--^--v-----------------------|--^--^--------------------o
+//     |     |  |  |  |     |  |  |                          |  |  |
+//  o--v-----v--|--|--|--^--|--|--|--^--------------^--------|--|--|--^--^--^-----------o
+//              |  |  |  |  |  |  |  |              |        |  |  |  |  |  |
+//  o--^--^-----v--|--|--|--|--|--|--|--^-----------|-----^--v--|--v--|--|--v-----------o
+//     |  |        |  |  |  |  |  |  |  |           |     |     |     |  |
+//  o--v--|--^-----v--|--|--|--|--|--|--|--^--^-----|-----|-----|--^--|--v-----^--------o
+//        |  |        |  |  |  |  |  |  |  |  |     |     |     |  |  |        |
+//  o--^--v--|--------v--|--|--|--|--|--|--|--|--^--|-----|-----|--v--|-----^--v-----^--o
+//     |     |           |  |  |  |  |  |  |  |  |  |     |     |     |     |        |
+//  o--v-----v-----------v--|--|--|--|--|--|--|--|--|--^--|--^--|-----|--^--|--^--^--v--o
+//                          |  |  |  |  |  |  |  |  |  |  |  |  |     |  |  |  |  |
+//  o--^--^-----^-----------v--|--|--|--|--|--|--|--|--|--v--|--v-----v--|--v--|--v--^--o
+//     |  |     |              |  |  |  |  |  |  |  |  |     |           |     |     |
+//  o--v--|--^--|--^-----------v--|--|--|--|--|--v--|--|-----|--^--------|-----v--^--v--o
+//        |  |  |  |              |  |  |  |  |     |  |     |  |        |        |
+//  o--^--v--|--|--|--------------v--|--|--|--v-----|--|-----|--v--------|--^-----v-----o
+//     |     |  |  |                 |  |  |        |  |     |           |  |
+//  o--v-----v--|--|-----------------v--|--|--------|--v-----|--^--------|--|--^--------o
+//              |  |                    |  |        |        |  |        |  |  |
+//  o--^--------v--|--------------------v--|--------v--------|--|--------v--v--v--------o
+//     |           |                       |                 |  |
+//  o--v-----------v-----------------------v-----------------v--v-----------------------o
+//
+//  [[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13]]
+//  [[0,2],[4,6],[8,10],[1,3],[5,7],[9,11]]
+//  [[0,4],[8,12],[1,5],[9,13],[2,6],[3,7]]
+//  [[0,8],[1,9],[2,10],[3,11],[4,12],[5,13]]
+//  [[5,10],[6,9],[3,12],[7,11],[1,2],[4,8]]
+//  [[1,4],[7,13],[2,8],[5,6],[9,10]]
+//  [[2,4],[11,13],[3,8],[7,12]]
+//  [[6,8],[10,12],[3,5],[7,9]]
+//  [[3,4],[5,6],[7,8],[9,10],[11,12]]
+//  [[6,7],[8,9]]
+
+/* *INDENT-ON* */
+/* clang-format on */
+
+#define SORT_NETWORK_14(TYPE, CMP, begin)                                      \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
@@ -4692,7 +4995,55 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
   } while (0)
 
-#define SORT_BITONIC_15(TYPE, CMP, begin)                                      \
+/* *INDENT-OFF* */
+/* clang-format off */
+
+//  56 comparators, 10 parallel operations
+//  o--^--^-----^-----------^--------------------------------------------------------------o
+//     |  |     |           |
+//  o--v--|--^--|--^--------|--^-----^--------------------------^--------------------------o
+//        |  |  |  |        |  |     |                          |
+//  o--^--v--|--|--|--^-----|--|--^--v--------------------------|--^--^--------------------o
+//     |     |  |  |  |     |  |  |                             |  |  |
+//  o--v-----v--|--|--|--^--|--|--|--^-----------------^--------|--|--|--^--^--^-----------o
+//              |  |  |  |  |  |  |  |                 |        |  |  |  |  |  |
+//  o--^--^-----v--|--|--|--|--|--|--|--^--------------|-----^--v--|--v--|--|--v-----------o
+//     |  |        |  |  |  |  |  |  |  |              |     |     |     |  |
+//  o--v--|--^-----v--|--|--|--|--|--|--|--^-----^-----|-----|-----|--^--|--v-----^--------o
+//        |  |        |  |  |  |  |  |  |  |     |     |     |     |  |  |        |
+//  o--^--v--|--------v--|--|--|--|--|--|--|--^--|--^--|-----|-----|--v--|-----^--v-----^--o
+//     |     |           |  |  |  |  |  |  |  |  |  |  |     |     |     |     |        |
+//  o--v-----v-----------v--|--|--|--|--|--|--|--|--|--|--^--|--^--|-----|--^--|--^--^--v--o
+//                          |  |  |  |  |  |  |  |  |  |  |  |  |  |     |  |  |  |  |
+//  o--^--^-----^-----------v--|--|--|--|--|--|--|--|--|--|--v--|--v-----v--|--v--|--v--^--o
+//     |  |     |              |  |  |  |  |  |  |  |  |  |     |           |     |     |
+//  o--v--|--^--|--^-----------v--|--|--|--|--|--|--v--|--|-----|--^--------|-----v--^--v--o
+//        |  |  |  |              |  |  |  |  |  |     |  |     |  |        |        |
+//  o--^--v--|--|--|--^-----------v--|--|--|--|--v-----|--|-----|--v--------|--^-----v-----o
+//     |     |  |  |  |              |  |  |  |        |  |     |           |  |
+//  o--v-----v--|--|--|--------------v--|--|--|--------|--v-----|--^--^-----|--|--^--------o
+//              |  |  |                 |  |  |        |        |  |  |     |  |  |
+//  o--^--^-----v--|--|-----------------v--|--|--------v--------|--|--|-----v--v--v--------o
+//     |  |        |  |                    |  |                 |  |  |
+//  o--v--|--------v--|--------------------v--|--^--------------v--|--v--------------------o
+//        |           |                       |  |                 |
+//  o-----v-----------v-----------------------v--v-----------------v-----------------------o
+//
+//  [[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13]]
+//  [[0,2],[4,6],[8,10],[12,14],[1,3],[5,7],[9,11]]
+//  [[0,4],[8,12],[1,5],[9,13],[2,6],[10,14],[3,7]]
+//  [[0,8],[1,9],[2,10],[3,11],[4,12],[5,13],[6,14]]
+//  [[5,10],[6,9],[3,12],[13,14],[7,11],[1,2],[4,8]]
+//  [[1,4],[7,13],[2,8],[11,14],[5,6],[9,10]]
+//  [[2,4],[11,13],[3,8],[7,12]]
+//  [[6,8],[10,12],[3,5],[7,9]]
+//  [[3,4],[5,6],[7,8],[9,10],[11,12]]
+//  [[6,7],[8,9]]
+
+/* *INDENT-ON* */
+/* clang-format on */
+
+#define SORT_NETWORK_15(TYPE, CMP, begin)                                      \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
@@ -4752,7 +5103,57 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
   } while (0)
 
-#define SORT_BITONIC_16(TYPE, CMP, begin)                                      \
+/* *INDENT-OFF* */
+/* clang-format off */
+
+//  60 comparators, 10 parallel operations
+//  o--^--^-----^-----------^-----------------------------------------------------------------o
+//     |  |     |           |
+//  o--v--|--^--|--^--------|--^-----^-----------------------------^--------------------------o
+//        |  |  |  |        |  |     |                             |
+//  o--^--v--|--|--|--^-----|--|--^--v-----------------------------|--^--^--------------------o
+//     |     |  |  |  |     |  |  |                                |  |  |
+//  o--v-----v--|--|--|--^--|--|--|--^--------------------^--------|--|--|--^--^--^-----------o
+//              |  |  |  |  |  |  |  |                    |        |  |  |  |  |  |
+//  o--^--^-----v--|--|--|--|--|--|--|--^-----------------|-----^--v--|--v--|--|--v-----------o
+//     |  |        |  |  |  |  |  |  |  |                 |     |     |     |  |
+//  o--v--|--^-----v--|--|--|--|--|--|--|--^--------^-----|-----|-----|--^--|--v-----^--------o
+//        |  |        |  |  |  |  |  |  |  |        |     |     |     |  |  |        |
+//  o--^--v--|--------v--|--|--|--|--|--|--|--^-----|--^--|-----|-----|--v--|-----^--v-----^--o
+//     |     |           |  |  |  |  |  |  |  |     |  |  |     |     |     |     |        |
+//  o--v-----v-----------v--|--|--|--|--|--|--|--^--|--|--|--^--|--^--|-----|--^--|--^--^--v--o
+//                          |  |  |  |  |  |  |  |  |  |  |  |  |  |  |     |  |  |  |  |
+//  o--^--^-----^-----------v--|--|--|--|--|--|--|--|--|--|--|--v--|--v-----v--|--v--|--v--^--o
+//     |  |     |              |  |  |  |  |  |  |  |  |  |  |     |           |     |     |
+//  o--v--|--^--|--^-----------v--|--|--|--|--|--|--|--v--|--|-----|--^--------|-----v--^--v--o
+//        |  |  |  |              |  |  |  |  |  |  |     |  |     |  |        |        |
+//  o--^--v--|--|--|--^-----------v--|--|--|--|--|--v-----|--|-----|--v--------|--^-----v-----o
+//     |     |  |  |  |              |  |  |  |  |        |  |     |           |  |
+//  o--v-----v--|--|--|--^-----------v--|--|--|--|--------|--v-----|--^--^-----|--|--^--------o
+//              |  |  |  |              |  |  |  |        |        |  |  |     |  |  |
+//  o--^--^-----v--|--|--|--------------v--|--|--|--------v--------|--|--|-----v--v--v--------o
+//     |  |        |  |  |                 |  |  |                 |  |  |
+//  o--v--|--^-----v--|--|-----------------v--|--|--^--------------v--|--v--------------------o
+//        |  |        |  |                    |  |  |                 |
+//  o--^--v--|--------v--|--------------------v--|--v-----------------v-----------------------o
+//     |     |           |                       |
+//  o--v-----v-----------v-----------------------v--------------------------------------------o
+//
+//  [[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13],[14,15]]
+//  [[0,2],[4,6],[8,10],[12,14],[1,3],[5,7],[9,11],[13,15]]
+//  [[0,4],[8,12],[1,5],[9,13],[2,6],[10,14],[3,7],[11,15]]
+//  [[0,8],[1,9],[2,10],[3,11],[4,12],[5,13],[6,14],[7,15]]
+//  [[5,10],[6,9],[3,12],[13,14],[7,11],[1,2],[4,8]]
+//  [[1,4],[7,13],[2,8],[11,14],[5,6],[9,10]]
+//  [[2,4],[11,13],[3,8],[7,12]]
+//  [[6,8],[10,12],[3,5],[7,9]]
+//  [[3,4],[5,6],[7,8],[9,10],[11,12]]
+//  [[6,7],[8,9]]
+
+/* *INDENT-ON* */
+/* clang-format on */
+
+#define SORT_NETWORK_16(TYPE, CMP, begin)                                      \
   do {                                                                         \
     SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     SORT_CMP_SWAP(TYPE, CMP, begin[2], begin[3]);                              \
@@ -4816,75 +5217,59 @@ static int lcklist_detach_locked(MDBX_env *env) {
     SORT_CMP_SWAP(TYPE, CMP, begin[8], begin[9]);                              \
   } while (0)
 
-#define SORT_SHELLPASS(TYPE, CMP, begin, end, gap)                             \
-  for (TYPE *i = begin + gap; i < end; ++i) {                                  \
-    for (TYPE *j = i - (gap); j >= begin && CMP(*i, *j); j -= gap) {           \
-      const TYPE tmp = *i;                                                     \
-      do {                                                                     \
-        j[gap] = *j;                                                           \
-        j -= gap;                                                              \
-      } while (j >= begin && CMP(tmp, *j));                                    \
-      j[gap] = tmp;                                                            \
-      break;                                                                   \
-    }                                                                          \
-  }
-
-#define SORT_INTRA(TYPE, CMP, begin, end, len)                                 \
+#define SORT_INNER(TYPE, CMP, begin, end, len)                                 \
   switch (len) {                                                               \
   default:                                                                     \
-    SORT_SHELLPASS(TYPE, CMP, begin, end, 8);                                  \
-    SORT_SHELLPASS(TYPE, CMP, begin, end, 1);                                  \
+    __unreachable();                                                           \
   case 0:                                                                      \
   case 1:                                                                      \
     break;                                                                     \
   case 2:                                                                      \
-    SORT_BITONIC_2(TYPE, CMP, begin);                                          \
+    SORT_CMP_SWAP(TYPE, CMP, begin[0], begin[1]);                              \
     break;                                                                     \
   case 3:                                                                      \
-    SORT_BITONIC_3(TYPE, CMP, begin);                                          \
+    SORT_NETWORK_3(TYPE, CMP, begin);                                          \
     break;                                                                     \
   case 4:                                                                      \
-    SORT_BITONIC_4(TYPE, CMP, begin);                                          \
+    SORT_NETWORK_4(TYPE, CMP, begin);                                          \
     break;                                                                     \
   case 5:                                                                      \
-    SORT_BITONIC_5(TYPE, CMP, begin);                                          \
+    SORT_NETWORK_5(TYPE, CMP, begin);                                          \
     break;                                                                     \
   case 6:                                                                      \
-    SORT_BITONIC_6(TYPE, CMP, begin);                                          \
+    SORT_NETWORK_6(TYPE, CMP, begin);                                          \
     break;                                                                     \
   case 7:                                                                      \
-    SORT_BITONIC_7(TYPE, CMP, begin);                                          \
+    SORT_NETWORK_7(TYPE, CMP, begin);                                          \
     break;                                                                     \
   case 8:                                                                      \
-    SORT_BITONIC_8(TYPE, CMP, begin);                                          \
+    SORT_NETWORK_8(TYPE, CMP, begin);                                          \
     break;                                                                     \
   case 9:                                                                      \
-    SORT_BITONIC_9(TYPE, CMP, begin);                                          \
+    SORT_NETWORK_9(TYPE, CMP, begin);                                          \
     break;                                                                     \
   case 10:                                                                     \
-    SORT_BITONIC_10(TYPE, CMP, begin);                                         \
+    SORT_NETWORK_10(TYPE, CMP, begin);                                         \
     break;                                                                     \
   case 11:                                                                     \
-    SORT_BITONIC_11(TYPE, CMP, begin);                                         \
+    SORT_NETWORK_11(TYPE, CMP, begin);                                         \
     break;                                                                     \
   case 12:                                                                     \
-    SORT_BITONIC_12(TYPE, CMP, begin);                                         \
+    SORT_NETWORK_12(TYPE, CMP, begin);                                         \
     break;                                                                     \
   case 13:                                                                     \
-    SORT_BITONIC_13(TYPE, CMP, begin);                                         \
+    SORT_NETWORK_13(TYPE, CMP, begin);                                         \
     break;                                                                     \
   case 14:                                                                     \
-    SORT_BITONIC_14(TYPE, CMP, begin);                                         \
+    SORT_NETWORK_14(TYPE, CMP, begin);                                         \
     break;                                                                     \
   case 15:                                                                     \
-    SORT_BITONIC_15(TYPE, CMP, begin);                                         \
+    SORT_NETWORK_15(TYPE, CMP, begin);                                         \
     break;                                                                     \
   case 16:                                                                     \
-    SORT_BITONIC_16(TYPE, CMP, begin);                                         \
+    SORT_NETWORK_16(TYPE, CMP, begin);                                         \
     break;                                                                     \
   }
-
-#define SORT_THRESHOLD 16
 
 #define SORT_SWAP(TYPE, a, b)                                                  \
   do {                                                                         \
@@ -4907,7 +5292,14 @@ static int lcklist_detach_locked(MDBX_env *env) {
     high = top->hi;                                                            \
   } while (0)
 
-#define SORT_IMPL(NAME, TYPE, CMP)                                             \
+#define SORT_IMPL(NAME, EXPECT_LOW_CARDINALITY_OR_PRESORTED, TYPE, CMP)        \
+                                                                               \
+  static __inline bool NAME##_is_sorted(const TYPE *first, const TYPE *last) { \
+    while (++first <= last)                                                    \
+      if (CMP(first[0], first[-1]))                                            \
+        return false;                                                          \
+    return true;                                                               \
+  }                                                                            \
                                                                                \
   typedef struct {                                                             \
     TYPE *lo, *hi;                                                             \
@@ -4920,9 +5312,9 @@ static int lcklist_detach_locked(MDBX_env *env) {
     TYPE *lo = begin;                                                          \
     while (true) {                                                             \
       const ptrdiff_t len = hi - lo;                                           \
-      if (len < SORT_THRESHOLD) {                                              \
-        SORT_INTRA(TYPE, CMP, lo, hi + 1, len + 1);                            \
-        if (top == stack)                                                      \
+      if (len < 16) {                                                          \
+        SORT_INNER(TYPE, CMP, lo, hi + 1, len + 1);                            \
+        if (unlikely(top == stack))                                            \
           break;                                                               \
         SORT_POP(lo, hi);                                                      \
         continue;                                                              \
@@ -4935,22 +5327,25 @@ static int lcklist_detach_locked(MDBX_env *env) {
                                                                                \
       TYPE *right = hi - 1;                                                    \
       TYPE *left = lo + 1;                                                     \
-      do {                                                                     \
-        while (CMP(*mid, *right))                                              \
-          --right;                                                             \
+      while (1) {                                                              \
         while (CMP(*left, *mid))                                               \
           ++left;                                                              \
-        if (left < right) {                                                    \
-          SORT_SWAP(TYPE, *left, *right);                                      \
-          mid = (mid == left) ? right : (mid == right) ? left : mid;           \
-          ++left;                                                              \
+        while (CMP(*mid, *right))                                              \
           --right;                                                             \
-        } else if (left == right) {                                            \
-          ++left;                                                              \
-          --right;                                                             \
+        if (unlikely(left > right)) {                                          \
+          if (EXPECT_LOW_CARDINALITY_OR_PRESORTED) {                           \
+            if (NAME##_is_sorted(lo, right))                                   \
+              lo = right + 1;                                                  \
+            if (NAME##_is_sorted(left, hi))                                    \
+              hi = left;                                                       \
+          }                                                                    \
           break;                                                               \
         }                                                                      \
-      } while (left <= right);                                                 \
+        SORT_SWAP(TYPE, *left, *right);                                        \
+        mid = (mid == left) ? right : (mid == right) ? left : mid;             \
+        ++left;                                                                \
+        --right;                                                               \
+      }                                                                        \
                                                                                \
       if (right - lo > hi - left) {                                            \
         SORT_PUSH(lo, right);                                                  \
@@ -5249,7 +5644,7 @@ static void __hot mdbx_pnl_xmerge(MDBX_PNL dst, const MDBX_PNL src) {
   assert(mdbx_pnl_check4assert(dst, MAX_PAGENO + 1));
 }
 
-SORT_IMPL(pgno_sort, pgno_t, MDBX_PNL_ORDERED)
+SORT_IMPL(pgno_sort, false, pgno_t, MDBX_PNL_ORDERED)
 static __hot void mdbx_pnl_sort(MDBX_PNL pnl) {
   pgno_sort(MDBX_PNL_BEGIN(pnl), MDBX_PNL_END(pnl));
   assert(mdbx_pnl_check(pnl, MAX_PAGENO + 1));
@@ -5359,7 +5754,7 @@ static __always_inline void mdbx_txl_xappend(MDBX_TXL tl, txnid_t id) {
 }
 
 #define TXNID_SORT_CMP(first, last) ((first) > (last))
-SORT_IMPL(txnid_sort, txnid_t, TXNID_SORT_CMP)
+SORT_IMPL(txnid_sort, false, txnid_t, TXNID_SORT_CMP)
 static void mdbx_txl_sort(MDBX_TXL tl) {
   txnid_sort(MDBX_PNL_BEGIN(tl), MDBX_PNL_END(tl));
 }
@@ -5377,7 +5772,7 @@ static int __must_check_result mdbx_txl_append(MDBX_TXL *ptl, txnid_t id) {
 /*----------------------------------------------------------------------------*/
 
 #define DP_SORT_CMP(first, last) ((first).pgno < (last).pgno)
-SORT_IMPL(dp_sort, MDBX_DP, DP_SORT_CMP)
+SORT_IMPL(dp_sort, false, MDBX_DP, DP_SORT_CMP)
 static __always_inline MDBX_DPL mdbx_dpl_sort(MDBX_DPL dl) {
   assert(dl->length <= MDBX_DPL_TXNFULL);
   assert(dl->sorted <= dl->length);
@@ -5394,61 +5789,57 @@ static __always_inline MDBX_DPL mdbx_dpl_sort(MDBX_DPL dl) {
 SEARCH_IMPL(dp_bsearch, MDBX_DP, pgno_t, DP_SEARCH_CMP)
 
 static unsigned __hot mdbx_dpl_search(MDBX_DPL dl, pgno_t pgno) {
-  if (dl->sorted < dl->length) {
-    /* unsorted tail case  */
-    if (mdbx_audit_enabled()) {
-      for (const MDBX_DP *ptr = dl + dl->sorted; --ptr > dl;) {
-        assert(ptr[0].pgno < ptr[1].pgno);
-        assert(ptr[0].pgno >= NUM_METAS);
-      }
-    }
-
-    /* try linear search until the threshold */
-    if (dl->length - dl->sorted < SORT_THRESHOLD / 2) {
-      unsigned i = dl->length;
-      while (i - dl->sorted > 7) {
-        if (dl[i].pgno == pgno)
-          return i;
-        if (dl[i - 1].pgno == pgno)
-          return i - 1;
-        if (dl[i - 2].pgno == pgno)
-          return i - 2;
-        if (dl[i - 3].pgno == pgno)
-          return i - 3;
-        if (dl[i - 4].pgno == pgno)
-          return i - 4;
-        if (dl[i - 5].pgno == pgno)
-          return i - 5;
-        if (dl[i - 6].pgno == pgno)
-          return i - 6;
-        if (dl[i - 7].pgno == pgno)
-          return i - 7;
-        i -= 8;
-      }
-      while (i > dl->sorted) {
-        if (dl[i].pgno == pgno)
-          return i;
-        --i;
-      }
-
-      MDBX_DPL it = dp_bsearch(dl + 1, i, pgno);
-      return (unsigned)(it - dl);
-    }
-
-    /* sort a whole */
-    dl->sorted = dl->length;
-    dp_sort(dl + 1, dl + dl->length + 1);
-  }
-
   if (mdbx_audit_enabled()) {
-    for (const MDBX_DP *ptr = dl + dl->length; --ptr > dl;) {
+    for (const MDBX_DP *ptr = dl + dl->sorted; --ptr > dl;) {
       assert(ptr[0].pgno < ptr[1].pgno);
       assert(ptr[0].pgno >= NUM_METAS);
     }
   }
 
-  MDBX_DPL it = dp_bsearch(dl + 1, dl->length, pgno);
-  return (unsigned)(it - dl);
+  switch (dl->length - dl->sorted) {
+  default:
+    /* sort a whole */
+    dl->sorted = dl->length;
+    dp_sort(dl + 1, dl + dl->length + 1);
+    __fallthrough; /* fall through */
+  case 0:
+    /* whole sorted cases */
+    if (mdbx_audit_enabled()) {
+      for (const MDBX_DP *ptr = dl + dl->length; --ptr > dl;) {
+        assert(ptr[0].pgno < ptr[1].pgno);
+        assert(ptr[0].pgno >= NUM_METAS);
+      }
+    }
+    return (unsigned)(dp_bsearch(dl + 1, dl->length, pgno) - dl);
+
+#define LINEAR_SEARCH_CASE(N)                                                  \
+  case N:                                                                      \
+    if (dl[dl->length - N + 1].pgno == pgno)                                   \
+      return dl->length - N + 1;                                               \
+    __fallthrough
+
+    /* try linear search until the threshold */
+    LINEAR_SEARCH_CASE(16); /* fall through */
+    LINEAR_SEARCH_CASE(15); /* fall through */
+    LINEAR_SEARCH_CASE(14); /* fall through */
+    LINEAR_SEARCH_CASE(13); /* fall through */
+    LINEAR_SEARCH_CASE(12); /* fall through */
+    LINEAR_SEARCH_CASE(11); /* fall through */
+    LINEAR_SEARCH_CASE(10); /* fall through */
+    LINEAR_SEARCH_CASE(9);  /* fall through */
+    LINEAR_SEARCH_CASE(8);  /* fall through */
+    LINEAR_SEARCH_CASE(7);  /* fall through */
+    LINEAR_SEARCH_CASE(6);  /* fall through */
+    LINEAR_SEARCH_CASE(5);  /* fall through */
+    LINEAR_SEARCH_CASE(4);  /* fall through */
+    LINEAR_SEARCH_CASE(3);  /* fall through */
+    LINEAR_SEARCH_CASE(2);  /* fall through */
+  case 1:
+    if (dl[dl->length].pgno == pgno)
+      return dl->length;
+    /* continue bsearch on the sorted part */
+    return (unsigned)(dp_bsearch(dl + 1, dl->sorted, pgno) - dl);
+  }
 }
 
 static __always_inline MDBX_page *mdbx_dpl_find(MDBX_DPL dl, pgno_t pgno) {
@@ -6133,8 +6524,7 @@ static __cold __maybe_unused bool mdbx_dirtylist_check(MDBX_txn *txn) {
   if (unlikely(loose != txn->tw.loose_count))
     return false;
 
-  if (txn->tw.dirtylist->length - txn->tw.dirtylist->sorted <
-      SORT_THRESHOLD / 2) {
+  if (txn->tw.dirtylist->length - txn->tw.dirtylist->sorted < 16) {
     for (unsigned i = 1; i <= MDBX_PNL_SIZE(txn->tw.retired_pages); ++i) {
       const MDBX_page *const dp =
           mdbx_dpl_find(txn->tw.dirtylist, txn->tw.retired_pages[i]);
@@ -7810,8 +8200,7 @@ done:
 }
 
 /* Copy the used portions of a non-overflow page. */
-__hot static void mdbx_page_copy(MDBX_page *dst, MDBX_page *src,
-                                 unsigned psize) {
+__hot static void mdbx_page_copy(MDBX_page *dst, MDBX_page *src, size_t psize) {
   STATIC_ASSERT(UINT16_MAX > MAX_PAGESIZE - PAGEHDRSZ);
   STATIC_ASSERT(MIN_PAGESIZE > PAGEHDRSZ + NODESIZE * 4);
   if (!IS_LEAF2(src)) {
@@ -7819,12 +8208,13 @@ __hot static void mdbx_page_copy(MDBX_page *dst, MDBX_page *src,
 
     /* If page isn't full, just copy the used portion. Adjust
      * alignment so memcpy may copy words instead of bytes. */
-    if (unused > sizeof(void *) * 42) {
+    if (unused >= MDBX_CACHELINE_SIZE * 2) {
       lower = roundup_powerof2(lower + PAGEHDRSZ, sizeof(void *));
       upper = (upper + PAGEHDRSZ) & ~(sizeof(void *) - 1);
       memcpy(dst, src, lower);
-      memcpy((char *)dst + upper, (char *)src + upper, psize - upper);
-      return;
+      dst = (void *)((char *)dst + upper);
+      src = (void *)((char *)src + upper);
+      psize -= upper;
     }
   }
   memcpy(dst, src, psize);
@@ -12846,88 +13236,91 @@ static int __hot mdbx_cmp_memnr(const MDBX_val *a, const MDBX_val *b) {
  * If no entry larger or equal to the key is found, returns NULL. */
 static MDBX_node *__hot mdbx_node_search(MDBX_cursor *mc, MDBX_val *key,
                                          int *exactp) {
-  int low, high;
-  int rc = 0;
   MDBX_page *mp = mc->mc_pg[mc->mc_top];
-  MDBX_node *node = nullptr;
-  MDBX_val nodekey;
-  MDBX_cmp_func *cmp;
+  const int nkeys = page_numkeys(mp);
   DKBUF;
-
-  const unsigned nkeys = page_numkeys(mp);
 
   mdbx_debug("searching %u keys in %s %spage %" PRIaPGNO, nkeys,
              IS_LEAF(mp) ? "leaf" : "branch", IS_SUBP(mp) ? "sub-" : "",
              mp->mp_pgno);
 
-  low = IS_LEAF(mp) ? 0 : 1;
-  high = nkeys - 1;
-  cmp = mc->mc_dbx->md_cmp;
+  int low = IS_LEAF(mp) ? 0 : 1;
+  int high = nkeys - 1;
+  *exactp = 0;
+  if (unlikely(high < low)) {
+    mc->mc_ki[mc->mc_top] = 0;
+    return NULL;
+  }
 
-  /* Branch pages have no data, so if using integer keys,
-   * alignment is guaranteed. Use faster mdbx_cmp_int_ai.
-   */
-  if (cmp == mdbx_cmp_int_align2 && IS_BRANCH(mp))
-    cmp = mdbx_cmp_int_align4;
-
-  unsigned i = 0;
-  if (IS_LEAF2(mp)) {
+  int rc = 0, i = 0;
+  MDBX_cmp_func *cmp = mc->mc_dbx->md_cmp;
+  MDBX_val nodekey;
+  if (unlikely(IS_LEAF2(mp))) {
     mdbx_cassert(mc, mp->mp_leaf2_ksize == mc->mc_db->md_xsize);
     nodekey.iov_len = mp->mp_leaf2_ksize;
-    node = (MDBX_node *)(intptr_t)-1; /* fake */
-    while (low <= high) {
+    do {
       i = (low + high) >> 1;
       nodekey.iov_base = page_leaf2key(mp, i, nodekey.iov_len);
       mdbx_cassert(mc, (char *)mp + mc->mc_txn->mt_env->me_psize >=
                            (char *)nodekey.iov_base + nodekey.iov_len);
       rc = cmp(key, &nodekey);
       mdbx_debug("found leaf index %u [%s], rc = %i", i, DKEY(&nodekey), rc);
-      if (rc == 0)
+      if (unlikely(rc == 0)) {
+        *exactp = 1;
         break;
-      if (rc > 0)
-        low = i + 1;
-      else
-        high = i - 1;
-    }
-  } else {
-    while (low <= high) {
-      i = (low + high) >> 1;
+      }
+      low = (rc < 0) ? low : i + 1;
+      high = (rc < 0) ? i - 1 : high;
+    } while (likely(low <= high));
 
-      node = page_node(mp, i);
-      nodekey.iov_len = node_ks(node);
-      nodekey.iov_base = node_key(node);
-      mdbx_cassert(mc, (char *)mp + mc->mc_txn->mt_env->me_psize >=
-                           (char *)nodekey.iov_base + nodekey.iov_len);
+    /* Found entry is less than the key. */
+    /* Skip to get the smallest entry larger than key. */
+    i += rc > 0;
 
-      rc = cmp(key, &nodekey);
-      if (IS_LEAF(mp))
-        mdbx_debug("found leaf index %u [%s], rc = %i", i, DKEY(&nodekey), rc);
-      else
-        mdbx_debug("found branch index %u [%s -> %" PRIaPGNO "], rc = %i", i,
-                   DKEY(&nodekey), node_pgno(node), rc);
-      if (rc == 0)
-        break;
-      if (rc > 0)
-        low = i + 1;
-      else
-        high = i - 1;
-    }
+    /* store the key index */
+    mc->mc_ki[mc->mc_top] = (indx_t)i;
+    return (i < nkeys)
+               ? /* fake for LEAF2 */ (MDBX_node *)(intptr_t)-1
+               : /* There is no entry larger or equal to the key. */ NULL;
   }
 
-  if (rc > 0) /* Found entry is less than the key. */
-    i++;      /* Skip to get the smallest entry larger than key. */
+  if (cmp == mdbx_cmp_int_align2 && IS_BRANCH(mp))
+    /* Branch pages have no data, so if using integer keys,
+     * alignment is guaranteed. Use faster mdbx_cmp_int_align4(). */
+    cmp = mdbx_cmp_int_align4;
 
-  if (exactp)
-    *exactp = (rc == 0 && nkeys > 0);
+  MDBX_node *node;
+  do {
+    i = (low + high) >> 1;
+
+    node = page_node(mp, i);
+    nodekey.iov_len = node_ks(node);
+    nodekey.iov_base = node_key(node);
+    mdbx_cassert(mc, (char *)mp + mc->mc_txn->mt_env->me_psize >=
+                         (char *)nodekey.iov_base + nodekey.iov_len);
+
+    rc = cmp(key, &nodekey);
+    if (IS_LEAF(mp))
+      mdbx_debug("found leaf index %u [%s], rc = %i", i, DKEY(&nodekey), rc);
+    else
+      mdbx_debug("found branch index %u [%s -> %" PRIaPGNO "], rc = %i", i,
+                 DKEY(&nodekey), node_pgno(node), rc);
+    if (unlikely(rc == 0)) {
+      *exactp = 1;
+      break;
+    }
+    low = (rc < 0) ? low : i + 1;
+    high = (rc < 0) ? i - 1 : high;
+  } while (likely(low <= high));
+
+  /* Found entry is less than the key. */
+  /* Skip to get the smallest entry larger than key. */
+  i += rc > 0;
+
   /* store the key index */
-  mdbx_cassert(mc, i <= UINT16_MAX);
   mc->mc_ki[mc->mc_top] = (indx_t)i;
-  if (i >= nkeys)
-    /* There is no entry larger or equal to the key. */
-    return NULL;
-
-  /* page_node is fake for LEAF2 */
-  return IS_LEAF2(mp) ? node : page_node(mp, i);
+  return (i < nkeys) ? page_node(mp, i)
+                     : /* There is no entry larger or equal to the key. */ NULL;
 }
 
 #if 0 /* unused for now */
@@ -12999,6 +13392,10 @@ __hot static int mdbx_page_get(MDBX_cursor *mc, pgno_t pgno, MDBX_page **ret,
   MDBX_page *p = NULL;
   int level;
   mdbx_assert(env, ((txn->mt_flags ^ env->me_flags) & MDBX_WRITEMAP) == 0);
+  const uint16_t illegal_bits = (txn->mt_flags & MDBX_RDONLY)
+                                    ? P_LOOSE | P_SUBP | P_META | P_DIRTY
+                                    : P_LOOSE | P_SUBP | P_META;
+  const uint64_t txnid = txn->mt_txnid;
   if (unlikely((txn->mt_flags & (MDBX_RDONLY | MDBX_WRITEMAP)) == 0)) {
     level = 1;
     do {
@@ -13027,21 +13424,18 @@ dirty:
     goto corrupted;
   }
 
-  if (unlikely((p->mp_flags & (P_LOOSE | P_SUBP | P_META | P_DIRTY)) != 0 ||
-               p->mp_txnid > mc->mc_txn->mt_txnid)) {
-    if (unlikely((mc->mc_txn->mt_flags & MDBX_RDONLY) != 0 ||
-                 (p->mp_flags & (P_LOOSE | P_SUBP | P_META | P_DIRTY)) !=
-                     P_DIRTY)) {
-      mdbx_error("invalid page's flags (0x%x) or txnid %" PRIaTXN
-                 " > (actual) %" PRIaTXN " (expected)",
-                 p->mp_flags, p->mp_txnid, mc->mc_txn->mt_txnid);
-      goto corrupted;
-    }
+  if (unlikely((p->mp_flags & illegal_bits) != 0 ||
+               p->mp_txnid > ((p->mp_flags & P_DIRTY) ? UINT64_MAX : txnid))) {
+    mdbx_error("invalid page's flags (0x%x) or txnid %" PRIaTXN
+               " > (actual) %" PRIaTXN " (expected)",
+               p->mp_flags, p->mp_txnid, mc->mc_txn->mt_txnid);
+    goto corrupted;
   }
 
-  if (unlikely(!IS_OVERFLOW(p) && (p->mp_upper < p->mp_lower ||
-                                   ((p->mp_lower | p->mp_upper) & 1) != 0 ||
-                                   PAGEHDRSZ + p->mp_upper > env->me_psize))) {
+  if (unlikely((p->mp_upper < p->mp_lower ||
+                ((p->mp_lower | p->mp_upper) & 1) != 0 ||
+                PAGEHDRSZ + p->mp_upper > env->me_psize) &&
+               !IS_OVERFLOW(p))) {
     mdbx_error("invalid page lower(%u)/upper(%u), pg-limit %u", p->mp_lower,
                p->mp_upper, page_space(env));
     goto corrupted;
@@ -13053,9 +13447,8 @@ dirty:
       return err;
   }
 
+  *(lvl ? lvl : &level) = level;
   *ret = p;
-  if (lvl)
-    *lvl = level;
   return MDBX_SUCCESS;
 
 corrupted:
@@ -13645,7 +14038,10 @@ static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
   int rc;
   MDBX_page *mp;
   MDBX_node *node = NULL;
+  int stub_exactp;
   DKBUF;
+
+  exactp = exactp ? exactp : &stub_exactp;
 
   if ((mc->mc_db->md_flags & MDBX_INTEGERKEY) &&
       unlikely(key->iov_len != sizeof(uint32_t) &&
@@ -13679,8 +14075,7 @@ static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
       /* Probably happens rarely, but first node on the page
        * was the one we wanted. */
       mc->mc_ki[mc->mc_top] = 0;
-      if (exactp)
-        *exactp = 1;
+      *exactp = 1;
       goto set1;
     }
     if (rc > 0) {
@@ -13698,8 +14093,7 @@ static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
           /* last node was the one we wanted */
           mdbx_cassert(mc, nkeys >= 1 && nkeys <= UINT16_MAX + 1);
           mc->mc_ki[mc->mc_top] = (indx_t)(nkeys - 1);
-          if (exactp)
-            *exactp = 1;
+          *exactp = 1;
           goto set1;
         }
         if (rc < 0) {
@@ -13715,8 +14109,7 @@ static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
             rc = mc->mc_dbx->md_cmp(key, &nodekey);
             if (rc == 0) {
               /* current node was the one we wanted */
-              if (exactp)
-                *exactp = 1;
+              *exactp = 1;
               goto set1;
             }
           }
@@ -13740,7 +14133,7 @@ static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
     if (!mc->mc_top) {
       /* There are no other pages */
       mc->mc_ki[mc->mc_top] = 0;
-      if (op == MDBX_SET_RANGE && !exactp) {
+      if (op == MDBX_SET_RANGE && exactp == &stub_exactp) {
         rc = 0;
         goto set1;
       } else
@@ -13759,7 +14152,7 @@ static int mdbx_cursor_set(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
 
 set2:
   node = mdbx_node_search(mc, key, exactp);
-  if (exactp != NULL && !*exactp) {
+  if (exactp != &stub_exactp && !*exactp) {
     /* MDBX_SET specified and not an exact match. */
     return MDBX_NOTFOUND;
   }
@@ -14183,18 +14576,28 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
       return MDBX_BAD_VALSIZE;
     }
 
-    if ((mc->mc_db->md_flags & MDBX_INTEGERKEY) &&
-        unlikely(key->iov_len != sizeof(uint32_t) &&
-                 key->iov_len != sizeof(uint64_t))) {
-      mdbx_cassert(mc, !"key-size is invalid for MDBX_INTEGERKEY");
-      return MDBX_BAD_VALSIZE;
+    if ((mc->mc_db->md_flags & MDBX_INTEGERKEY)) {
+      if (unlikely(key->iov_len != sizeof(uint32_t) &&
+                   key->iov_len != sizeof(uint64_t))) {
+        mdbx_cassert(mc, !"key-size is invalid for MDBX_INTEGERKEY");
+        return MDBX_BAD_VALSIZE;
+      }
+      if (unlikely(3 & (uintptr_t)key->iov_base)) {
+        mdbx_cassert(mc, !"key-alignment is invalid for MDBX_INTEGERKEY");
+        return MDBX_BAD_VALSIZE;
+      }
     }
 
-    if ((mc->mc_db->md_flags & MDBX_INTEGERDUP) &&
-        unlikely(data->iov_len != sizeof(uint32_t) &&
-                 data->iov_len != sizeof(uint64_t))) {
-      mdbx_cassert(mc, !"data-size is invalid MDBX_INTEGERDUP");
-      return MDBX_BAD_VALSIZE;
+    if ((mc->mc_db->md_flags & MDBX_INTEGERDUP)) {
+      if (unlikely(data->iov_len != sizeof(uint32_t) &&
+                   data->iov_len != sizeof(uint64_t))) {
+        mdbx_cassert(mc, !"data-size is invalid for MDBX_INTEGERDUP");
+        return MDBX_BAD_VALSIZE;
+      }
+      if (unlikely(3 & (uintptr_t)data->iov_base)) {
+        mdbx_cassert(mc, !"data-alignment is invalid for MDBX_INTEGERDUP");
+        return MDBX_BAD_VALSIZE;
+      }
     }
   }
 
@@ -14253,7 +14656,7 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
   } else if ((flags & MDBX_CURRENT) == 0) {
     int exact = 0;
     MDBX_val d2;
-    if (flags & MDBX_APPEND) {
+    if ((flags & MDBX_APPEND) != 0 && mc->mc_db->md_entries > 0) {
       MDBX_val k2;
       rc = mdbx_cursor_last(mc, &k2, &d2);
       if (rc == 0) {
@@ -14497,9 +14900,9 @@ int mdbx_cursor_put(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
           }
 
           /* Back up original data item */
+          memcpy(dkey.iov_base = fp + 1, olddata.iov_base,
+                 dkey.iov_len = olddata.iov_len);
           dupdata_flag = 1;
-          dkey.iov_len = olddata.iov_len;
-          dkey.iov_base = memcpy(fp + 1, olddata.iov_base, olddata.iov_len);
 
           /* Make sub-page header for the dup items, with dummy body */
           fp->mp_flags = P_LEAF | P_DIRTY | P_SUBP;
@@ -15588,8 +15991,7 @@ static int mdbx_update_key(MDBX_cursor *mc, const MDBX_val *key) {
   /* But even if no shift was needed, update ksize */
   node_set_ks(node, key->iov_len);
 
-  if (key->iov_len)
-    memcpy(node_key(node), key->iov_base, key->iov_len);
+  memcpy(node_key(node), key->iov_base, key->iov_len);
   return MDBX_SUCCESS;
 }
 
@@ -16931,8 +17333,7 @@ static int mdbx_page_split(MDBX_cursor *mc, const MDBX_val *newkey,
         mdbx_cassert(mc, mp->mp_upper >= ksize - sizeof(indx_t));
         mp->mp_upper -= (indx_t)(ksize - sizeof(indx_t));
       } else {
-        if (x)
-          memcpy(rp->mp_ptrs, split, x * ksize);
+        memcpy(rp->mp_ptrs, split, x * ksize);
         ins = page_leaf2key(rp, x, ksize);
         memcpy(ins, newkey->iov_base, ksize);
         memcpy(ins + ksize, split + x * ksize, rsize - x * ksize);
@@ -18265,19 +18666,21 @@ static int mdbx_dbi_bind(MDBX_txn *txn, const MDBX_dbi dbi, unsigned user_flags,
     }
   }
 
-  if (!txn->mt_dbxs[dbi].md_cmp || MDBX_DEBUG) {
-    if (!keycmp)
-      keycmp = mdbx_default_keycmp(user_flags);
-    mdbx_tassert(txn, !txn->mt_dbxs[dbi].md_cmp ||
-                          txn->mt_dbxs[dbi].md_cmp == keycmp);
+  if (!keycmp)
+    keycmp = txn->mt_dbxs[dbi].md_cmp ? txn->mt_dbxs[dbi].md_cmp
+                                      : mdbx_default_keycmp(user_flags);
+  if (txn->mt_dbxs[dbi].md_cmp != keycmp) {
+    if (txn->mt_dbxs[dbi].md_cmp)
+      return MDBX_EINVAL;
     txn->mt_dbxs[dbi].md_cmp = keycmp;
   }
 
-  if (!txn->mt_dbxs[dbi].md_dcmp || MDBX_DEBUG) {
-    if (!datacmp)
-      datacmp = mdbx_default_datacmp(user_flags);
-    mdbx_tassert(txn, !txn->mt_dbxs[dbi].md_dcmp ||
-                          txn->mt_dbxs[dbi].md_dcmp == datacmp);
+  if (!datacmp)
+    datacmp = txn->mt_dbxs[dbi].md_dcmp ? txn->mt_dbxs[dbi].md_dcmp
+                                        : mdbx_default_datacmp(user_flags);
+  if (txn->mt_dbxs[dbi].md_dcmp != datacmp) {
+    if (txn->mt_dbxs[dbi].md_dcmp)
+      return MDBX_EINVAL;
     txn->mt_dbxs[dbi].md_dcmp = datacmp;
   }
 
@@ -18287,12 +18690,13 @@ static int mdbx_dbi_bind(MDBX_txn *txn, const MDBX_dbi dbi, unsigned user_flags,
 int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
                      MDBX_dbi *dbi, MDBX_cmp_func *keycmp,
                      MDBX_cmp_func *datacmp) {
+  if (unlikely(!dbi || (user_flags & ~VALID_FLAGS) != 0))
+    return MDBX_EINVAL;
+  *dbi = 0;
+
   int rc = check_txn(txn, MDBX_TXN_BLOCKED);
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
-
-  if (unlikely(!dbi || (user_flags & ~VALID_FLAGS) != 0))
-    return MDBX_EINVAL;
 
   switch (user_flags &
           (MDBX_INTEGERDUP | MDBX_DUPFIXED | MDBX_DUPSORT | MDBX_REVERSEDUP)) {
@@ -18310,8 +18714,10 @@ int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
 
   /* main table? */
   if (!table_name) {
-    *dbi = MAIN_DBI;
-    return mdbx_dbi_bind(txn, MAIN_DBI, user_flags, keycmp, datacmp);
+    rc = mdbx_dbi_bind(txn, MAIN_DBI, user_flags, keycmp, datacmp);
+    if (likely(rc == MDBX_SUCCESS))
+      *dbi = MAIN_DBI;
+    return rc;
   }
 
   if (txn->mt_dbxs[MAIN_DBI].md_cmp == NULL) {
@@ -20221,6 +20627,144 @@ __cold intptr_t mdbx_limits_txnsize_max(intptr_t pagesize) {
                                          : (intptr_t)MAX_MAPSIZE;
 }
 
+/*** Key-making functions to avoid custom comparators *************************/
+
+static __always_inline uint64_t double2key(const double *const ptr) {
+  STATIC_ASSERT(sizeof(double) == sizeof(int64_t));
+  const int64_t i64 = *(const int64_t *)ptr;
+  return (i64 >= 0) ? /* positive */ UINT64_C(0x8000000000000000) + i64
+                    : /* negative */ (uint64_t)-i64;
+}
+
+static __always_inline uint32_t float2key(const float *const ptr) {
+  STATIC_ASSERT(sizeof(float) == sizeof(int32_t));
+  const int32_t i32 = *(const int32_t *)ptr;
+  return (i32 >= 0) ? /* positive */ UINT32_C(0x80000000) + i32
+                    : /* negative */ (uint32_t)-i32;
+}
+
+uint64_t mdbx_key_from_double(const double ieee754_64bit) {
+  return double2key(&ieee754_64bit);
+}
+
+uint64_t mdbx_key_from_ptrdouble(const double *const ieee754_64bit) {
+  return double2key(ieee754_64bit);
+}
+
+uint32_t mdbx_key_from_float(const float ieee754_32bit) {
+  return float2key(&ieee754_32bit);
+}
+
+uint32_t mdbx_key_from_ptrfloat(const float *const ieee754_32bit) {
+  return float2key(ieee754_32bit);
+}
+
+#define IEEE754_DOUBLE_MANTISSA_SIZE 52
+#define IEEE754_DOUBLE_BIAS 0x3FF
+#define IEEE754_DOUBLE_MAX 0x7FF
+#define IEEE754_DOUBLE_IMPLICIT_LEAD UINT64_C(0x0010000000000000)
+#define IEEE754_DOUBLE_MANTISSA_MASK UINT64_C(0x000FFFFFFFFFFFFF)
+#define IEEE754_DOUBLE_MANTISSA_AMAX UINT64_C(0x001FFFFFFFFFFFFF)
+
+static __inline int clz64(uint64_t value) {
+#if __GNUC_PREREQ(4, 1) || __has_builtin(__builtin_clzl)
+  if (sizeof(value) == sizeof(int))
+    return __builtin_clz(value);
+  if (sizeof(value) == sizeof(long))
+    return __builtin_clzl(value);
+#if (defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8) ||            \
+    __has_builtin(__builtin_clzll)
+  return __builtin_clzll(value);
+#endif /* have(long long) && long long == uint64_t */
+#endif /* GNU C */
+
+#if defined(_MSC_VER)
+  unsigned long index;
+#if defined(_M_AMD64) || defined(_M_ARM64) || defined(_M_X64)
+  _BitScanReverse64(&index, value);
+  return index;
+#else
+  if (value > UINT32_MAX) {
+    _BitScanReverse(&index, (uint32_t)(value >> 32));
+    return index;
+  }
+  _BitScanReverse(&index, (uint32_t)value);
+  return index + 32;
+#endif
+#endif /* MSVC */
+
+  value |= value >> 1;
+  value |= value >> 2;
+  value |= value >> 4;
+  value |= value >> 8;
+  value |= value >> 16;
+  value |= value >> 32;
+  static const uint8_t debruijn_clz64[64] = {
+      63, 16, 62, 7,  15, 36, 61, 3,  6,  14, 22, 26, 35, 47, 60, 2,
+      9,  5,  28, 11, 13, 21, 42, 19, 25, 31, 34, 40, 46, 52, 59, 1,
+      17, 8,  37, 4,  23, 27, 48, 10, 29, 12, 43, 20, 32, 41, 53, 18,
+      38, 24, 49, 30, 44, 33, 54, 39, 50, 45, 55, 51, 56, 57, 58, 0};
+  return debruijn_clz64[value * UINT64_C(0x03F79D71B4CB0A89) >> 58];
+}
+
+static uint64_t round_mantissa(const uint64_t u64, int shift) {
+  assert(shift < 0 && u64 > 0);
+  shift = -shift;
+  const unsigned half = 1 << (shift - 1);
+  const unsigned lsb = 1 & (unsigned)(u64 >> shift);
+  const unsigned tie2even = 1 ^ lsb;
+  return (u64 + half - tie2even) >> shift;
+}
+
+uint64_t mdbx_key_from_jsonInteger(const int64_t json_integer) {
+  const uint64_t biased_zero = UINT64_C(0x8000000000000000);
+  if (json_integer > 0) {
+    const uint64_t u64 = json_integer;
+    int shift = clz64(u64) - (64 - IEEE754_DOUBLE_MANTISSA_SIZE - 1);
+    uint64_t mantissa = u64 << shift;
+    if (unlikely(shift < 0)) {
+      mantissa = round_mantissa(u64, shift);
+      if (mantissa > IEEE754_DOUBLE_MANTISSA_AMAX)
+        mantissa = round_mantissa(u64, --shift);
+    }
+
+    assert(mantissa >= IEEE754_DOUBLE_IMPLICIT_LEAD &&
+           mantissa <= IEEE754_DOUBLE_MANTISSA_AMAX);
+    const uint64_t exponent =
+        IEEE754_DOUBLE_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE - shift;
+    assert(exponent > 0 && exponent <= IEEE754_DOUBLE_MAX);
+    const uint64_t key = biased_zero +
+                         (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) +
+                         (mantissa - IEEE754_DOUBLE_IMPLICIT_LEAD);
+    assert(key == mdbx_key_from_double((double)json_integer));
+    return key;
+  }
+
+  if (json_integer < 0) {
+    const uint64_t u64 = -json_integer;
+    int shift = clz64(u64) - (64 - IEEE754_DOUBLE_MANTISSA_SIZE - 1);
+    uint64_t mantissa = u64 << shift;
+    if (unlikely(shift < 0)) {
+      mantissa = round_mantissa(u64, shift);
+      if (mantissa > IEEE754_DOUBLE_MANTISSA_AMAX)
+        mantissa = round_mantissa(u64, --shift);
+    }
+
+    assert(mantissa >= IEEE754_DOUBLE_IMPLICIT_LEAD &&
+           mantissa <= IEEE754_DOUBLE_MANTISSA_AMAX);
+    const uint64_t exponent =
+        IEEE754_DOUBLE_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE - shift;
+    assert(exponent > 0 && exponent <= IEEE754_DOUBLE_MAX);
+    const uint64_t key = biased_zero -
+                         (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) -
+                         (mantissa - IEEE754_DOUBLE_IMPLICIT_LEAD);
+    assert(key == mdbx_key_from_double((double)json_integer));
+    return key;
+  }
+
+  return biased_zero;
+}
+
 /*** Attribute support functions for Nexenta **********************************/
 #ifdef MDBX_NEXENTA_ATTRS
 
@@ -20590,7 +21134,7 @@ LIBMDBX_API __attribute__((__weak__)) const char *__asan_default_options() {
 /* https://en.wikipedia.org/wiki/Operating_system_abstraction_layer */
 
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -22758,7 +23302,7 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
 
 
 #if MDBX_VERSION_MAJOR != 0 ||                             \
-    MDBX_VERSION_MINOR != 5
+    MDBX_VERSION_MINOR != 6
 #error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
@@ -22778,11 +23322,11 @@ __dll_export
 #endif
     const mdbx_version_info mdbx_version = {
         0,
-        5,
+        6,
         0,
-        1879,
-        {"2020-01-07T02:44:59+03:00", "53ae5402f4c4d6461c8fb256920816b55f72f9cb", "8be0c8eaae0dd603125d02732721dfc396db3e5f",
-         "v0.5.0-10-g8be0c8eaa"},
+        1900,
+        {"2020-01-27T03:00:13+03:00", "f5a69549a8378b75b71140f51326c48fdb118127", "2c08ec21fdf38602b4102e19aa510e0f8ea1e6b0",
+         "v0.6.0-10-g2c08ec21f"},
         sourcery};
 
 __dll_export
@@ -22800,7 +23344,7 @@ __dll_export
     const char *const mdbx_sourcery_anchor = sourcery;
 #if defined(_WIN32) || defined(_WIN64)
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
@@ -23578,7 +24122,7 @@ static void mdbx_winnt_import(void) {
 }
 #else /* LCK-implementation */
 /*
- * Copyright 2015-2019 Leonid Yuriev <leo@yuriev.ru>
+ * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
  * All rights reserved.
  *
