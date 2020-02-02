@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY ba9fb755baaf21d611cbaf51c1952cfa88916112b5ca389bd5ba2994db6872e1_v0_6_0_10_g2c08ec21f
+#define MDBX_BUILD_SOURCERY 8b2a20d6d2613bc091f180d5b48eefb841279bf7cc33b55a18312b51e46a0fea_v0_6_0_24_g62a39d84b
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -257,33 +257,33 @@
 #endif /* __maybe_unused */
 
 #if !defined(__noop) && !defined(_MSC_VER)
-#		define __noop(...) do {} while(0)
+#   define __noop(...) do {} while(0)
 #endif /* __noop */
 
 #ifndef __fallthrough
-#	if __GNUC_PREREQ(7, 0) || __has_attribute(__fallthrough__)
-#		define __fallthrough __attribute__((__fallthrough__))
-#	else
-#		define __fallthrough __noop()
-#	endif
+#   if __GNUC_PREREQ(7, 0) || __has_attribute(__fallthrough__)
+#       define __fallthrough __attribute__((__fallthrough__))
+#   else
+#       define __fallthrough __noop()
+#   endif
 #endif /* __fallthrough */
 
 #ifndef __unreachable
-#	if __GNUC_PREREQ(4,5) || __has_builtin(__builtin_unreachable)
-#		define __unreachable() __builtin_unreachable()
-#	elif defined(_MSC_VER)
-#		define __unreachable() __assume(0)
-#	else
-#		define __unreachable() __noop()
-#	endif
+#   if __GNUC_PREREQ(4,5) || __has_builtin(__builtin_unreachable)
+#       define __unreachable() __builtin_unreachable()
+#   elif defined(_MSC_VER)
+#       define __unreachable() __assume(0)
+#   else
+#       define __unreachable() __noop()
+#   endif
 #endif /* __unreachable */
 
 #ifndef __prefetch
-#	if defined(__GNUC__) || defined(__clang__)
-#		define __prefetch(ptr) __builtin_prefetch(ptr)
-#	else
-#		define __prefetch(ptr) __noop(ptr)
-#	endif
+#   if defined(__GNUC__) || defined(__clang__)
+#       define __prefetch(ptr) __builtin_prefetch(ptr)
+#   else
+#       define __prefetch(ptr) __noop(ptr)
+#   endif
 #endif /* __prefetch */
 
 #ifndef __noreturn
@@ -423,17 +423,6 @@
 #       define unlikely(x) (x)
 #   endif
 #endif /* unlikely */
-
-/* Workaround for Coverity Scan */
-#if defined(__COVERITY__) && __GNUC_PREREQ(7, 0) && !defined(__cplusplus)
-typedef float _Float32;
-typedef double _Float32x;
-typedef double _Float64;
-typedef long double _Float64x;
-typedef float _Float128 __attribute__((__mode__(__TF__)));
-typedef __complex__ float __cfloat128 __attribute__ ((__mode__ (__TC__)));
-typedef _Complex float __cfloat128 __attribute__ ((__mode__ (__TC__)));
-#endif /* Workaround for Coverity Scan */
 
 #ifndef __printf_args
 #   if defined(__GNUC__) || __has_attribute(__format__)
@@ -2742,7 +2731,7 @@ MDBX_INTERNAL_FUNC void mdbx_rthc_thread_dtor(void *ptr);
   ((rc) != MDBX_RESULT_TRUE && (rc) != MDBX_RESULT_FALSE)
 
 /* Internal error codes, not exposed outside libmdbx */
-#define MDBX_NO_ROOT (MDBX_LAST_ERRCODE + 10)
+#define MDBX_NO_ROOT (MDBX_LAST_LMDB_ERRCODE + 10)
 
 /* Debugging output value of a cursor DBI: Negative in a sub-cursor. */
 #define DDBI(mc)                                                               \
@@ -2894,6 +2883,17 @@ static __maybe_unused __inline void mdbx_jitter4testing(bool tiny) {
 #else
   (void)tiny;
 #endif
+}
+
+static __pure_function __always_inline __maybe_unused bool
+is_powerof2(size_t x) {
+  return (x & (x - 1)) == 0;
+}
+
+static __pure_function __always_inline __maybe_unused size_t
+roundup_powerof2(size_t value, size_t granularity) {
+  assert(is_powerof2(granularity));
+  return (value + granularity - 1) & ~(granularity - 1);
 }
 
 #if defined(_WIN32) || defined(_WIN64)

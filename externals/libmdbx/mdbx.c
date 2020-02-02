@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY ba9fb755baaf21d611cbaf51c1952cfa88916112b5ca389bd5ba2994db6872e1_v0_6_0_10_g2c08ec21f
+#define MDBX_BUILD_SOURCERY 8b2a20d6d2613bc091f180d5b48eefb841279bf7cc33b55a18312b51e46a0fea_v0_6_0_24_g62a39d84b
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -235,33 +235,33 @@
 #endif /* __maybe_unused */
 
 #if !defined(__noop) && !defined(_MSC_VER)
-#		define __noop(...) do {} while(0)
+#   define __noop(...) do {} while(0)
 #endif /* __noop */
 
 #ifndef __fallthrough
-#	if __GNUC_PREREQ(7, 0) || __has_attribute(__fallthrough__)
-#		define __fallthrough __attribute__((__fallthrough__))
-#	else
-#		define __fallthrough __noop()
-#	endif
+#   if __GNUC_PREREQ(7, 0) || __has_attribute(__fallthrough__)
+#       define __fallthrough __attribute__((__fallthrough__))
+#   else
+#       define __fallthrough __noop()
+#   endif
 #endif /* __fallthrough */
 
 #ifndef __unreachable
-#	if __GNUC_PREREQ(4,5) || __has_builtin(__builtin_unreachable)
-#		define __unreachable() __builtin_unreachable()
-#	elif defined(_MSC_VER)
-#		define __unreachable() __assume(0)
-#	else
-#		define __unreachable() __noop()
-#	endif
+#   if __GNUC_PREREQ(4,5) || __has_builtin(__builtin_unreachable)
+#       define __unreachable() __builtin_unreachable()
+#   elif defined(_MSC_VER)
+#       define __unreachable() __assume(0)
+#   else
+#       define __unreachable() __noop()
+#   endif
 #endif /* __unreachable */
 
 #ifndef __prefetch
-#	if defined(__GNUC__) || defined(__clang__)
-#		define __prefetch(ptr) __builtin_prefetch(ptr)
-#	else
-#		define __prefetch(ptr) __noop(ptr)
-#	endif
+#   if defined(__GNUC__) || defined(__clang__)
+#       define __prefetch(ptr) __builtin_prefetch(ptr)
+#   else
+#       define __prefetch(ptr) __noop(ptr)
+#   endif
 #endif /* __prefetch */
 
 #ifndef __noreturn
@@ -401,17 +401,6 @@
 #       define unlikely(x) (x)
 #   endif
 #endif /* unlikely */
-
-/* Workaround for Coverity Scan */
-#if defined(__COVERITY__) && __GNUC_PREREQ(7, 0) && !defined(__cplusplus)
-typedef float _Float32;
-typedef double _Float32x;
-typedef double _Float64;
-typedef long double _Float64x;
-typedef float _Float128 __attribute__((__mode__(__TF__)));
-typedef __complex__ float __cfloat128 __attribute__ ((__mode__ (__TC__)));
-typedef _Complex float __cfloat128 __attribute__ ((__mode__ (__TC__)));
-#endif /* Workaround for Coverity Scan */
 
 #ifndef __printf_args
 #   if defined(__GNUC__) || __has_attribute(__format__)
@@ -2720,7 +2709,7 @@ MDBX_INTERNAL_FUNC void mdbx_rthc_thread_dtor(void *ptr);
   ((rc) != MDBX_RESULT_TRUE && (rc) != MDBX_RESULT_FALSE)
 
 /* Internal error codes, not exposed outside libmdbx */
-#define MDBX_NO_ROOT (MDBX_LAST_ERRCODE + 10)
+#define MDBX_NO_ROOT (MDBX_LAST_LMDB_ERRCODE + 10)
 
 /* Debugging output value of a cursor DBI: Negative in a sub-cursor. */
 #define DDBI(mc)                                                               \
@@ -2873,6 +2862,17 @@ static __maybe_unused __inline void mdbx_jitter4testing(bool tiny) {
   (void)tiny;
 #endif
 }
+
+static __pure_function __always_inline __maybe_unused bool
+is_powerof2(size_t x) {
+  return (x & (x - 1)) == 0;
+}
+
+static __pure_function __always_inline __maybe_unused size_t
+roundup_powerof2(size_t value, size_t granularity) {
+  assert(is_powerof2(granularity));
+  return (value + granularity - 1) & ~(granularity - 1);
+}
 /*
  * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
@@ -2913,16 +2913,6 @@ static __maybe_unused __inline void mdbx_jitter4testing(bool tiny) {
 
 /*------------------------------------------------------------------------------
  * Internal inlines */
-
-static __pure_function __always_inline bool is_powerof2(size_t x) {
-  return (x & (x - 1)) == 0;
-}
-
-static __pure_function __always_inline size_t
-roundup_powerof2(size_t value, size_t granularity) {
-  assert(is_powerof2(granularity));
-  return (value + granularity - 1) & ~(granularity - 1);
-}
 
 static __pure_function unsigned log2n(size_t value) {
   assert(value > 0 && value < INT32_MAX && is_powerof2(value));
@@ -3625,7 +3615,9 @@ static __always_inline bool atomic_cas64(volatile uint64_t *p, uint64_t c,
                                          uint64_t v) {
 #if defined(ATOMIC_VAR_INIT) || defined(ATOMIC_LLONG_LOCK_FREE)
   STATIC_ASSERT(sizeof(long long) >= sizeof(uint64_t));
+#ifndef __COVERITY__
   STATIC_ASSERT(atomic_is_lock_free(p));
+#endif /* Workaround for Coverity */
   return atomic_compare_exchange_strong((_Atomic uint64_t *)p, &c, v);
 #elif defined(__GNUC__) || defined(__clang__)
   return __sync_bool_compare_and_swap(p, c, v);
@@ -3644,7 +3636,9 @@ static __always_inline bool atomic_cas32(volatile uint32_t *p, uint32_t c,
                                          uint32_t v) {
 #if defined(ATOMIC_VAR_INIT) || defined(ATOMIC_INT_LOCK_FREE)
   STATIC_ASSERT(sizeof(int) >= sizeof(uint32_t));
+#ifndef __COVERITY__
   STATIC_ASSERT(atomic_is_lock_free(p));
+#endif /* Workaround for Coverity */
   return atomic_compare_exchange_strong((_Atomic uint32_t *)p, &c, v);
 #elif defined(__GNUC__) || defined(__clang__)
   return __sync_bool_compare_and_swap(p, c, v);
@@ -3661,7 +3655,9 @@ static __always_inline bool atomic_cas32(volatile uint32_t *p, uint32_t c,
 static __always_inline uint32_t atomic_add32(volatile uint32_t *p, uint32_t v) {
 #if defined(ATOMIC_VAR_INIT) || defined(ATOMIC_INT_LOCK_FREE)
   STATIC_ASSERT(sizeof(int) >= sizeof(uint32_t));
+#ifndef __COVERITY__
   STATIC_ASSERT(atomic_is_lock_free(p));
+#endif /* Workaround for Coverity */
   return atomic_fetch_add((_Atomic uint32_t *)p, v);
 #elif defined(__GNUC__) || defined(__clang__)
   return __sync_fetch_and_add(p, v);
@@ -5356,8 +5352,10 @@ static int lcklist_detach_locked(MDBX_env *env) {
       }                                                                        \
     }                                                                          \
                                                                                \
-    for (TYPE *scan = begin + 1; scan < end; ++scan)                           \
-      assert(CMP(scan[-1], scan[0]));                                          \
+    if (mdbx_audit_enabled()) {                                                \
+      for (TYPE *scan = begin + 1; scan < end; ++scan)                         \
+        assert(CMP(scan[-1], scan[0]));                                        \
+    }                                                                          \
   }
 
 /*------------------------------------------------------------------------------
@@ -5396,11 +5394,13 @@ static int lcklist_detach_locked(MDBX_env *env) {
         ++first;                                                               \
     }                                                                          \
                                                                                \
-    for (TYPE_LIST *scan = begin; scan < first; ++scan)                        \
-      assert(CMP(*scan, item));                                                \
-    for (TYPE_LIST *scan = first; scan < end; ++scan)                          \
-      assert(!CMP(*scan, item));                                               \
-    (void)begin, (void)end;                                                    \
+    if (mdbx_audit_enabled()) {                                                \
+      for (TYPE_LIST *scan = begin; scan < first; ++scan)                      \
+        assert(CMP(*scan, item));                                              \
+      for (TYPE_LIST *scan = first; scan < end; ++scan)                        \
+        assert(!CMP(*scan, item));                                             \
+      (void)begin, (void)end;                                                  \
+    }                                                                          \
                                                                                \
     return first;                                                              \
   }
@@ -6050,26 +6050,32 @@ static const char *__mdbx_strerr(int errnum) {
       "MDBX_VERSION_MISMATCH: DB version mismatch libmdbx",
       "MDBX_INVALID: File is not an MDBX file",
       "MDBX_MAP_FULL: Environment mapsize limit reached",
-      "MDBX_DBS_FULL: Too may DBI (maxdbs reached)",
+      "MDBX_DBS_FULL: Too may DBI-handles (maxdbs reached)",
       "MDBX_READERS_FULL: Too many readers (maxreaders reached)",
       NULL /* MDBX_TLS_FULL (-30789): unused in MDBX */,
-      "MDBX_TXN_FULL: Transaction has too many dirty pages, "
-      "i.e transaction too big",
-      "MDBX_CURSOR_FULL: Internal error - cursor stack limit reached",
-      "MDBX_PAGE_FULL: Internal error - page has no more space",
-      "MDBX_MAP_RESIZED: Database contents grew beyond environment mapsize",
-      "MDBX_INCOMPATIBLE: Operation and DB incompatible, or DB flags changed",
-      "MDBX_BAD_RSLOT: Invalid reuse of reader locktable slot",
-      "MDBX_BAD_TXN: Transaction must abort, has a child, or is invalid",
-      "MDBX_BAD_VALSIZE: Unsupported size of key/DB name/data, or wrong "
-      "DUPFIXED size",
-      "MDBX_BAD_DBI: The specified DBI handle was closed/changed unexpectedly",
-      "MDBX_PROBLEM: Unexpected problem - txn should abort",
-      "MDBX_BUSY: Another write transaction is running or "
-      "environment is already used while opening with MDBX_EXCLUSIVE flag",
+      "MDBX_TXN_FULL: Transaction has too many dirty pages,"
+      " i.e transaction too big",
+      "MDBX_CURSOR_FULL: Internal error - Cursor stack limit reached",
+      "MDBX_PAGE_FULL: Internal error - Page has no more space",
+      "MDBX_MAP_RESIZED: Database contents grew beyond environment mapsize"
+      " and engine was unable to extend mapping,"
+      " e.g. since address space is unavailable or busy",
+      "MDBX_INCOMPATIBLE: Environment or database is not compatible"
+      " with the requested operation or the specified flags",
+      "MDBX_BAD_RSLOT: Invalid reuse of reader locktable slot,"
+      " e.g. read-transaction already run for current thread",
+      "MDBX_BAD_TXN: Transaction is not valid for requested operation,"
+      " e.g. had errored and be must aborted, has a child, or is invalid",
+      "MDBX_BAD_VALSIZE: Invalid size or alignment of key or data"
+      " for target database, either invalid subDB name",
+      "MDBX_BAD_DBI: The specified DBI-handle is invalid"
+      " or changed by another thread/transaction",
+      "MDBX_PROBLEM: Unexpected internal error, transaction should be aborted",
+      "MDBX_BUSY: Another write transaction is running,"
+      " or environment is already used while opening with MDBX_EXCLUSIVE flag",
   };
 
-  if (errnum >= MDBX_KEYEXIST && errnum <= MDBX_LAST_ERRCODE) {
+  if (errnum >= MDBX_KEYEXIST && errnum <= MDBX_LAST_LMDB_ERRCODE) {
     int i = errnum - MDBX_KEYEXIST;
     return tbl[i];
   }
@@ -6078,21 +6084,27 @@ static const char *__mdbx_strerr(int errnum) {
   case MDBX_SUCCESS:
     return "MDBX_SUCCESS: Successful";
   case MDBX_EMULTIVAL:
-    return "MDBX_EMULTIVAL: Unable to update multi-value for the given key";
+    return "MDBX_EMULTIVAL: The specified key has"
+           " more than one associated value";
   case MDBX_EBADSIGN:
-    return "MDBX_EBADSIGN: Wrong signature of a runtime object(s)";
+    return "MDBX_EBADSIGN: Wrong signature of a runtime object(s),"
+           " e.g. memory corruption or double-free";
   case MDBX_WANNA_RECOVERY:
-    return "MDBX_WANNA_RECOVERY: Database should be recovered, but this could "
-           "NOT be done in a read-only mode";
+    return "MDBX_WANNA_RECOVERY: Database should be recovered,"
+           " but this could NOT be done automatically for now"
+           " since it opened in read-only mode";
   case MDBX_EKEYMISMATCH:
-    return "MDBX_EKEYMISMATCH: The given key value is mismatched to the "
-           "current cursor position";
+    return "MDBX_EKEYMISMATCH: The given key value is mismatched to the"
+           " current cursor position";
   case MDBX_TOO_LARGE:
-    return "MDBX_TOO_LARGE: Database is too large for current system, "
-           "e.g. could NOT be mapped into RAM";
+    return "MDBX_TOO_LARGE: Database is too large for current system,"
+           " e.g. could NOT be mapped into RAM";
   case MDBX_THREAD_MISMATCH:
-    return "MDBX_THREAD_MISMATCH: A thread has attempted to use a not "
-           "owned object, e.g. a transaction that started by another thread";
+    return "MDBX_THREAD_MISMATCH: A thread has attempted to use a not"
+           " owned object, e.g. a transaction that started by another thread";
+  case MDBX_TXN_OVERLAPPING:
+    return "MDBX_TXN_OVERLAPPING: Overlapping read and write transactions for"
+           " the current thread";
   default:
     return NULL;
   }
@@ -8684,6 +8696,7 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
 
   mdbx_assert(env, (flags & ~(MDBX_TXN_BEGIN_FLAGS | MDBX_TXN_SPILLS |
                               MDBX_WRITEMAP)) == 0);
+  const size_t tid = mdbx_thread_self();
   if (flags & MDBX_RDONLY) {
     txn->mt_flags =
         MDBX_RDONLY | (env->me_flags & (MDBX_NOTLS | MDBX_WRITEMAP));
@@ -8706,7 +8719,6 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
         return MDBX_BAD_RSLOT;
     } else if (env->me_lck) {
       unsigned slot, nreaders;
-      const size_t tid = mdbx_thread_self();
       mdbx_assert(env, env->me_lck->mti_magic_and_version == MDBX_LOCK_MAGIC);
       mdbx_assert(env, env->me_lck->mti_os_and_format == MDBX_LOCK_FORMAT);
 
@@ -8760,7 +8772,7 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
       safe64_reset(&r->mr_txnid, true);
       if (slot == nreaders)
         env->me_lck->mti_numreaders = ++nreaders;
-      r->mr_tid = tid;
+      r->mr_tid = (env->me_flags & MDBX_NOTLS) ? 0 : tid;
       r->mr_pid = env->me_pid;
       mdbx_rdt_unlock(env);
 
@@ -8782,7 +8794,9 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
         safe64_write(&r->mr_txnid, snap);
         mdbx_jitter4testing(false);
         mdbx_assert(env, r->mr_pid == mdbx_getpid());
-        mdbx_assert(env, r->mr_tid == mdbx_thread_self());
+        mdbx_assert(
+            env, r->mr_tid ==
+                     ((env->me_flags & MDBX_NOTLS) ? 0 : mdbx_thread_self()));
         mdbx_assert(env, r->mr_txnid.inconsistent == snap);
         mdbx_compiler_barrier();
         env->me_lck->mti_readers_refresh_flag = true;
@@ -8809,7 +8823,7 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
     if (unlikely(txn->mt_txnid == 0 ||
                  txn->mt_txnid >= SAFE64_INVALID_THRESHOLD)) {
       mdbx_error("%s", "environment corrupted by died writer, must shutdown!");
-      rc = MDBX_WANNA_RECOVERY;
+      rc = MDBX_CORRUPTED;
       goto bailout;
     }
     mdbx_assert(env, txn->mt_txnid >= *env->me_oldest);
@@ -8819,6 +8833,22 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
                          /* paranoia is appropriate here */ *env->me_oldest);
     txn->mt_numdbs = env->me_numdbs;
   } else {
+    if (unlikely(txn->mt_owner == tid))
+      return MDBX_BUSY;
+    MDBX_lockinfo *const lck = env->me_lck;
+    if (lck && (env->me_flags & MDBX_NOTLS) == 0 &&
+        (mdbx_runtime_flags & MDBX_DBG_LEGACY_OVERLAP) == 0) {
+      const unsigned snap_nreaders = lck->mti_numreaders;
+      for (unsigned i = 0; i < snap_nreaders; ++i) {
+        if (lck->mti_readers[i].mr_pid == env->me_pid &&
+            unlikely(lck->mti_readers[i].mr_tid == tid)) {
+          const txnid_t txnid = safe64_read(&lck->mti_readers[i].mr_txnid);
+          if (txnid >= MIN_TXNID && txnid < SAFE64_INVALID_THRESHOLD)
+            return MDBX_TXN_OVERLAPPING;
+        }
+      }
+    }
+
     /* Not yet touching txn == env->me_txn0, it may be active */
     mdbx_jitter4testing(false);
     rc = mdbx_txn_lock(env, F_ISSET(flags, MDBX_TRYTXN));
@@ -8917,7 +8947,7 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
 #if defined(MDBX_USE_VALGRIND) || defined(__SANITIZE_ADDRESS__)
     mdbx_txn_valgrind(env, txn);
 #endif
-    txn->mt_owner = mdbx_thread_self();
+    txn->mt_owner = tid;
     return MDBX_SUCCESS;
   }
 bailout:
@@ -9048,16 +9078,16 @@ int mdbx_txn_begin(MDBX_env *env, MDBX_txn *parent, unsigned flags,
     size = env->me_maxdbs * (sizeof(MDBX_db) + sizeof(MDBX_cursor *) + 1);
     size += tsize = sizeof(MDBX_txn);
   } else if (flags & MDBX_RDONLY) {
-    if (env->me_txn0 && unlikely(env->me_txn0->mt_owner == mdbx_thread_self()))
-      return MDBX_BUSY;
+    if (env->me_txn0 &&
+        unlikely(env->me_txn0->mt_owner == mdbx_thread_self()) &&
+        (mdbx_runtime_flags & MDBX_DBG_LEGACY_OVERLAP) == 0)
+      return MDBX_TXN_OVERLAPPING;
     size = env->me_maxdbs * (sizeof(MDBX_db) + 1);
     size += tsize = sizeof(MDBX_txn);
   } else {
     /* Reuse preallocated write txn. However, do not touch it until
      * mdbx_txn_renew0() succeeds, since it currently may be active. */
     txn = env->me_txn0;
-    if (unlikely(txn->mt_owner == mdbx_thread_self()))
-      return MDBX_BUSY;
     goto renew;
   }
   if (unlikely((txn = mdbx_malloc(size)) == NULL)) {
@@ -12199,14 +12229,10 @@ static int __cold mdbx_setup_dxb(MDBX_env *env, const int lck_rc) {
   env->me_poison_edge = bytes2pgno(env, env->me_dxb_mmap.limit);
 #endif /* MDBX_USE_VALGRIND || __SANITIZE_ADDRESS__ */
 
-  /* NOTE: AddressSanitizer (at least GCC 7.x, 8.x) could generate
-   *       false-positive alarm here. I have no other explanation for this
-   *       except due to an internal ASAN error, as the problem is reproduced
-   *       in a single-threaded application under the active assert() above. */
   const unsigned meta_clash_mask = mdbx_meta_eq_mask(env);
   if (meta_clash_mask) {
     mdbx_error("meta-pages are clashed: mask 0x%d", meta_clash_mask);
-    return MDBX_WANNA_RECOVERY;
+    return MDBX_CORRUPTED;
   }
 
   while (1) {
@@ -19373,21 +19399,20 @@ int __cold mdbx_setup_debug(int loglevel, int flags, MDBX_debug_func *logger) {
 #if !MDBX_DEBUG
   (void)loglevel;
 #else
-  if (loglevel != -1)
+  if (loglevel != MDBX_LOG_DONTCHANGE)
     mdbx_loglevel = (uint8_t)loglevel;
 #endif
 
-  if (flags != -1) {
-#if !MDBX_DEBUG
-    flags &= MDBX_DBG_DUMP | MDBX_DBG_LEGACY_MULTIOPEN;
-#else
-    flags &= MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_JITTER |
-             MDBX_DBG_DUMP | MDBX_DBG_LEGACY_MULTIOPEN;
+  if (flags != MDBX_DBG_DONTCHANGE) {
+    flags &=
+#if MDBX_DEBUG
+        MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_JITTER |
 #endif
+        MDBX_DBG_DUMP | MDBX_DBG_LEGACY_MULTIOPEN | MDBX_DBG_LEGACY_OVERLAP;
     mdbx_runtime_flags = (uint8_t)flags;
   }
 
-  if (-1 != (intptr_t)logger)
+  if (logger != MDBX_LOGGER_DONTCHANGE)
     mdbx_debug_logger = logger;
   return rc;
 }
@@ -20682,14 +20707,14 @@ static __inline int clz64(uint64_t value) {
   unsigned long index;
 #if defined(_M_AMD64) || defined(_M_ARM64) || defined(_M_X64)
   _BitScanReverse64(&index, value);
-  return index;
+  return 63 - index;
 #else
   if (value > UINT32_MAX) {
     _BitScanReverse(&index, (uint32_t)(value >> 32));
-    return index;
+    return 31 - index;
   }
   _BitScanReverse(&index, (uint32_t)value);
-  return index + 32;
+  return 63 - index;
 #endif
 #endif /* MSVC */
 
@@ -21456,12 +21481,13 @@ MDBX_INTERNAL_FUNC int mdbx_asprintf(char **strp, const char *fmt, ...) {
 #ifndef mdbx_memalign_alloc
 MDBX_INTERNAL_FUNC int mdbx_memalign_alloc(size_t alignment, size_t bytes,
                                            void **result) {
+  assert(is_powerof2(alignment) && alignment >= sizeof(void *));
 #if defined(_WIN32) || defined(_WIN64)
   (void)alignment;
   *result = VirtualAlloc(NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
   return *result ? MDBX_SUCCESS : MDBX_ENOMEM /* ERROR_OUTOFMEMORY */;
 #elif defined(_ISOC11_SOURCE)
-  *result = aligned_alloc(alignment, bytes);
+  *result = aligned_alloc(alignment, roundup_powerof2(bytes, alignment));
   return *result ? MDBX_SUCCESS : errno;
 #elif _POSIX_VERSION >= 200112L
   *result = nullptr;
@@ -23324,9 +23350,9 @@ __dll_export
         0,
         6,
         0,
-        1900,
-        {"2020-01-27T03:00:13+03:00", "f5a69549a8378b75b71140f51326c48fdb118127", "2c08ec21fdf38602b4102e19aa510e0f8ea1e6b0",
-         "v0.6.0-10-g2c08ec21f"},
+        1914,
+        {"2020-02-02T20:49:51+03:00", "75da91ad1e8f4dc97c2c77a073de972b342b5e85", "62a39d84b35303a6069862390049d90e28623495",
+         "v0.6.0-24-g62a39d84b"},
         sourcery};
 
 __dll_export
