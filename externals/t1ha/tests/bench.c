@@ -1,9 +1,6 @@
 /*
- *  Copyright (c) 2016-2018 Positive Technologies, https://www.ptsecurity.com,
+ *  Copyright (c) 2016-2020 Leonid Yuriev <leo@yuriev.ru>,
  *  Fast Positive Hash.
- *
- *  Portions Copyright (c) 2010-2018 Leonid Yuriev <leo@yuriev.ru>,
- *  The 1Hippeus project (t1h).
  *
  *  This software is provided 'as-is', without any express or implied
  *  warranty. In no event will the authors be held liable for any damages
@@ -23,6 +20,7 @@
  */
 
 #include "common.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -40,7 +38,10 @@ void bench(const char *caption,
          value / len, mera.units, len / value, mera.units);
 
   if (mera.flags & timestamp_cycles) {
-    printf(", %6.3f GiB/s @%.1fGHz", GHz_scale * len / value, GHz_scale);
+    if (fabs(round(GHz_scale) - GHz_scale) < 0.1)
+      printf(", %6.3f GiB/s @%.0fGHz", GHz_scale * len / value, GHz_scale);
+    else
+      printf(", %6.3f GiB/s @%.1fGHz", GHz_scale * len / value, GHz_scale);
   } else if ((mera.flags & timestamp_ticks) == 0) {
     printf(", %6.3f GiB/s", len / value);
   }
@@ -149,6 +150,9 @@ void bench_size(const unsigned size, const char *caption) {
     bench("HighwayHash64_sse41", thunk_HighwayHash64_SSE41, buffer, size, seed);
 #endif
     /* TODO: thunk_HighwayHash64_VSX() */
+  }
+  if (is_selected(bench_wyhash)) {
+    bench("wyhash_v4", thunk_wyhash_v4, buffer, size, seed);
   }
   free(buffer);
 }

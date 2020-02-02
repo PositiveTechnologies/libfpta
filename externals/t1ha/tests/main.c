@@ -1,9 +1,6 @@
 /*
- *  Copyright (c) 2016-2018 Positive Technologies, https://www.ptsecurity.com,
+ *  Copyright (c) 2016-2020 Leonid Yuriev <leo@yuriev.ru>,
  *  Fast Positive Hash.
- *
- *  Portions Copyright (c) 2010-2018 Leonid Yuriev <leo@yuriev.ru>,
- *  The 1Hippeus project (t1h).
  *
  *  This software is provided 'as-is', without any express or implied
  *  warranty. In no event will the authors be held liable for any damages
@@ -27,9 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-const unsigned default_option_flags = bench_0 | bench_1 | bench_2 |
-                                      bench_xxhash | bench_highwayhash |
-                                      bench_stadtx | bench_tiny | bench_large;
+const unsigned default_option_flags =
+    bench_0 | bench_1 | bench_2 | bench_xxhash | bench_highwayhash |
+    bench_stadtx | bench_wyhash | bench_tiny | bench_large;
 
 const unsigned available_eas_flags =
 #if T1HA0_AESNI_AVAILABLE
@@ -99,6 +96,7 @@ void usage(void) {
       "Just for comparison:\n"
       "  --xxhash, --no-xxhash     - include/exclude xxHash32 and xxHash64\n"
       "  --stadtx, --no-stadtx     - include/exclude StadtX\n"
+      "  --wyhash, --no-wyhash     - include/exclude wyhash\n"
       "  --highway, --no-highway   - include/exclude Google's HighwayHash.\n");
 }
 
@@ -230,11 +228,14 @@ int main(int argc, const char *argv[]) {
       if (option(argv[i], "xxhash", bench_xxhash))
         continue;
 
-      if (option(argv[i], "highwayhash", bench_highwayhash) ||
-          option(argv[i], "highway", bench_highwayhash))
+      if (option(argv[i], "stadtx", bench_stadtx))
         continue;
 
-      if (option(argv[i], "stadtx", bench_stadtx))
+      if (option(argv[i], "wyhash", bench_wyhash))
+        continue;
+
+      if (option(argv[i], "highwayhash", bench_highwayhash) ||
+          option(argv[i], "highway", bench_highwayhash))
         continue;
 
 #ifndef T1HA0_DISABLED
@@ -369,6 +370,10 @@ int main(int argc, const char *argv[]) {
 
   failed |= verify("StadtX", thunk_StadtX, refval_StadtX);
 
+  if (wyhash_v4_selftest())
+    puts("wyhash SELF-CHECK FAILED!\n");
+  failed |= verify("wyhash_v4", thunk_wyhash_v4, refval_wyhash_v4);
+
   if (failed)
     return EXIT_FAILURE;
 
@@ -391,6 +396,9 @@ int main(int argc, const char *argv[]) {
     } else if (is_selected(bench_64 | bench_stadtx)) {
       hash_function = thunk_StadtX;
       hash_name = "StadtX";
+    } else if (is_selected(bench_64 | bench_wyhash)) {
+      hash_function = thunk_wyhash_v4;
+      hash_name = "wyhash_v4";
 #ifndef T1HA2_DISABLED
     } else if (is_selected(bench_64 | bench_2)) {
       hash_function = t1ha2_atonce;

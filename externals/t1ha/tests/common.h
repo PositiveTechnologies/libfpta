@@ -1,9 +1,6 @@
 /*
- *  Copyright (c) 2016-2018 Positive Technologies, https://www.ptsecurity.com,
+ *  Copyright (c) 2016-2020 Leonid Yuriev <leo@yuriev.ru>,
  *  Fast Positive Hash.
- *
- *  Portions Copyright (c) 2010-2018 Leonid Yuriev <leo@yuriev.ru>,
- *  The 1Hippeus project (t1h).
  *
  *  This software is provided 'as-is', without any express or implied
  *  warranty. In no event will the authors be held liable for any damages
@@ -52,7 +49,7 @@ enum test_flags {
   bench_xxhash = 1u << 4,
   bench_highwayhash = 1u << 5,
   bench_stadtx = 1u << 6,
-  /* 7 */
+  bench_wyhash = 1u << 7,
 
   bench_0 = 1u << 8,
   bench_1 = 1u << 9,
@@ -88,7 +85,8 @@ enum test_flags {
   bench_funcs_flags = bench_0 | bench_1 | bench_2 | bench_3 | bench_4 |
                       bench_5 | bench_6 | bench_7 | bench_32 | bench_64 |
                       bench_le | bench_be | 1u << 28 | 1u << 29 | 1u << 30 |
-                      1u << 31 | bench_xxhash | bench_highwayhash | bench_stadtx
+                      1u << 31 | bench_xxhash | bench_highwayhash |
+                      bench_stadtx | bench_wyhash
 };
 
 extern unsigned option_flags, disabled_option_flags;
@@ -171,3 +169,8 @@ uint64_t thunk_HighwayHash64_SSE41(const void *input, size_t length,
                                    uint64_t seed);
 uint64_t thunk_HighwayHash64_VSX(const void *input, size_t length,
                                  uint64_t seed);
+
+/* wyhash v4 */
+uint64_t thunk_wyhash_v4(const void *input, size_t length, uint64_t seed);
+extern const uint64_t refval_wyhash_v4[];
+bool wyhash_v4_selftest(void);
