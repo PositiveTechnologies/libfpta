@@ -4844,6 +4844,13 @@ TEST(Smoke, TransacionRestart) {
     ASSERT_EQ(ENOENT, errno);
   }
 
+  // взводим флажок MDBX_DBG_LEGACY_OVERLAP, чтобы иметь возмоность наложить
+  // читающую и пишущую транзакцию в одном потоке
+  const int debug_flags = mdbx_setup_debug(
+      MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE);
+  mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags | MDBX_DBG_LEGACY_OVERLAP,
+                   MDBX_LOGGER_DONTCHANGE);
+
   // создаем базу
   fpta_db *rw_db = nullptr;
   ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
@@ -4991,6 +4998,8 @@ TEST(Smoke, TransacionRestart) {
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(ro_db));
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+  // восстанавливаем отладочные флажки
+  mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags, MDBX_LOGGER_DONTCHANGE);
 }
 
 //----------------------------------------------------------------------------
@@ -5014,6 +5023,7 @@ public:
 
   std::map<unsigned, unsigned> map_pk2se;
   unsigned linear_pk;
+  int debug_flags;
 
   virtual void SetUp() {
     index = GTEST_TUPLE_NAMESPACE_::get<0>(GetParam());
@@ -5025,6 +5035,13 @@ public:
     skipped = GTEST_IS_EXECUTION_TIMEOUT();
     if (skipped)
       return;
+
+    // взводим флажок MDBX_DBG_LEGACY_OVERLAP, чтобы иметь возмоность наложить
+    // читающую и пишущую транзакцию в одном потоке
+    debug_flags = mdbx_setup_debug(MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE,
+                                   MDBX_LOGGER_DONTCHANGE);
+    mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags | MDBX_DBG_LEGACY_OVERLAP,
+                     MDBX_LOGGER_DONTCHANGE);
 
     // чистим
     if (REMOVE_FILE(testdb_name) != 0) {
@@ -5123,6 +5140,8 @@ public:
       ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
       ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
     }
+    // восстанавливаем отладочные флажки
+    mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags, MDBX_LOGGER_DONTCHANGE);
   }
 
   void Debug(const char *oper, const fptu_ro &row) {
@@ -5437,6 +5456,13 @@ TEST(Smoke, CursorRERERE_drop_table) {
     ASSERT_EQ(ENOENT, errno);
   }
 
+  // взводим флажок MDBX_DBG_LEGACY_OVERLAP, чтобы иметь возмоность наложить
+  // читающую и пишущую транзакцию в одном потоке
+  const int debug_flags = mdbx_setup_debug(
+      MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE);
+  mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags | MDBX_DBG_LEGACY_OVERLAP,
+                   MDBX_LOGGER_DONTCHANGE);
+
   // создаем базу
   fpta_db *rw_db = nullptr;
   ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
@@ -5567,6 +5593,8 @@ TEST(Smoke, CursorRERERE_drop_table) {
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(ro_db));
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+  // восстанавливаем отладочные флажки
+  mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags, MDBX_LOGGER_DONTCHANGE);
 }
 
 //----------------------------------------------------------------------------
