@@ -399,13 +399,13 @@ enum fpta_error {
   FPTA_NOTFOUND = -30798 /* key/data pair not found */,
 
   FPTA_DB_REF = -30797 /* wrong page address/number,
-    this usually indicates corruption */
+                        * this usually indicates corruption */
   ,
 
   FPTA_DB_DATA = -30796 /* Located page was wrong data */,
 
-  FPTA_DB_PANIC = -30795 /* Update of meta page failed
-    or environment had fatal error */
+  FPTA_DB_PANIC = -30795 /* Environment had fatal error (i.e. update of meta
+                            page failed and so on) */
   ,
 
   FPTA_DB_MISMATCH = -30794 /* DB version mismatch libmdbx */,
@@ -419,56 +419,65 @@ enum fpta_error {
   FPTA_READERS_FULL = -30790 /* Too many readers (maxreaders reached) */,
 
   FPTA_TXN_FULL = -30788 /* Transaction has too many dirty pages,
-    e.g. a lot of changes. */
+                          * i.e transaction too big */
   ,
 
   FPTA_CURSOR_FULL = -30787 /* Cursor stack too deep (mdbx internal) */,
 
   FPTA_PAGE_FULL = -30786 /* Page has not enough space (mdbx internal) */,
 
-  FPTA_DB_RESIZED = -30785 /* Database contents grew
-    beyond environment mapsize */
+  FPTA_DB_RESIZED = -30785 /* Database contents grew beyond environment mapsize
+                            * and engine was unable to extend mapping, e.g.
+                            * since address space is unavailable or busy */
   ,
 
-  FPTA_DB_INCOMPAT = -30784 /* Operation and DB incompatible (mdbx internal),
-   This can mean:
+  FPTA_DB_INCOMPAT = -30784 /* Environment or database is not compatible with
+  the requested operation or the specified flags. This can mean:
      - The operation expects an MDBX_DUPSORT/MDBX_DUPFIXED database.
      - Opening a named DB when the unnamed DB has MDBX_DUPSORT/MDBX_INTEGERKEY.
      - Accessing a data record as a database, or vice versa.
      - The database was dropped and recreated with different flags. */
   ,
 
-  FPTA_BAD_RSLOT = -30783 /* Invalid reuse of reader locktable slot */,
-
-  FPTA_BAD_TXN = -30782 /* Transaction must abort,
-    e.g. has a child, or is invalid */
+  FPTA_BAD_RSLOT =
+      -30783 /* Invalid reuse of reader locktable slot,
+              * e.g. read-transaction already run for current thread */
   ,
 
-  FPTA_BAD_VALSIZE = -30781 /* Unsupported size of key/DB name/data,
-    or wrong DUPFIXED size */
+  FPTA_BAD_TXN = -30782 /* Transaction is not valid for requested operation,
+                         * e.g. had errored and be must aborted, has a child, or
+                         * is invalid */
   ,
 
-  FPTA_BAD_DBI = -30780 /* The specified DBI was changed unexpectedly */,
-
-  FPTA_DB_PROBLEM = -30779 /* Unexpected internal mdbx problem,
-    txn should abort */
+  FPTA_BAD_VALSIZE = -30781 /* Invalid size or alignment of key or data for
+                             * target database, either invalid subDB name */
   ,
 
-  FPTA_BUSY = -30778 /* Another write transaction is running */
+  FPTA_BAD_DBI = -30780 /* The specified DBI-handle is invalid
+                         * or changed by another thread/transaction */
   ,
 
-  FPTA_EMULTIVAL = -30421 /* the mdbx_put() or mdbx_replace() was called
-    for a key, that has more that one associated value. */
+  FPTA_DB_PROBLEM = -30779 /* Unexpected internal error,
+                            * transaction should be aborted */
   ,
 
-  FPTA_EBADSIGN = -30420 /* wrong signature of a runtime object(s) */,
+  FPTA_BUSY = -30778 /* Another write transaction is running or environment is
+                      * already used while opening with MDBX_EXCLUSIVE flag */
+  ,
 
-  /* Database should be recovered, but this could NOT be done automatically
-   * right now (e.g. in readonly mode and so forth). */
+  FPTA_EMULTIVAL =
+      -30421 /* The specified key has more than one associated value */
+  ,
+
+  FPTA_EBADSIGN = -30420 /* Bad signature of a runtime object(s),
+                          * e.g. memory corruption */
+  ,
+
+  /* Database should be recovered, but this could NOT be done for now
+   * since it opened in read-only mode. */
   FPTA_EWANNA_RECOVERY = -30419,
 
-  /* The given key value is mismatched to the current cursor position,
-   * when mdbx_cursor_put() called with MDBX_CURRENT option. */
+  /* The given key value is mismatched to the current cursor position */
   FPTA_EKEYMISMATCH = -30418,
 
   /* Database is too large for current system,
@@ -477,8 +486,10 @@ enum fpta_error {
 
   /* A thread has attempted to use a not owned object,
    * e.g. a transaction that started by another thread. */
-  FPTA_ETHREAD_MISMATCH = -30416
+  FPTA_ETHREAD_MISMATCH = -30416,
 
+  /* Overlapping read and write transactions for the current thread */
+  FPTA_TXN_OVERLAPPING = -30415
 };
 
 /* Возвращает краткое описание ошибки по её коду.
