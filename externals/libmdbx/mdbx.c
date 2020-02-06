@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 8b2a20d6d2613bc091f180d5b48eefb841279bf7cc33b55a18312b51e46a0fea_v0_6_0_24_g62a39d84b
+#define MDBX_BUILD_SOURCERY 8336fd0b821b2c3e17f2518b02982a4f1e2fde0deb0a47b9620ba0d94cc3ff38_v0_6_0_28_g2db93efb
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -5367,13 +5367,13 @@ static int lcklist_detach_locked(MDBX_env *env) {
     TYPE_LIST *const begin = first, *const end = begin + length;               \
                                                                                \
     while (length > 3) {                                                       \
-      const unsigned half = length >> 1;                                       \
-      TYPE_LIST *const middle = first + half;                                  \
+      const unsigned whole = length;                                           \
+      length >>= 1;                                                            \
+      TYPE_LIST *const middle = first + length;                                \
       if (CMP(*middle, item)) {                                                \
         first = middle + 1;                                                    \
-        length -= half + 1;                                                    \
-      } else                                                                   \
-        length = half;                                                         \
+        length = whole - length - 1;                                           \
+      }                                                                        \
     }                                                                          \
                                                                                \
     switch (length) {                                                          \
@@ -5381,17 +5381,21 @@ static int lcklist_detach_locked(MDBX_env *env) {
       if (!CMP(*first, item))                                                  \
         break;                                                                 \
       ++first;                                                                 \
-      /* fall through */                                                       \
-      __fallthrough;                                                           \
+      __fallthrough /* fall through */;                                        \
     case 2:                                                                    \
       if (!CMP(*first, item))                                                  \
         break;                                                                 \
       ++first;                                                                 \
-      /* fall through */                                                       \
-      __fallthrough;                                                           \
+      __fallthrough /* fall through */;                                        \
     case 1:                                                                    \
-      if (CMP(*first, item))                                                   \
-        ++first;                                                               \
+      if (!CMP(*first, item))                                                  \
+        break;                                                                 \
+      ++first;                                                                 \
+      __fallthrough /* fall through */;                                        \
+    case 0:                                                                    \
+      break;                                                                   \
+    default:                                                                   \
+      __unreachable();                                                         \
     }                                                                          \
                                                                                \
     if (mdbx_audit_enabled()) {                                                \
@@ -6050,7 +6054,7 @@ static const char *__mdbx_strerr(int errnum) {
       "MDBX_VERSION_MISMATCH: DB version mismatch libmdbx",
       "MDBX_INVALID: File is not an MDBX file",
       "MDBX_MAP_FULL: Environment mapsize limit reached",
-      "MDBX_DBS_FULL: Too may DBI-handles (maxdbs reached)",
+      "MDBX_DBS_FULL: Too many DBI-handles (maxdbs reached)",
       "MDBX_READERS_FULL: Too many readers (maxreaders reached)",
       NULL /* MDBX_TLS_FULL (-30789): unused in MDBX */,
       "MDBX_TXN_FULL: Transaction has too many dirty pages,"
@@ -23350,9 +23354,9 @@ __dll_export
         0,
         6,
         0,
-        1914,
-        {"2020-02-02T20:49:51+03:00", "75da91ad1e8f4dc97c2c77a073de972b342b5e85", "62a39d84b35303a6069862390049d90e28623495",
-         "v0.6.0-24-g62a39d84b"},
+        1918,
+        {"2020-02-06T19:46:59+03:00", "143d91534bc078a1296b560232df9b29e1a599cc", "2db93efb14d6984e41d4019953cea6b93368b6cd",
+         "v0.6.0-28-g2db93efb"},
         sourcery};
 
 __dll_export
