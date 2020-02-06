@@ -1,3 +1,5 @@
+<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
+
 libfpta
 ==============================================
 Fast Positive Tables, aka "Позитивные Таблицы"
@@ -98,4 +100,3 @@ $ ldd libfpta.so
 
 -----
 ### The [repository now only mirrored on the Github](https://abf.io/erthink/libfpta) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
-<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
