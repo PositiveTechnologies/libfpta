@@ -248,7 +248,7 @@
 
 #if defined(__GNUC__) || __has_attribute(__format__)
 #define __printf_args(format_index, first_arg)                                 \
-  __attribute__((__format__(printf, format_index, first_arg)))
+  __attribute__((__format__(__printf__, format_index, first_arg)))
 #else
 #define __printf_args(format_index, first_arg)
 #endif
@@ -343,9 +343,7 @@
 
 #ifndef __optimize
 #if defined(__OPTIMIZE__)
-#if defined(__clang__) && !__has_attribute(__optimize__)
-#define __optimize(ops)
-#elif defined(__GNUC__) || __has_attribute(__optimize__)
+#if (defined(__GNUC__) && !defined(__clang__)) || __has_attribute(__optimize__)
 #define __optimize(ops) __attribute__((__optimize__(ops)))
 #else
 #define __optimize(ops)
@@ -406,10 +404,8 @@
 #define __noinline __attribute__((__noinline__))
 #elif defined(_MSC_VER)
 #define __noinline __declspec(noinline)
-#elif defined(__SUNPRO_C) || defined(__sun) || defined(sun)
-#define __noinline inline
-#elif !defined(__INTEL_COMPILER)
-#define __noinline /* FIXME ? */
+#else
+#define __noinline
 #endif
 #endif /* __noinline */
 
@@ -433,8 +429,8 @@
 
 #ifndef __dll_export
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-#if defined(__GNUC__) || __has_attribute(dllexport)
-#define __dll_export __attribute__((dllexport))
+#if defined(__GNUC__) || __has_attribute(__dllexport__)
+#define __dll_export __attribute__((__dllexport__))
 #else
 #define __dll_export __declspec(dllexport)
 #endif
@@ -447,8 +443,8 @@
 
 #ifndef __dll_import
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-#if defined(__GNUC__) || __has_attribute(dllimport)
-#define __dll_import __attribute__((dllimport))
+#if defined(__GNUC__) || __has_attribute(__dllimport__)
+#define __dll_import __attribute__((__dllimport__))
 #else
 #define __dll_import __declspec(dllimport)
 #endif
