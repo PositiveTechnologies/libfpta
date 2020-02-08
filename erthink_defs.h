@@ -520,17 +520,6 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #endif
 #endif /* unlikely */
 
-/* Workaround for Coverity Scan */
-#if defined(__COVERITY__) && __GNUC_PREREQ(7, 0) && !defined(__cplusplus)
-typedef float _Float32;
-typedef double _Float32x;
-typedef double _Float64;
-typedef long double _Float64x;
-typedef float _Float128 __attribute__((__mode__(__TF__)));
-typedef __complex__ float __cfloat128 __attribute__((__mode__(__TC__)));
-typedef _Complex float __cfloat128 __attribute__((__mode__(__TC__)));
-#endif /* Workaround for Coverity Scan */
-
 #if !defined(alignas) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #if defined(__GNUC__) || defined(__clang__) || __has_attribute(__aligned__)
 #define alignas(N) __attribute__((__aligned__(N)))
