@@ -20,7 +20,7 @@
  *
  * The kind of lightweight linearized tuples, which are extremely handy
  * to machining, including cases with shared memory.
- * Please see README.md at https://github.com/leo-yuriev/libfptu
+ * Please see README.md at https://github.com/erthink/libfptu
  *
  * The Future will (be) Positive. Всё будет хорошо.
  *
