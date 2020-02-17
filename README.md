@@ -1,6 +1,4 @@
-### The [repository now only mirrored on the Github](https://abf.io/erthink/libfptu) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
 <!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
------
 
 libfptu
 ==============================================
@@ -343,3 +341,6 @@ Idx Name          Size      VMA       LMA       File off  Algn
  11 .text         00005dda  00003aa0  00003aa0  00003aa0  2**4
                   CONTENTS, ALLOC, LOAD, READONLY, CODE
 ```
+
+-----
+#### This is a mirror of the origin repository that was moved to [abf.io](https://abf.io/erthink/) because of discriminatory restrictions for Russian Crimea.
