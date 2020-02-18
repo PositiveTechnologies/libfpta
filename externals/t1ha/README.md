@@ -1,3 +1,5 @@
+<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
+
 t1ha
 =====
 Fast Positive Hash, aka "Позитивный Хэш"
@@ -7,10 +9,10 @@ Included in the [Awesome C](https://github.com/kozross/awesome-c) list of open s
 *The Future will (be) [Positive](https://www.ptsecurity.com). Всё будет хорошо.*
 
 [![License: Zlib](https://img.shields.io/badge/License-Zlib-lightgrey.svg)](https://opensource.org/licenses/Zlib)
-[![Build Status](https://travis-ci.org/leo-yuriev/t1ha.svg?branch=master)](https://travis-ci.org/leo-yuriev/t1ha)
-[![Build status](https://ci.appveyor.com/api/projects/status/ptug5fl2ouxdo68h/branch/master?svg=true)](https://ci.appveyor.com/project/leo-yuriev/t1ha/branch/master)
-[![CircleCI](https://circleci.com/gh/leo-yuriev/t1ha/tree/master.svg?style=svg)](https://circleci.com/gh/leo-yuriev/t1ha/tree/master)
-[![Coverity Scan Status](https://scan.coverity.com/projects/12918/badge.svg)](https://scan.coverity.com/projects/leo-yuriev-t1ha)
+[![Build Status](https://travis-ci.org/erthink/t1ha.svg?branch=master)](https://travis-ci.org/erthink/t1ha)
+[![Build status](https://ci.appveyor.com/api/projects/status/ptug5fl2ouxdo68h/branch/master?svg=true)](https://ci.appveyor.com/project/erthink/t1ha/branch/master)
+[![CircleCI](https://circleci.com/gh/erthink/t1ha/tree/master.svg?style=svg)](https://circleci.com/gh/erthink/t1ha/tree/master)
+[![Coverity Scan Status](https://scan.coverity.com/projects/12918/badge.svg)](https://scan.coverity.com/projects/erthink-t1ha)
 
 ## Briefly, it is a portable non-cryptographic 64-bit hash function:
 1. Intended for 64-bit little-endian platforms, predominantly for Elbrus and x86_64,
@@ -28,9 +30,11 @@ hash-functions (which do not use specific hardware tricks).
     [E2K](https://en.wikipedia.org/wiki/Elbrus_2000), architectures with
     [SIMD](https://en.wikipedia.org/wiki/SIMD) and most
     [RISC-V](https://en.wikipedia.org/wiki/RISC-V) implementations.
-    In addition, it should be noted that wyhash can lose entropy (similarly
-    as described below). For instance, when data could be correlated with
-    the `seed ^ _wypN` values or equal to it.
+    In addition, it should be noted that _wyhash_ have a "blinding multiplication"
+    flaw and can lose entropy (similarly as described below).
+    For instance, when data could be correlated with the `seed ^ _wypN` values or equal to it.
+    Another case is where one of `_wymum()` multipliers becomes zero. In result of such blinding all
+    previous data will not be influence to the hash value.
 
 3. Licensed under [zlib License](https://en.wikipedia.org/wiki/Zlib_License).
 
@@ -56,7 +60,8 @@ On the other hand, the result of the inner multiplication becomes zero
 when **_(m[2i] + k[2i]) mod 2^32 == 0_** or **_(m[2i+1] + k[2i+1]) mod
 2^32 == 0_**, in which case the opposite multiplier will not affect the
 result of hashing, i.e. NH function just ignores part of the input data.
-That's all. For more related info please google for "[UMAC NH key
+I called this an "blinding multiplication". That's all.
+More useful related information can be googled by "[UMAC NH key
 recovery
 attack](https://www.google.com/search?q=umac+nh+key+recovery+attack)".
 
@@ -468,5 +473,5 @@ md5_32a         	|       433.03	|   508.98 |
 crc32           	|       342.27	|   142.06 | poor (insecure, 8589.93x collisions, distrib)
 
 -----
-### The [repository was moved out from Github](https://abf.io/erthink/t1ha) due to illegal discriminatory restrictions for Russian Crimea and for sovereign crimeans.
-<!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
+
+#### This is a mirror of the origin repository that was moved to [abf.io](https://abf.io/erthink/) because of discriminatory restrictions for Russian Crimea.
