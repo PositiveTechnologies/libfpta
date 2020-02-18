@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 8336fd0b821b2c3e17f2518b02982a4f1e2fde0deb0a47b9620ba0d94cc3ff38_v0_6_0_28_g2db93efb
+#define MDBX_BUILD_SOURCERY 85287e723bd2f144400ba1bda5f40f87975e309e14b677433b9d81835880fe7e_v0_6_0_35_gbd3f234bc
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -211,10 +211,8 @@
 #       define __noinline __attribute__((__noinline__))
 #   elif defined(_MSC_VER)
 #       define __noinline __declspec(noinline)
-#   elif defined(__SUNPRO_C) || defined(__sun) || defined(sun)
-#       define __noinline inline
-#   elif !defined(__INTEL_COMPILER)
-#       define __noinline /* FIXME ? */
+#   else
+#       define __noinline
 #   endif
 #endif /* __noinline */
 
@@ -257,7 +255,7 @@
 #endif /* __unreachable */
 
 #ifndef __prefetch
-#   if defined(__GNUC__) || defined(__clang__)
+#   if defined(__GNUC__) || defined(__clang__) || __has_builtin(__builtin_prefetch)
 #       define __prefetch(ptr) __builtin_prefetch(ptr)
 #   else
 #       define __prefetch(ptr) __noop(ptr)
@@ -330,15 +328,13 @@
 
 #ifndef __optimize
 #   if defined(__OPTIMIZE__)
-#     if defined(__clang__) && !__has_attribute(__optimize__)
-#           define __optimize(ops)
-#       elif defined(__GNUC__) || __has_attribute(__optimize__)
+#       if (defined(__GNUC__) && !defined(__clang__)) || __has_attribute(__optimize__)
 #           define __optimize(ops) __attribute__((__optimize__(ops)))
 #       else
 #           define __optimize(ops)
 #       endif
 #   else
-#           define __optimize(ops)
+#       define __optimize(ops)
 #   endif
 #endif /* __optimize */
 
@@ -405,7 +401,7 @@
 #ifndef __printf_args
 #   if defined(__GNUC__) || __has_attribute(__format__)
 #       define __printf_args(format_index, first_arg)                          \
-            __attribute__((__format__(printf, format_index, first_arg)))
+            __attribute__((__format__(__printf__, format_index, first_arg)))
 #   else
 #       define __printf_args(format_index, first_arg)
 #   endif
@@ -1426,6 +1422,12 @@ typedef DWORD(WINAPI *MDBX_OfferVirtualMemory(
 );
 MDBX_INTERNAL_VAR MDBX_OfferVirtualMemory mdbx_OfferVirtualMemory;
 #endif /* unused for now */
+
+typedef enum _SECTION_INHERIT { ViewShare = 1, ViewUnmap = 2 } SECTION_INHERIT;
+
+typedef NTSTATUS(NTAPI *MDBX_NtExtendSection)(IN HANDLE SectionHandle,
+                                              IN PLARGE_INTEGER NewSectionSize);
+MDBX_INTERNAL_VAR MDBX_NtExtendSection mdbx_NtExtendSection;
 
 #endif /* Windows */
 
@@ -7764,7 +7766,7 @@ __hot static int mdbx_page_alloc(MDBX_cursor *mc, const unsigned num,
       flags &= ~(MDBX_ALLOC_GC | MDBX_COALESCE | MDBX_LIFORECLAIM);
     } else if (unlikely(txn->mt_dbs[FREE_DBI].md_entries == 0)) {
       /* avoid (recursive) search inside empty tree and while tree is updating,
-       * https://github.com/leo-yuriev/libmdbx/issues/31 */
+       * https://github.com/erthink/libmdbx/issues/31 */
       flags &= ~MDBX_ALLOC_GC;
     }
   }
@@ -12806,7 +12808,7 @@ int __cold mdbx_env_open(MDBX_env *env, const char *pathname, unsigned flags,
   } else {
 #if MDBX_MMAP_INCOHERENT_FILE_WRITE
     /* Temporary `workaround` for OpenBSD kernel's flaw.
-     * See https://github.com/leo-yuriev/libmdbx/issues/67 */
+     * See https://github.com/erthink/libmdbx/issues/67 */
     if ((flags & MDBX_WRITEMAP) == 0) {
       if (flags & MDBX_ACCEDE)
         flags |= MDBX_WRITEMAP;
@@ -21228,23 +21230,6 @@ typedef struct _SECTION_BASIC_INFORMATION {
   LARGE_INTEGER SectionSize;
 } SECTION_BASIC_INFORMATION, *PSECTION_BASIC_INFORMATION;
 
-typedef enum _SECTION_INFORMATION_CLASS {
-  SectionBasicInformation,
-  SectionImageInformation,
-  SectionRelocationInformation, // name:wow64:whNtQuerySection_SectionRelocationInformation
-  MaxSectionInfoClass
-} SECTION_INFORMATION_CLASS;
-
-extern NTSTATUS NTAPI NtQuerySection(
-    IN HANDLE SectionHandle, IN SECTION_INFORMATION_CLASS InformationClass,
-    OUT PVOID InformationBuffer, IN ULONG InformationBufferSize,
-    OUT PULONG ResultLength OPTIONAL);
-
-extern NTSTATUS NTAPI NtExtendSection(IN HANDLE SectionHandle,
-                                      IN PLARGE_INTEGER NewSectionSize);
-
-typedef enum _SECTION_INHERIT { ViewShare = 1, ViewUnmap = 2 } SECTION_INHERIT;
-
 extern NTSTATUS NTAPI NtMapViewOfSection(
     IN HANDLE SectionHandle, IN HANDLE ProcessHandle, IN OUT PVOID *BaseAddress,
     IN ULONG_PTR ZeroBits, IN SIZE_T CommitSize,
@@ -22577,8 +22562,10 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
 
   if (!(flags & MDBX_RDONLY) && limit == map->limit && size > map->current) {
     /* growth rw-section */
+    if (!mdbx_NtExtendSection)
+      return ERROR_CALL_NOT_IMPLEMENTED /* workaround for Wine */;
     SectionSize.QuadPart = size;
-    status = NtExtendSection(map->section, &SectionSize);
+    status = mdbx_NtExtendSection(map->section, &SectionSize);
     if (!NT_SUCCESS(status))
       return ntstatus2errcode(status);
     map->current = size;
@@ -23354,9 +23341,9 @@ __dll_export
         0,
         6,
         0,
-        1918,
-        {"2020-02-06T19:46:59+03:00", "143d91534bc078a1296b560232df9b29e1a599cc", "2db93efb14d6984e41d4019953cea6b93368b6cd",
-         "v0.6.0-28-g2db93efb"},
+        1925,
+        {"2020-02-18T02:22:47+03:00", "6a5ec1a23c191ee229368994de46c2927727dbeb", "bd3f234bce98c9744b50ebf042ae3e1919f19bdd",
+         "v0.6.0-35-gbd3f234bc"},
         sourcery};
 
 __dll_export
@@ -24091,6 +24078,7 @@ static uint64_t WINAPI stub_GetTickCount64(void) {
 
 /*----------------------------------------------------------------------------*/
 #ifndef MDBX_ALLOY
+MDBX_NtExtendSection mdbx_NtExtendSection;
 MDBX_GetFileInformationByHandleEx mdbx_GetFileInformationByHandleEx;
 MDBX_GetVolumeInformationByHandleW mdbx_GetVolumeInformationByHandleW;
 MDBX_GetFinalPathNameByHandleW mdbx_GetFinalPathNameByHandleW;
@@ -24149,6 +24137,8 @@ static void mdbx_winnt_import(void) {
   const HINSTANCE hNtdll = GetModuleHandleA("ntdll.dll");
   mdbx_NtFsControlFile =
       (MDBX_NtFsControlFile)GetProcAddress(hNtdll, "NtFsControlFile");
+  mdbx_NtExtendSection =
+      (MDBX_NtExtendSection)GetProcAddress(hNtdll, "NtExtendSection");
 }
 #else /* LCK-implementation */
 /*

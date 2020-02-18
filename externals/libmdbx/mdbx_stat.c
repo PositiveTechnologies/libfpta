@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 8336fd0b821b2c3e17f2518b02982a4f1e2fde0deb0a47b9620ba0d94cc3ff38_v0_6_0_28_g2db93efb
+#define MDBX_BUILD_SOURCERY 85287e723bd2f144400ba1bda5f40f87975e309e14b677433b9d81835880fe7e_v0_6_0_35_gbd3f234bc
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -233,10 +233,8 @@
 #       define __noinline __attribute__((__noinline__))
 #   elif defined(_MSC_VER)
 #       define __noinline __declspec(noinline)
-#   elif defined(__SUNPRO_C) || defined(__sun) || defined(sun)
-#       define __noinline inline
-#   elif !defined(__INTEL_COMPILER)
-#       define __noinline /* FIXME ? */
+#   else
+#       define __noinline
 #   endif
 #endif /* __noinline */
 
@@ -279,7 +277,7 @@
 #endif /* __unreachable */
 
 #ifndef __prefetch
-#   if defined(__GNUC__) || defined(__clang__)
+#   if defined(__GNUC__) || defined(__clang__) || __has_builtin(__builtin_prefetch)
 #       define __prefetch(ptr) __builtin_prefetch(ptr)
 #   else
 #       define __prefetch(ptr) __noop(ptr)
@@ -352,15 +350,13 @@
 
 #ifndef __optimize
 #   if defined(__OPTIMIZE__)
-#     if defined(__clang__) && !__has_attribute(__optimize__)
-#           define __optimize(ops)
-#       elif defined(__GNUC__) || __has_attribute(__optimize__)
+#       if (defined(__GNUC__) && !defined(__clang__)) || __has_attribute(__optimize__)
 #           define __optimize(ops) __attribute__((__optimize__(ops)))
 #       else
 #           define __optimize(ops)
 #       endif
 #   else
-#           define __optimize(ops)
+#       define __optimize(ops)
 #   endif
 #endif /* __optimize */
 
@@ -427,7 +423,7 @@
 #ifndef __printf_args
 #   if defined(__GNUC__) || __has_attribute(__format__)
 #       define __printf_args(format_index, first_arg)                          \
-            __attribute__((__format__(printf, format_index, first_arg)))
+            __attribute__((__format__(__printf__, format_index, first_arg)))
 #   else
 #       define __printf_args(format_index, first_arg)
 #   endif
@@ -1448,6 +1444,12 @@ typedef DWORD(WINAPI *MDBX_OfferVirtualMemory(
 );
 MDBX_INTERNAL_VAR MDBX_OfferVirtualMemory mdbx_OfferVirtualMemory;
 #endif /* unused for now */
+
+typedef enum _SECTION_INHERIT { ViewShare = 1, ViewUnmap = 2 } SECTION_INHERIT;
+
+typedef NTSTATUS(NTAPI *MDBX_NtExtendSection)(IN HANDLE SectionHandle,
+                                              IN PLARGE_INTEGER NewSectionSize);
+MDBX_INTERNAL_VAR MDBX_NtExtendSection mdbx_NtExtendSection;
 
 #endif /* Windows */
 
