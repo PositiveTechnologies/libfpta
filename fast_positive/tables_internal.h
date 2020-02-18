@@ -21,7 +21,7 @@
  * Ultra fast, compact, embeddable storage engine for (semi)structured data:
  * multiprocessing with zero-overhead, full ACID semantics with MVCC,
  * variety of indexes, saturation, sequences and much more.
- * Please see README.md at https://github.com/leo-yuriev/libfpta
+ * Please see README.md at https://github.com/erthink/libfpta
  *
  * The Future will (be) Positive. Всё будет хорошо.
  *

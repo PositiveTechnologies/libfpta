@@ -12,13 +12,13 @@ variety of indexes, saturation, sequences and much more.
 *The Future will (be) [Positive](https://www.ptsecurity.com). Всё будет хорошо.*
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Build Status](https://travis-ci.org/leo-yuriev/libfpta.svg?branch=master)](https://travis-ci.org/leo-yuriev/libfpta)
-[![Build status](https://ci.appveyor.com/api/projects/status/wiixsody1o9474g9/branch/master?svg=true)](https://ci.appveyor.com/project/leo-yuriev/libfpta/branch/master)
-[![CircleCI](https://circleci.com/gh/leo-yuriev/libfpta/tree/master.svg?style=svg)](https://circleci.com/gh/leo-yuriev/libfpta/tree/master)
-[![Coverity Scan Status](https://scan.coverity.com/projects/12920/badge.svg)](https://scan.coverity.com/projects/leo-yuriev-libfpta)
+[![Build Status](https://travis-ci.org/erthink/libfpta.svg?branch=master)](https://travis-ci.org/erthink/libfpta)
+[![Build status](https://ci.appveyor.com/api/projects/status/wiixsody1o9474g9/branch/master?svg=true)](https://ci.appveyor.com/project/erthink/libfpta/branch/master)
+[![CircleCI](https://circleci.com/gh/erthink/libfpta/tree/master.svg?style=svg)](https://circleci.com/gh/erthink/libfpta/tree/master)
+[![Coverity Scan Status](https://scan.coverity.com/projects/12920/badge.svg)](https://scan.coverity.com/projects/erthink-libfpta)
 
-English version [by Google](https://translate.googleusercontent.com/translate_c?act=url&ie=UTF8&sl=ru&tl=en&u=https://github.com/leo-yuriev/libfpta/tree/master)
-and [by Yandex](https://translate.yandex.ru/translate?url=https%3A%2F%2Fgithub.com%2Fleo-yuriev%2Flibfpta%2Ftree%2Fmaster&lang=ru-en).
+English version [by Google](https://translate.googleusercontent.com/translate_c?act=url&ie=UTF8&sl=ru&tl=en&u=https://github.com/erthink/libfpta/tree/master)
+and [by Yandex](https://translate.yandex.ru/translate?url=https%3A%2F%2Fgithub.com%2Ferthink%2Flibfpta%2Ftree%2Fmaster&lang=ru-en).
 
 
 ## Кратко
@@ -55,7 +55,7 @@ _"Позитивные Таблицы"_ основываются на [B+Tree](h
 Устойчивость к сбоям и отсутствие фазы восстановления. Возможность
 изменения данных только в памяти с отложенной асинхронной фиксацией на диске.
 
-"Позитивные Таблицы" опираются на [libfptu](https://github.com/leo-yuriev/libfptu) (aka "Позитивные Кортежи")
+"Позитивные Таблицы" опираются на [libfptu](https://github.com/erthink/libfptu) (aka "Позитивные Кортежи")
 для представления данных и на [libmdbx](https://github.com/ReOpen/libmdbx)
 для их хранения, а также используют [t1ha](https://github.com/PositiveTechnologies/t1ha) (aka "Позитивный Хэш").
 
