@@ -19,7 +19,7 @@ addons:
 
   coverity_scan:
     project:
-      name: "leo-yuriev/libfptu"
+      name: "erthink/libfptu"
       description: "Build submitted via Travis CI"
     notification_email: leo@yuriev.ru
     build_command_prepend: "git fetch --unshallow --tags --prune && git submodule foreach --recursive git fetch --unshallow --tags --prune && cmake ."

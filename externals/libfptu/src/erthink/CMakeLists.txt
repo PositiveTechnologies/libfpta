@@ -15,7 +15,7 @@
 
 ##
 ##  This CMakeLists.txt required for testing, but most things are header-only.
-##  https://github.com/leo-yuriev/erthink
+##  https://github.com/erthink/erthink
 ##
 
 cmake_minimum_required(VERSION 3.8.2)

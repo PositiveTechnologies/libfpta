@@ -1,6 +1,6 @@
 ﻿/*
  *  Fast Positive Tuples (libfptu), aka Позитивные Кортежи
- *  Copyright 2016-2019 Leonid Yuriev <leo@yuriev.ru>
+ *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -217,25 +217,6 @@
 #endif
 #endif /* NDEBUG_CONSTEXPR */
 
-/* Crutch for case when OLD GLIBC++ (without std::max_align_t)
- * is coupled with MODERN C++ COMPILER (with __cpp_aligned_new) */
-#ifndef ERTHINK_PROVIDE_ALIGNED_NEW
-#if defined(__cpp_aligned_new) &&                                              \
-    (!defined(__GLIBCXX__) || defined(_GLIBCXX_HAVE_ALIGNED_ALLOC))
-#define ERTHINK_PROVIDE_ALIGNED_NEW 1
-#else
-#define ERTHINK_PROVIDE_ALIGNED_NEW 0
-#endif
-#endif /* ERTHINK_PROVIDE_ALIGNED_NEW */
-
-#ifndef ERTHINK_NAME_PREFIX
-#ifdef __cplusplus
-#define ERTHINK_NAME_PREFIX(NAME) NAME
-#else
-#define ERTHINK_NAME_PREFIX(NAME) erthink_##NAME
-#endif
-#endif /* ERTHINK_NAME_PREFIX */
-
 #ifndef constexpr_intrin
 #ifdef __GNUC__
 #define constexpr_intrin constexpr
@@ -248,7 +229,7 @@
 
 #if defined(__GNUC__) || __has_attribute(__format__)
 #define __printf_args(format_index, first_arg)                                 \
-  __attribute__((__format__(printf, format_index, first_arg)))
+  __attribute__((__format__(__printf__, format_index, first_arg)))
 #else
 #define __printf_args(format_index, first_arg)
 #endif
@@ -406,10 +387,8 @@
 #define __noinline __attribute__((__noinline__))
 #elif defined(_MSC_VER)
 #define __noinline __declspec(noinline)
-#elif defined(__SUNPRO_C) || defined(__sun) || defined(sun)
-#define __noinline inline
-#elif !defined(__INTEL_COMPILER)
-#define __noinline /* FIXME ? */
+#else
+#define __noinline
 #endif
 #endif /* __noinline */
 
@@ -433,8 +412,8 @@
 
 #ifndef __dll_export
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-#if defined(__GNUC__) || __has_attribute(dllexport)
-#define __dll_export __attribute__((dllexport))
+#if defined(__GNUC__) || __has_attribute(__dllexport__)
+#define __dll_export __attribute__((__dllexport__))
 #else
 #define __dll_export __declspec(dllexport)
 #endif
@@ -447,8 +426,8 @@
 
 #ifndef __dll_import
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-#if defined(__GNUC__) || __has_attribute(dllimport)
-#define __dll_import __attribute__((dllimport))
+#if defined(__GNUC__) || __has_attribute(__dllimport__)
+#define __dll_import __attribute__((__dllimport__))
 #else
 #define __dll_import __declspec(dllimport)
 #endif
@@ -581,14 +560,3 @@
 #else                                     /* __cplusplus */
 #define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE) /* nope, C allows these operators */
 #endif                                    /* !__cplusplus */
-
-/* Workaround for Coverity Scan */
-#if defined(__COVERITY__) && __GNUC_PREREQ(7, 0) && !defined(__cplusplus)
-typedef float _Float32;
-typedef double _Float32x;
-typedef double _Float64;
-typedef long double _Float64x;
-typedef float _Float128 __attribute__((__mode__(__TF__)));
-typedef __complex__ float __cfloat128 __attribute__((__mode__(__TC__)));
-typedef _Complex float __cfloat128 __attribute__((__mode__(__TC__)));
-#endif /* Workaround for Coverity Scan */

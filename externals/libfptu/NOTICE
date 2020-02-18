@@ -1,9 +1,9 @@
-Erthink header-only C++ library.
+Fast Positive Tuples, aka "Позитивные Кортежи".
 
-Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
-https://github.com/erthink/erthink
+Copyright (c) 2016-2020 Leonid Yuriev <leo@yuriev.ru>.
+https://abf.io/erthink/libfptu
 
--- Erthink C++ library Exceptions to the Apache 2.0 License --
+-- Fast Positive Tuples library Exceptions to the Apache 2.0 License --
 
 As an exception, if, as a result of your compiling your source code, portions
 of this Software are embedded into an Object form of such source code, you
