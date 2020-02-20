@@ -64,6 +64,10 @@ namespace erthink {
 #define NAMESPACE_ERTHINK_D2A_DETAILS /* anonymous */
 #endif                                /* NAMESPACE_ERTHINK_D2A_DETAILS */
 
+#ifndef ERTHINK_D2A_AVOID_MUL
+#define ERTHINK_D2A_AVOID_MUL 0
+#endif /* ERTHINK_D2A_AVOID_MUL */
+
 namespace NAMESPACE_ERTHINK_D2A_DETAILS {
 /* low-level routines and bindings to compilers-depended intrinsics */
 
@@ -269,33 +273,38 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
 }
 
 #if ERTHINK_D2A_PEDANTRY_ACCURATE
-static __always_inline void round(char *end, uint64_t delta, uint64_t rest,
-                                  uint64_t ten_kappa, uint64_t upper) {
-  while (rest < upper && delta - rest >= ten_kappa &&
-         (rest + ten_kappa < upper || /* closer */
-          upper - rest > rest + ten_kappa - upper)) {
-    assert(end[-1] > '0');
+static __always_inline void round(char *&end, uint64_t delta, uint64_t rest,
+                                  uint64_t ten_kappa, uint64_t upper,
+                                  int &inout_exp10) {
+  while (delta >= ten_kappa + rest &&
+         (rest + ten_kappa < upper ||
+          (rest < upper &&
+           /* closer */ upper - rest >= rest + ten_kappa - upper))) {
+    if (unlikely(end[-1] < '2')) {
+      inout_exp10 += 1;
+      end -= 1;
+      return;
+    }
     end[-1] -= 1;
     rest += ten_kappa;
   }
 }
 #endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
 
-static inline char *make_digits(const diy_fp &value, uint64_t delta,
+static inline char *make_digits(const uint64_t top, uint64_t delta,
                                 char *const buffer, int &inout_exp10,
-                                const diy_fp &baseline) {
-  const unsigned shift = unsigned(-value.e);
-  const uint64_t mask = UINT64_MAX >> (64 - shift);
+                                const uint64_t value, unsigned shift) {
+  uint64_t mask = UINT64_MAX >> (64 - shift);
   char *ptr = buffer;
 #if ERTHINK_D2A_PEDANTRY_ACCURATE
-  const diy_fp gap = value - baseline;
+  const uint64_t gap = top - value;
 #else
-  (void)baseline;
+  (void)value;
 #endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
 
-  assert((value.f >> shift) <= UINT_E9);
-  uint_fast32_t digit, body = static_cast<uint_fast32_t>(value.f >> shift);
-  uint64_t tail = value.f & mask;
+  assert((top >> shift) <= UINT_E9);
+  uint_fast32_t digit, body = static_cast<uint_fast32_t>(top >> shift);
+  uint64_t tail = top & mask;
   int kappa = dec_digits(body);
   assert(kappa > 0);
 
@@ -349,7 +358,8 @@ static inline char *make_digits(const diy_fp &value, uint64_t delta,
         inout_exp10 += kappa;
 #if ERTHINK_D2A_PEDANTRY_ACCURATE
         assert(kappa >= 0);
-        round(ptr, delta, tail, dec_power(unsigned(kappa)) << shift, gap.f);
+        round(ptr, delta, tail, dec_power(unsigned(kappa)) << shift, gap,
+              inout_exp10);
 #endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
         return ptr;
       }
@@ -358,10 +368,17 @@ static inline char *make_digits(const diy_fp &value, uint64_t delta,
         if (likely(digit))
           goto done;
         --kappa;
+#if ERTHINK_D2A_AVOID_MUL
+        tail += tail << 2;   // *= 5
+        delta += delta << 2; // *= 5
+        digit = static_cast<uint_fast32_t>(tail >> --shift);
+        tail &= (mask >>= 1);
+#else
         tail *= 10;
         delta *= 10;
         digit = static_cast<uint_fast32_t>(tail >> shift);
         tail &= mask;
+#endif /* ERTHINK_D2A_AVOID_MUL */
       }
     }
   } while (unlikely(digit == 0));
@@ -426,10 +443,17 @@ done:
   *ptr++ = static_cast<char>(digit + '0');
   while (likely(tail > delta)) {
     --kappa;
+#if ERTHINK_D2A_AVOID_MUL
+    tail += tail << 2;   // *= 5
+    delta += delta << 2; // *= 5
+    digit = static_cast<uint_fast32_t>(tail >> --shift);
+    tail &= (mask >>= 1);
+#else
     tail *= 10;
     delta *= 10;
     digit = static_cast<uint_fast32_t>(tail >> shift);
     tail &= mask;
+#endif /* ERTHINK_D2A_AVOID_MUL */
     *ptr++ = static_cast<char>(digit + '0');
   }
 
@@ -437,7 +461,7 @@ done:
 #if ERTHINK_D2A_PEDANTRY_ACCURATE
   assert(kappa >= -19 && kappa <= 0);
   const uint64_t unit = dec_power(unsigned(-kappa));
-  round(ptr, delta, tail, mask + 1, gap.f * unit);
+  round(ptr, delta, tail, mask + 1, gap * unit, inout_exp10);
 #endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
   return ptr;
 }
@@ -449,11 +473,12 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
     return buffer + 1;
   }
 
-  const int left = clz64(v.f);
+  const int lead_zeros = clz64(v.f);
 #if 0 /* Given the remaining optimizations, on average it does not have a      \
-         positive effect, although a little faster in the simplest cases. */
+         positive effect, although a little faster in a simplest cases. */
   // LY: check to output as ordinal
-  if (unlikely(v.e >= -52 && v.e <= left && (v.e >= 0 || (v.f << (64 + v.e)) == 0))) {
+  if (unlikely(v.e >= -52 && v.e <= lead_zeros) &&
+      (v.e >= 0 || (v.f << (64 + v.e)) == 0)) {
     uint64_t ordinal = (v.e < 0) ? v.f >> -v.e : v.f << v.e;
     assert(v.f == ((v.e < 0) ? ordinal << -v.e : ordinal >> v.e));
     out_exp10 = 0;
@@ -462,22 +487,17 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
 #endif
 
   // LY: normalize
-  assert(v.f <= UINT64_MAX / 2 && left > 1);
-  v.e -= left;
-  v.f <<= left;
+  assert(v.f <= UINT64_MAX / 2 && lead_zeros > 1);
+  v.e -= lead_zeros;
+  v.f <<= lead_zeros;
   const diy_fp dec_factor = cached_power(v.e, out_exp10);
 
   // LY: get boundaries
-  const int mojo = v.f >= UINT64_C(0x8000000080000000) ? left - 1 : left - 2;
-  const uint64_t half_epsilon = UINT64_C(1) << mojo;
-  diy_fp upper(v.f + half_epsilon, v.e);
-  diy_fp lower(v.f - half_epsilon, v.e);
-  upper.scale(dec_factor, false);
-  lower.scale(dec_factor, true);
-  --upper.f;
-  assert(upper.f > lower.f);
-  return make_digits(upper, upper.f - lower.f - 1, buffer, out_exp10,
-                     diy_fp::middle(upper, lower));
+  const int mojo =
+      v.f >= UINT64_C(0x8000000000001000) ? lead_zeros : lead_zeros - 1;
+  const uint64_t delta = (dec_factor.f >> (64 - mojo)) - 3;
+  v.scale(dec_factor, true);
+  return make_digits(v.f + delta / 2, delta, buffer, out_exp10, v.f, -v.e);
 }
 
 double inline cast(int64_t i64) {
