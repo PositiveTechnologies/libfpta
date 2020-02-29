@@ -33,10 +33,6 @@
 #pragma warning(pop)
 #endif
 
-__hot __dll_export __noinline char *_d2a(const double value, char *ptr) {
-  return erthink::d2a_fast(value, ptr);
-}
-
 //------------------------------------------------------------------------------
 
 // #define SHOW_LAST_DIGIT_ROUNDING_INACCURACY
@@ -68,133 +64,145 @@ static std::tuple<bool, int, int> mantissa_str_diff(const char *a,
 }
 #endif /* SHOW_LAST_DIGIT_ROUNDING_INACCURACY */
 
-static void probe_d2a(char (&buffer)[23 + 1], const double value) {
-  char *d2a_end = _d2a(value, buffer);
-  ASSERT_LT(buffer, d2a_end);
-  ASSERT_GT(erthink::array_end(buffer), d2a_end);
-  *d2a_end = '\0';
+template <typename T> struct d2a : public ::testing::Test {
+  static constexpr bool accurate = T::value;
+  static __hot __noinline char *convert(const double value, char *ptr) {
+    return erthink::d2a<accurate>(value, ptr);
+  }
 
-  char *strtod_end = nullptr;
-  double probe = strtod(buffer, &strtod_end);
-  EXPECT_EQ(d2a_end, strtod_end);
-  EXPECT_EQ(value, probe);
+  void probe_d2a(char (&buffer)[erthink::d2a_max_chars + 1],
+                 const double value) {
+    char *d2a_end = convert(value, buffer);
+    ASSERT_LT(buffer, d2a_end);
+    ASSERT_GT(erthink::array_end(buffer), d2a_end);
+    *d2a_end = '\0';
+
+    char *strtod_end = nullptr;
+    double probe = strtod(buffer, &strtod_end);
+    EXPECT_EQ(d2a_end, strtod_end);
+    EXPECT_EQ(value, probe);
 
 #ifdef SHOW_LAST_DIGIT_ROUNDING_INACCURACY
-  int i = 0;
-  const char *s = buffer;
-  for (;;) {
-    if (*s == '-' || *s == '.')
-      s++;
-    else if (s[i] >= '0' && s[i] <= '9')
-      i++;
-    else
-      break;
-  }
-  char print_buffer[32];
-  snprintf(print_buffer, sizeof(print_buffer), "%.*e", i - 1, value);
-  const auto diff = mantissa_str_diff(buffer, print_buffer);
-  if (std::get<0>(diff)) {
-    printf("d2a:%s <> printf:%s\n"
-           "%*c%*c\n",
-           buffer, print_buffer, std::get<1>(diff) + 5, '^',
-           std::get<2>(diff) + 16, '^');
-    fflush(nullptr);
-  }
+    int i = 0;
+    const char *s = buffer;
+    for (;;) {
+      if (*s == '-' || *s == '.')
+        s++;
+      else if (s[i] >= '0' && s[i] <= '9')
+        i++;
+      else
+        break;
+    }
+    char print_buffer[32];
+    snprintf(print_buffer, sizeof(print_buffer), "%.*e", i - 1, value);
+    const auto diff = mantissa_str_diff(buffer, print_buffer);
+    if (std::get<0>(diff)) {
+      printf("d2a:%s <> printf:%s\n"
+             "%*c%*c\n",
+             buffer, print_buffer, std::get<1>(diff) + 5, '^',
+             std::get<2>(diff) + 16, '^');
+      fflush(nullptr);
+    }
 #endif /* SHOW_LAST_DIGIT_ROUNDING_INACCURACY */
-}
+  }
 
-TEST(d2a, trivia) {
-  char buffer[23 + 1];
-  char *end = _d2a(0, buffer);
+  bool probe_d2a(uint64_t u64, char (&buffer)[erthink::d2a_max_chars + 1]) {
+    const double f64 = erthink::grisu::cast(u64);
+    switch (std::fpclassify(f64)) {
+    case FP_NAN:
+    case FP_INFINITE:
+      return false;
+    default:
+      probe_d2a(buffer, f64);
+    }
+
+    const float f32 = static_cast<float>(f64);
+    switch (std::fpclassify(f32)) {
+    case FP_NAN:
+    case FP_INFINITE:
+      return false;
+    default:
+      probe_d2a(buffer, f32);
+      return true;
+    }
+  }
+};
+
+TYPED_TEST_SUITE_P(d2a);
+
+//------------------------------------------------------------------------------
+
+TYPED_TEST_P(d2a, trivia) {
+  char buffer[erthink::d2a_max_chars + 1];
+  char *end = TestFixture::convert(0, buffer);
   EXPECT_EQ(1, end - buffer);
   EXPECT_EQ(buffer[0], '0');
 
-  probe_d2a(buffer, 0.0);
-  probe_d2a(buffer, 1.0);
-  probe_d2a(buffer, 2.0);
-  probe_d2a(buffer, 3.0);
-  probe_d2a(buffer, -0.0);
-  probe_d2a(buffer, -1.0);
-  probe_d2a(buffer, -2.0);
-  probe_d2a(buffer, -3.0);
-  probe_d2a(buffer, M_PI);
-  probe_d2a(buffer, -M_PI);
+  TestFixture::probe_d2a(buffer, 0.0);
+  TestFixture::probe_d2a(buffer, 1.0);
+  TestFixture::probe_d2a(buffer, 2.0);
+  TestFixture::probe_d2a(buffer, 3.0);
+  TestFixture::probe_d2a(buffer, -0.0);
+  TestFixture::probe_d2a(buffer, -1.0);
+  TestFixture::probe_d2a(buffer, -2.0);
+  TestFixture::probe_d2a(buffer, -3.0);
+  TestFixture::probe_d2a(buffer, M_PI);
+  TestFixture::probe_d2a(buffer, -M_PI);
 
-  probe_d2a(buffer, INT32_MIN);
-  probe_d2a(buffer, INT32_MAX);
-  probe_d2a(buffer, UINT16_MAX);
-  probe_d2a(buffer, UINT32_MAX);
-  probe_d2a(buffer, FLT_MAX);
-  probe_d2a(buffer, -FLT_MAX);
-  probe_d2a(buffer, FLT_MAX);
-  probe_d2a(buffer, -FLT_MAX);
-  probe_d2a(buffer, FLT_MIN);
-  probe_d2a(buffer, -FLT_MIN);
-  probe_d2a(buffer, FLT_MAX * M_PI);
-  probe_d2a(buffer, -FLT_MAX * M_PI);
-  probe_d2a(buffer, FLT_MIN * M_PI);
-  probe_d2a(buffer, -FLT_MIN * M_PI);
+  TestFixture::probe_d2a(buffer, INT32_MIN);
+  TestFixture::probe_d2a(buffer, INT32_MAX);
+  TestFixture::probe_d2a(buffer, UINT16_MAX);
+  TestFixture::probe_d2a(buffer, UINT32_MAX);
+  TestFixture::probe_d2a(buffer, FLT_MAX);
+  TestFixture::probe_d2a(buffer, -FLT_MAX);
+  TestFixture::probe_d2a(buffer, FLT_MAX);
+  TestFixture::probe_d2a(buffer, -FLT_MAX);
+  TestFixture::probe_d2a(buffer, FLT_MIN);
+  TestFixture::probe_d2a(buffer, -FLT_MIN);
+  TestFixture::probe_d2a(buffer, FLT_MAX * M_PI);
+  TestFixture::probe_d2a(buffer, -FLT_MAX * M_PI);
+  TestFixture::probe_d2a(buffer, FLT_MIN * M_PI);
+  TestFixture::probe_d2a(buffer, -FLT_MIN * M_PI);
 
-  probe_d2a(buffer, DBL_MAX);
-  probe_d2a(buffer, -DBL_MAX);
-  probe_d2a(buffer, DBL_MIN);
-  probe_d2a(buffer, -DBL_MIN);
-  probe_d2a(buffer, DBL_MAX / M_PI);
-  probe_d2a(buffer, -DBL_MAX / M_PI);
-  probe_d2a(buffer, DBL_MIN * M_PI);
-  probe_d2a(buffer, -DBL_MIN * M_PI);
+  TestFixture::probe_d2a(buffer, DBL_MAX);
+  TestFixture::probe_d2a(buffer, -DBL_MAX);
+  TestFixture::probe_d2a(buffer, DBL_MIN);
+  TestFixture::probe_d2a(buffer, -DBL_MIN);
+  TestFixture::probe_d2a(buffer, DBL_MAX / M_PI);
+  TestFixture::probe_d2a(buffer, -DBL_MAX / M_PI);
+  TestFixture::probe_d2a(buffer, DBL_MIN * M_PI);
+  TestFixture::probe_d2a(buffer, -DBL_MIN * M_PI);
 }
 
-static bool probe_d2a(uint64_t u64, char (&buffer)[23 + 1]) {
-  const double f64 = erthink::grisu::cast(u64);
-  switch (std::fpclassify(f64)) {
-  case FP_NAN:
-  case FP_INFINITE:
-    return false;
-  default:
-    probe_d2a(buffer, f64);
-  }
-
-  const float f32 = static_cast<float>(f64);
-  switch (std::fpclassify(f32)) {
-  case FP_NAN:
-  case FP_INFINITE:
-    return false;
-  default:
-    probe_d2a(buffer, f32);
-    return true;
-  }
-}
-
-TEST(d2a, stairwell) {
-  char buffer[23 + 1];
-  probe_d2a(UINT64_C(4989988387303176888), buffer);
-  probe_d2a(UINT64_C(4895412794877399892), buffer);
-  probe_d2a(UINT64_C(13717964465041107931), buffer);
-  probe_d2a(UINT64_C(13416223289762161370), buffer);
-  probe_d2a(UINT64_C(13434237688651515774), buffer);
-  probe_d2a(UINT64_C(5008002785836588600), buffer);
-  probe_d2a(UINT64_C(4210865651786747166), buffer);
-  probe_d2a(UINT64_C(14231374822717078073), buffer);
-  probe_d2a(UINT64_C(13434237688189056622), buffer);
-  probe_d2a(UINT64_C(13717964465155820979), buffer);
-  probe_d2a(UINT64_C(4237887249171175423), buffer);
-  probe_d2a(UINT64_C(13632396072180810313), buffer);
+TYPED_TEST_P(d2a, stairwell) {
+  char buffer[erthink::d2a_max_chars + 1];
+  TestFixture::probe_d2a(UINT64_C(4989988387303176888), buffer);
+  TestFixture::probe_d2a(UINT64_C(4895412794877399892), buffer);
+  TestFixture::probe_d2a(UINT64_C(13717964465041107931), buffer);
+  TestFixture::probe_d2a(UINT64_C(13416223289762161370), buffer);
+  TestFixture::probe_d2a(UINT64_C(13434237688651515774), buffer);
+  TestFixture::probe_d2a(UINT64_C(5008002785836588600), buffer);
+  TestFixture::probe_d2a(UINT64_C(4210865651786747166), buffer);
+  TestFixture::probe_d2a(UINT64_C(14231374822717078073), buffer);
+  TestFixture::probe_d2a(UINT64_C(13434237688189056622), buffer);
+  TestFixture::probe_d2a(UINT64_C(13717964465155820979), buffer);
+  TestFixture::probe_d2a(UINT64_C(4237887249171175423), buffer);
+  TestFixture::probe_d2a(UINT64_C(13632396072180810313), buffer);
 
   const double up = 1.1283791670955125739 /* 2/sqrt(pi) */;
   for (double value = DBL_MIN * up; value < DBL_MAX / up; value *= up) {
-    probe_d2a(buffer, value);
+    TestFixture::probe_d2a(buffer, value);
     const float f32 = static_cast<float>(value);
     if (!std::isinf(f32))
-      probe_d2a(buffer, f32);
+      TestFixture::probe_d2a(buffer, f32);
   }
 
   const double down = 0.91893853320467274178 /* ln(sqrt(2pi)) */;
   for (double value = DBL_MAX * down; value > DBL_MIN / down; value *= down) {
-    probe_d2a(buffer, value);
+    TestFixture::probe_d2a(buffer, value);
     const float f32 = static_cast<float>(value);
     if (!std::isinf(f32))
-      probe_d2a(buffer, f32);
+      TestFixture::probe_d2a(buffer, f32);
   }
 
   for (uint64_t mantissa = erthink::grisu::IEEE754_DOUBLE_MANTISSA_MASK;
@@ -203,25 +211,29 @@ TEST(d2a, stairwell) {
       for (uint64_t exp = 0;
            exp <= erthink::grisu::IEEE754_DOUBLE_EXPONENT_MASK;
            exp += erthink::grisu::IEEE754_DOUBLE_IMPLICIT_LEAD) {
-        probe_d2a((mantissa + offset) ^ exp, buffer);
-        probe_d2a((mantissa - offset) ^ exp, buffer);
+        TestFixture::probe_d2a((mantissa + offset) ^ exp, buffer);
+        TestFixture::probe_d2a((mantissa - offset) ^ exp, buffer);
       }
     }
   }
 }
 
-TEST(d2a, random3e6) {
-  char buffer[23 + 1];
+TYPED_TEST_P(d2a, random3e6) {
+  char buffer[erthink::d2a_max_chars + 1];
   uint64_t prng(uint64_t(time(0)));
   SCOPED_TRACE("PGNG seed=" + std::to_string(prng));
   for (int i = 0; i < 3333333;) {
-    i += probe_d2a(prng, buffer);
+    i += TestFixture::probe_d2a(prng, buffer);
     prng *= UINT64_C(6364136223846793005);
     prng += UINT64_C(1442695040888963407);
   }
 }
 
 //------------------------------------------------------------------------------
+
+REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell, random3e6);
+INSTANTIATE_TYPED_TEST_SUITE_P(accurate, d2a, std::true_type);
+INSTANTIATE_TYPED_TEST_SUITE_P(fast, d2a, std::false_type);
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
