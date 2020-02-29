@@ -64,6 +64,15 @@ static std::tuple<bool, int, int> mantissa_str_diff(const char *a,
 }
 #endif /* SHOW_LAST_DIGIT_ROUNDING_INACCURACY */
 
+struct P {
+  const long double v;
+  P(const long double v) : v(v) {}
+  friend bool operator==(const P &a, const P &b) { return a.v == b.v; }
+  friend std::ostream &operator<<(std::ostream &os, const P &v) {
+    return os << std::setprecision(19) << v.v;
+  }
+};
+
 template <typename T> struct d2a : public ::testing::Test {
   static constexpr bool accurate = T::value;
   static __hot __noinline char *convert(const double value, char *ptr) {
@@ -80,7 +89,7 @@ template <typename T> struct d2a : public ::testing::Test {
     char *strtod_end = nullptr;
     double probe = strtod(buffer, &strtod_end);
     EXPECT_EQ(d2a_end, strtod_end);
-    EXPECT_EQ(value, probe);
+    EXPECT_EQ(P(value), P(probe));
 
 #ifdef SHOW_LAST_DIGIT_ROUNDING_INACCURACY
     int i = 0;
