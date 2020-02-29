@@ -34,7 +34,7 @@
 #endif
 
 __hot __dll_export __noinline char *_d2a(const double value, char *ptr) {
-  return erthink::d2a(value, ptr);
+  return erthink::d2a_fast(value, ptr);
 }
 
 //------------------------------------------------------------------------------

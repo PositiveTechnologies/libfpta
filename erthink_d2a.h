@@ -44,22 +44,6 @@
 
 namespace erthink {
 
-/* The ERTHINK_D2A_PEDANTRY_ACCURATE macro allows you to control the trade-off
- * between conversion speed and accuracy:
- *
- *  - Define it to non-zero for accurately conversion to impeccable string
- *    representation, which will be a nearest to the actual binary value.
- *
- *  - Otherwise (if ERTHINK_D2A_PEDANTRY_ACCURATE undefiner or defined to zero)
- *    the conversion will be slightly faster and the result will also be correct
- *    (inverse conversion via stdtod() will give the original value).
- *    However, the string representation will be slightly larger than the ideal
- *    nearest value. */
-
-#ifndef ERTHINK_D2A_PEDANTRY_ACCURATE
-#define ERTHINK_D2A_PEDANTRY_ACCURATE 0
-#endif
-
 #ifndef NAMESPACE_ERTHINK_D2A_DETAILS
 #define NAMESPACE_ERTHINK_D2A_DETAILS /* anonymous */
 #endif                                /* NAMESPACE_ERTHINK_D2A_DETAILS */
@@ -272,7 +256,6 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
   return diy_fp(power10_mas[index], power10_exp2[index]);
 }
 
-#if ERTHINK_D2A_PEDANTRY_ACCURATE
 static __always_inline void round(char *&end, uint64_t delta, uint64_t rest,
                                   uint64_t ten_kappa, uint64_t upper,
                                   int &inout_exp10) {
@@ -289,18 +272,14 @@ static __always_inline void round(char *&end, uint64_t delta, uint64_t rest,
     rest += ten_kappa;
   }
 }
-#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
 
-static inline char *make_digits(const uint64_t top, uint64_t delta,
-                                char *const buffer, int &inout_exp10,
-                                const uint64_t value, unsigned shift) {
+static inline char *make_digits(const bool accurate, const uint64_t top,
+                                uint64_t delta, char *const buffer,
+                                int &inout_exp10, const uint64_t value,
+                                unsigned shift) {
   uint64_t mask = UINT64_MAX >> (64 - shift);
   char *ptr = buffer;
-#if ERTHINK_D2A_PEDANTRY_ACCURATE
   const uint64_t gap = top - value;
-#else
-  (void)value;
-#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
 
   assert((top >> shift) <= UINT_E9);
   uint_fast32_t digit, body = static_cast<uint_fast32_t>(top >> shift);
@@ -356,11 +335,10 @@ static inline char *make_digits(const uint64_t top, uint64_t delta,
         *ptr++ = static_cast<char>(digit + '0');
       early_skip:
         inout_exp10 += kappa;
-#if ERTHINK_D2A_PEDANTRY_ACCURATE
         assert(kappa >= 0);
-        round(ptr, delta, tail, dec_power(unsigned(kappa)) << shift, gap,
-              inout_exp10);
-#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
+        if (accurate)
+          round(ptr, delta, tail, dec_power(unsigned(kappa)) << shift, gap,
+                inout_exp10);
         return ptr;
       }
 
@@ -458,15 +436,16 @@ done:
   }
 
   inout_exp10 += kappa;
-#if ERTHINK_D2A_PEDANTRY_ACCURATE
   assert(kappa >= -19 && kappa <= 0);
-  const uint64_t unit = dec_power(unsigned(-kappa));
-  round(ptr, delta, tail, mask + 1, gap * unit, inout_exp10);
-#endif /* ERTHINK_D2A_PEDANTRY_ACCURATE */
+  if (accurate) {
+    const uint64_t unit = dec_power(unsigned(-kappa));
+    round(ptr, delta, tail, mask + 1, gap * unit, inout_exp10);
+  }
   return ptr;
 }
 
-static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
+static inline char *convert(const bool accurate, diy_fp v, char *const buffer,
+                            int &out_exp10) {
   if (unlikely(v.f == 0)) {
     out_exp10 = 0;
     *buffer = '0';
@@ -497,7 +476,8 @@ static inline char *convert(diy_fp v, char *const buffer, int &out_exp10) {
       v.f >= UINT64_C(0x8000000000001000) ? lead_zeros : lead_zeros - 1;
   const uint64_t delta = (dec_factor.f >> (64 - mojo)) - 3;
   v.scale(dec_factor, true);
-  return make_digits(v.f + delta / 2, delta, buffer, out_exp10, v.f, -v.e);
+  return make_digits(accurate, v.f + delta / 2, delta, buffer, out_exp10, v.f,
+                     -v.e);
 }
 
 double inline cast(int64_t i64) {
@@ -523,15 +503,29 @@ int64_t inline cast(double f64) {
 
 } // namespace grisu
 
-static __maybe_unused char *
+enum { d2a_max_chars = 23 };
+
+template <bool accurate>
+/* The "accurate" controls the trade-off between conversion speed and accuracy:
+ *
+ *  - True: accurately conversion to impeccable string representation,
+ *    which will be a nearest to the actual binary value.
+ *
+ *  - False: conversion will be slightly faster and the result will also
+ *    be correct (inverse conversion via stdtod() will give the original value).
+ *    However, the string representation will be slightly larger than the ideal
+ *    nearest value. */
+char *
 d2a(const double &value,
-    char *const buffer /* upto 23 chars for -22250738585072014e-324 */) {
+    char *const
+        buffer /* upto erthink::d2a_max_chars for -22250738585072014e-324 */) {
   assert(!std::isnan(value) && !std::isinf(value));
   const int64_t i64 = grisu::cast(value);
   // LY: strive for branchless (SSA-optimizer must solve this)
   *buffer = '-';
   int exponent;
-  char *ptr = grisu::convert(grisu::diy_fp(i64), buffer + (i64 < 0), exponent);
+  char *ptr = grisu::convert(accurate, grisu::diy_fp(i64), buffer + (i64 < 0),
+                             exponent);
   if (exponent != 0) {
     const branchless_abs<int> pair(exponent);
     ptr[0] = 'e';
@@ -539,8 +533,20 @@ d2a(const double &value,
     ptr[1] = '+' + (('-' - '+') & pair.expanded_sign);
     ptr = dec3(pair.unsigned_abs, ptr + 2);
   }
-  assert(ptr - buffer <= 23);
+  assert(ptr - buffer <= d2a_max_chars);
   return ptr;
+}
+
+static __maybe_unused char *d2a_accurate(
+    const double &value,
+    char *const buffer /* upto d2a_max_chars for -22250738585072014e-324 */) {
+  return d2a<true>(value, buffer);
+}
+
+static __maybe_unused char *d2a_fast(
+    const double &value,
+    char *const buffer /* upto d2a_max_chars for -22250738585072014e-324 */) {
+  return d2a<false>(value, buffer);
 }
 
 } // namespace erthink
