@@ -35,41 +35,64 @@
 
 //------------------------------------------------------------------------------
 
-// #define SHOW_LAST_DIGIT_ROUNDING_INACCURACY
-#ifdef SHOW_LAST_DIGIT_ROUNDING_INACCURACY
+#ifdef TEST_D2A_CHECK_LAST_DIGIT_ROUNDING
+static std::string mantissa_str_map(const char *str, const bool strip_tail_0) {
+  const size_t len = strlen(str);
+  assert(len < 128);
+
+  std::string r;
+  r.reserve(len);
+
+  size_t i;
+  for (i = 0; i < len; ++i) {
+    if (str[i] >= '0' && str[i] <= '9') {
+      if (str[i] != '0' || !r.empty())
+        r.push_back(i);
+    } else if (str[i] != '-' && str[i] != '.')
+      break;
+  }
+
+  if (r.empty() && i > 0 && str[i - 1] == '0')
+    r.push_back(i - 1);
+  if (strip_tail_0)
+    while (i > 0 && str[i - 1] == '0' && r.size() > 1) {
+      r.pop_back();
+      --i;
+    }
+  return r;
+}
+
 static std::tuple<bool, int, int> mantissa_str_diff(const char *a,
-                                                    const char *b) {
-  int i = 0, j = 0;
-  for (;;) {
-    if (a[i] == '.')
-      i++;
-    const bool a_end = (a[i] == 'e' || a[i] == 'E' || a[i] == '\0');
-
-    if (b[j] == '.')
-      j++;
-    const bool b_end = (b[j] == 'e' || b[j] == 'E' || b[j] == '\0');
-
+                                                    const std::string &ma,
+                                                    const char *b,
+                                                    const std::string &mb) {
+  size_t i, j;
+  for (i = j = 0;;) {
+    const bool a_end = i >= ma.size();
+    const bool b_end = j >= mb.size();
     if (a_end && b_end)
       break;
 
-    const char a_digit = a_end ? '0' : a[i];
-    const char b_digit = b_end ? '0' : b[j];
+    const char a_digit = a_end ? '0' : a[ma[i]];
+    const char b_digit = b_end ? '0' : b[mb[j]];
     if (a_digit != b_digit)
-      return std::make_tuple(true, i, j);
+      return std::make_tuple(true, a_end ? ma.back() : ma[i],
+                             b_end ? mb.back() : mb[j]);
 
     i += !a_end;
     j += !b_end;
   }
   return std::make_tuple(false, 0, 0);
 }
-#endif /* SHOW_LAST_DIGIT_ROUNDING_INACCURACY */
+#endif /* TEST_D2A_CHECK_LAST_DIGIT_ROUNDING */
 
 struct P {
   const long double v;
   P(const long double v) : v(v) {}
   friend bool operator==(const P &a, const P &b) { return a.v == b.v; }
   friend std::ostream &operator<<(std::ostream &os, const P &v) {
-    return os << std::setprecision(19) << v.v;
+    return os << std::setprecision(19) << v.v << '(' << std::hexfloat << v.v
+              << ')';
   }
 };
 
@@ -89,30 +112,33 @@ template <typename T> struct d2a : public ::testing::Test {
     char *strtod_end = nullptr;
     double probe = strtod(buffer, &strtod_end);
     EXPECT_EQ(d2a_end, strtod_end);
-    EXPECT_EQ(P(value), P(probe));
 
-#ifdef SHOW_LAST_DIGIT_ROUNDING_INACCURACY
-    int i = 0;
-    const char *s = buffer;
-    for (;;) {
-      if (*s == '-' || *s == '.')
-        s++;
-      else if (s[i] >= '0' && s[i] <= '9')
-        i++;
-      else
-        break;
-    }
+#ifdef TEST_D2A_CHECK_LAST_DIGIT_ROUNDING
+    const std::string ma = mantissa_str_map(buffer, true);
+
     char print_buffer[32];
-    snprintf(print_buffer, sizeof(print_buffer), "%.*e", i - 1, value);
-    const auto diff = mantissa_str_diff(buffer, print_buffer);
+    snprintf(print_buffer, sizeof(print_buffer), "%.*e", int(ma.size()) - 1,
+             value);
+    const std::string mb = mantissa_str_map(print_buffer, false);
+    const auto diff = mantissa_str_diff(buffer, ma, print_buffer, mb);
     if (std::get<0>(diff)) {
       printf("d2a:%s <> printf:%s\n"
-             "%*c%*c\n",
+             "%*c%*c\n"
+             "%*c%*.*e\n",
              buffer, print_buffer, std::get<1>(diff) + 5, '^',
-             std::get<2>(diff) + 16, '^');
+             std::get<2>(diff) + 11 - std::get<1>(diff) + (int)strlen(buffer),
+             '|', std::get<1>(diff) + 5,
+             (buffer[std::get<1>(diff)] < print_buffer[std::get<2>(diff)])
+                 ? '<'
+                 : '>',
+             int(strlen(buffer)) + 12 + int(strlen(print_buffer)) -
+                 std::get<1>(diff),
+             int(mb.size() + 1), value);
+      fflush(nullptr);
       fflush(nullptr);
     }
-#endif /* SHOW_LAST_DIGIT_ROUNDING_INACCURACY */
+#endif /* TEST_D2A_CHECK_LAST_DIGIT_ROUNDING */
+    EXPECT_EQ(P(value), P(probe));
   }
 
   bool probe_d2a(uint64_t u64, char (&buffer)[erthink::d2a_max_chars + 1]) {
