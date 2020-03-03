@@ -3195,7 +3195,7 @@ FPTA_API int fpta_get_column(fptu_ro row_value, const fpta_name *column_id,
  * определенного константной fpta_keybuf_len.
  *
  * Если размера предоставленного буфера недостаточно, то функция вернет
- * ошибку FPTA_DATALEN_MISMATCH, а в поле value->length будет сохранен
+ * ошибку FPTA_DATALEN_MISMATCH, а в поле value->binary_length будет сохранён
  * требуемый размер.
  *
  * В случае успеха возвращает ноль, иначе код ошибки. */
