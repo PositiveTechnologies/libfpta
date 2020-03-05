@@ -90,6 +90,7 @@ struct P {
   const long double v;
   P(const long double v) : v(v) {}
   friend bool operator==(const P &a, const P &b) { return a.v == b.v; }
+  friend bool operator!=(const P &a, const P &b) { return a.v != b.v; }
   friend std::ostream &operator<<(std::ostream &os, const P &v) {
     return os << std::setprecision(19) << v.v << '(' << std::hexfloat << v.v
               << ')';
@@ -139,6 +140,7 @@ template <typename T> struct d2a : public ::testing::Test {
     }
 #endif /* TEST_D2A_CHECK_LAST_DIGIT_ROUNDING */
     EXPECT_EQ(P(value), P(probe));
+    ensure_shortest(value, buffer);
   }
 
   bool probe_d2a(uint64_t u64, char (&buffer)[erthink::d2a_max_chars + 1]) {
@@ -160,6 +162,75 @@ template <typename T> struct d2a : public ::testing::Test {
       probe_d2a(buffer, f32);
       return true;
     }
+  }
+
+  static bool make_shorter(char (&str)[erthink::d2a_max_chars + 1]) {
+    if (str[0] == '-')
+      return false;
+
+    int i = 0;
+    while (str[i] >= '0' && str[i] <= '9')
+      ++i;
+    bool have_dot = false;
+    if (str[i] == '.') {
+      do
+        ++i;
+      while (str[i] >= '0' && str[i] <= '9');
+      have_dot = true;
+    }
+    if (i < 2 || str[i] != 'e')
+      return false;
+
+    int j = i - 1;
+    j -= str[j] == '.';
+    if (j < 1)
+      return false;
+
+    if (str[j] >= '5') {
+      j -= 1;
+      j -= str[j] == '.';
+      for (;;) {
+        assert(j >= 0 && str[j] != '.');
+        if (str[j] < '9') {
+          str[j] += 1;
+          break;
+        }
+        str[j] = '0';
+        j -= 1;
+        j -= (j >= 0 && str[j] == '.');
+        if (j < 0) {
+          j = str[0] == '.';
+          str[j] = '1';
+          have_dot = false;
+          break;
+        }
+      }
+    }
+
+    if (have_dot)
+      memmove(str + i - 1, str + i, erthink::d2a_max_chars - i);
+    else
+      snprintf(str + i - 1, erthink::d2a_max_chars - i + 1, "e%i",
+               atoi(str + i + 1) + 1);
+    return true;
+  }
+
+  void ensure_shortest(const double value,
+                       char (&buf)[erthink::d2a_max_chars + 1]) {
+#ifndef TEST_D2A_SHORTEST_VALIDATION
+    (void)value;
+    (void)buf;
+#else
+    char str[erthink::d2a_max_chars + 1];
+    memcpy(str, buf, sizeof(str));
+
+    if (make_shorter(str)) {
+      char *strtod_end = nullptr;
+      double probe = strtod(str, &strtod_end);
+      ASSERT_EQ(*strtod_end, '\0');
+      EXPECT_NE(P(value), P(probe));
+    }
+#endif /* TEST_D2A_SHORTEST_VALIDATION */
   }
 };
 
