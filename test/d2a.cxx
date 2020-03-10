@@ -317,18 +317,21 @@ TYPED_TEST_P(d2a, stairwell) {
       for (uint64_t exp = 0;
            exp <= erthink::grisu::IEEE754_DOUBLE_EXPONENT_MASK;
            exp += erthink::grisu::IEEE754_DOUBLE_IMPLICIT_LEAD) {
-        TestFixture::probe_d2a((mantissa + offset) ^ exp, buffer);
-        TestFixture::probe_d2a((mantissa - offset) ^ exp, buffer);
+        for (uint64_t bit = mantissa; bit != 0;) {
+          bit >>= 1;
+          TestFixture::probe_d2a((mantissa + offset) ^ exp ^ bit, buffer);
+          TestFixture::probe_d2a((mantissa - offset) ^ exp ^ bit, buffer);
+        }
       }
     }
   }
 }
 
-TYPED_TEST_P(d2a, random3e6) {
+TYPED_TEST_P(d2a, random3e7) {
   char buffer[erthink::d2a_max_chars + 1];
   uint64_t prng(uint64_t(time(0)));
   SCOPED_TRACE("PGNG seed=" + std::to_string(prng));
-  for (int i = 0; i < 3333333;) {
+  for (int i = 0; i < 33333333;) {
     i += TestFixture::probe_d2a(prng, buffer);
     prng *= UINT64_C(6364136223846793005);
     prng += UINT64_C(1442695040888963407);
@@ -337,7 +340,7 @@ TYPED_TEST_P(d2a, random3e6) {
 
 //------------------------------------------------------------------------------
 
-REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell, random3e6);
+REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell, random3e7);
 INSTANTIATE_TYPED_TEST_SUITE_P(accurate, d2a, std::true_type);
 INSTANTIATE_TYPED_TEST_SUITE_P(fast, d2a, std::false_type);
 
