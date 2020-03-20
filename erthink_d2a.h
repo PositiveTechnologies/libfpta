@@ -17,6 +17,20 @@
 
 #pragma once
 
+/* Double-to-string conversion based on Grisu algorithm by Florian Loitsch,
+ * https://www.cs.tufts.edu/~nr/cs257/archive/florian-loitsch/printf.pdf
+ *
+ * 1. Generated string representation always roundtrip convertible to
+ *    the original value, i.e. by strtod() function.
+ *
+ * 2. Generated string representation is shortest for more than 99.95% of
+ *    IEEE-754 double values, i.e. one extra digit for less than 0.05% values.
+ *
+ * 3. Compared to Ryū algorithm (by Ulf Adams), this implementation
+ *    significantly less in code size and spends less clock cycles per digit,
+ *    but may slightly inferior in a whole on a 16-17 digit values.
+ */
+
 #include "erthink_carryadd.h"
 #include "erthink_clz.h"
 #include "erthink_defs.h"
@@ -95,9 +109,6 @@ static inline /* LY: 'inline' here is better for performance than 'constexpr' */
 //------------------------------------------------------------------------------
 
 namespace grisu {
-
-/* Based on Grisu2 algorithm by Florian Loitsch.
- * https://www.cs.tufts.edu/~nr/cs257/archive/florian-loitsch/printf.pdf */
 
 static constexpr uint64_t IEEE754_DOUBLE_EXPONENT_MASK =
     UINT64_C(0x7FF0000000000000);
