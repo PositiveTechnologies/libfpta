@@ -234,7 +234,11 @@ template <typename T> struct d2a : public ::testing::Test {
   }
 };
 
+#ifdef TYPED_TEST_SUITE_P
 TYPED_TEST_SUITE_P(d2a);
+#else
+TYPED_TEST_CASE_P(d2a);
+#endif
 
 //------------------------------------------------------------------------------
 
@@ -340,9 +344,11 @@ TYPED_TEST_P(d2a, random3e7) {
 
 //------------------------------------------------------------------------------
 
+#ifdef REGISTER_TYPED_TEST_SUITE_P
 REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell, random3e7);
 INSTANTIATE_TYPED_TEST_SUITE_P(accurate, d2a, std::true_type);
 INSTANTIATE_TYPED_TEST_SUITE_P(fast, d2a, std::false_type);
+#endif
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
