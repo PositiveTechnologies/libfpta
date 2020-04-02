@@ -87,8 +87,8 @@ template <typename T> struct d2a : public ::testing::Test {
       if (a_end && b_end)
         break;
 
-      const char a_digit = a_end ? '0' : a[ma[i]];
-      const char b_digit = b_end ? '0' : b[mb[j]];
+      const char a_digit = a_end ? '0' : a[int(ma[i])];
+      const char b_digit = b_end ? '0' : b[int(mb[j])];
       if (a_digit != b_digit)
         return std::make_tuple(true, a_end ? ma.back() : ma[i],
                                b_end ? mb.back() : mb[j]);
