@@ -15,13 +15,10 @@
  *  limitations under the License.
  */
 
-#ifdef _MSC_VER
-#define _USE_MATH_DEFINES
-#endif
+#include "testing.h"
 
 #include "erthink_d2a.h"
 #include "erthink_defs.h"
-#include "testing.h"
 
 #ifdef _MSC_VER
 #pragma warning(push, 1)
@@ -325,6 +322,8 @@ TYPED_TEST_P(d2a, stairwell) {
           TestFixture::probe_d2a((mantissa + offset) ^ exp ^ bit, buffer);
           TestFixture::probe_d2a((mantissa - offset) ^ exp ^ bit, buffer);
         }
+        if (GTEST_IS_EXECUTION_TIMEOUT())
+          break;
       }
     }
   }
@@ -338,6 +337,8 @@ TYPED_TEST_P(d2a, random3e7) {
     i += TestFixture::probe_d2a(prng, buffer);
     prng *= UINT64_C(6364136223846793005);
     prng += UINT64_C(1442695040888963407);
+    if (GTEST_IS_EXECUTION_TIMEOUT())
+      break;
   }
 }
 
@@ -348,6 +349,8 @@ REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell, random3e7);
 INSTANTIATE_TYPED_TEST_SUITE_P(accurate, d2a, std::true_type);
 INSTANTIATE_TYPED_TEST_SUITE_P(fast, d2a, std::false_type);
 #endif
+
+runtime_limiter ci_runtime_limiter;
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
