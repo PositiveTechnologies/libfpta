@@ -11,7 +11,9 @@ jobs:
       - run: cmake --version
       - run: cmake .
       - run: make --keep-going all
-      - run: ulimit -c unlimited && make --keep-going test
+      - run: |
+          ulimit -c unlimited
+          make --keep-going test
       - run:
           command: |
             mkdir -p /tmp/artifacts
