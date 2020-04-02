@@ -487,7 +487,7 @@ static inline char *convert(const bool accurate, diy_fp v, char *const buffer,
   // LY: get boundaries
   const int mojo = v.f > UINT64_C(0x80000000000007ff) ? 64 : 65;
   const uint64_t delta = dec_factor.f >> (mojo - lead_zeros);
-  assert(delta > 2);
+  assert(delta >= 2);
   const uint_fast32_t lsb = v.scale(dec_factor);
   if (accurate)
     // -1 -2 1 0 1: non-shortest 9522 for 25M probes, ratio 0.038088%
