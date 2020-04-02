@@ -633,18 +633,18 @@ TEST(Emit, Datetime) {
   ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
   ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, FPTU_DENIL_TIME));
   datetime.fixedpoint =
-      1 /* 1970-01-01 00:00:00.0000000002328306436538696289 */;
+      1 /* 1970-01-01 00:00:00.00000000023283064365386962891 */;
   ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
   EXPECT_STREQ("{f1_datetime:[null,\"1970-01-01T00:00:00."
-               "0000000002328306436538696289\"]}",
+               "00000000023283064365386962891\"]}",
                json(dict, pt));
 
   ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
   datetime.fixedpoint =
-      2 /* 1970-01-01 00:00:00.0000000004656612873077392578 */;
+      2 /* 1970-01-01 00:00:00.00000000046566128730773925782 */;
   ASSERT_EQ(FPTU_OK, fptu_insert_datetime(pt.get(), 1, datetime));
   EXPECT_STREQ(
-      "{f1_datetime:\"1970-01-01T00:00:00.0000000004656612873077392578\"}",
+      "{f1_datetime:\"1970-01-01T00:00:00.00000000046566128730773925782\"}",
       json(dict, pt));
 
   ASSERT_EQ(FPTU_OK, fptu_clear(pt.get()));
