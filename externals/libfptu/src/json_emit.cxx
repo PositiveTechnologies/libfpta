@@ -223,7 +223,7 @@ void emitter::number(int64_t i64) {
 void emitter::number(double value) {
   // max 24 chars for -2225073.8585072014e-314
   char *const begin = wanna(24);
-  char *const end = erthink::d2a(value, begin);
+  char *const end = erthink::d2a_accurate(value, begin);
   assert(end > begin && end <= begin + 32);
   fill += static_cast<unsigned>(end - begin);
 }
@@ -484,8 +484,8 @@ void json::value_dateime(const fptu_time &value) {
       char *const begin = wanna(32) + 1;
       begin[-1] = '.';
       char *end = erthink::grisu::convert(
-          erthink::grisu::diy_fp::fixedpoint(value.fractional, -32), begin,
-          exponent);
+          true, erthink::grisu::diy_fp::fixedpoint(value.fractional, -32),
+          begin, exponent);
       assert(end > begin && end < begin + 31);
       assert(-exponent >= end - begin);
       const ptrdiff_t zero_needed = -exponent - (end - begin);
