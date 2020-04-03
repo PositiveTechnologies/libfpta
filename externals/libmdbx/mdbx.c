@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 85287e723bd2f144400ba1bda5f40f87975e309e14b677433b9d81835880fe7e_v0_6_0_35_gbd3f234bc
+#define MDBX_BUILD_SOURCERY 2a4129dae3c7142ada07c0f7a9a34422beb93a5813f31f5639b50847a5b9a032_v0_7_0_0_g8f5ae79b5
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1334,6 +1334,7 @@ MDBX_INTERNAL_FUNC int mdbx_rpid_clear(MDBX_env *env);
 MDBX_INTERNAL_FUNC int mdbx_rpid_check(MDBX_env *env, uint32_t pid);
 
 #if defined(_WIN32) || defined(_WIN64)
+
 typedef union MDBX_srwlock {
   struct {
     long volatile readerCount;
@@ -1428,6 +1429,10 @@ typedef enum _SECTION_INHERIT { ViewShare = 1, ViewUnmap = 2 } SECTION_INHERIT;
 typedef NTSTATUS(NTAPI *MDBX_NtExtendSection)(IN HANDLE SectionHandle,
                                               IN PLARGE_INTEGER NewSectionSize);
 MDBX_INTERNAL_VAR MDBX_NtExtendSection mdbx_NtExtendSection;
+
+static __inline bool mdbx_RunningUnderWine(void) {
+  return !mdbx_NtExtendSection;
+}
 
 #endif /* Windows */
 
@@ -6060,12 +6065,12 @@ static const char *__mdbx_strerr(int errnum) {
       "MDBX_READERS_FULL: Too many readers (maxreaders reached)",
       NULL /* MDBX_TLS_FULL (-30789): unused in MDBX */,
       "MDBX_TXN_FULL: Transaction has too many dirty pages,"
-      " i.e transaction too big",
+      " i.e transaction is too big",
       "MDBX_CURSOR_FULL: Internal error - Cursor stack limit reached",
       "MDBX_PAGE_FULL: Internal error - Page has no more space",
-      "MDBX_MAP_RESIZED: Database contents grew beyond environment mapsize"
-      " and engine was unable to extend mapping,"
-      " e.g. since address space is unavailable or busy",
+      "MDBX_UNABLE_EXTEND_MAPSIZE: Database engine was unable to extend"
+      " mapping, e.g. since address space is unavailable or busy,"
+      " or Operation system not supported such operations"
       "MDBX_INCOMPATIBLE: Environment or database is not compatible"
       " with the requested operation or the specified flags",
       "MDBX_BAD_RSLOT: Invalid reuse of reader locktable slot,"
@@ -7538,6 +7543,8 @@ static __cold int mdbx_mapresize(MDBX_env *env, const pgno_t used_pgno,
    *    the local threads for safe remap.
    * 2) At least on Windows 10 1803 the entire mapped section is unavailable
    *    for short time during NtExtendSection() or VirtualAlloc() execution.
+   * 3) Under Wine runtime environment on Linux a section extending is not
+   *    supported. Therefore thread suspending is always required.
    *
    * THEREFORE LOCAL THREADS SUSPENDING IS ALWAYS REQUIRED! */
   array_onstack.limit = ARRAY_LENGTH(array_onstack.handles);
@@ -7636,7 +7643,7 @@ bailout:
     }
 #endif /* MDBX_USE_VALGRIND */
   } else {
-    if (rc != MDBX_RESULT_TRUE) {
+    if (rc != MDBX_UNABLE_EXTEND_MAPSIZE) {
       mdbx_error("failed resize datafile/mapping: "
                  "present %" PRIuPTR " -> %" PRIuPTR ", "
                  "limit %" PRIuPTR " -> %" PRIuPTR ", errcode %d",
@@ -8124,7 +8131,7 @@ skip_cache:
     rc = MDBX_NOTFOUND;
     if (flags & MDBX_ALLOC_NEW) {
       rc = MDBX_MAP_FULL;
-      if (next <= txn->mt_geo.upper) {
+      if (next <= txn->mt_geo.upper && txn->mt_geo.grow) {
         mdbx_assert(env, next > txn->mt_end_pgno);
         pgno_t aligned = pgno_align2os_pgno(
             env, pgno_add(next, txn->mt_geo.grow - next % txn->mt_geo.grow));
@@ -8145,7 +8152,6 @@ skip_cache:
         mdbx_error("unable growth datafile to %" PRIaPGNO " pages (+%" PRIaPGNO
                    "), errcode %d",
                    aligned, aligned - txn->mt_end_pgno, rc);
-        rc = (rc == MDBX_RESULT_TRUE) ? MDBX_MAP_FULL : rc;
       } else {
         mdbx_debug("gc-alloc: next %u > upper %u", next, txn->mt_geo.upper);
       }
@@ -8925,20 +8931,22 @@ static int mdbx_txn_renew0(MDBX_txn *txn, unsigned flags) {
       if (txn->mt_geo.upper > MAX_PAGENO ||
           bytes2pgno(env, pgno2bytes(env, txn->mt_geo.upper)) !=
               txn->mt_geo.upper) {
-        rc = MDBX_MAP_RESIZED;
+        rc = MDBX_UNABLE_EXTEND_MAPSIZE;
         goto bailout;
       }
       rc = mdbx_mapresize(env, txn->mt_next_pgno, txn->mt_end_pgno,
                           txn->mt_geo.upper);
-      if (rc != MDBX_SUCCESS) {
-        if (rc == MDBX_RESULT_TRUE)
-          rc = MDBX_MAP_RESIZED;
+      if (rc != MDBX_SUCCESS)
         goto bailout;
-      }
     }
     if (txn->mt_flags & MDBX_RDONLY) {
 #if defined(_WIN32) || defined(_WIN64)
-      if (size > env->me_dbgeo.lower && env->me_dbgeo.shrink) {
+      if ((size > env->me_dbgeo.lower && env->me_dbgeo.shrink) ||
+          (mdbx_RunningUnderWine() &&
+           /* under Wine acquisition of remap_guard is always required,
+            * since Wine don't support section extending,
+            * i.e. in both cases unmap+map are required. */
+           size < env->me_dbgeo.upper && env->me_dbgeo.grow)) {
         txn->mt_flags |= MDBX_SHRINK_ALLOWED;
         mdbx_srwlock_AcquireShared(&env->me_remap_guard);
       }
@@ -20767,7 +20775,12 @@ uint64_t mdbx_key_from_jsonInteger(const int64_t json_integer) {
     const uint64_t key = biased_zero +
                          (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) +
                          (mantissa - IEEE754_DOUBLE_IMPLICIT_LEAD);
+#if !defined(_MSC_VER) ||                                                      \
+    defined(                                                                   \
+        _DEBUG) /* Workaround for MSVC error LNK2019: unresolved external      \
+                   symbol __except1 referenced in function __ftol3_except */
     assert(key == mdbx_key_from_double((double)json_integer));
+#endif /* Workaround for MSVC */
     return key;
   }
 
@@ -20789,7 +20802,12 @@ uint64_t mdbx_key_from_jsonInteger(const int64_t json_integer) {
     const uint64_t key = biased_zero -
                          (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) -
                          (mantissa - IEEE754_DOUBLE_IMPLICIT_LEAD);
+#if !defined(_MSC_VER) ||                                                      \
+    defined(                                                                   \
+        _DEBUG) /* Workaround for MSVC error LNK2019: unresolved external      \
+                   symbol __except1 referenced in function __ftol3_except */
     assert(key == mdbx_key_from_double((double)json_integer));
+#endif /* Workaround for MSVC */
     return key;
   }
 
@@ -22148,6 +22166,9 @@ MDBX_INTERNAL_FUNC int mdbx_check_fs_rdonly(mdbx_filehandle_t handle,
 
 static int mdbx_check_fs_local(mdbx_filehandle_t handle, int flags) {
 #if defined(_WIN32) || defined(_WIN64)
+  if (mdbx_RunningUnderWine() && !(flags & MDBX_EXCLUSIVE))
+    return ERROR_NOT_CAPABLE /* workaround for Wine */;
+
   if (GetFileType(handle) != FILE_TYPE_DISK)
     return ERROR_FILE_OFFLINE;
 
@@ -22460,7 +22481,8 @@ MDBX_INTERNAL_FUNC int mdbx_mmap(const int flags, mdbx_mmap_t *map,
   if (!NT_SUCCESS(err))
     return ntstatus2errcode(err);
 
-  SIZE_T ViewSize = (flags & MDBX_RDONLY) ? 0 : limit;
+  SIZE_T ViewSize =
+      (flags & MDBX_RDONLY) ? 0 : mdbx_RunningUnderWine() ? size : limit;
   err = NtMapViewOfSection(
       map->section, GetCurrentProcess(), &map->address,
       /* ZeroBits */ 0,
@@ -22563,7 +22585,7 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
   if (!(flags & MDBX_RDONLY) && limit == map->limit && size > map->current) {
     /* growth rw-section */
     if (!mdbx_NtExtendSection)
-      return ERROR_CALL_NOT_IMPLEMENTED /* workaround for Wine */;
+      return MDBX_UNABLE_EXTEND_MAPSIZE /* workaround for Wine */;
     SectionSize.QuadPart = size;
     status = mdbx_NtExtendSection(map->section, &SectionSize);
     if (!NT_SUCCESS(status))
@@ -22581,7 +22603,7 @@ MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t size,
     status = NtAllocateVirtualMemory(GetCurrentProcess(), &BaseAddress, 0,
                                      &RegionSize, MEM_RESERVE, PAGE_NOACCESS);
     if (status == /* STATUS_CONFLICTING_ADDRESSES */ 0xC0000018)
-      return MDBX_RESULT_TRUE;
+      return MDBX_UNABLE_EXTEND_MAPSIZE;
     if (!NT_SUCCESS(status))
       return ntstatus2errcode(status);
 
@@ -22699,8 +22721,8 @@ retry_mapview:;
 
     if (map->address && (size != map->current || limit != map->limit)) {
       /* try remap with previously size and limit,
-       * but will return MDBX_RESULT_TRUE on success */
-      rc = MDBX_RESULT_TRUE;
+       * but will return MDBX_UNABLE_EXTEND_MAPSIZE on success */
+      rc = MDBX_UNABLE_EXTEND_MAPSIZE;
       size = map->current;
       limit = map->limit;
       goto retry_file_and_section;
@@ -22723,7 +22745,7 @@ retry_mapview:;
   if (flags & MDBX_RDONLY) {
     map->current = (filesize > limit) ? limit : (size_t)filesize;
     if (map->current != size)
-      rc = MDBX_RESULT_TRUE;
+      rc = MDBX_UNABLE_EXTEND_MAPSIZE;
   } else if (filesize != size) {
     rc = mdbx_ftruncate(map->fd, size);
     if (rc != MDBX_SUCCESS)
@@ -22740,7 +22762,7 @@ retry_mapview:;
       case EAGAIN:
       case ENOMEM:
       case EFAULT /* MADV_DODUMP / MADV_DONTDUMP are mixed for mmap-range */:
-        rc = MDBX_RESULT_TRUE;
+        rc = MDBX_UNABLE_EXTEND_MAPSIZE;
       }
       return rc;
     }
@@ -22759,7 +22781,7 @@ retry_mapview:;
 #else  /* MREMAP_MAYMOVE */
     /* TODO: Perhaps here it is worth to implement suspend/resume threads
      *       and perform unmap/map as like for Windows. */
-    rc = MDBX_RESULT_TRUE;
+    rc = MDBX_UNABLE_EXTEND_MAPSIZE;
 #endif /* !MREMAP_MAYMOVE */
   }
 #endif
@@ -22955,20 +22977,20 @@ static uint64_t windows_bootime(void) {
   return 0;
 }
 
-static LSTATUS mdbx_RegGetValue(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue,
+static LSTATUS mdbx_RegGetValue(HKEY hkey, LPCSTR lpSubKey, LPCSTR lpValue,
                                 DWORD dwFlags, LPDWORD pdwType, PVOID pvData,
                                 LPDWORD pcbData) {
   LSTATUS rc =
-      RegGetValueW(hkey, lpSubKey, lpValue, dwFlags, pdwType, pvData, pcbData);
+      RegGetValueA(hkey, lpSubKey, lpValue, dwFlags, pdwType, pvData, pcbData);
   if (rc != ERROR_FILE_NOT_FOUND)
     return rc;
 
-  rc = RegGetValueW(hkey, lpSubKey, lpValue,
+  rc = RegGetValueA(hkey, lpSubKey, lpValue,
                     dwFlags | 0x00010000 /* RRF_SUBKEY_WOW6464KEY */, pdwType,
                     pvData, pcbData);
   if (rc != ERROR_FILE_NOT_FOUND)
     return rc;
-  return RegGetValueW(hkey, lpSubKey, lpValue,
+  return RegGetValueA(hkey, lpSubKey, lpValue,
                       dwFlags | 0x00020000 /* RRF_SUBKEY_WOW6432KEY */, pdwType,
                       pvData, pcbData);
 }
@@ -23081,30 +23103,30 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
       char DigitalProductId[248];
     } buf;
 
-    static const wchar_t HKLM_MicrosoftCryptography[] =
-        L"SOFTWARE\\Microsoft\\Cryptography";
+    static const char HKLM_MicrosoftCryptography[] =
+        "SOFTWARE\\Microsoft\\Cryptography";
     DWORD len = sizeof(buf);
     /* Windows is madness and must die */
     if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_MicrosoftCryptography,
-                         L"MachineGuid", RRF_RT_ANY, NULL, &buf.MachineGuid,
+                         "MachineGuid", RRF_RT_ANY, NULL, &buf.MachineGuid,
                          &len) == ERROR_SUCCESS &&
         len > 42 && len < sizeof(buf))
       got_machineid = bootid_parse_uuid(&bin, &buf.MachineGuid, len);
 
     if (!got_machineid) {
       /* again, Windows is madness */
-      static const wchar_t HKLM_WindowsNT[] =
-          L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
-      static const wchar_t HKLM_WindowsNT_DPK[] =
-          L"SOFTWARE\\Microsoft\\Windows "
-          L"NT\\CurrentVersion\\DefaultProductKey";
-      static const wchar_t HKLM_WindowsNT_DPK2[] =
-          L"SOFTWARE\\Microsoft\\Windows "
-          L"NT\\CurrentVersion\\DefaultProductKey2";
+      static const char HKLM_WindowsNT[] =
+          "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
+      static const char HKLM_WindowsNT_DPK[] =
+          "SOFTWARE\\Microsoft\\Windows "
+          "NT\\CurrentVersion\\DefaultProductKey";
+      static const char HKLM_WindowsNT_DPK2[] =
+          "SOFTWARE\\Microsoft\\Windows "
+          "NT\\CurrentVersion\\DefaultProductKey2";
 
       len = sizeof(buf);
       if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_WindowsNT,
-                           L"DigitalProductId", RRF_RT_ANY, NULL,
+                           "DigitalProductId", RRF_RT_ANY, NULL,
                            &buf.DigitalProductId, &len) == ERROR_SUCCESS &&
           len > 42 && len < sizeof(buf)) {
         bootid_collect(&bin, &buf.DigitalProductId, len);
@@ -23112,7 +23134,7 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
       }
       len = sizeof(buf);
       if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_WindowsNT_DPK,
-                           L"DigitalProductId", RRF_RT_ANY, NULL,
+                           "DigitalProductId", RRF_RT_ANY, NULL,
                            &buf.DigitalProductId, &len) == ERROR_SUCCESS &&
           len > 42 && len < sizeof(buf)) {
         bootid_collect(&bin, &buf.DigitalProductId, len);
@@ -23120,7 +23142,7 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
       }
       len = sizeof(buf);
       if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_WindowsNT_DPK2,
-                           L"DigitalProductId", RRF_RT_ANY, NULL,
+                           "DigitalProductId", RRF_RT_ANY, NULL,
                            &buf.DigitalProductId, &len) == ERROR_SUCCESS &&
           len > 42 && len < sizeof(buf)) {
         bootid_collect(&bin, &buf.DigitalProductId, len);
@@ -23128,11 +23150,11 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
       }
     }
 
-    static const wchar_t HKLM_PrefetcherParams[] =
-        L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory "
-        L"Management\\PrefetchParameters";
+    static const char HKLM_PrefetcherParams[] =
+        "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory "
+        "Management\\PrefetchParameters";
     len = sizeof(buf);
-    if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_PrefetcherParams, L"BootId",
+    if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_PrefetcherParams, "BootId",
                          RRF_RT_DWORD, NULL, &buf.BootId,
                          &len) == ERROR_SUCCESS &&
         len > 1 && len < sizeof(buf)) {
@@ -23141,7 +23163,7 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
     }
 
     len = sizeof(buf);
-    if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_PrefetcherParams, L"BaseTime",
+    if (mdbx_RegGetValue(HKEY_LOCAL_MACHINE, HKLM_PrefetcherParams, "BaseTime",
                          RRF_RT_DWORD, NULL, &buf.BaseTime,
                          &len) == ERROR_SUCCESS &&
         len >= sizeof(buf.BaseTime) && buf.BaseTime) {
@@ -23319,7 +23341,7 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
 
 
 #if MDBX_VERSION_MAJOR != 0 ||                             \
-    MDBX_VERSION_MINOR != 6
+    MDBX_VERSION_MINOR != 7
 #error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
@@ -23339,11 +23361,11 @@ __dll_export
 #endif
     const mdbx_version_info mdbx_version = {
         0,
-        6,
+        7,
         0,
-        1925,
-        {"2020-02-18T02:22:47+03:00", "6a5ec1a23c191ee229368994de46c2927727dbeb", "bd3f234bce98c9744b50ebf042ae3e1919f19bdd",
-         "v0.6.0-35-gbd3f234bc"},
+        1942,
+        {"2020-03-18T17:19:12+03:00", "8b18f354ceabb27fc52051a526da9da4d8c3af8f", "8f5ae79b51b5785f745183afbf5a2cae856940f0",
+         "v0.7.0-0-g8f5ae79b5"},
         sourcery};
 
 __dll_export
@@ -23359,7 +23381,6 @@ __dll_export
     __attribute__((__externally_visible__))
 #endif
     const char *const mdbx_sourcery_anchor = sourcery;
-#if defined(_WIN32) || defined(_WIN64)
 /*
  * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
@@ -23374,16 +23395,14 @@ __dll_export
  * <http://www.OpenLDAP.org/license.html>.
  */
 
+#if defined(_WIN32) || defined(_WIN64) /* Windows LCK-implementation */
 
 /* PREAMBLE FOR WINDOWS:
  *
  * We are not concerned for performance here.
  * If you are running Windows a performance could NOT be the goal.
- * Otherwise please use Linux.
- *
- * Regards,
- * LY
- */
+ * Otherwise please use Linux. */
+
 
 static void mdbx_winnt_import(void);
 
@@ -23728,22 +23747,24 @@ mdbx_resume_threads_after_remap(mdbx_handle_array_t *array) {
  */
 
 static void lck_unlock(MDBX_env *env) {
-  int rc;
+  int err;
 
   if (env->me_lfd != INVALID_HANDLE_VALUE) {
     /* double `unlock` for robustly remove overlapped shared/exclusive locks */
     while (funlock(env->me_lfd, LCK_LOWER))
       ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
+    err = GetLastError();
+    assert(err == ERROR_NOT_LOCKED ||
+           (mdbx_RunningUnderWine() && err == ERROR_LOCK_VIOLATION));
+    (void)err;
     SetLastError(ERROR_SUCCESS);
 
     while (funlock(env->me_lfd, LCK_UPPER))
       ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
+    err = GetLastError();
+    assert(err == ERROR_NOT_LOCKED ||
+           (mdbx_RunningUnderWine() && err == ERROR_LOCK_VIOLATION));
+    (void)err;
     SetLastError(ERROR_SUCCESS);
   }
 
@@ -23752,23 +23773,26 @@ static void lck_unlock(MDBX_env *env) {
      * releases such locks via deferred queues) */
     while (funlock(env->me_lazy_fd, LCK_BODY))
       ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
+    err = GetLastError();
+    assert(err == ERROR_NOT_LOCKED ||
+           (mdbx_RunningUnderWine() && err == ERROR_LOCK_VIOLATION));
+    (void)err;
     SetLastError(ERROR_SUCCESS);
 
     while (funlock(env->me_lazy_fd, LCK_META))
       ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
+    err = GetLastError();
+    assert(err == ERROR_NOT_LOCKED ||
+           (mdbx_RunningUnderWine() && err == ERROR_LOCK_VIOLATION));
+    (void)err;
     SetLastError(ERROR_SUCCESS);
 
     while (funlock(env->me_lazy_fd, LCK_WHOLE))
       ;
-    rc = GetLastError();
-    assert(rc == ERROR_NOT_LOCKED);
-    (void)rc;
+    err = GetLastError();
+    assert(err == ERROR_NOT_LOCKED ||
+           (mdbx_RunningUnderWine() && err == ERROR_LOCK_VIOLATION));
+    (void)err;
     SetLastError(ERROR_SUCCESS);
   }
 }
@@ -24094,7 +24118,47 @@ MDBX_ReclaimVirtualMemory mdbx_ReclaimVirtualMemory;
 #endif /* MDBX_ALLOY */
 
 static void mdbx_winnt_import(void) {
+  const HINSTANCE hNtdll = GetModuleHandleA("ntdll.dll");
+
+#define GET_PROC_ADDR(dll, ENTRY)                                              \
+  mdbx_##ENTRY = (MDBX_##ENTRY)GetProcAddress(dll, #ENTRY)
+
+  if (GetProcAddress(hNtdll, "wine_get_version")) {
+    assert(mdbx_RunningUnderWine());
+  } else {
+    GET_PROC_ADDR(hNtdll, NtFsControlFile);
+    GET_PROC_ADDR(hNtdll, NtExtendSection);
+    assert(!mdbx_RunningUnderWine());
+  }
+
   const HINSTANCE hKernel32dll = GetModuleHandleA("kernel32.dll");
+  GET_PROC_ADDR(hKernel32dll, GetFileInformationByHandleEx);
+  GET_PROC_ADDR(hKernel32dll, GetTickCount64);
+  if (!mdbx_GetTickCount64)
+    mdbx_GetTickCount64 = stub_GetTickCount64;
+  if (!mdbx_RunningUnderWine()) {
+    GET_PROC_ADDR(hKernel32dll, SetFileInformationByHandle);
+    GET_PROC_ADDR(hKernel32dll, GetVolumeInformationByHandleW);
+    GET_PROC_ADDR(hKernel32dll, GetFinalPathNameByHandleW);
+    GET_PROC_ADDR(hKernel32dll, PrefetchVirtualMemory);
+  }
+
+#if 0  /* LY: unused for now */
+  if (!mdbx_RunningUnderWine()) {
+    GET_PROC_ADDR(hKernel32dll, DiscardVirtualMemory);
+    GET_PROC_ADDR(hKernel32dll, OfferVirtualMemory);
+    GET_PROC_ADDR(hKernel32dll, ReclaimVirtualMemory);
+  }
+  if (!mdbx_DiscardVirtualMemory)
+    mdbx_DiscardVirtualMemory = stub_DiscardVirtualMemory;
+  if (!mdbx_OfferVirtualMemory)
+    mdbx_OfferVirtualMemory = stub_OfferVirtualMemory;
+  if (!mdbx_ReclaimVirtualMemory)
+    mdbx_ReclaimVirtualMemory = stub_ReclaimVirtualMemory;
+#endif /* unused for now */
+
+#undef GET_PROC_ADDR
+
   const MDBX_srwlock_function init =
       (MDBX_srwlock_function)GetProcAddress(hKernel32dll, "InitializeSRWLock");
   if (init != NULL) {
@@ -24114,33 +24178,9 @@ static void mdbx_winnt_import(void) {
     mdbx_srwlock_AcquireExclusive = stub_srwlock_AcquireExclusive;
     mdbx_srwlock_ReleaseExclusive = stub_srwlock_ReleaseExclusive;
   }
-
-#define GET_KERNEL32_PROC(ENTRY)                                               \
-  mdbx_##ENTRY = (MDBX_##ENTRY)GetProcAddress(hKernel32dll, #ENTRY)
-  GET_KERNEL32_PROC(GetFileInformationByHandleEx);
-  GET_KERNEL32_PROC(GetVolumeInformationByHandleW);
-  GET_KERNEL32_PROC(GetFinalPathNameByHandleW);
-  GET_KERNEL32_PROC(SetFileInformationByHandle);
-  GET_KERNEL32_PROC(PrefetchVirtualMemory);
-  GET_KERNEL32_PROC(GetTickCount64);
-  if (!mdbx_GetTickCount64)
-    mdbx_GetTickCount64 = stub_GetTickCount64;
-#if 0  /* LY: unused for now */
-  GET_KERNEL32_PROC(DiscardVirtualMemory);
-  if (!mdbx_DiscardVirtualMemory)
-    mdbx_DiscardVirtualMemory = stub_DiscardVirtualMemory;
-  GET_KERNEL32_PROC(OfferVirtualMemory);
-  GET_KERNEL32_PROC(ReclaimVirtualMemory);
-#endif /* unused for now */
-#undef GET_KERNEL32_PROC
-
-  const HINSTANCE hNtdll = GetModuleHandleA("ntdll.dll");
-  mdbx_NtFsControlFile =
-      (MDBX_NtFsControlFile)GetProcAddress(hNtdll, "NtFsControlFile");
-  mdbx_NtExtendSection =
-      (MDBX_NtExtendSection)GetProcAddress(hNtdll, "NtExtendSection");
 }
-#else /* LCK-implementation */
+
+#endif /* Windows LCK-implementation */
 /*
  * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
  * and other libmdbx authors: please see AUTHORS file.
@@ -24154,6 +24194,8 @@ static void mdbx_winnt_import(void) {
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>.
  */
+
+#if !(defined(_WIN32) || defined(_WIN64)) /* !Windows LCK-implementation */
 
 #include <sys/sem.h>
 
@@ -24945,4 +24987,10 @@ void mdbx_txn_unlock(MDBX_env *env) {
     mdbx_panic("%s() failed: err %d\n", __func__, rc);
   mdbx_jitter4testing(true);
 }
-#endif /* LCK-implementation */
+
+#else
+#ifdef _MSC_VER
+#pragma warning(disable : 4206) /* nonstandard extension used: translation     \
+                                   unit is empty */
+#endif                          /* _MSC_VER (warnings) */
+#endif                          /* !Windows LCK-implementation */

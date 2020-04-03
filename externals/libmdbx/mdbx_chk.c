@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 85287e723bd2f144400ba1bda5f40f87975e309e14b677433b9d81835880fe7e_v0_6_0_35_gbd3f234bc
+#define MDBX_BUILD_SOURCERY 2a4129dae3c7142ada07c0f7a9a34422beb93a5813f31f5639b50847a5b9a032_v0_7_0_0_g8f5ae79b5
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1356,6 +1356,7 @@ MDBX_INTERNAL_FUNC int mdbx_rpid_clear(MDBX_env *env);
 MDBX_INTERNAL_FUNC int mdbx_rpid_check(MDBX_env *env, uint32_t pid);
 
 #if defined(_WIN32) || defined(_WIN64)
+
 typedef union MDBX_srwlock {
   struct {
     long volatile readerCount;
@@ -1450,6 +1451,10 @@ typedef enum _SECTION_INHERIT { ViewShare = 1, ViewUnmap = 2 } SECTION_INHERIT;
 typedef NTSTATUS(NTAPI *MDBX_NtExtendSection)(IN HANDLE SectionHandle,
                                               IN PLARGE_INTEGER NewSectionSize);
 MDBX_INTERNAL_VAR MDBX_NtExtendSection mdbx_NtExtendSection;
+
+static __inline bool mdbx_RunningUnderWine(void) {
+  return !mdbx_NtExtendSection;
+}
 
 #endif /* Windows */
 
@@ -3526,6 +3531,12 @@ static int process_db(MDBX_dbi dbi_handle, char *dbi_name, visitor *handler,
 
   uint64_t record_count = 0, dups = 0;
   uint64_t key_bytes = 0, data_bytes = 0;
+
+  if ((MDBX_TXN_FINISHED | MDBX_TXN_ERROR) & mdbx_txn_flags(txn)) {
+    print(" ! abort processing '%s' due to a previous error\n",
+          dbi_name ? dbi_name : "@MAIN");
+    return MDBX_BAD_TXN;
+  }
 
   if (dbi_handle == ~0u) {
     rc = mdbx_dbi_open(txn, dbi_name, 0, &dbi_handle);

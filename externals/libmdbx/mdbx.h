@@ -653,8 +653,9 @@ typedef pthread_t mdbx_tid_t;
 
 /*----------------------------------------------------------------------------*/
 
+/* MDBX version 0.7.0, released 2020-03-18 */
 #define MDBX_VERSION_MAJOR 0
-#define MDBX_VERSION_MINOR 6
+#define MDBX_VERSION_MINOR 7
 
 #ifndef LIBMDBX_API
 #if defined(LIBMDBX_EXPORTS)
@@ -1202,10 +1203,11 @@ LIBMDBX_API const char *mdbx_dump_val(const MDBX_val *key, char *const buf,
  *         In case single transaction after mdbx_env_sync, you may lose
  *         transaction itself, but not a whole database.
  *
- *      Nevertheless, MDBX_UTTERLY_NOSYNC provides ACID in case of a application
- *      crash, and therefore may be very useful in scenarios where data
- *      durability is not required over a system failure (e.g for short-lived
- *      data), or if you can ignore such risk.
+ *      Nevertheless, MDBX_UTTERLY_NOSYNC provides "weak" durability in case of
+ *      an application crash (but no durability on system failure), and
+ *      therefore may be very useful in scenarios where data durability is not
+ *      required over a system failure (e.g for short-lived data), or if you can
+ *      take such risk.
  *
  *      MDBX_UTTERLY_NOSYNC flag may be changed at any time using
  *      mdbx_env_set_flags(), but don't has effect if passed to mdbx_txn_begin()
@@ -1453,9 +1455,14 @@ typedef enum MDBX_cursor_op {
 /* Page has not enough space - internal error */
 #define MDBX_PAGE_FULL (-30786)
 
-/* Database contents grew beyond environment mapsize and engine was
- * unable to extend mapping, e.g. since address space is unavailable or busy */
-#define MDBX_MAP_RESIZED (-30785)
+/* Database engine was unable to extend mapping, e.g. since address space
+ * is unavailable or busy. This can mean:
+ *  - Database size extended by other process beyond to environment mapsize
+ *    and engine was unable to extend mapping while starting read transaction.
+ *    Environment should be reopened to continue.
+ *  - Engine was unable to extend mapping during write transaction
+ *    or explicit call of mdbx_env_set_geometry(). */
+#define MDBX_UNABLE_EXTEND_MAPSIZE (-30785)
 
 /* Environment or database is not compatible with the requested operation
  * or the specified flags. This can mean:
@@ -2027,9 +2034,9 @@ LIBMDBX_API int mdbx_env_get_fd(MDBX_env *env, mdbx_filehandle_t *fd);
  *    size. Besides, the upper bound defines the linear address space
  *    reservation in each process that opens the database. Therefore changing
  *    the upper bound is costly and may be required reopening environment in
- *    case of MDBX_MAP_RESIZED errors, and so on. Therefore, this value should
- *    be chosen reasonable as large as possible, to accommodate future growth
- *    of the database.
+ *    case of MDBX_UNABLE_EXTEND_MAPSIZE errors, and so on. Therefore, this
+ *    value should be chosen reasonable as large as possible, to accommodate
+ *    future growth of the database.
  *  - The growth step must be greater than zero to allow the database to grow,
  *    but also reasonable not too small, since increasing the size by little
  *    steps will result a large overhead.
@@ -2049,6 +2056,7 @@ LIBMDBX_API int mdbx_env_get_fd(MDBX_env *env, mdbx_filehandle_t *fd);
  *  - Windows does not provide the usual API to augment a memory-mapped file
  *    (that is, a memory-mapped partition), but only by using "Native API"
  *    in an undocumented way.
+ *
  * MDBX bypasses all Windows issues, but at a cost:
  *  - Ability to resize database on the fly requires an additional lock
  *    and release SlimReadWriteLock during each read-only transaction.
@@ -2069,10 +2077,10 @@ LIBMDBX_API int mdbx_env_get_fd(MDBX_env *env, mdbx_filehandle_t *fd);
  *
  * If the mapsize is increased by another process, MDBX silently and
  * transparently adopt these changes at next transaction start. However,
- * mdbx_txn_begin() will return MDBX_MAP_RESIZED if new mapping size could not
- * be applied for current process (for instance if address space is busy).
- * Therefore, in the case of MDBX_MAP_RESIZED error you need close and reopen
- * the environment to resolve error.
+ * mdbx_txn_begin() will return MDBX_UNABLE_EXTEND_MAPSIZE if new mapping size
+ * could not be applied for current process (for instance if address space
+ * is busy).  Therefore, in the case of MDBX_UNABLE_EXTEND_MAPSIZE error you
+ * need close and reopen the environment to resolve error.
  *
  * NOTE: Actual values may be different than your have specified because of
  * rounding to specified database page size, the system page size and/or the
@@ -2103,13 +2111,13 @@ LIBMDBX_API int mdbx_env_get_fd(MDBX_env *env, mdbx_filehandle_t *fd);
  *                        database is used by other processes or threaded
  *                        (i.e. just pass -1 in this argument except absolutely
  *                        necessity). Otherwise you must be ready for
- *                        MDBX_MAP_RESIZED error(s), unexpected pauses during
- *                        remapping and/or system errors like "addtress busy",
- *                        and so on. In other words, there is no way to handle
- *                        a growth of the upper bound robustly because there may
- *                        be a lack of appropriate system resources (which are
- *                        extremely volatile in a multi-process multi-threaded
- *                        environment).
+ *                        MDBX_UNABLE_EXTEND_MAPSIZE error(s), unexpected pauses
+ *                        during remapping and/or system errors like "addtress
+ *                        busy", and so on. In other words, there is no way to
+ *                        handle a growth of the upper bound robustly because
+ *                        there may be a lack of appropriate system resources
+ *                        (which are extremely volatile in a multi-process
+ *                        multi-threaded environment).
  *
  * [in] growth_step       The growth step in bytes, must be greater than zero
  *                        to allow the database to grow.
@@ -2301,7 +2309,8 @@ LIBMDBX_API void *mdbx_env_get_userctx(MDBX_env *env);
  * possible errors are:
  *  - MDBX_PANIC         = a fatal error occurred earlier and the environment
  *                         must be shut down.
- *  - MDBX_MAP_RESIZED   = another process wrote data beyond this MDBX_env's
+ *  - MDBX_UNABLE_EXTEND_MAPSIZE
+ *                       = another process wrote data beyond this MDBX_env's
  *                         mapsize and this environment's map must be resized
  *                         as well. See mdbx_env_set_mapsize().
  *  - MDBX_READERS_FULL  = a read-only transaction was requested and the reader
@@ -2582,9 +2591,14 @@ typedef int(MDBX_cmp_func)(const MDBX_val *a, const MDBX_val *b);
  * comparison functions for keys and values (for multimaps).
  * However, I recommend not using custom comparison functions, but instead
  * converting the keys to one of the forms that are suitable for built-in
- * comparators. The main reason for this is that you can't use mdbx_chk tools
- * with a custom comparators. For instance take look to the mdbx_key_from_xxx()
- * functions.
+ * comparators (for instance take look to the mdbx_key_from_xxx()
+ * functions). The reasons to not using custom comparators are:
+ *   - The order of records could not be validated without your code.
+ *     So mdbx_chk utility will reports "wrong order" errors
+ *     and the '-i' option is required to ignore ones.
+ *   - A records could not be ordered or sorted without your code.
+ *     So mdbx_load utility should be used with '-a' option to preserve
+ *     input data order.
  *
  * [in] keycmp   Optional custom key comparison function for a database.
  * [in] datacmp  Optional custom data comparison function for a database, takes

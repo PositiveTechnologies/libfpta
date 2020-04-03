@@ -9,15 +9,25 @@ database, with [permissive license](LICENSE).
 _MDBX_ has a specific set of properties and capabilities,
 focused on creating unique lightweight solutions with extraordinary performance.
 
-1. Allows **swarm of multi-threaded processes to [ACID]((https://en.wikipedia.org/wiki/ACID))ly read and update** several key-value [maps](https://en.wikipedia.org/wiki/Associative_array) and [multimaps](https://en.wikipedia.org/wiki/Multimap) in a localy-shared database.
+1. Allows **swarm of multi-threaded processes to
+[ACID]((https://en.wikipedia.org/wiki/ACID))ly read and update** several
+key-value [maps](https://en.wikipedia.org/wiki/Associative_array) and
+[multimaps](https://en.wikipedia.org/wiki/Multimap) in a localy-shared
+database.
 
-2. Provides **extraordinary performance**, minimal overhead through [Memory-Mapping](https://en.wikipedia.org/wiki/Memory-mapped_file) and `Olog(N)` operations costs by virtue of [B+ tree](https://en.wikipedia.org/wiki/B%2B_tree).
+2. Provides **extraordinary performance**, minimal overhead through
+[Memory-Mapping](https://en.wikipedia.org/wiki/Memory-mapped_file) and
+`Olog(N)` operations costs by virtue of [B+
+tree](https://en.wikipedia.org/wiki/B%2B_tree).
 
-3. Requires **no maintenance and no crash recovery** since doesn't use [WAL](https://en.wikipedia.org/wiki/Write-ahead_logging), but that might be a caveat for write-intensive workloads.
+3. Requires **no maintenance and no crash recovery** since doesn't use
+[WAL](https://en.wikipedia.org/wiki/Write-ahead_logging), but that might
+be a caveat for write-intensive workloads with durability requirements.
 
-4. **Compact and friendly for fully embeddeding**. Only 25KLOC of `C11`, 64K x86 binary code,
-no internal threads neither processes, but implements a simplified variant of the
-[Berkeley DB](https://en.wikipedia.org/wiki/Berkeley_DB) and
+4. **Compact and friendly for fully embeddeding**. Only 25KLOC of `C11`,
+64K x86 binary code, no internal threads neither processes, but
+implements a simplified variant of the [Berkeley
+DB](https://en.wikipedia.org/wiki/Berkeley_DB) and
 [dbm](https://en.wikipedia.org/wiki/DBM_(computing)) API.
 
 5. Enforces [serializability](https://en.wikipedia.org/wiki/Serializability) for
@@ -49,6 +59,7 @@ _MithrilDB_ is rightly relevant name.
   > revolution is to provide a clearer and robust API, add more features and
   > new valuable properties of database.
 
+[![https://t.me/libmdbx](https://raw.githubusercontent.com/wiki/erthink/libmdbx/img/telegram.png)](https://t.me/libmdbx)
 [![Build Status](https://travis-ci.org/erthink/libmdbx.svg?branch=master)](https://travis-ci.org/erthink/libmdbx)
 [![Build status](https://ci.appveyor.com/api/projects/status/ue94mlopn50dqiqg/branch/master?svg=true)](https://ci.appveyor.com/project/erthink/libmdbx/branch/master)
 [![Coverity Scan Status](https://scan.coverity.com/projects/12915/badge.svg)](https://scan.coverity.com/projects/reopen-libmdbx)
@@ -185,6 +196,9 @@ the user's point of view.
   > _libmdbx_ manage the database size according to parameters specified
   > by `mdbx_env_set_geometry()` function,
   > ones include the growth step and the truncation threshold.
+  >
+  > Unfortunately, on-the-fly database size adjustment doesn't work under [Wine](https://en.wikipedia.org/wiki/Wine_(software))
+  > due to its internal limitations and unimplemented functions, i.e. the `MDBX_UNABLE_EXTEND_MAPSIZE` error will be returned.
 
 4. Automatic continuous zero-overhead database compactification.
   > During each commit _libmdbx_ merges suitable freeing pages into unallocated area
@@ -409,9 +423,9 @@ For more information and API description see the [mdbx.h](mdbx.h) header.
 
   | Runtime  | GitHub | Author |
   | -------- | ------ | ------ |
+  | Rust     | [mdbx-rs](https://github.com/Kerollmops/mdbx-rs)   | [@Kerollmops](https://github.com/Kerollmops) |
   | Java     | [mdbxjni](https://github.com/castortech/mdbxjni)   | [Castor Technologies](https://castortech.com/) |
   | .NET     | [mdbx.NET](https://github.com/wangjia184/mdbx.NET) | [Jerry Wang](https://github.com/wangjia184) |
-  | Rust     | [mdbx-rs](https://github.com/Kerollmops/mdbx-rs)   | [Clément Renault](https://github.com/Kerollmops) |
 
 --------------------------------------------------------------------------------
 
