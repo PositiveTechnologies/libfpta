@@ -17,8 +17,11 @@
 
 #pragma once
 
-/* Double-to-string conversion based on Grisu algorithm by Florian Loitsch,
+/* Double-to-string conversion based on Grisu algorithm by Florian Loitsch
  * https://www.cs.tufts.edu/~nr/cs257/archive/florian-loitsch/printf.pdf
+ *
+ * Seems this is the fastest Grisu-based implementation,
+ * but it is not exactly Grisu3 nor Grisu2:
  *
  * 1. Generated string representation ALWAYS roundtrip convertible to
  *    the original value, i.e. any correct implementation of strtod()
@@ -27,7 +30,7 @@
  * 2. Generated string representation is shortest for more than 99.963% of
  *    IEEE-754 double values, i.e. one extra digit for less that 0.037% values.
  *    Moreover, for less than 0.06% of double values, the last digit differs
- *    from an ideal nearest by +/- 1.
+ *    from an ideal nearest by ±1.
  *
  * 3. Compared to Ryū algorithm (by Ulf Adams), this implementation
  *    significantly less in code size and spends less clock cycles per digit,
