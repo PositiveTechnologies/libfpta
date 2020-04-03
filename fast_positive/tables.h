@@ -402,7 +402,8 @@ enum fpta_error {
                         * this usually indicates corruption */
   ,
 
-  FPTA_DB_DATA = -30796 /* Located page was wrong data */,
+  FPTA_DB_CORRUPTED =
+      -30796 /* Database is corrupted (page was wrong type and so on) */,
 
   FPTA_DB_PANIC = -30795 /* Environment had fatal error (i.e. update of meta
                             page failed and so on) */
@@ -426,9 +427,14 @@ enum fpta_error {
 
   FPTA_PAGE_FULL = -30786 /* Page has not enough space (mdbx internal) */,
 
-  FPTA_DB_RESIZED = -30785 /* Database contents grew beyond environment mapsize
-                            * and engine was unable to extend mapping, e.g.
-                            * since address space is unavailable or busy */
+  FPTA_DB_UNABLE_EXTEND_MAPSIZE = -30785 /* Database engine was unable
+  to extend mapping, e.g. since address space is unavailable or busy:
+    - Database size extended by other process beyond to environment
+      mapsize and engine was unable to extend mapping while
+      starting read transaction. Environment should be reopened to
+      continue.
+    - Engine was unable to extend mapping during write transaction
+      or explicit call of mdbx_env_set_geometry(). */
   ,
 
   FPTA_DB_INCOMPAT = -30784 /* Environment or database is not compatible with
