@@ -1371,9 +1371,9 @@ protected:
 
 public:
   constexpr string_view() : str(nullptr), len(-1) {}
-  constexpr string_view(const string_view &v) = default;
+  constexpr string_view(const string_view &) = default;
   cxx14_constexpr string_view &
-  operator=(const string_view &v) noexcept = default;
+  operator=(const string_view &) noexcept = default;
 
   constexpr string_view(const char *str, size_t count)
       : str(str), len(str ? static_cast<intptr_t>(count) : -1) {
@@ -1545,13 +1545,29 @@ inline uint_fast16_t make_tag(unsigned column, fptu_type type) {
   return fptu_make_tag(column, type);
 }
 
-FPTU_API std::string format(const char *fmt, ...)
-#ifdef __GNUC__
-    __attribute__((__format__(printf, 1, 2)))
-#endif
-    ;
+FPTU_API std::string format(const char *fmt, ...) __printf_args(1, 2);
+FPTU_API std::ostream &format(std::ostream &out, const char *fmt, ...)
+    __printf_args(2, 3);
 FPTU_API std::string format_va(const char *fmt, va_list ap);
-FPTU_API std::string hexadecimal(const void *data, size_t bytes);
+FPTU_API std::ostream &format_va(std::ostream &out, const char *fmt,
+                                 va_list ap);
+FPTU_API std::string hexadecimal_string(const void *data, size_t bytes);
+FPTU_API std::ostream &hexadecimal_dump(std::ostream &out, const void *data,
+                                        size_t bytes);
+
+/* hexadecimal output helper */
+struct output_hexadecimal {
+  const void *const data;
+  const size_t length;
+  constexpr output_hexadecimal(const output_hexadecimal &) = default;
+  constexpr output_hexadecimal(const void *data, size_t length)
+      : data(data), length(length) {}
+  constexpr output_hexadecimal() : output_hexadecimal(nullptr, 0) {}
+  constexpr output_hexadecimal(const string_view &v)
+      : output_hexadecimal(v.data(), v.size()) {}
+  output_hexadecimal(const std::string &s)
+      : output_hexadecimal(s.data(), s.size()) {}
+};
 
 inline int erase(fptu_rw *pt, unsigned column, fptu_type type) {
   assert(type <= fptu_array_nested);
@@ -1911,11 +1927,12 @@ static int upsert_number(fptu_rw *pt, unsigned colnum,
   }
 }
 
-int tuple2json(const fptu_ro &tuple, fptu_emit_func output, void *output_ctx,
-               const string_view &indent, unsigned depth,
-               const void *schema_ctx, fptu_tag2name_func tag2name,
-               fptu_value2enum_func value2enum,
-               const fptu_json_options options = fptu_json_default);
+FPTU_API int tuple2json(const fptu_ro &tuple, fptu_emit_func output,
+                        void *output_ctx, const string_view &indent,
+                        unsigned depth, const void *schema_ctx,
+                        fptu_tag2name_func tag2name,
+                        fptu_value2enum_func value2enum,
+                        const fptu_json_options options = fptu_json_default);
 
 inline int tuple2json(const fptu_ro &tuple, FILE *file, const char *indent,
                       unsigned depth, const void *schema_ctx,
@@ -2028,13 +2045,29 @@ template <> struct hash<fptu::string_view> {
   }
 };
 
-FPTU_API string to_string(const fptu_error error);
+inline ostream &operator<<(ostream &out, fptu::string_view &sv) {
+  return out.write(sv.data(), sv.size());
+}
+
+inline ostream &operator<<(ostream &out, const fptu::output_hexadecimal ones) {
+  return fptu::hexadecimal_dump(out, ones.data, ones.length);
+}
+
+FPTU_API ostream &operator<<(ostream &out, const fptu_error);
+FPTU_API ostream &operator<<(ostream &out, const fptu_type);
+FPTU_API ostream &operator<<(ostream &out, const fptu_field &);
+FPTU_API ostream &operator<<(ostream &out, const fptu_rw &);
+FPTU_API ostream &operator<<(ostream &out, const fptu_ro &);
+FPTU_API ostream &operator<<(ostream &out, const fptu_lge);
+FPTU_API ostream &operator<<(ostream &out, const fptu_time &);
+
+FPTU_API string to_string(const fptu_error);
 FPTU_API string to_string(const fptu_type);
 FPTU_API string to_string(const fptu_field &);
 FPTU_API string to_string(const fptu_rw &);
 FPTU_API string to_string(const fptu_ro &);
 FPTU_API string to_string(const fptu_lge);
-FPTU_API string to_string(const fptu_time &time);
+FPTU_API string to_string(const fptu_time &);
 } /* namespace std */
 
 inline bool operator>(const fptu::string_view &a, const std::string &b) {
