@@ -208,6 +208,7 @@ else()
   check_compiler_flag("-Ominimal" CC_HAS_OMINIMAL)
   check_compiler_flag("-ffunction-sections -fdata-sections" CC_HAS_SECTIONS)
   check_compiler_flag("-ffast-math" CC_HAS_FASTMATH)
+  check_compiler_flag("-Wno-attributes" CC_HAS_WNO_ATTRIBUTES)
 
   # Check for an omp support
   set(CMAKE_REQUIRED_FLAGS "-fopenmp -Werror")
@@ -437,6 +438,12 @@ macro(setup_compile_flags)
   endif()
   if(CC_HAS_FCXX_EXCEPTIONS)
     add_compile_flags("CXX" "-fcxx-exceptions -frtti")
+  endif()
+
+  if (CC_HAS_WNO_ATTRIBUTES AND CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG}
+      AND CMAKE_${CMAKE_PRIMARY_LANG}_COMPILER_VERSION VERSION_LESS 9)
+    # GCC < 9.x generates false-positive warnings for optimization attributes
+    add_compile_flags("C;CXX" "-Wno-attributes")
   endif()
 
   # In C a global variable without a storage specifier (static/extern) and

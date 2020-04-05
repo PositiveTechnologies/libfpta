@@ -14,6 +14,7 @@ addons:
     packages:
       - cmake
       - libgtest-dev
+      - clang-format
 
 compiler:
   - gcc
@@ -26,7 +27,7 @@ os:
 script: >
   cmake --version &&
   cmake . &&
-  (if which clang-format-6.0 > /dev/null && make reformat && [[ -n $(git diff) ]];
+  (if which clang-format-8.0 > /dev/null && make reformat && [[ -n $(git diff) ]];
     then
       echo "You must run 'make reformat' before submitting a pull request";
       echo "";
