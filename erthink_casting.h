@@ -28,6 +28,10 @@
 #include <cstring>
 #endif
 
+#if defined(__cpp_lib_concepts) && __cpp_lib_concepts >= 202002L
+#include <concepts>
+#endif
+
 namespace erthink {
 
 #if __cplusplus < 201402L
@@ -68,9 +72,9 @@ constexpr TO bit_cast(const FROM &src) noexcept {
 
 #else
 
-#if defined(__cpp_concepts) && __cpp_concepts >= 201507
+#if defined(__cpp_concepts) && __cpp_concepts >= 201507L
 template <typename TO, typename FROM>
-        requires sizeof(TO) == sizeof(FROM) &&
+    requires(sizeof(TO) == sizeof(FROM)) &&
     std::is_trivially_copyable<FROM>::value
         &&std::is_trivially_copyable<TO>::value
 #else

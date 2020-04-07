@@ -38,6 +38,7 @@
  */
 
 #include "erthink_carryadd.h"
+#include "erthink_casting.h"
 #include "erthink_clz.h"
 #include "erthink_defs.h"
 #include "erthink_misc.h"
@@ -504,26 +505,11 @@ static inline char *convert(const bool accurate, diy_fp v, char *const buffer,
                        buffer, out_exp10, v.f, -v.e);
 }
 
-double inline cast(int64_t i64) {
-  static_assert(sizeof(double) == 8 && sizeof(int64_t), "WTF?");
-  double f64;
-  std::memcpy(&f64, &i64, 8);
-  return f64;
-}
+double inline cast(int64_t i64) { return bit_cast<double>(i64); }
 
-double inline cast(uint64_t u64) {
-  static_assert(sizeof(double) == 8 && sizeof(uint64_t), "WTF?");
-  double f64;
-  std::memcpy(&f64, &u64, 8);
-  return f64;
-}
+double inline cast(uint64_t u64) { return bit_cast<double>(u64); }
 
-int64_t inline cast(double f64) {
-  static_assert(sizeof(double) == 8 && sizeof(int64_t), "WTF?");
-  int64_t i64;
-  std::memcpy(&i64, &f64, 8);
-  return i64;
-}
+int64_t inline cast(double f64) { return bit_cast<int64_t>(f64); }
 
 } // namespace grisu
 
