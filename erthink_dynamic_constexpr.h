@@ -18,38 +18,10 @@
 #pragma once
 
 #include "erthink_defs.h"
+
 #include <type_traits>
 
 namespace erthink {
-
-#if __cplusplus < 201402L
-template <bool B, class T = void>
-using enable_if_t = typename std::enable_if<B, T>::type;
-#else
-using std::enable_if_t;
-#endif /* C++14 */
-
-template <typename TO, typename FROM,
-          typename erthink::enable_if_t<std::is_pointer<TO>::value, int> = 0,
-          typename erthink::enable_if_t<std::is_pointer<FROM>::value, int> = 0,
-          typename erthink::enable_if_t<
-              std::is_const<typename std::remove_pointer<FROM>::type>::value,
-              int> = 0>
-constexpr TO constexpr_pointer_cast(FROM from) {
-  return static_cast<TO>(static_cast<const void *>(from));
-}
-
-template <typename TO, typename FROM,
-          typename erthink::enable_if_t<std::is_pointer<TO>::value, int> = 0,
-          typename erthink::enable_if_t<std::is_pointer<FROM>::value, int> = 0,
-          typename erthink::enable_if_t<
-              !std::is_const<typename std::remove_pointer<FROM>::type>::value,
-              int> = 0>
-constexpr TO constexpr_pointer_cast(FROM from) {
-  return static_cast<TO>(static_cast<void *>(from));
-}
-
-//------------------------------------------------------------------------------
 
 constexpr bool is_constant_evaluated() noexcept {
 #if defined(__cpp_lib_is_constant_evaluated)
