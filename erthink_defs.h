@@ -146,6 +146,13 @@
 #ifndef false
 #define false 0
 #endif
+#ifndef char8_t
+#define char8_t char
+#endif
+#endif
+
+#if !defined(char8_t) && !defined(__cpp_lib_char8_t)
+#define char8_t char
 #endif
 
 #ifndef __fallthrough
