@@ -210,8 +210,12 @@ public:
     }
 
     if (allow_outlive) {
-#if ERTHINK_PROVIDE_ALIGNED_NEW && defined(__cpp_sized_deallocation)
+#if ERTHINK_PROVIDE_ALIGNED_NEW
+#if defined(__cpp_sized_deallocation)
       ::operator delete(p, n, std::align_val_t(alignment));
+#else
+      ::operator delete(p, std::align_val_t(alignment));
+#endif
 #elif defined(__cpp_sized_deallocation)
       ::operator delete(p, n);
 #else
