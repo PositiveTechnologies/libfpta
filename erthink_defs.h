@@ -118,6 +118,10 @@
 #include <stdalign.h>
 #endif
 
+#if defined(__cplusplus) && __has_include(<version>)
+#include <version>
+#endif
+
 //------------------------------------------------------------------------------
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
