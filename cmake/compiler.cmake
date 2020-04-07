@@ -17,9 +17,9 @@ cmake_minimum_required(VERSION 3.8.2)
 cmake_policy(PUSH)
 cmake_policy(VERSION 3.8.2)
 
-if (CMAKE_VERSION MATCHES ".*MSVC.*")
+if (CMAKE_VERSION MATCHES ".*MSVC.*" AND CMAKE_VERSION VERSION_LESS 3.16)
   message(FATAL_ERROR "CMake from MSVC kit is unfit! "
-    "Please use the original CMake from https://cmake.org/download/")
+    "Please use MSVC2019 with modern CMake the original CMake from https://cmake.org/download/")
 endif()
 
 if (NOT (CMAKE_C_COMPILER_LOADED OR CMAKE_CXX_COMPILER_LOADED))
