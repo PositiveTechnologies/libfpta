@@ -87,7 +87,7 @@ TYPED_TEST_P(ShortAlloc, stack_NOoutlive) {
       short_alloc.deallocate(ptr, item_size);
     }
 
-    EXPECT_EQ(0, arena->used());
+    EXPECT_EQ(0u, arena->used());
   }
 }
 
@@ -127,9 +127,9 @@ TYPED_TEST_P(ShortAlloc, fifo_NOoutlive) {
     }
 
     if (single_allocation) {
-      EXPECT_EQ(0, arena->used());
+      EXPECT_EQ(0u, arena->used());
     } else {
-      EXPECT_LT(0, arena->used());
+      EXPECT_LT(0u, arena->used());
       EXPECT_GT(used_while_exhausted, arena->used());
     }
   }
@@ -168,7 +168,7 @@ TYPED_TEST_P(ShortAlloc, stack_outlive) {
       short_alloc.deallocate(ptr, item_size);
     }
 
-    EXPECT_EQ(0, arena->used());
+    EXPECT_EQ(0u, arena->used());
   }
 }
 
@@ -210,9 +210,10 @@ TYPED_TEST_P(ShortAlloc, fifo_outlive) {
     }
 
     if (allocations_inside_arena < 2) {
-      EXPECT_EQ(0, arena->used());
+      EXPECT_EQ(0u, arena->used());
     } else {
-      EXPECT_LT(0, arena->used());
+      EXPECT_LT(0u, arena->used());
+      EXPECT_LT(0u, arena->used());
       EXPECT_GT(max_used, arena->used());
     }
   }
