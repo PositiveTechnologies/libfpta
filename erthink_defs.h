@@ -18,7 +18,7 @@
 #pragma once
 
 #ifdef _MSC_VER
-#if defined(_MSC_VER)
+#ifndef _STL_WARNING_LEVEL
 #define _STL_WARNING_LEVEL 3
 #endif
 #pragma warning(push, 1)
@@ -253,14 +253,15 @@
 #define __printf_args(format_index, first_arg)
 #endif
 
-#if !defined(__thread) && (defined(_MSC_VER) || defined(__DMC__))
+#if !defined(__thread) &&                                                      \
+    ((defined(_MSC_VER) && !defined(__clang__)) || defined(__DMC__))
 #define __thread __declspec(thread)
 #endif /* __thread */
 
 #ifndef __always_inline
 #if defined(__GNUC__) || __has_attribute(__always_inline__)
 #define __always_inline __inline __attribute__((__always_inline__))
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define __always_inline __forceinline
 #else
 #define __always_inline
@@ -278,7 +279,7 @@
 #ifndef __deprecated
 #if defined(__GNUC__) || __has_attribute(__deprecated__)
 #define __deprecated __attribute__((__deprecated__))
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define __deprecated __declspec(deprecated)
 #else
 #define __deprecated
@@ -288,7 +289,7 @@
 #ifndef __noreturn
 #if defined(__GNUC__) || __has_attribute(__noreturn__)
 #define __noreturn __attribute__((__noreturn__))
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define __noreturn __declspec(noreturn)
 #else
 #define __noreturn
@@ -304,7 +305,7 @@
 #endif /* __cplusplus */
 #elif defined(__GNUC__) || __has_attribute(__nothrow__)
 #define __nothrow __attribute__((__nothrow__))
-#elif defined(_MSC_VER) && defined(__cplusplus)
+#elif defined(_MSC_VER) && !defined(__clang__) && defined(__cplusplus)
 #define __nothrow __declspec(nothrow)
 #else
 #define __nothrow
@@ -402,7 +403,7 @@
 #ifndef __noinline
 #if defined(__GNUC__) || __has_attribute(__noinline__)
 #define __noinline __attribute__((__noinline__))
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define __noinline __declspec(noinline)
 #else
 #define __noinline
@@ -485,7 +486,7 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #endif
 #endif /* __noop */
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #define ERTHINK_PACKED_STRUCT(name)                                            \
   __pragma(pack(push, 1)) struct name __pragma(pack(pop))
 #elif defined(__GNUC__) || __has_attribute(__packed__)
@@ -497,7 +498,7 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #ifndef __unreachable
 #if __GNUC_PREREQ(4, 5)
 #define __unreachable() __builtin_unreachable()
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define __unreachable() __assume(0)
 #else
 #define __unreachable() __noop()
@@ -523,7 +524,7 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #if !defined(alignas) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #if defined(__GNUC__) || defined(__clang__) || __has_attribute(__aligned__)
 #define alignas(N) __attribute__((__aligned__(N)))
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define alignas(N) __declspec(align(N))
 #else
 #error "C++11 or C11 compiler is required"
@@ -533,7 +534,7 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 //------------------------------------------------------------------------------
 
 #if !defined(__typeof)
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #define __typeof(exp) decltype(exp)
 #else
 #define __typeof(exp) __typeof__(exp)

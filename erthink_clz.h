@@ -65,7 +65,7 @@ static __maybe_unused inline int fallback_clz64(uint64_t v) {
 #endif
 }
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 
 template <> inline constexpr int clz<unsigned>(unsigned v) {
   return __builtin_clz(v);
@@ -77,7 +77,7 @@ template <> inline constexpr int clz<unsigned long long>(unsigned long long v) {
   return __builtin_clzll(v);
 }
 
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
 
 #pragma intrinsic(_BitScanReverse)
 template <> inline int clz<uint32_t>(uint32_t v) {

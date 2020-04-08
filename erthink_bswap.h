@@ -41,7 +41,7 @@ ERTHINK_NAME_PREFIX(bswap64)(uint64_t v) {
 #if __GNUC_PREREQ(4, 4) || __CLANG_PREREQ(4, 0) ||                             \
     __has_builtin(__builtin_bswap64)
   return __builtin_bswap64(v);
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
   return _byteswap_uint64(v);
 #elif defined(__bswap_64)
   return __bswap_64(v);
@@ -62,7 +62,7 @@ ERTHINK_NAME_PREFIX(bswap32)(uint32_t v) {
 #if __GNUC_PREREQ(4, 4) || __CLANG_PREREQ(4, 0) ||                             \
     __has_builtin(__builtin_bswap32)
   return __builtin_bswap32(v);
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
   return _byteswap_ulong(v);
 #elif defined(__bswap_32)
   return __bswap_32(v);
@@ -78,7 +78,7 @@ static constexpr_intrin __always_inline uint16_t
 ERTHINK_NAME_PREFIX(bswap16)(uint16_t v) {
 #if __GNUC_PREREQ(4, 8) || __has_builtin(__builtin_bswap16)
   return __builtin_bswap16(v);
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && !defined(__clang__)
   return _byteswap_ushort(v);
 #elif defined(__bswap_16)
   return __bswap_16(v);

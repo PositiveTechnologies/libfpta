@@ -57,7 +57,8 @@ static __maybe_unused __always_inline void e2k_add64carry_last(unsigned carry,
 
 //------------------------------------------------------------------------------
 
-#if defined(_M_X64) || defined(_M_IA64) || defined(_M_AMD64)
+#if !defined(__clang__) &&                                                     \
+    (defined(_M_X64) || defined(_M_IA64) || defined(_M_AMD64))
 
 #pragma intrinsic(_addcarry_u64)
 #define add64carry_first(base, addend, sum) _addcarry_u64(0, base, addend, sum)
@@ -66,7 +67,7 @@ static __maybe_unused __always_inline void e2k_add64carry_last(unsigned carry,
 #define add64carry_last(carry, base, addend, sum)                              \
   (void)_addcarry_u64(carry, base, addend, sum)
 
-#elif defined(_M_IX86) &&                                                      \
+#elif !defined(__clang__) && defined(_M_IX86) &&                               \
     _MSC_VER >= 1915 /* LY: workaround for SSA-optimizer bug */
 
 #pragma intrinsic(_addcarry_u32)
