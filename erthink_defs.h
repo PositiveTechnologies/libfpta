@@ -178,41 +178,60 @@
 #define noexcept
 #endif /* noexcept */
 
-#if !defined(constexpr) && (!defined(__cplusplus) || __cplusplus < 201103L)
-#define constexpr
+#if !defined(constexpr)
+#if !defined(__cplusplus)
+#define constexpr __inline
+#elif !defined(__cpp_constexpr) || __cpp_constexpr < 200704L
+#define constexpr inline
+#endif
 #endif /* constexpr */
 
 #if !defined(cxx14_constexpr)
-#if defined(__cplusplus) && __cplusplus >= 201402L &&                          \
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                  \
     (!defined(_MSC_VER) || _MSC_VER >= 1910) &&                                \
-    (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 6)
+    (!defined(__clang__) || __clang_major__ > 4) &&                            \
+    (defined(__clang__) || !defined(__GNUC__) || __GNUC__ > 6)
 #define cxx14_constexpr constexpr
 #else
-#define cxx14_constexpr
+#define cxx14_constexpr inline
 #endif
 #endif /* cxx14_constexpr */
 
 #if !defined(cxx17_constexpr)
-#if defined(__cplusplus) && __cplusplus >= 201703L &&                          \
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                  \
     (!defined(_MSC_VER) || _MSC_VER >= 1915) &&                                \
-    (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 7)
+    (!defined(__clang__) || __clang_major__ > 5) &&                            \
+    (defined(__clang__) || !defined(__GNUC__) || __GNUC__ > 7)
 #define cxx17_constexpr constexpr
-#define cxx17_noexcept noexcept
-#define if_constexpr if constexpr
 #else
-#define cxx17_constexpr
-#define cxx17_noexcept
-#define if_constexpr if
+#define cxx17_constexpr inline
 #endif
 #endif /* cxx17_constexpr */
 
-#if !defined(constexpr_assert) && defined(__cplusplus)
-#if defined(HAS_RELAXED_CONSTEXPR) ||                                          \
-    (__cplusplus >= 201408L && (!defined(_MSC_VER) || _MSC_VER >= 1915) &&     \
-     (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 6))
-#define constexpr_assert(cond) assert(cond)
+#if !defined(cxx20_constexpr)
+#if !defined(__cpp_constexpr) || __cpp_constexpr < 201907L
+#define cxx20_constexpr inline
 #else
-#define constexpr_assert(foo)
+#define cxx20_constexpr constexpr
+#endif
+#endif /* cxx20_constexpr */
+
+#if !defined(if_constexpr)
+#if !defined(__cpp_if_constexpr) || __cpp_if_constexpr < 201606L
+#define if_constexpr if
+#else
+#define if_constexpr if constexpr
+#endif
+#endif /* if_constexpr */
+
+#if !defined(constexpr_assert)
+#if !defined(__cpp_constexpr) || __cpp_constexpr < 201304L
+#define constexpr_assert(cond)                                                 \
+  do {                                                                         \
+    (void)(cond);                                                              \
+  } while (0);
+#else
+#define constexpr_assert(cond) assert(cond)
 #endif
 #endif /* constexpr_assert */
 
@@ -223,6 +242,15 @@
 #define NDEBUG_CONSTEXPR
 #endif
 #endif /* NDEBUG_CONSTEXPR */
+
+#if !defined(cxx17_noexcept)
+#if !defined(__cpp_noexcept_function_type) ||                                  \
+    __cpp_noexcept_function_type < 201510L
+#define cxx17_noexcept
+#else
+#define cxx17_noexcept noexcept
+#endif
+#endif /* cxx17_noexcept */
 
 /* Crutch for case when OLD GLIBC++ (without std::max_align_t)
  * is coupled with MODERN C++ COMPILER (with __cpp_aligned_new) */
@@ -244,10 +272,12 @@
 #endif /* ERTHINK_NAME_PREFIX */
 
 #ifndef constexpr_intrin
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #define constexpr_intrin constexpr
+#elif defined(__cplusplus)
+#define constexpr_intrin inline
 #else
-#define constexpr_intrin
+#define constexpr_intrin __always_inline
 #endif
 #endif /* constexpr_intrin */
 
@@ -573,25 +603,19 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 // used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM)                                       \
   extern "C++" {                                                               \
-  constexpr inline ENUM operator|(ENUM a, ENUM b) {                            \
+  constexpr ENUM operator|(ENUM a, ENUM b) {                                   \
     return ENUM(std::size_t(a) | std::size_t(b));                              \
   }                                                                            \
-  cxx14_constexpr inline ENUM &operator|=(ENUM &a, ENUM b) {                   \
-    return a = a | b;                                                          \
-  }                                                                            \
-  constexpr inline ENUM operator&(ENUM a, ENUM b) {                            \
+  cxx14_constexpr ENUM &operator|=(ENUM &a, ENUM b) { return a = a | b; }      \
+  constexpr ENUM operator&(ENUM a, ENUM b) {                                   \
     return ENUM(std::size_t(a) & std::size_t(b));                              \
   }                                                                            \
-  cxx14_constexpr inline ENUM &operator&=(ENUM &a, ENUM b) {                   \
-    return a = a & b;                                                          \
-  }                                                                            \
-  constexpr inline ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }    \
-  constexpr inline ENUM operator^(ENUM a, ENUM b) {                            \
+  cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) { return a = a & b; }      \
+  constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }           \
+  constexpr ENUM operator^(ENUM a, ENUM b) {                                   \
     return ENUM(std::size_t(a) ^ std::size_t(b));                              \
   }                                                                            \
-  cxx14_constexpr inline ENUM &operator^=(ENUM &a, ENUM b) {                   \
-    return a = a ^ b;                                                          \
-  }                                                                            \
+  cxx14_constexpr ENUM &operator^=(ENUM &a, ENUM b) { return a = a ^ b; }      \
   }
 #else                                    /* __cplusplus */
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM) /* nope, C allows these operators */

@@ -31,7 +31,7 @@
 
 namespace erthink {
 
-template <typename T> inline constexpr int clz(T v);
+template <typename T> constexpr int clz(T v);
 
 static __maybe_unused inline int fallback_clz32(uint32_t v) {
   v |= v >> 1;
@@ -67,13 +67,11 @@ static __maybe_unused inline int fallback_clz64(uint64_t v) {
 
 #if defined(__GNUC__) || defined(__clang__)
 
-template <> inline constexpr int clz<unsigned>(unsigned v) {
-  return __builtin_clz(v);
-}
-template <> inline constexpr int clz<unsigned long>(unsigned long v) {
+template <> constexpr int clz<unsigned>(unsigned v) { return __builtin_clz(v); }
+template <> constexpr int clz<unsigned long>(unsigned long v) {
   return __builtin_clzl(v);
 }
-template <> inline constexpr int clz<unsigned long long>(unsigned long long v) {
+template <> constexpr int clz<unsigned long long>(unsigned long long v) {
   return __builtin_clzll(v);
 }
 

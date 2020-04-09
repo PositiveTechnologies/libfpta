@@ -68,13 +68,13 @@ constexpr const TYPE *array_end(const TYPE (&array)[LENGTH]) {
   return array + LENGTH;
 }
 
-static inline constexpr bool msb(const uint64_t value) {
+static constexpr bool msb(const uint64_t value) {
   static_assert(static_cast<int64_t>(UINT64_C(1) << 63) < 0,
                 "2-complement representation required");
   return static_cast<int64_t>(value) < 0;
 }
 
-static inline constexpr bool msb(const uint32_t value) {
+static constexpr bool msb(const uint32_t value) {
   static_assert(static_cast<int32_t>(UINT32_C(1) << 31) < 0,
                 "2-complement representation required");
   return static_cast<int32_t>(value) < 0;
