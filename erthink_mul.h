@@ -53,7 +53,7 @@ namespace erthink {
 #endif /* !clang */
 
 #ifndef mul_32x32_64
-static constexpr __always_inline uint64_t mul_32x32_64(uint32_t a, uint32_t b) {
+static cxx11_constexpr uint64_t mul_32x32_64(uint32_t a, uint32_t b) {
   return a * (uint64_t)b;
 }
 #endif /* mul_32x32_64 */

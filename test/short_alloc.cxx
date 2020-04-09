@@ -30,7 +30,8 @@
 #include <stack>
 
 template <std::size_t SIZE> struct Params {
-  static constexpr std::size_t area_size = SIZE * alignof(std::max_align_t);
+  static cxx11_constexpr_var std::size_t area_size =
+      SIZE * alignof(std::max_align_t);
   using arena_NOoutlive_type = erthink::allocation_arena<false, area_size>;
   using alloc_NOoutlive_type = erthink::short_alloc<char, arena_NOoutlive_type>;
 

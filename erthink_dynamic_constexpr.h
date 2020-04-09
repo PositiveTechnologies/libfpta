@@ -23,7 +23,7 @@
 
 namespace erthink {
 
-constexpr bool is_constant_evaluated() noexcept {
+cxx11_constexpr bool is_constant_evaluated() cxx11_noexcept {
 #if defined(__cpp_lib_is_constant_evaluated)
   return std::is_constant_evaluated();
 #elif __GNUC_PREREQ(9, 0) || __has_builtin(__builtin_is_constant_evaluated)
@@ -36,10 +36,11 @@ constexpr bool is_constant_evaluated() noexcept {
 #if defined(__cpp_lib_is_constant_evaluated) &&                                \
     __cpp_lib_is_constant_evaluated >= 201811L
 
-#define erthink_dynamic_constexpr constexpr
+#define erthink_dynamic_constexpr cxx11_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED noexcept {          \
+  static cxx11_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED               \
+      cxx11_noexcept {                                                         \
     return ::std::is_constant_evaluated()                                      \
                ? NAME##_constexpr CALLARGS_PARENTHESIZED                       \
                : NAME##_dynamic CALLARGS_PARENTHESIZED;                        \
@@ -47,10 +48,11 @@ constexpr bool is_constant_evaluated() noexcept {
 
 #elif __GNUC_PREREQ(9, 0) || __has_builtin(__builtin_is_constant_evaluated)
 
-#define erthink_dynamic_constexpr constexpr
+#define erthink_dynamic_constexpr cxx11_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED noexcept {          \
+  static cxx11_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED               \
+      cxx11_noexcept {                                                         \
     return __builtin_is_constant_evaluated()                                   \
                ? NAME##_constexpr CALLARGS_PARENTHESIZED                       \
                : NAME##_dynamic CALLARGS_PARENTHESIZED;                        \
@@ -61,7 +63,8 @@ constexpr bool is_constant_evaluated() noexcept {
 #define erthink_dynamic_constexpr cxx14_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static cxx14_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED noexcept {    \
+  static cxx14_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED               \
+      cxx11_noexcept {                                                         \
     return __builtin_constant_p(PROBE_ARG)                                     \
                ? NAME##_constexpr CALLARGS_PARENTHESIZED                       \
                : NAME##_dynamic CALLARGS_PARENTHESIZED;                        \
@@ -72,7 +75,7 @@ constexpr bool is_constant_evaluated() noexcept {
 #define erthink_dynamic_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static RESULT_TYPE NAME DECLARGS_PARENTHESIZED noexcept {                    \
+  static RESULT_TYPE NAME DECLARGS_PARENTHESIZED cxx11_noexcept {              \
     return NAME##_dynamic CALLARGS_PARENTHESIZED;                              \
   }
 

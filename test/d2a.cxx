@@ -44,7 +44,8 @@ struct P {
 };
 
 template <typename T> struct d2a : public ::testing::Test {
-  static constexpr bool accurate = T::value;
+  static cxx11_constexpr_var bool accurate = T::value;
+
   static __hot __noinline char *convert(const double value, char *ptr) {
     return erthink::d2a<accurate>(value, ptr);
   }

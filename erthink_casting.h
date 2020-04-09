@@ -47,7 +47,7 @@ template <typename TO, typename FROM,
           typename erthink::enable_if_t<
               std::is_const<typename std::remove_pointer<FROM>::type>::value,
               int> = 0>
-constexpr TO constexpr_pointer_cast(FROM from) {
+cxx11_constexpr TO constexpr_pointer_cast(FROM from) {
   return static_cast<TO>(static_cast<const void *>(from));
 }
 
@@ -57,7 +57,7 @@ template <typename TO, typename FROM,
           typename erthink::enable_if_t<
               !std::is_const<typename std::remove_pointer<FROM>::type>::value,
               int> = 0>
-constexpr TO constexpr_pointer_cast(FROM from) {
+cxx11_constexpr TO constexpr_pointer_cast(FROM from) {
   return static_cast<TO>(static_cast<void *>(from));
 }
 
@@ -66,7 +66,7 @@ constexpr TO constexpr_pointer_cast(FROM from) {
 #if HAVE_std_bit_cast
 
 template <class TO, class FROM>
-constexpr TO bit_cast(const FROM &src) noexcept {
+cxx11_constexpr TO bit_cast(const FROM &src) cxx11_noexcept {
   return std::bit_cast<TO, FROM>(src);
 }
 
@@ -85,7 +85,7 @@ template <typename TO, typename FROM,
           typename erthink::enable_if_t<std::is_trivially_copyable<TO>::value,
                                         int> = 0>
 #endif
-    constexpr TO bit_cast(const FROM &src) noexcept {
+    cxx11_constexpr TO bit_cast(const FROM &src) cxx11_noexcept {
   static_assert(sizeof(TO) == sizeof(FROM),
                 "bit_cast requires source and destination to be the same size");
   static_assert(std::is_trivially_copyable<FROM>::value,

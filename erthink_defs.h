@@ -178,74 +178,13 @@
 #define nullptr NULL
 #endif /* nullptr */
 
-#if !defined(noexcept) && (!defined(__cplusplus) || __cplusplus < 201103L)
-#define noexcept
-#endif /* noexcept */
-
-#if !defined(constexpr)
-#if !defined(__cplusplus)
-#define constexpr __inline
-#elif !defined(__cpp_constexpr) || __cpp_constexpr < 200704L
-#define constexpr inline
-#endif
-#endif /* constexpr */
-
-#if !defined(cxx14_constexpr)
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                  \
-    (!defined(_MSC_VER) || _MSC_VER >= 1910) &&                                \
-    (!defined(__clang__) || __clang_major__ > 4) &&                            \
-    (defined(__clang__) || !defined(__GNUC__) || __GNUC__ > 6)
-#define cxx14_constexpr constexpr
+#if !defined(cxx11_noexcept)
+#if defined(__cplusplus) && __cplusplus >= 201103L
+#define cxx11_noexcept noexcept
 #else
-#define cxx14_constexpr inline
+#define cxx11_noexcept
 #endif
-#endif /* cxx14_constexpr */
-
-#if !defined(cxx17_constexpr)
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                  \
-    (!defined(_MSC_VER) || _MSC_VER >= 1915) &&                                \
-    (!defined(__clang__) || __clang_major__ > 5) &&                            \
-    (defined(__clang__) || !defined(__GNUC__) || __GNUC__ > 7)
-#define cxx17_constexpr constexpr
-#else
-#define cxx17_constexpr inline
-#endif
-#endif /* cxx17_constexpr */
-
-#if !defined(cxx20_constexpr)
-#if !defined(__cpp_constexpr) || __cpp_constexpr < 201907L
-#define cxx20_constexpr inline
-#else
-#define cxx20_constexpr constexpr
-#endif
-#endif /* cxx20_constexpr */
-
-#if !defined(if_constexpr)
-#if !defined(__cpp_if_constexpr) || __cpp_if_constexpr < 201606L
-#define if_constexpr if
-#else
-#define if_constexpr if constexpr
-#endif
-#endif /* if_constexpr */
-
-#if !defined(constexpr_assert)
-#if !defined(__cpp_constexpr) || __cpp_constexpr < 201304L
-#define constexpr_assert(cond)                                                 \
-  do {                                                                         \
-    (void)(cond);                                                              \
-  } while (0);
-#else
-#define constexpr_assert(cond) assert(cond)
-#endif
-#endif /* constexpr_assert */
-
-#ifndef NDEBUG_CONSTEXPR
-#ifdef NDEBUG
-#define NDEBUG_CONSTEXPR constexpr
-#else
-#define NDEBUG_CONSTEXPR
-#endif
-#endif /* NDEBUG_CONSTEXPR */
+#endif /* cxx11_noexcept */
 
 #if !defined(cxx17_noexcept)
 #if !defined(__cpp_noexcept_function_type) ||                                  \
@@ -255,6 +194,103 @@
 #define cxx17_noexcept noexcept
 #endif
 #endif /* cxx17_noexcept */
+
+#if !defined(cxx11_constexpr)
+#if !defined(__cplusplus)
+#define cxx11_constexpr __inline
+#define cxx11_constexpr_var const
+#elif __cplusplus < 201103L
+#define cxx11_constexpr inline
+#define cxx11_constexpr_var const
+#else
+#define cxx11_constexpr constexpr
+#define cxx11_constexpr_var constexpr
+#endif
+#endif /* cxx11_constexpr */
+
+#if !defined(cxx14_constexpr)
+#if !defined(__cplusplus)
+#define cxx14_constexpr __inline
+#define cxx14_constexpr_var const
+#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                \
+    ((defined(_MSC_VER) && _MSC_VER >= 1910) ||                                \
+     (defined(__clang__) && __clang_major__ > 4) ||                            \
+     (defined(__GNUC__) && __GNUC__ > 6) ||                                    \
+     (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
+#define cxx14_constexpr constexpr
+#define cxx14_constexpr_var constexpr
+#else
+#define cxx14_constexpr inline
+#define cxx14_constexpr_var const
+#endif
+#endif /* cxx14_constexpr */
+
+#if !defined(cxx17_constexpr)
+#if !defined(__cplusplus)
+#define cxx17_constexpr __inline
+#define cxx17_constexpr_var const
+#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                \
+    ((defined(_MSC_VER) && _MSC_VER >= 1915) ||                                \
+     (defined(__clang__) && __clang_major__ > 5) ||                            \
+     (defined(__GNUC__) && __GNUC__ > 7) ||                                    \
+     (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
+#define cxx17_constexpr constexpr
+#define cxx17_constexpr_var constexpr
+#else
+#define cxx17_constexpr inline
+#define cxx17_constexpr_var const
+#endif
+#endif /* cxx17_constexpr */
+
+#if !defined(cxx20_constexpr)
+#if !defined(__cplusplus)
+#define cxx20_constexpr __inline
+#define cxx20_constexpr_var const
+#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201907L
+#define cxx20_constexpr constexpr
+#define cxx20_constexpr_var constexpr
+#else
+#define cxx20_constexpr inline
+#define cxx20_constexpr_var const
+#endif
+#endif /* cxx20_constexpr */
+
+#if !defined(if_constexpr)
+#if defined(__cpp_if_constexpr) && __cpp_if_constexpr >= 201606L
+#define if_constexpr if constexpr
+#else
+#define if_constexpr if
+#endif
+#endif /* if_constexpr */
+
+#if !defined(constexpr_assert)
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L
+#define constexpr_assert(cond) assert(cond)
+#else
+#define constexpr_assert(cond)                                                 \
+  do {                                                                         \
+    (void)(cond);                                                              \
+  } while (0)
+#endif
+#endif /* constexpr_assert */
+
+#ifndef NDEBUG_CONSTEXPR
+#ifdef NDEBUG
+#define NDEBUG_CONSTEXPR cxx11_constexpr
+#else
+#define NDEBUG_CONSTEXPR
+#endif
+#endif /* NDEBUG_CONSTEXPR */
+
+#ifndef constexpr_intrin
+#if defined(__GNUC__) || defined(__clang__)
+#define constexpr_intrin cxx11_constexpr
+#elif defined(__cplusplus)
+#define constexpr_intrin inline
+#else
+#define constexpr_intrin __inline
+#endif
+#endif /* constexpr_intrin */
 
 /* Crutch for case when OLD GLIBC++ (without std::max_align_t)
  * is coupled with MODERN C++ COMPILER (with __cpp_aligned_new) */
@@ -274,16 +310,6 @@
 #define ERTHINK_NAME_PREFIX(NAME) erthink_##NAME
 #endif
 #endif /* ERTHINK_NAME_PREFIX */
-
-#ifndef constexpr_intrin
-#if defined(__GNUC__) || defined(__clang__)
-#define constexpr_intrin constexpr
-#elif defined(__cplusplus)
-#define constexpr_intrin inline
-#else
-#define constexpr_intrin __always_inline
-#endif
-#endif /* constexpr_intrin */
 
 //------------------------------------------------------------------------------
 
@@ -607,16 +633,16 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 // used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM)                                       \
   extern "C++" {                                                               \
-  constexpr ENUM operator|(ENUM a, ENUM b) {                                   \
+  cxx11_constexpr ENUM operator|(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) | std::size_t(b));                              \
   }                                                                            \
   cxx14_constexpr ENUM &operator|=(ENUM &a, ENUM b) { return a = a | b; }      \
-  constexpr ENUM operator&(ENUM a, ENUM b) {                                   \
+  cxx11_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) & std::size_t(b));                              \
   }                                                                            \
   cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) { return a = a & b; }      \
-  constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }           \
-  constexpr ENUM operator^(ENUM a, ENUM b) {                                   \
+  cxx11_constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }     \
+  cxx11_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) ^ std::size_t(b));                              \
   }                                                                            \
   cxx14_constexpr ENUM &operator^=(ENUM &a, ENUM b) { return a = a ^ b; }      \
