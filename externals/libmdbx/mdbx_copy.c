@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 2a4129dae3c7142ada07c0f7a9a34422beb93a5813f31f5639b50847a5b9a032_v0_7_0_0_g8f5ae79b5
+#define MDBX_BUILD_SOURCERY db6b08d7ff46aebd71d9009e5435a0d60e4953781aed2cc2a66e7cae237531d5_v0_7_0_18_g19454f26e
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -668,6 +668,10 @@
 /*----------------------------------------------------------------------------*/
 /* Systems includes */
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif /* Apple OSX & iOS */
+
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||     \
     defined(__BSD__) || defined(__bsdi__) || defined(__DragonFly__) ||         \
     defined(__APPLE__) || defined(__MACH__)
@@ -682,6 +686,25 @@
 #else
 #define SYSCTL_LEGACY_NONCONST_MIB
 #endif
+#if defined(__APPLE__) && !__has_include(<sys/vmmeter.h>)
+#warning "The <sys/vmmeter.h> header is missing in iOS SDK. "   \
+   "Copy it manually from the OSX SDK or iPhoneSimulator SDK. " \
+   "Don't forget to thank Apple for taking care of you!"
+/*** FOR INSTANCE:
+   $ xcode-select --install
+   $ sudo installer -pkg
+       /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg
+       -target $ cd <your Xcode.app>
+   $ sudo cp
+       ./Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/vmmeter.h
+       ./Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include/sys/
+ *** OR:
+   $ cd <your Xcode.app>
+   $ sudo cp
+       ./Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/sys/vmmeter.h
+       ./Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include/sys/
+ ***/
+#endif /* iOS */
 #include <sys/vmmeter.h>
 #else
 #include <malloc.h>
@@ -1228,13 +1251,15 @@ static __maybe_unused __inline uint32_t mdbx_getpid(void) {
 #endif
 }
 
-static __maybe_unused __inline size_t mdbx_thread_self(void) {
-  STATIC_ASSERT(sizeof(mdbx_tid_t) <= sizeof(size_t));
+static __maybe_unused __inline uintptr_t mdbx_thread_self(void) {
+  mdbx_tid_t thunk;
+  STATIC_ASSERT(sizeof(uintptr_t) >= sizeof(thunk));
 #if defined(_WIN32) || defined(_WIN64)
-  return GetCurrentThreadId();
+  thunk = GetCurrentThreadId();
 #else
-  return (size_t)pthread_self();
+  thunk = pthread_self();
 #endif
+  return (uintptr_t)thunk;
 }
 
 MDBX_INTERNAL_FUNC void __maybe_unused mdbx_osal_jitter(bool tiny);
@@ -2898,9 +2923,14 @@ is_powerof2(size_t x) {
 }
 
 static __pure_function __always_inline __maybe_unused size_t
-roundup_powerof2(size_t value, size_t granularity) {
+floor_powerof2(size_t value, size_t granularity) {
   assert(is_powerof2(granularity));
-  return (value + granularity - 1) & ~(granularity - 1);
+  return value & ~(granularity - 1);
+}
+
+static __pure_function __always_inline __maybe_unused size_t
+ceil_powerof2(size_t value, size_t granularity) {
+  return floor_powerof2(value + granularity - 1, granularity);
 }
 
 #if defined(_WIN32) || defined(_WIN64)

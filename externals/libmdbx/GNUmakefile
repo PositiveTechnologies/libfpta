@@ -9,7 +9,7 @@
 SHELL   := env bash
 
 # install sandbox
-SANDBOX ?=
+DESTDIR ?=
 
 # install prefixes (inside sandbox)
 prefix  ?= /usr/local
@@ -91,14 +91,17 @@ mdbx_%:	mdbx_%.c libmdbx.a
 	$(CC) $(CFLAGS) $(MDBX_OPTIONS) '-DMDBX_CONFIG_H="config.h"' $^ $(EXE_LDFLAGS) $(LIBS) -o $@
 
 install: $(LIBRARIES) $(TOOLS) $(HEADERS)
-	mkdir -p $(SANDBOX)$(prefix)/bin$(suffix) \
-		&& cp -t $(SANDBOX)$(prefix)/bin$(suffix) $(TOOLS) && \
-	mkdir -p $(SANDBOX)$(prefix)/lib$(suffix) \
-		&& cp -t $(SANDBOX)$(prefix)/lib$(suffix) $(LIBRARIES) && \
-	mkdir -p $(SANDBOX)$(prefix)/include \
-		&& cp -t $(SANDBOX)$(prefix)/include $(HEADERS) && \
-	mkdir -p $(SANDBOX)$(mandir)/man1 \
-		&& cp -t $(SANDBOX)$(mandir)/man1 $(addprefix $(MAN_SRCDIR), $(MANPAGES))
+	install -D -p -s -t $(DESTDIR)$(prefix)/bin$(suffix) $(TOOLS) && \
+	install -D -p -s -t $(DESTDIR)$(prefix)/lib$(suffix) $(filter-out libmdbx.a,$(LIBRARIES)) && \
+	install -D -p -t $(DESTDIR)$(prefix)/lib$(suffix) libmdbx.a && \
+	install -D -p -m 444 -t $(DESTDIR)$(prefix)/include $(HEADERS) && \
+	install -D -p -m 444 -t $(DESTDIR)$(mandir)/man1 $(addprefix $(MAN_SRCDIR), $(MANPAGES))
+
+uninstall:
+	rm -f $(addprefix $(DESTDIR)$(prefix)/bin$(suffix)/,$(TOOLS)) \
+		$(addprefix $(DESTDIR)$(prefix)/lib$(suffix)/,$(LIBRARIES)) \
+		$(addprefix $(DESTDIR)$(prefix)/include/,$(HEADERS)) \
+		$(addprefix $(DESTDIR)$(mandir)/man1/,$(MANPAGES))
 
 ################################################################################
 # Benchmarking by ioarena
