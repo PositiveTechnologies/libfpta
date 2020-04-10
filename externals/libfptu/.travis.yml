@@ -5,6 +5,8 @@ dist: xenial
 env:
   global:
     - secure: "rX82CxWJ5AauFnCyEYAvR7IW33A1wHZaGepTea/qsBt6HDe092XD8j7HjM3Dokksaklpm0wGa8aFsPLDjy9QSOROL+7spjXUBIJGjZtSiQwl9jRa7IPpKte9SU5pTVavu1gmCmjVkM6h1E3UV5ick8atDS0hTx062R7aNILcqYLLJOw6MnP9d1ldfVKaRV1HtfBqbVgzivp312ubITeyGG9FTxec2JeBwZNSLtv/8IpZSADBeEAlYEXlFN3DoARsNDw/hnO0zoffk2Za7BaIyXT2jMrx0Izq3e1s0hMvLmP/l6Io9R2UJKJFNr+YQEsbPmCi0m780uHfP7qwUqo9GTiscmypqRmhke1E6DqPvnPgJ8I13XEbVDrOua+8U5fqdQPOwt1UJ5B6ZfKxYBl1Zj1jSGM7iSAueKbVWSeSaWrcswO0PRdt7GiLg9IH13UeNzGuzjfv3Yk5Y2Crm+rafLo9eJd5SmBBb2d8r2iXddcJyNuvnCtr2Qzn7p5OAuyuAp8fKOWkldHqrMzaW5TcdWoqIDzpaM/12mtojBeGt7QltPKpUTdnCnExcf80mi1H8zHg3p91YxaFmTXmqti0B7aFG+X+sSKX/jpUgfzXUJAlc+qavl7AAoAY5UN+6aSWs4aeIPnSfq0t8y9Yc3kCuwVEvmFb5L1z3QFNSVdsEgQ="
+    - GTEST_SHUFFLE=1
+    - GTEST_RUNTIME_LIMIT=199
 
 addons:
   apt:
@@ -13,7 +15,7 @@ addons:
     packages:
       - cmake
       - libgtest-dev
-#      - clang-format-6.0
+      - clang-format
       - re2c
       - lemon
 
@@ -45,7 +47,7 @@ script: >
     git submodule foreach --recursive git fetch --unshallow --tags --prune &&
     cmake --version &&
     cmake . &&
-    (if which clang-format-6.0 > /dev/null && make reformat && [[ -n $(git diff) ]];
+    (if which clang-format-8.0 > /dev/null && make reformat && [[ -n $(git diff) ]];
       then
         echo "You must run 'make reformat' before submitting a pull request";
         echo "";

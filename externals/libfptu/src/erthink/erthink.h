@@ -26,6 +26,7 @@
 #include "erthink_bswap.h"
 #include "erthink_byteorder.h"
 #include "erthink_carryadd.h"
+#include "erthink_casting.h"
 #include "erthink_clz.h"
 #include "erthink_d2a.h"
 #include "erthink_defs.h"

@@ -43,7 +43,7 @@ namespace erthink {
 namespace NAMESPACE_ERTHINK_U2A_DETAILS {
 
 template <typename T = uint_fast64_t>
-static constexpr T power10_recursive_constexpr(const unsigned n) {
+static cxx11_constexpr T power10_recursive_constexpr(const unsigned n) {
   return n ? T(10) * power10_recursive_constexpr<T>(n - 1) : 1;
 }
 

@@ -78,12 +78,15 @@ if (MSVC)
     add_compile_options("/Zc:__cplusplus")
   endif()
 endif()
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_20 HAS_CXX20)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
 
 if(NOT DEFINED ERTHINK_CXX_STANDARD)
   if(DEFINED CMAKE_CXX_STANDARD)
     set(ERTHINK_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+  elseif(NOT HAS_CXX20 LESS 0)
+    set(ERTHINK_CXX_STANDARD 20)
   elseif(NOT HAS_CXX17 LESS 0)
     set(ERTHINK_CXX_STANDARD 17)
   elseif(NOT HAS_CXX14 LESS 0)
@@ -167,10 +170,10 @@ add_library(erthink INTERFACE)
 
 set(erthink_HEADERS
   erthink_arch.h erthink_bswap.h erthink_byteorder.h erthink_carryadd.h
-  erthink_clz.h erthink_d2a.h erthink_defs.h erthink_dynamic_constexpr.h
-  erthink_intrin.h erthink_misc.h erthink_mul.h erthink_rot.h erthink_u2a.h
-  erthink_optimize4size.h erthink_optimize4speed.h erthink_short_alloc.h
-  erthink_ifunc.h erthink_endian.h erthink.h)
+  erthink_casting.h erthink_clz.h erthink_d2a.h erthink_defs.h
+  erthink_dynamic_constexpr.h erthink_intrin.h erthink_misc.h erthink_mul.h
+  erthink_rot.h erthink_u2a.h erthink_optimize4size.h erthink_optimize4speed.h
+  erthink_short_alloc.h erthink_ifunc.h erthink_endian.h erthink.h)
 
 target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
 

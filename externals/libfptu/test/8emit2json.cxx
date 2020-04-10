@@ -60,7 +60,7 @@ public:
                                    with compiler generated default constructor \
                                    fills the object with zeros */
 #endif                          /* _MSC_VER < 1910 */
-  static constexpr const std::array<fptu_type, 31> fptu_types{
+  static cxx11_constexpr_var const std::array<fptu_type, 31> fptu_types{
       {fptu_null,         fptu_uint16,       fptu_int32,
        fptu_uint32,       fptu_fp32,         fptu_int64,
        fptu_uint64,       fptu_fp64,         fptu_datetime,
@@ -109,7 +109,7 @@ public:
                                 unsigned value);
 };
 
-constexpr const std::array<fptu_type, 31> schema_dict::fptu_types;
+cxx11_constexpr_var const std::array<fptu_type, 31> schema_dict::fptu_types;
 
 void schema_dict::add_field(const fptu::string_view &name, fptu_type type,
                             unsigned colnum) {

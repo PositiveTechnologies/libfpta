@@ -30,6 +30,8 @@ namespace erthink {
 #define mul_64x64_high(a, b) __builtin_e2k_umulhd(a, b)
 #endif /* __e2k__ Elbrus && __iset__ >= 3 */
 
+#if !defined(__clang__)
+
 #if defined(_M_X64) || defined(_M_IA64) || defined(_M_AMD64)
 #pragma intrinsic(_umul128)
 #define mul_64x64_128(a, b, ph) _umul128(a, b, ph)
@@ -48,8 +50,10 @@ namespace erthink {
 #define mul_32x32_64(a, b) _arm_umull(a, b)
 #endif
 
+#endif /* !clang */
+
 #ifndef mul_32x32_64
-static constexpr __always_inline uint64_t mul_32x32_64(uint32_t a, uint32_t b) {
+static cxx11_constexpr uint64_t mul_32x32_64(uint32_t a, uint32_t b) {
   return a * (uint64_t)b;
 }
 #endif /* mul_32x32_64 */
