@@ -7,7 +7,7 @@ jobs:
       GTEST_SHUFFLE: 1
       GTEST_RUNTIME_LIMIT: 142
     steps:
-      - run: sudo apt update -q && sudo apt install cmake libgtest-dev clang-format-6.0 valgrind
+      - run: sudo apt update -q && sudo apt install cmake libgtest-dev clang-format valgrind
       - checkout
       - run:
           command: |
@@ -37,7 +37,7 @@ jobs:
           when: on_fail
       - run:
           command: |
-            if which clang-format-6.0 > /dev/null && make reformat && [[ -n $(git diff) ]]; then
+            if which clang-format-8.0 > /dev/null && make reformat && [[ -n $(git diff) ]]; then
               echo "You must run 'make reformat' before submitting a pull request"
               echo ""
               git --no-pager diff
