@@ -302,7 +302,7 @@ __cold const char *fptu_type_name(const fptu_type type) {
 
 namespace std {
 
-#define FPU_TOSTRING_IMP(type)                                                 \
+#define FPTU_TOSTRING_IMP(type)                                                \
   __cold string to_string(type value) {                                        \
     ostringstream out;                                                         \
     out << value;                                                              \
@@ -324,7 +324,7 @@ __cold ostream &operator<<(ostream &out, const fptu_error error) {
   }
 }
 
-FPU_TOSTRING_IMP(const fptu_error)
+FPTU_TOSTRING_IMP(const fptu_error)
 
 __cold ostream &operator<<(ostream &out, const fptu_type type) {
   return out << fptu_type_name(type);
@@ -555,7 +555,7 @@ __cold ostream &operator<<(ostream &out, const fptu_field &field) {
   return out << "}";
 }
 
-FPU_TOSTRING_IMP(const fptu_field &)
+FPTU_TOSTRING_IMP(const fptu_field &)
 
 __cold ostream &operator<<(ostream &out, const fptu_ro &ro) {
   const fptu_field *const begin = fptu::begin(ro);
@@ -570,7 +570,7 @@ __cold ostream &operator<<(ostream &out, const fptu_ro &ro) {
   return out << "}";
 }
 
-FPU_TOSTRING_IMP(const fptu_ro &)
+FPTU_TOSTRING_IMP(const fptu_ro &)
 
 __cold ostream &operator<<(ostream &out, const fptu_rw &rw) {
   const void *addr = std::addressof(rw);
@@ -589,7 +589,7 @@ __cold ostream &operator<<(ostream &out, const fptu_rw &rw) {
   return out << "}";
 }
 
-FPU_TOSTRING_IMP(const fptu_rw &)
+FPTU_TOSTRING_IMP(const fptu_rw &)
 
 __cold ostream &operator<<(ostream &out, const fptu_lge lge) {
   switch (lge) {
@@ -612,7 +612,7 @@ __cold ostream &operator<<(ostream &out, const fptu_lge lge) {
   }
 }
 
-FPU_TOSTRING_IMP(const fptu_lge)
+FPTU_TOSTRING_IMP(const fptu_lge)
 
 __cold ostream &operator<<(ostream &out, const fptu_time &value) {
   int year_offset = 1900;
@@ -671,7 +671,7 @@ __cold ostream &operator<<(ostream &out, const fptu_time &value) {
   return out;
 }
 
-FPU_TOSTRING_IMP(const fptu_time &)
+FPTU_TOSTRING_IMP(const fptu_time &)
 
 /* #define FIXME "FIXME: " __FILE__ ", " FPT_STRINGIFY(__LINE__) */
 
