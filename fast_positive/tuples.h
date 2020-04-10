@@ -101,11 +101,19 @@ struct iovec {
 #include <ostream>   // for std::ostream
 #include <stdexcept> // for std::invalid_argument
 #include <string>    // for std::string
-#if __cplusplus >= 201703L && __has_include(<string_view>)
+
+#if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606L
 #include <string_view>
-#define HAVE_cxx17_std_string_view 1
+#define HAVE_std_string_view 1
 #else
-#define HAVE_cxx17_std_string_view 0
+#define HAVE_std_string_view 0
+#endif
+
+#if defined(__cpp_lib_bit_cast) && __cpp_lib_bit_cast >= 201806L
+#include <bit>
+#define HAVE_std_bit_cast 1
+#else
+#define HAVE_std_bit_cast 0
 #endif
 
 extern "C" {
@@ -161,9 +169,6 @@ typedef union fptu_unit fptu_unit;
 typedef union fptu_time fptu_time;
 typedef union fptu_ro fptu_ro;
 typedef struct fptu_rw fptu_rw;
-typedef enum fptu_type fptu_type;
-typedef enum fptu_filter fptu_filter;
-typedef enum fptu_json_options fptu_json_options;
 #endif /* __cplusplus */
 
 /* Внутренний тип для хранения размера полей переменной длины. */
@@ -504,6 +509,10 @@ enum fptu_type
   fptu_wstring = fptu_opaque
 };
 
+#ifndef __cplusplus
+typedef enum fptu_type fptu_type;
+#endif
+
 static __inline fptu_type fptu_type_array_of(fptu_type type) {
   assert(type > fptu_null && type <= fptu_nested);
   return (fptu_type)((uint32_t)type | fptu_farray);
@@ -525,6 +534,10 @@ enum fptu_filter
   fptu_any_number = fptu_any_int | fptu_any_uint | fptu_any_fp,
 };
 FPT_ENUM_FLAG_OPERATORS(fptu_filter)
+
+#ifndef __cplusplus
+typedef enum fptu_filter fptu_filter;
+#endif
 
 static __inline fptu_filter fptu_filter_mask(fptu_type type) {
   assert(type <= fptu_array_nested);
@@ -604,26 +617,21 @@ FPTU_API fptu_time fptu_now_coarse(void);
 #define FPTU_DENIL_FP32_MAS "0x007FFFFF"
 #endif /* ! _MSC_VER */
 
-#if defined(_MSC_VER) && /* obsolete and trouble full */ _MSC_VER < 1910
-static __inline float fptu_fp32_denil(void) {
-  union {
-    uint32_t u32;
-    float fp32;
-  } casting;
-  casting.u32 = FPTU_DENIL_FP32_BIN;
-  return casting.fp32;
+#if defined(__cplusplus) && HAVE_std_bit_cast
+static cxx11_constexpr float fptu_fp32_denil(void) {
+  return std::bit_cast<float>(FPTU_DENIL_FP32_BIN);
 #else
-static __inline constexpr float fptu_fp32_denil(void) {
+static __inline float fptu_fp32_denil(void) {
 #if defined(FPTU_DENIL_FP32_MAS) && (__GNUC_PREREQ(3, 3) || __has_builtin(nanf))
   return -__builtin_nanf(FPTU_DENIL_FP32_MAS);
 #else
-  union {
-    uint32_t u32;
-    float fp32;
-  } const constexpr casting = {FPTU_DENIL_FP32_BIN};
-  return casting.fp32;
+  const uint32_t u32 = FPTU_DENIL_FP32_BIN;
+  float fp32 = 0.0;
+  constexpr_assert(sizeof(u32) == sizeof(fp32));
+  memcpy(&fp32, &u32, sizeof(fp32));
+  return fp32;
 #endif /* FPTU_DENIL_FP32_MAS */
-#endif /* !_MSVC */
+#endif /* HAVE_std_bit_cast */
 }
 #define FPTU_DENIL_FP32 fptu_fp32_denil()
 
@@ -632,26 +640,21 @@ static __inline constexpr float fptu_fp32_denil(void) {
 #define FPTU_DENIL_FP64_MAS "0x000FffffFFFFffff"
 #endif /* ! _MSC_VER */
 
-#if defined(_MSC_VER) && /* obsolete and trouble full */ _MSC_VER < 1910
-static __inline double fptu_fp64_denil(void) {
-  union {
-    uint64_t u64;
-    double fp64;
-  } casting;
-  casting.u64 = FPTU_DENIL_FP64_BIN;
-  return casting.fp64;
+#if defined(__cplusplus) && HAVE_std_bit_cast
+static cxx11_constexpr double fptu_fp64_denil(void) {
+  return std::bit_cast<double>(FPTU_DENIL_FP64_BIN);
 #else
-static __inline constexpr double fptu_fp64_denil(void) {
+static __inline double fptu_fp64_denil(void) {
 #if defined(FPTU_DENIL_FP64_MAS) && (__GNUC_PREREQ(3, 3) || __has_builtin(nan))
   return -__builtin_nan(FPTU_DENIL_FP64_MAS);
 #else
-  union {
-    uint64_t u64;
-    double fp64;
-  } const constexpr casting = {FPTU_DENIL_FP64_BIN};
-  return casting.fp64;
+  const uint64_t u64 = FPTU_DENIL_FP64_BIN;
+  double fp64 = 0.0;
+  constexpr_assert(sizeof(u64) == sizeof(fp64));
+  memcpy(&fp64, &u64, sizeof(fp64));
+  return fp64;
 #endif /* FPTU_DENIL_FP64_MAS */
-#endif /* !_MSVC */
+#endif /* HAVE_std_bit_cast */
 }
 #define FPTU_DENIL_FP64 fptu_fp64_denil()
 
@@ -662,19 +665,11 @@ static __inline constexpr double fptu_fp64_denil(void) {
 #define FPTU_DENIL_UINT64 UINT64_MAX
 
 #define FPTU_DENIL_TIME_BIN (0)
-#ifdef __GNUC__
-#define FPTU_DENIL_TIME                                                        \
-  ({                                                                           \
-    constexpr const fptu_time __fptu_time_denil = {FPTU_DENIL_TIME_BIN};       \
-    __fptu_time_denil;                                                         \
-  })
-#else
-static __inline fptu_time fptu_time_denil(void) {
-  constexpr const fptu_time denil = {FPTU_DENIL_TIME_BIN};
+static __maybe_unused cxx14_constexpr fptu_time fptu_time_denil(void) {
+  cxx14_constexpr_var fptu_time denil = {FPTU_DENIL_TIME_BIN};
   return denil;
 }
 #define FPTU_DENIL_TIME fptu_time_denil()
-#endif
 #define FPTU_DENIL_CSTR nullptr
 #define FPTU_DENIL_FIXBIN nullptr
 
@@ -1280,6 +1275,10 @@ enum fptu_json_options {
 };
 FPT_ENUM_FLAG_OPERATORS(fptu_json_options)
 
+#ifndef __cplusplus
+typedef enum fptu_json_options fptu_json_options;
+#endif
+
 /* Функция обратного вызова для выталкивания сериализованных данных.
  * В случае успеха функция должна возвратить 0 (FPTU_SUCCESS), иначе код
  * ошибки.
@@ -1370,19 +1369,19 @@ protected:
       ;
 
 public:
-  constexpr string_view() : str(nullptr), len(-1) {}
-  constexpr string_view(const string_view &) = default;
+  cxx11_constexpr string_view() : str(nullptr), len(-1) {}
+  cxx11_constexpr string_view(const string_view &) = default;
   cxx14_constexpr string_view &
-  operator=(const string_view &) noexcept = default;
+  operator=(const string_view &) cxx11_noexcept = default;
 
-  constexpr string_view(const char *str, size_t count)
+  cxx11_constexpr string_view(const char *str, size_t count)
       : str(str), len(str ? static_cast<intptr_t>(count) : -1) {
 #if __cplusplus >= 201402L
     assert(len >= 0 || (len == -1 && !str));
 #endif
   }
 
-  constexpr string_view(const char *begin, const char *end)
+  cxx11_constexpr string_view(const char *begin, const char *end)
       : str(begin), len(begin ? static_cast<intptr_t>(end - begin) : -1) {
 #if __cplusplus >= 201402L
     assert(end >= begin);
@@ -1390,7 +1389,7 @@ public:
 #endif
   }
 
-  constexpr string_view(const char *ptr)
+  cxx11_constexpr string_view(const char *ptr)
       : str(ptr), len(ptr ? static_cast<intptr_t>(strlen(ptr)) : -1) {
 #if __cplusplus >= 201402L
     assert(len >= 0 || (len == -1 && !str));
@@ -1405,34 +1404,35 @@ public:
   }
   operator std::string() const { return std::string(data(), length()); }
 
-#if HAVE_cxx17_std_string_view
+#if HAVE_std_string_view
   /* Конструктор из std::string_view:
    *  - Может быть НЕ-explicit, так как у std::string_view нет неявного
    *    конструктора из std::string. Поэтому не возникает проблемы
    *    reference to temporary object из-за неявного создания string_view
    *    из переданной по значению временного экземпляра std::string.
    *  - НЕ ДОЛЖЕН быть explicit для бесшовной интеграции с std::string_view. */
-  constexpr string_view(const std::string_view &v) noexcept
-      : str(v.data()), len(static_cast<intptr_t>(v.size())) {
+  cxx11_constexpr string_view(const std::string_view &v) cxx11_noexcept
+      : str(v.data()),
+        len(static_cast<intptr_t>(v.size())) {
     assert(v.size() < npos);
   }
-  constexpr operator std::string_view() const noexcept {
+  cxx11_constexpr operator std::string_view() const cxx11_noexcept {
     return std::string_view(data(), length());
   }
-  constexpr string_view &operator=(std::string_view &v) noexcept {
+  cxx11_constexpr string_view &operator=(std::string_view &v) cxx11_noexcept {
     assert(v.size() < npos);
     this->str = v.data();
     this->len = static_cast<intptr_t>(v.size());
     return *this;
   }
-  constexpr void swap(std::string_view &v) noexcept {
+  cxx11_constexpr void swap(std::string_view &v) cxx11_noexcept {
     const auto temp = *this;
     *this = v;
     v = temp;
   }
-#endif /* HAVE_cxx17_std_string_view */
+#endif /* HAVE_std_string_view */
 
-  cxx14_constexpr void swap(string_view &v) noexcept {
+  cxx14_constexpr void swap(string_view &v) cxx11_noexcept {
     const auto temp = *this;
     *this = v;
     v = temp;
@@ -1445,28 +1445,30 @@ public:
   typedef const char *pointer;
   typedef const char &const_reference;
   typedef const_reference reference;
-  constexpr const_reference operator[](size_type pos) const { return str[pos]; }
-  constexpr const_reference front() const {
+  cxx11_constexpr const_reference operator[](size_type pos) const {
+    return str[pos];
+  }
+  cxx11_constexpr const_reference front() const {
 #if __cplusplus >= 201402L
     assert(len > 0);
 #endif
     return str[0];
   }
-  constexpr const_reference back() const {
+  cxx11_constexpr const_reference back() const {
 #if __cplusplus >= 201402L
     assert(len > 0);
 #endif
     return str[len - 1];
   }
   cxx14_constexpr const_reference at(size_type pos) const;
-  static constexpr size_type npos = size_type(INT_MAX);
+  static cxx11_constexpr_var size_type npos = size_type(INT_MAX);
 
   typedef const char *const_iterator;
-  constexpr const_iterator cbegin() const { return str; }
-  constexpr const_iterator cend() const { return str + length(); }
+  cxx11_constexpr const_iterator cbegin() const { return str; }
+  cxx11_constexpr const_iterator cend() const { return str + length(); }
   typedef const_iterator iterator;
-  constexpr iterator begin() const { return cbegin(); }
-  constexpr iterator end() const { return cend(); }
+  cxx11_constexpr iterator begin() const { return cbegin(); }
+  cxx11_constexpr iterator end() const { return cend(); }
 
   typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
   const_reverse_iterator crbegin() const {
@@ -1479,12 +1481,14 @@ public:
   reverse_iterator rbegin() const { return crbegin(); }
   reverse_iterator rend() const { return crend(); }
 
-  constexpr const char *data() const { return str; }
-  constexpr size_t length() const { return (len >= 0) ? (size_t)len : 0u; }
-  constexpr bool empty() const { return len <= 0; }
-  constexpr bool nil() const { return len < 0; }
-  constexpr size_t size() const { return length(); }
-  constexpr size_type max_size() const { return 32767; }
+  cxx11_constexpr const char *data() const { return str; }
+  cxx11_constexpr size_t length() const {
+    return (len >= 0) ? (size_t)len : 0u;
+  }
+  cxx11_constexpr bool empty() const { return len <= 0; }
+  cxx11_constexpr bool nil() const { return len < 0; }
+  cxx11_constexpr size_t size() const { return length(); }
+  cxx11_constexpr size_type max_size() const { return 32767; }
 
   cxx14_constexpr size_t hash_value() const {
     size_t h = (size_t)len * 3977471;
@@ -1559,11 +1563,11 @@ FPTU_API std::ostream &hexadecimal_dump(std::ostream &out, const void *data,
 struct output_hexadecimal {
   const void *const data;
   const size_t length;
-  constexpr output_hexadecimal(const output_hexadecimal &) = default;
-  constexpr output_hexadecimal(const void *data, size_t length)
+  cxx11_constexpr output_hexadecimal(const output_hexadecimal &) = default;
+  cxx11_constexpr output_hexadecimal(const void *data, size_t length)
       : data(data), length(length) {}
-  constexpr output_hexadecimal() : output_hexadecimal(nullptr, 0) {}
-  constexpr output_hexadecimal(const string_view &v)
+  cxx11_constexpr output_hexadecimal() : output_hexadecimal(nullptr, 0) {}
+  cxx11_constexpr output_hexadecimal(const string_view &v)
       : output_hexadecimal(v.data(), v.size()) {}
   output_hexadecimal(const std::string &s)
       : output_hexadecimal(s.data(), s.size()) {}
@@ -1989,12 +1993,12 @@ static __inline fptu_error fptu_update_string(fptu_rw *pt, unsigned column,
   return fptu_update_string(pt, column, value.data(), value.size());
 }
 
-#if HAVE_cxx17_std_string_view
+#if HAVE_std_string_view
 static __inline fptu_error fptu_update_string(fptu_rw *pt, unsigned column,
                                               const std::string_view &value) {
   return fptu_update_string(pt, column, value.data(), value.size());
 }
-#endif /* HAVE_cxx17_std_string_view */
+#endif /* HAVE_std_string_view */
 
 static __inline fptu_error fptu_update_string(fptu_rw *pt, unsigned column,
                                               const fptu::string_view &value) {

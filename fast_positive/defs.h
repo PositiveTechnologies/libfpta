@@ -167,61 +167,115 @@
 #define nullptr NULL
 #endif /* nullptr */
 
-#if !defined(noexcept) && (!defined(__cplusplus) || __cplusplus < 201103L)
-#define noexcept
-#endif /* noexcept */
+#if !defined(cxx11_noexcept)
+#if defined(__cplusplus) && __cplusplus >= 201103L
+#define cxx11_noexcept noexcept
+#else
+#define cxx11_noexcept
+#endif
+#endif /* cxx11_noexcept */
 
-#if !defined(constexpr) && (!defined(__cplusplus) || __cplusplus < 201103L)
-#define constexpr
-#endif /* constexpr */
+#if !defined(cxx17_noexcept)
+#if !defined(__cpp_noexcept_function_type) ||                                  \
+    __cpp_noexcept_function_type < 201510L
+#define cxx17_noexcept
+#else
+#define cxx17_noexcept noexcept
+#endif
+#endif /* cxx17_noexcept */
+
+#if !defined(cxx11_constexpr)
+#if !defined(__cplusplus)
+#define cxx11_constexpr __inline
+#define cxx11_constexpr_var const
+#elif __cplusplus < 201103L
+#define cxx11_constexpr inline
+#define cxx11_constexpr_var const
+#else
+#define cxx11_constexpr constexpr
+#define cxx11_constexpr_var constexpr
+#endif
+#endif /* cxx11_constexpr */
 
 #if !defined(cxx14_constexpr)
-#if defined(__cplusplus) && __cplusplus >= 201402L &&                          \
+#if !defined(__cplusplus)
+#define cxx14_constexpr __inline
+#define cxx14_constexpr_var const
+#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                \
     (!defined(_MSC_VER) || _MSC_VER >= 1910) &&                                \
-    (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 6)
+    (!defined(__clang__) || __clang_major__ > 4) &&                            \
+    ((!defined(__GNUC__) && !defined(__clang__)) || __GNUC__ > 6)
 #define cxx14_constexpr constexpr
+#define cxx14_constexpr_var constexpr
 #else
-#define cxx14_constexpr
+#define cxx14_constexpr inline
+#define cxx14_constexpr_var const
 #endif
 #endif /* cxx14_constexpr */
 
 #if !defined(cxx17_constexpr)
-#if defined(__cplusplus) && __cplusplus >= 201703L &&                          \
+#if !defined(__cplusplus)
+#define cxx17_constexpr __inline
+#define cxx17_constexpr_var const
+#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                \
     (!defined(_MSC_VER) || _MSC_VER >= 1915) &&                                \
-    (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 7)
+    (!defined(__clang__) || __clang_major__ > 5) &&                            \
+    ((!defined(__GNUC__) && !defined(__clang__)) || __GNUC__ > 7)
 #define cxx17_constexpr constexpr
-#define cxx17_noexcept noexcept
-#define if_constexpr if constexpr
+#define cxx17_constexpr_var constexpr
 #else
-#define cxx17_constexpr
-#define cxx17_noexcept
-#define if_constexpr if
+#define cxx17_constexpr inline
+#define cxx17_constexpr_var const
 #endif
 #endif /* cxx17_constexpr */
 
-#if !defined(constexpr_assert) && defined(__cplusplus)
-#if defined(HAS_RELAXED_CONSTEXPR) ||                                          \
-    (__cplusplus >= 201408L && (!defined(_MSC_VER) || _MSC_VER >= 1915) &&     \
-     (!defined(__GNUC__) || defined(__clang__) || __GNUC__ >= 6))
+#if !defined(cxx20_constexpr)
+#if !defined(__cplusplus)
+#define cxx20_constexpr __inline
+#define cxx20_constexpr_var const
+#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201907L
+#define cxx20_constexpr constexpr
+#define cxx20_constexpr_var constexpr
+#else
+#define cxx20_constexpr inline
+#define cxx20_constexpr_var const
+#endif
+#endif /* cxx20_constexpr */
+
+#if !defined(if_constexpr)
+#if defined(__cpp_if_constexpr) && __cpp_if_constexpr >= 201606L
+#define if_constexpr if constexpr
+#else
+#define if_constexpr if
+#endif
+#endif /* if_constexpr */
+
+#if !defined(constexpr_assert)
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L
 #define constexpr_assert(cond) assert(cond)
 #else
-#define constexpr_assert(foo)
+#define constexpr_assert(cond)                                                 \
+  do {                                                                         \
+    (void)(cond);                                                              \
+  } while (0)
 #endif
 #endif /* constexpr_assert */
 
 #ifndef NDEBUG_CONSTEXPR
 #ifdef NDEBUG
-#define NDEBUG_CONSTEXPR constexpr
+#define NDEBUG_CONSTEXPR cxx11_constexpr
 #else
 #define NDEBUG_CONSTEXPR
 #endif
 #endif /* NDEBUG_CONSTEXPR */
 
 #ifndef constexpr_intrin
-#ifdef __GNUC__
-#define constexpr_intrin constexpr
+#if defined(__GNUC__) || defined(__clang__)
+#define constexpr_intrin cxx11_constexpr
+#elif defined(__cplusplus)
+#define constexpr_intrin inline
 #else
-#define constexpr_intrin
+#define constexpr_intrin __inline
 #endif
 #endif /* constexpr_intrin */
 
