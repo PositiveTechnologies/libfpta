@@ -29,9 +29,9 @@
  * а скорее даже как SquareRoot(Log(NNN)).
  */
 #ifdef FPTA_INDEX_UT_LONG
-static constexpr int NNN = 65521; // около 1-2 минуты в /dev/shm/
+static cxx11_constexpr_var int NNN = 65521; // около 1-2 минуты в /dev/shm/
 #else
-static constexpr int NNN = 509; // менее секунды в /dev/shm/
+static cxx11_constexpr_var int NNN = 509; // менее секунды в /dev/shm/
 #endif
 
 static const char testdb_name[] = TEST_DB_DIR "ut_index_primary.fpta";
@@ -413,7 +413,7 @@ TYPED_TEST_CASE_P(PrimaryIndex);
 #endif
 
 template <fptu_type _type> struct glue {
-  static constexpr fptu_type type = _type;
+  static cxx11_constexpr_var fptu_type type = _type;
 };
 
 typedef ::testing::Types<glue<fptu_null>, glue<fptu_uint16>, glue<fptu_int32>,

@@ -186,10 +186,11 @@ __cold string to_string(const fpta_value *value) {
                         (const char *)value->binary_data);
 
   case fpta_binary:
-    return fptu::hexadecimal(value->binary_data, value->binary_length);
+    return fptu::hexadecimal_string(value->binary_data, value->binary_length);
 
   case fpta_shoved:
-    return "@" + fptu::hexadecimal(value->binary_data, value->binary_length);
+    return "@" +
+           fptu::hexadecimal_string(value->binary_data, value->binary_length);
   }
 }
 
@@ -501,7 +502,7 @@ __cold string to_string(const fpta_txn *txt) {
 
 __cold string to_string(const MDBX_val &value) {
   return fptu::format("%" PRIuPTR "_%p (", value.iov_len, value.iov_base) +
-         fptu::hexadecimal(value.iov_base, value.iov_len) + ")";
+         fptu::hexadecimal_string(value.iov_base, value.iov_len) + ")";
 }
 
 __cold string to_string(const fpta_key &key) { return to_string(key.mdbx); }

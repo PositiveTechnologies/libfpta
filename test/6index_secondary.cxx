@@ -28,9 +28,9 @@
  * что требует больше уникальных значений для первичного ключа.
  */
 #ifdef FPTA_INDEX_UT_LONG
-static constexpr int NNN = 32749; // около 1-2 минуты в /dev/shm/
+static cxx11_constexpr_var int NNN = 32749; // около 1-2 минуты в /dev/shm/
 #else
-static constexpr int NNN = 509; // менее секунды в /dev/shm/
+static cxx11_constexpr_var int NNN = 509; // менее секунды в /dev/shm/
 #endif
 
 static const char testdb_name[] = TEST_DB_DIR "ut_index_secondary.fpta";

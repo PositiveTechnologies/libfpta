@@ -120,9 +120,8 @@ extern "C" char *gets(char *);
 
 //----------------------------------------------------------------------------
 
-static constexpr fpta_shove_t fpta_column_shove(fpta_shove_t shove,
-                                                fptu_type data_type,
-                                                fpta_index_type index_type) {
+static cxx11_constexpr fpta_shove_t fpta_column_shove(
+    fpta_shove_t shove, fptu_type data_type, fpta_index_type index_type) {
 #if __cplusplus >= 201402L
   assert((data_type & ~fpta_column_typeid_mask) == 0);
   assert((index_type & ~fpta_column_index_mask) == 0);
@@ -131,19 +130,19 @@ static constexpr fpta_shove_t fpta_column_shove(fpta_shove_t shove,
   return shove | data_type | index_type;
 }
 
-static constexpr bool fpta_shove_eq(fpta_shove_t a, fpta_shove_t b) {
+static cxx11_constexpr bool fpta_shove_eq(fpta_shove_t a, fpta_shove_t b) {
   static_assert(fpta_name_hash_shift > 0, "expect hash/shove is shifted");
   /* A равно B, если отличия только в бладших битах */
   return (a ^ b) < (1u << fpta_name_hash_shift);
 }
 
-static constexpr fptu_type fpta_shove2type(fpta_shove_t shove) {
+static cxx11_constexpr fptu_type fpta_shove2type(fpta_shove_t shove) {
   static_assert(fpta_column_typeid_shift == 0,
                 "expecting column_typeid_shift is zero");
   return fptu_type(shove & fpta_column_typeid_mask);
 }
 
-static constexpr fpta_index_type fpta_shove2index(fpta_shove_t shove) {
+static cxx11_constexpr fpta_index_type fpta_shove2index(fpta_shove_t shove) {
   static_assert((int)fpta_primary_unique_ordered_obverse <
                     fpta_column_index_mask,
                 "check fpta_column_index_mask");
@@ -155,66 +154,66 @@ static constexpr fpta_index_type fpta_shove2index(fpta_shove_t shove) {
   return fpta_index_type(shove & fpta_column_index_mask);
 }
 
-static constexpr bool fpta_is_composite(fpta_shove_t shove) {
+static cxx11_constexpr bool fpta_is_composite(fpta_shove_t shove) {
   return fpta_shove2type(shove) == /* composite */ fptu_null;
 }
 
-static constexpr fptu_type fpta_id2type(const fpta_name *id) {
+static cxx11_constexpr fptu_type fpta_id2type(const fpta_name *id) {
   return fpta_shove2type(id->shove);
 }
 
-static constexpr fpta_index_type fpta_id2index(const fpta_name *id) {
+static cxx11_constexpr fpta_index_type fpta_id2index(const fpta_name *id) {
   return fpta_shove2index(id->shove);
 }
 
-static constexpr bool fpta_is_indexed(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_is_indexed(const fpta_shove_t index) {
   return (index & (fpta_column_index_mask - fpta_index_fnullable)) != 0;
 }
 
-static constexpr bool fpta_index_is_unique(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_index_is_unique(const fpta_shove_t index) {
 #if __cplusplus >= 201402L
   assert(fpta_is_indexed(index));
 #endif /* C++14 */
   return (index & fpta_index_funique) != 0;
 }
 
-static constexpr bool fpta_index_is_ordered(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_index_is_ordered(const fpta_shove_t index) {
 #if __cplusplus >= 201402L
   assert(fpta_is_indexed(index));
 #endif /* C++14 */
   return (index & fpta_index_fordered) != 0;
 }
 
-static constexpr bool fpta_index_is_unordered(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_index_is_unordered(const fpta_shove_t index) {
   return !fpta_index_is_ordered(index);
 }
 
-static constexpr bool fpta_index_is_obverse(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_index_is_obverse(const fpta_shove_t index) {
   return (index & fpta_index_fobverse) != 0;
 }
 
-static constexpr bool fpta_index_is_reverse(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_index_is_reverse(const fpta_shove_t index) {
   return (index & fpta_index_fobverse) == 0;
 }
 
-static constexpr bool fpta_index_is_primary(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_index_is_primary(const fpta_shove_t index) {
 #if __cplusplus >= 201402L
   assert(fpta_is_indexed(index));
 #endif /* C++14 */
   return (index & fpta_index_fsecondary) == 0;
 }
 
-static constexpr bool fpta_index_is_secondary(const fpta_shove_t index) {
+static cxx11_constexpr bool fpta_index_is_secondary(const fpta_shove_t index) {
   return (index & fpta_index_fsecondary) != 0;
 }
 
-static constexpr bool fpta_index_is_ordinal(fpta_shove_t shove) {
+static cxx11_constexpr bool fpta_index_is_ordinal(fpta_shove_t shove) {
   return fpta_index_is_unordered(shove) ||
          (fpta_shove2type(shove) > fptu_null &&
           fpta_shove2type(shove) < fptu_cstr);
 }
 
-static constexpr bool
+static cxx11_constexpr bool
 fpta_is_indexed_and_nullable(const fpta_index_type index) {
 #if __cplusplus >= 201402L
   assert(index == (index & fpta_column_index_mask));
@@ -222,7 +221,7 @@ fpta_is_indexed_and_nullable(const fpta_index_type index) {
   return index > fpta_index_fnullable;
 }
 
-static constexpr bool fpta_column_is_nullable(const fpta_shove_t shove) {
+static cxx11_constexpr bool fpta_column_is_nullable(const fpta_shove_t shove) {
   return (shove & fpta_index_fnullable) != 0;
 }
 
@@ -248,10 +247,10 @@ struct fpta_table_stored_schema {
   fpta_shove_t columns[1];
 };
 
-static constexpr bool fpta_is_intersected(const void *left_begin,
-                                          const void *left_end,
-                                          const void *right_begin,
-                                          const void *right_end) {
+static cxx11_constexpr bool fpta_is_intersected(const void *left_begin,
+                                                const void *left_end,
+                                                const void *right_begin,
+                                                const void *right_end) {
 #if __cplusplus >= 201402L
   assert(left_begin <= left_end);
   assert(right_begin <= right_end);
@@ -264,26 +263,26 @@ struct fpta_table_schema final {
   fpta_shove_t _key;
   unsigned _cache_hints[fpta_max_cols]; /* подсказки для кэша дескрипторов */
 
-  static constexpr size_t header_size() {
+  static cxx11_constexpr size_t header_size() {
     return sizeof(fpta_table_stored_schema) -
            sizeof(fpta_table_stored_schema::columns);
   }
 
-  constexpr uint64_t checksum() const { return _stored.checksum; }
-  constexpr uint32_t signature() const { return _stored.signature; }
-  constexpr fpta_shove_t table_shove() const { return _key; }
-  constexpr uint64_t version_tsn() const { return _stored.version_tsn; }
-  constexpr size_t column_count() const { return _stored.count; }
-  constexpr fpta_shove_t column_shove(size_t number) const {
+  cxx11_constexpr uint64_t checksum() const { return _stored.checksum; }
+  cxx11_constexpr uint32_t signature() const { return _stored.signature; }
+  cxx11_constexpr fpta_shove_t table_shove() const { return _key; }
+  cxx11_constexpr uint64_t version_tsn() const { return _stored.version_tsn; }
+  cxx11_constexpr size_t column_count() const { return _stored.count; }
+  cxx11_constexpr fpta_shove_t column_shove(size_t number) const {
 #if __cplusplus >= 201402L
     assert(number < _stored.count);
 #endif /* C++14 */
     return _stored.columns[number];
   }
-  constexpr const fpta_shove_t *column_shoves_array() const {
+  cxx11_constexpr const fpta_shove_t *column_shoves_array() const {
     return _stored.columns;
   }
-  constexpr fpta_shove_t table_pk() const { return column_shove(0); }
+  cxx11_constexpr fpta_shove_t table_pk() const { return column_shove(0); }
 
   unsigned &handle_cache(size_t number) {
     assert(number < _stored.count);
@@ -317,7 +316,7 @@ struct fpta_table_schema final {
     return FPTA_SUCCESS;
   }
 
-  constexpr bool has_secondary() const {
+  cxx11_constexpr bool has_secondary() const {
     return column_count() > 1 && fpta_index_is_secondary(column_shove(1));
   }
 
@@ -404,7 +403,7 @@ struct fpta_cursor {
   } metrics;
   int bring(MDBX_val *key, MDBX_val *data, const MDBX_cursor_op op);
 
-  static constexpr void *poor = nullptr;
+  static cxx11_constexpr_var void *poor = nullptr;
   bool is_poor() const { return current.iov_base == poor; }
   void set_poor() { current.iov_base = poor; }
 

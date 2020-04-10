@@ -1129,16 +1129,16 @@ TEST(SmokeComposite, SimilarValuesPrimary) {
  */
 
 #ifdef FPTA_INDEX_UT_LONG
-static constexpr int NNN_WITHDUP = 797;
-static constexpr int NNN_UNIQ = 32653;
-static constexpr unsigned megabytes = 1024;
+static cxx11_constexpr_var int NNN_WITHDUP = 797;
+static cxx11_constexpr_var int NNN_UNIQ = 32653;
+static cxx11_constexpr_var unsigned megabytes = 1024;
 #else
-static constexpr int NNN_WITHDUP = 101;
-static constexpr int NNN_UNIQ = 509;
-static constexpr unsigned megabytes = 32;
+static cxx11_constexpr_var int NNN_WITHDUP = 101;
+static cxx11_constexpr_var int NNN_UNIQ = 509;
+static cxx11_constexpr_var unsigned megabytes = 32;
 #endif
-static constexpr unsigned NBATCH = 7;
-static constexpr int NNN = NNN_UNIQ / 2;
+static cxx11_constexpr_var unsigned NBATCH = 7;
+static cxx11_constexpr_var int NNN = NNN_UNIQ / 2;
 
 #include <bitset>
 
@@ -1148,10 +1148,11 @@ static inline unsigned map_linear2stochastic(const unsigned linear,
                                              const unsigned salt) {
   static_assert(N >= 0 && N < 4, "WTF?");
   assert(linear < NNN);
-  constexpr const unsigned x[] = {4026277019, 2450534059, 968322911,
-                                  4001240291};
-  constexpr const unsigned y[] = {3351947, 3172243, 16392923, 12004879};
-  constexpr const unsigned z[] = {3086191, 856351, 11844137, 1815599};
+  cxx11_constexpr_var const unsigned x[] = {4026277019, 2450534059, 968322911,
+                                            4001240291};
+  cxx11_constexpr_var const unsigned y[] = {3351947, 3172243, 16392923,
+                                            12004879};
+  cxx11_constexpr_var const unsigned z[] = {3086191, 856351, 11844137, 1815599};
   uint64_t order = linear + linear + odd;
   order = (order * x[N] + salt) % NNN_UNIQ;
   order = (order * y[N] + z[N]) % NNN_UNIQ;
@@ -1162,9 +1163,9 @@ using bitset_NNN_UNIQ = std::bitset<NNN_UNIQ>;
 
 TEST(Self, map_linear2stochastic) {
 #if defined(NDEBUG) || defined(__OPTIMIZE__)
-  constexpr unsigned n_iterations = 42000;
+  cxx11_constexpr_var unsigned n_iterations = 42000;
 #else
-  constexpr unsigned n_iterations = 42;
+  cxx11_constexpr_var unsigned n_iterations = 42;
 #endif
   unsigned salt = 3216208939;
   for (unsigned n = 0; n < n_iterations; ++n) {

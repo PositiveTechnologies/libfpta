@@ -112,8 +112,8 @@ static __inline int fpta_txn_validate(fpta_txn *txn, fpta_level min_level) {
   return FPTA_OK;
 }
 
-static cxx14_constexpr inline int
-fpta_id_validate(const fpta_name *id, fpta_schema_item schema_item) {
+static cxx14_constexpr int fpta_id_validate(const fpta_name *id,
+                                            fpta_schema_item schema_item) {
   if (unlikely(id == nullptr))
     return FPTA_EINVAL;
 

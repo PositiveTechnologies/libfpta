@@ -1527,12 +1527,12 @@ typedef enum fpta_index_type {
 } fpta_index_type;
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
-inline constexpr fpta_index_type operator|(const fpta_index_type a,
-                                           const fpta_index_type b) {
+cxx11_constexpr fpta_index_type operator|(const fpta_index_type a,
+                                          const fpta_index_type b) {
   return (fpta_index_type)((unsigned)a | (unsigned)b);
 }
 
-inline constexpr fpta_index_type nullable(const fpta_index_type index) {
+cxx11_constexpr fpta_index_type nullable(const fpta_index_type index) {
   return index | fpta_index_fnullable;
 }
 #endif /* __cplusplus >= 201103L */
@@ -3316,8 +3316,8 @@ inline string to_string(const fpta_filter &filter) {
 }
 } // namespace std
 
-inline constexpr fpta_regime_flags operator|(const fpta_regime_flags a,
-                                             const fpta_regime_flags b) {
+cxx11_constexpr fpta_regime_flags operator|(const fpta_regime_flags a,
+                                            const fpta_regime_flags b) {
   return (fpta_regime_flags)((unsigned)a | (unsigned)b);
 }
 

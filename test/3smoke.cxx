@@ -902,7 +902,7 @@ TEST_F(SmokeCRUD, none) {
   ASSERT_NE(nullptr, row);
   ASSERT_STREQ(nullptr, fptu::check(row));
 
-  constexpr int NNN = 42;
+  cxx11_constexpr_var int NNN = 42;
   /* создаем достаточно кол-во строк для последующих проверок */ {
     SCOPED_TRACE("fill");
     for (int i = 0; i < NNN; ++i) {

@@ -29,9 +29,9 @@
  * а скорее даже как SquareRoot(Log(NNN)).
  */
 #ifdef FPTA_CURSOR_UT_LONG
-static constexpr int NNN = 65521; // около 1-2 минуты в /dev/shm/
+static cxx11_constexp_varr int NNN = 65521; // около 1-2 минуты в /dev/shm/
 #else
-static constexpr int NNN = 509; // менее секунды в /dev/shm/
+static cxx11_constexpr_var int NNN = 509; // менее секунды в /dev/shm/
 #endif
 
 static const char testdb_name[] = TEST_DB_DIR "ut_cursor_primary.fpta";
@@ -55,7 +55,7 @@ public:
 
   std::string pk_col_name;
   fpta_name table, col_pk, col_order, col_dup_id, col_t1ha;
-  static constexpr int n_dups = 5;
+  static cxx11_constexpr_var int n_dups = 5;
   int n_records;
   std::unordered_map<int, int> reorder;
 
@@ -439,7 +439,7 @@ public:
   }
 };
 
-constexpr int CursorPrimary::n_dups;
+cxx11_constexpr_var int CursorPrimary::n_dups;
 
 TEST_P(CursorPrimary, basicMoves) {
   /* Проверка базовых перемещений курсора по первичному (primary) индексу.

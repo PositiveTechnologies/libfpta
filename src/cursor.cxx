@@ -194,12 +194,12 @@ bailout:
 //----------------------------------------------------------------------------
 
 int fpta_cursor::bring(MDBX_val *key, MDBX_val *data, const MDBX_cursor_op op) {
-  constexpr unsigned ops_scan_mask =
+  cxx11_constexpr_var unsigned ops_scan_mask =
       1 << MDBX_NEXT | 1 << MDBX_NEXT_DUP | 1 << MDBX_NEXT_MULTIPLE |
       1 << MDBX_NEXT_NODUP | 1 << MDBX_PREV | 1 << MDBX_PREV_DUP |
       1 << MDBX_PREV_NODUP | 1 << MDBX_PREV_MULTIPLE | 1 << MDBX_FIRST |
       1 << MDBX_FIRST_DUP | 1 << MDBX_LAST | 1 << MDBX_LAST_DUP;
-  constexpr unsigned ops_search_mask =
+  cxx11_constexpr_var unsigned ops_search_mask =
       1 << MDBX_GET_BOTH | 1 << MDBX_GET_BOTH_RANGE | 1 << MDBX_SET |
       1 << MDBX_SET_KEY | 1 << MDBX_SET_RANGE;
 
@@ -872,7 +872,7 @@ int fpta_cursor_delete(fpta_cursor *cursor) {
 
     fptu_ro row;
 #if defined(NDEBUG) && __cplusplus >= 201103L
-    const constexpr size_t likely_enough = 64u * 42u;
+    const cxx11_constexpr size_t likely_enough = 64u * 42u;
 #else
     const size_t likely_enough = (time(nullptr) & 1) ? 11u : 64u * 42u;
 #endif /* NDEBUG */

@@ -32,11 +32,11 @@
  * проявления каких-либо ошибок растет в лучшем случае как Log(NNN),
  * а скорее даже как SquareRoot(Log(NNN)).
  */
-static constexpr int NDUP = 5;
+static cxx11_constexpr_var int NDUP = 5;
 #ifdef FPTA_CURSOR_UT_LONG
-static constexpr int NNN = 13103; // около часа в /dev/shm/
+static cxx11_constexpr_var int NNN = 13103; // около часа в /dev/shm/
 #else
-static constexpr int NNN = 41; // порядка 10-15 секунд в /dev/shm/
+static cxx11_constexpr_var int NNN = 41; // порядка 10-15 секунд в /dev/shm/
 #endif
 
 static const char testdb_name[] = TEST_DB_DIR "ut_cursor_secondary2.fpta";

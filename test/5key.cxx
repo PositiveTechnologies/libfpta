@@ -698,7 +698,7 @@ TEST(Value2Key, datetime) {
 //----------------------------------------------------------------------------
 
 template <fptu_type _type> struct glue {
-  static constexpr fptu_type type = _type;
+  static cxx11_constexpr_var fptu_type type = _type;
 };
 
 typedef ::testing::Types<glue<fptu_cstr>, glue<fptu_opaque>>
@@ -777,7 +777,7 @@ TYPED_TEST(Value2Key_AllString, basic) {
    *    - этим проверяется как корректность формирования ключей, так и
    *      верность результата соответствующих индексных компараторов.
    */
-  constexpr fptu_type type = TypeParam::type;
+  cxx11_constexpr_var fptu_type type = TypeParam::type;
   SCOPED_TRACE("type " + std::to_string(type));
 
   static const fpta_index_type index_cases[] = {
@@ -787,7 +787,7 @@ TYPED_TEST(Value2Key_AllString, basic) {
       /* clang-format on */
   };
 
-  constexpr bool is_string = (type == fptu_cstr);
+  cxx11_constexpr_var bool is_string = (type == fptu_cstr);
   static const size_t keylen_min =
       fptu::tag_is_fixedsize(type) ? tag_elem_size(type) : 1;
   static const size_t keylen_max = fptu::tag_is_fixedsize(type)
@@ -973,8 +973,8 @@ TYPED_TEST(Value2Key_AllString, normal_keys) {
    *  верность результата соответствующих индексных компараторов для
    *  разно-упорядоченных ключей разного размера.
    */
-  constexpr fptu_type type = TypeParam::type;
-  constexpr bool is_string = (type == fptu_cstr);
+  cxx11_constexpr_var fptu_type type = TypeParam::type;
+  cxx11_constexpr_var bool is_string = (type == fptu_cstr);
   static const int keylen_min =
       fptu::tag_is_fixedsize(type) ? (int)tag_elem_size(type) : 1;
   static const int keylen_max =
@@ -1062,8 +1062,8 @@ TYPED_TEST(Value2Key_VariableString, long_keys) {
   const int keylen_max = fpta_max_keylen * 42;
   const int keylen_step = 11;
 
-  constexpr fptu_type type = TypeParam::type;
-  constexpr bool is_string = (type == fptu_cstr);
+  cxx11_constexpr_var fptu_type type = TypeParam::type;
+  cxx11_constexpr_var bool is_string = (type == fptu_cstr);
   SCOPED_TRACE("type " + std::to_string(type));
 
   uint8_t ones[keylen_max];

@@ -20,16 +20,18 @@
 #include "tools.hpp"
 
 /* "хорошие" значения float: близкие к представимым, но НЕ превосходящие их */
-static constexpr float flt_neg_below =
+static cxx11_constexpr_var float flt_neg_below =
     (float)(-FLT_MAX + (double)FLT_MAX * FLT_EPSILON);
-static constexpr float flt_pos_below =
+static cxx11_constexpr_var float flt_pos_below =
     (float)(FLT_MAX - (double)FLT_MAX * FLT_EPSILON);
 static_assert(flt_neg_below > -FLT_MAX, "unexpected precision loss");
 static_assert(flt_pos_below < FLT_MAX, "unexpected precision loss");
 
 /* "плохие" значения float: немного вне представимого диапазона */
-static constexpr double flt_neg_over = -FLT_MAX - (double)FLT_MAX * FLT_EPSILON;
-static constexpr double flt_pos_over = FLT_MAX + (double)FLT_MAX * FLT_EPSILON;
+static cxx11_constexpr_var double flt_neg_over =
+    -FLT_MAX - (double)FLT_MAX * FLT_EPSILON;
+static cxx11_constexpr_var double flt_pos_over =
+    FLT_MAX + (double)FLT_MAX * FLT_EPSILON;
 static_assert(flt_neg_over <= -FLT_MAX, "unexpected precision loss");
 static_assert(flt_pos_over >= FLT_MAX, "unexpected precision loss");
 
@@ -173,19 +175,19 @@ template <bool printable>
 bool string_keygen(const size_t len, uint32_t order, uint8_t *buf,
                    uint32_t tailseed = 0) {
   /* параметры алфавита */
-  constexpr int alphabet_bits = printable ? 6 : 8;
-  constexpr unsigned alphabet_mask = (1 << alphabet_bits) - 1;
-  constexpr unsigned alphabet_base = printable ? '0' : 0;
+  cxx11_constexpr_var int alphabet_bits = printable ? 6 : 8;
+  cxx11_constexpr_var unsigned alphabet_mask = (1 << alphabet_bits) - 1;
+  cxx11_constexpr_var unsigned alphabet_base = printable ? '0' : 0;
 
   /* кол-во бит под кодирование "ширины" */
-  constexpr unsigned rle_bits = 5;
+  cxx11_constexpr_var unsigned rle_bits = 5;
   /* максимальная "ширина" order */
-  constexpr int max_bits = 1 << rle_bits;
+  cxx11_constexpr_var int max_bits = 1 << rle_bits;
   /* максимальнное значение order */
-  constexpr uint64_t max_order = (1ull << max_bits) - 1;
+  cxx11_constexpr_var uint64_t max_order = (1ull << max_bits) - 1;
   /* остаток битов в первом символе после "ширины" */
-  constexpr int first_left = alphabet_bits - rle_bits;
-  constexpr unsigned first_mask = (1 << first_left) - 1;
+  cxx11_constexpr_var int first_left = alphabet_bits - rle_bits;
+  cxx11_constexpr_var unsigned first_mask = (1 << first_left) - 1;
   assert(len > 0);
   assert(order <= max_order);
   (void)max_order;
@@ -510,7 +512,7 @@ fpta_value fpta_value_binstr(const void *pattern, size_t length) {
 }
 
 template <fptu_type data_type> struct varbin_stepper {
-  static constexpr size_t keylen_max = fpta_max_keylen * 3 / 2;
+  static cxx11_constexpr_var size_t keylen_max = fpta_max_keylen * 3 / 2;
   typedef std::array<uint8_t, keylen_max> varbin_type;
 
   static fpta_value make(int order, bool reverse, int const N) {
@@ -573,7 +575,7 @@ template <fptu_type data_type> struct varbin_stepper {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_uint16> : public scalar_range_stepper<uint16_t> {
-  static constexpr fptu_type type = fptu_uint16;
+  static cxx11_constexpr_var fptu_type type = fptu_uint16;
   static fpta_value make(int order, int const N) {
     return fpta_value_uint(scalar_range_stepper<uint16_t>::value(order, N));
   }
@@ -581,7 +583,7 @@ struct keygen<index, fptu_uint16> : public scalar_range_stepper<uint16_t> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_uint32> : public scalar_range_stepper<uint32_t> {
-  static constexpr fptu_type type = fptu_uint32;
+  static cxx11_constexpr_var fptu_type type = fptu_uint32;
   static fpta_value make(int order, int const N) {
     return fpta_value_uint(scalar_range_stepper<uint32_t>::value(order, N));
   }
@@ -589,7 +591,7 @@ struct keygen<index, fptu_uint32> : public scalar_range_stepper<uint32_t> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_uint64> : public scalar_range_stepper<uint64_t> {
-  static constexpr fptu_type type = fptu_uint64;
+  static cxx11_constexpr_var fptu_type type = fptu_uint64;
   static fpta_value make(int order, int const N) {
     return fpta_value_uint(scalar_range_stepper<uint64_t>::value(order, N));
   }
@@ -597,7 +599,7 @@ struct keygen<index, fptu_uint64> : public scalar_range_stepper<uint64_t> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_int32> : public scalar_range_stepper<int32_t> {
-  static constexpr fptu_type type = fptu_int32;
+  static cxx11_constexpr_var fptu_type type = fptu_int32;
   static fpta_value make(int order, int const N) {
     return fpta_value_sint(scalar_range_stepper<int32_t>::value(order, N));
   }
@@ -605,7 +607,7 @@ struct keygen<index, fptu_int32> : public scalar_range_stepper<int32_t> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_int64> : public scalar_range_stepper<int64_t> {
-  static constexpr fptu_type type = fptu_int64;
+  static cxx11_constexpr_var fptu_type type = fptu_int64;
   static fpta_value make(int order, int const N) {
     return fpta_value_sint(scalar_range_stepper<int64_t>::value(order, N));
   }
@@ -613,7 +615,7 @@ struct keygen<index, fptu_int64> : public scalar_range_stepper<int64_t> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_fp32> : public scalar_range_stepper<float> {
-  static constexpr fptu_type type = fptu_fp32;
+  static cxx11_constexpr_var fptu_type type = fptu_fp32;
   static fpta_value make(int order, int const N) {
     return fpta_value_float(scalar_range_stepper<float>::value(order, N));
   }
@@ -621,7 +623,7 @@ struct keygen<index, fptu_fp32> : public scalar_range_stepper<float> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_fp64> : public scalar_range_stepper<double> {
-  static constexpr fptu_type type = fptu_fp64;
+  static cxx11_constexpr_var fptu_type type = fptu_fp64;
   static fpta_value make(int order, int const N) {
     return fpta_value_float(scalar_range_stepper<double>::value(order, N));
   }
@@ -630,7 +632,7 @@ struct keygen<index, fptu_fp64> : public scalar_range_stepper<double> {
 template <fpta_index_type index>
 struct keygen<index, fptu_96> : public fixbin_stepper<96 / 8>,
                                 keygen_base<index, fptu_96> {
-  static constexpr fptu_type type = fptu_96;
+  static cxx11_constexpr_var fptu_type type = fptu_96;
   static fpta_value make(int order, int const N) {
     return fixbin_stepper<96 / 8>::make(order, fpta_index_is_reverse(index), N);
   }
@@ -638,7 +640,7 @@ struct keygen<index, fptu_96> : public fixbin_stepper<96 / 8>,
 
 template <fpta_index_type index>
 struct keygen<index, fptu_128> : public fixbin_stepper<128 / 8> {
-  static constexpr fptu_type type = fptu_128;
+  static cxx11_constexpr_var fptu_type type = fptu_128;
   static fpta_value make(int order, int const N) {
     return fixbin_stepper<128 / 8>::make(order, fpta_index_is_reverse(index),
                                          N);
@@ -647,7 +649,7 @@ struct keygen<index, fptu_128> : public fixbin_stepper<128 / 8> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_160> : public fixbin_stepper<160 / 8> {
-  static constexpr fptu_type type = fptu_160;
+  static cxx11_constexpr_var fptu_type type = fptu_160;
   static fpta_value make(int order, int const N) {
     return fixbin_stepper<160 / 8>::make(order, fpta_index_is_reverse(index),
                                          N);
@@ -656,7 +658,7 @@ struct keygen<index, fptu_160> : public fixbin_stepper<160 / 8> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_datetime> : public scalar_range_stepper<uint64_t> {
-  static constexpr fptu_type type = fptu_datetime;
+  static cxx11_constexpr_var fptu_type type = fptu_datetime;
   static fpta_value make(int order, int const N) {
     fptu_time datetime;
     datetime.fixedpoint = scalar_range_stepper<uint64_t>::value(order, N);
@@ -666,7 +668,7 @@ struct keygen<index, fptu_datetime> : public scalar_range_stepper<uint64_t> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_256> : public fixbin_stepper<256 / 8> {
-  static constexpr fptu_type type = fptu_256;
+  static cxx11_constexpr_var fptu_type type = fptu_256;
   static fpta_value make(int order, int const N) {
     return fixbin_stepper<256 / 8>::make(order, fpta_index_is_reverse(index),
                                          N);
@@ -675,7 +677,7 @@ struct keygen<index, fptu_256> : public fixbin_stepper<256 / 8> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_cstr> : public varbin_stepper<fptu_cstr> {
-  static constexpr fptu_type type = fptu_cstr;
+  static cxx11_constexpr_var fptu_type type = fptu_cstr;
   static fpta_value make(int order, int const N) {
     return varbin_stepper<fptu_cstr>::make(order, fpta_index_is_reverse(index),
                                            N);
@@ -684,7 +686,7 @@ struct keygen<index, fptu_cstr> : public varbin_stepper<fptu_cstr> {
 
 template <fpta_index_type index>
 struct keygen<index, fptu_opaque> : public varbin_stepper<fptu_opaque> {
-  static constexpr fptu_type type = fptu_opaque;
+  static cxx11_constexpr_var fptu_type type = fptu_opaque;
   static fpta_value make(int order, int const N) {
     return varbin_stepper<fptu_opaque>::make(order,
                                              fpta_index_is_reverse(index), N);

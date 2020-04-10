@@ -48,9 +48,10 @@ __hot fpta_shove_t fpta_name_validate_and_shove(const fpta::string_view &name) {
     uppercase[i] = (char)toupper(name[i]);
   }
 
-  constexpr uint64_t seed = UINT64_C(0x7D7859C1743733) * FPTA_VERSION_MAJOR +
-                            UINT64_C(0xC8E6067A913D) * FPTA_VERSION_MINOR +
-                            1543675803 /* Сб дек  1 17:50:03 MSK 2018 */;
+  cxx11_constexpr_var uint64_t seed =
+      UINT64_C(0x7D7859C1743733) * FPTA_VERSION_MAJOR +
+      UINT64_C(0xC8E6067A913D) * FPTA_VERSION_MINOR +
+      1543675803 /* Сб дек  1 17:50:03 MSK 2018 */;
   return t1ha2_atonce(uppercase, length, seed) << fpta_name_hash_shift;
 }
 
@@ -62,18 +63,20 @@ bool fpta_validate_name(const char *name) {
 
 namespace {
 
-static constexpr fpta_shove_t dict_key = 0;
+static cxx11_constexpr_var fpta_shove_t dict_key = 0;
 
 /* Простейший словарь.
  * Реализован как вектор из пар <хеш, имя>, которые отсортированы по значению
  * хеша. Имена должны храниться снаружи, внутри вектора только ссылки. */
 class trivial_dict {
   typedef std::pair<fpta_shove_t, const char *> item;
-  static constexpr size_t mask_length = (1 << fpta_name_hash_shift) - 1;
-  static constexpr fpta_shove_t mask_hash = ~fpta_shove_t(mask_length);
+  static cxx11_constexpr_var size_t mask_length =
+      (1 << fpta_name_hash_shift) - 1;
+  static cxx11_constexpr_var fpta_shove_t mask_hash =
+      ~fpta_shove_t(mask_length);
 
-  static constexpr fpta_shove_t internal(const fpta_shove_t &shove,
-                                         const size_t &length) {
+  static cxx11_constexpr fpta_shove_t internal(const fpta_shove_t &shove,
+                                               const size_t &length) {
     static_assert(mask_length > fpta_name_len_max, "unexpected");
 #if __cplusplus >= 201402L
     assert(length >= fpta_name_len_min && length <= fpta_name_len_max);
@@ -81,7 +84,7 @@ class trivial_dict {
     return (shove & mask_hash) + length;
   }
 
-  static constexpr fpta_shove_t internal(fpta_shove_t shove) {
+  static cxx11_constexpr fpta_shove_t internal(fpta_shove_t shove) {
     return shove | mask_length;
   }
 
@@ -89,19 +92,19 @@ class trivial_dict {
     return internal(fpta_name_validate_and_shove(name), name.length());
   }
 
-  static constexpr size_t length(const fpta_shove_t &shove) {
+  static cxx11_constexpr size_t length(const fpta_shove_t &shove) {
     return size_t(shove & mask_length);
   }
 
-  static constexpr size_t length(const item &word) {
+  static cxx11_constexpr size_t length(const item &word) {
     return length(word.first);
   }
 
-  static constexpr fpta::string_view take(const item &word) {
+  static cxx11_constexpr fpta::string_view take(const item &word) {
     return fpta::string_view(word.second, length(word));
   }
 
-  static constexpr bool is_valid(const fpta_shove_t &shove) {
+  static cxx11_constexpr bool is_valid(const fpta_shove_t &shove) {
     return shove && length(shove) >= fpta_name_len_min &&
            length(shove) <= fpta_name_len_max;
   }
@@ -111,33 +114,37 @@ class trivial_dict {
   }
 
   struct gt {
-    bool constexpr operator()(const item &a, const item &b) const {
+    bool cxx11_constexpr operator()(const item &a, const item &b) const {
       return a.first > b.first;
     }
-    bool constexpr operator()(const item &a, const fpta_shove_t &b) const {
+    bool cxx11_constexpr operator()(const item &a,
+                                    const fpta_shove_t &b) const {
       return a.first > b;
     }
-    bool constexpr operator()(const fpta_shove_t &a, const item &b) const {
+    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+                                    const item &b) const {
       return a > b.first;
     }
-    bool constexpr operator()(const fpta_shove_t &a,
-                              const fpta_shove_t &b) const {
+    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+                                    const fpta_shove_t &b) const {
       return a > b;
     }
   };
 
   struct eq {
-    bool constexpr operator()(const item &a, const item &b) const {
+    bool cxx11_constexpr operator()(const item &a, const item &b) const {
       return fpta_shove_eq(a.first, b.first);
     }
-    bool constexpr operator()(const item &a, const fpta_shove_t &b) const {
+    bool cxx11_constexpr operator()(const item &a,
+                                    const fpta_shove_t &b) const {
       return fpta_shove_eq(a.first, b);
     }
-    bool constexpr operator()(const fpta_shove_t &a, const item &b) const {
+    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+                                    const item &b) const {
       return fpta_shove_eq(a, b.first);
     }
-    bool constexpr operator()(const fpta_shove_t &a,
-                              const fpta_shove_t &b) const {
+    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+                                    const fpta_shove_t &b) const {
       return fpta_shove_eq(a, b);
     }
   };
@@ -163,7 +170,7 @@ class trivial_dict {
   }
 
 public:
-  static constexpr char delimiter = '\t';
+  enum { delimiter = '\t' };
 
   trivial_dict() : vector() {}
 
@@ -294,15 +301,15 @@ public:
 
 //----------------------------------------------------------------------------
 
-static cxx14_constexpr inline int index2prio(const fpta_shove_t index) {
+static cxx14_constexpr int index2prio(const fpta_shove_t index) {
   /* primary, secondary, non-indexed non-nullable, non-indexed nullable */
   if (fpta_is_indexed(index))
     return fpta_index_is_primary(index) ? 0 : 1;
   return (index & fpta_index_fnullable) ? 3 : 2;
 }
 
-static cxx14_constexpr inline bool
-shove_index_compare(const fpta_shove_t &left, const fpta_shove_t &right) {
+static cxx14_constexpr bool shove_index_compare(const fpta_shove_t &left,
+                                                const fpta_shove_t &right) {
   const auto left_prio = index2prio(left);
   const auto rigth_prio = index2prio(right);
   return left_prio < rigth_prio || (left_prio == rigth_prio && left < right);
@@ -396,7 +403,7 @@ static int fpta_schema_clone(const fpta_shove_t schema_key,
   return FPTA_SUCCESS;
 }
 
-static cxx14_constexpr inline bool
+static cxx14_constexpr bool
 fpta_check_indextype(const fpta_index_type index_type) {
   switch (index_type) {
   default:
@@ -773,7 +780,7 @@ static int fpta_schema_read(fpta_txn *txn, fpta_shove_t schema_key,
 
 //----------------------------------------------------------------------------
 
-static constexpr unsigned column_set_signature =
+static cxx11_constexpr_var unsigned column_set_signature =
     1543140327 /* Вс ноя 25 15:10:11 MSK 2018 */;
 
 void fpta_column_set_init(fpta_column_set *column_set) {
@@ -857,7 +864,7 @@ int fpta_column_set_validate(fpta_column_set *column_set) {
 
 //----------------------------------------------------------------------------
 
-static constexpr unsigned schema_info_signature = 1543147811;
+static cxx11_constexpr_var unsigned schema_info_signature = 1543147811;
 
 int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
   if (unlikely(!info))
@@ -1562,7 +1569,7 @@ enum {
 const char *fpta_schema2json_tag2name(const void *schema_ctx, unsigned tag) {
   (void)schema_ctx;
 
-  static constexpr std::array<const char *, colnum_max> names = {{
+  static cxx11_constexpr_var std::array<const char *, colnum_max> names = {{
       "schema_format" /* colnum_schema_format */,
       "schema_t1ha" /* colnum_schema_t1ha */, "table" /* colnum_tbl */,
       "name" /* colnum_tbl_name */, "column" /* colnum_col */,
