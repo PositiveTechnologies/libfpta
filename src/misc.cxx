@@ -223,11 +223,11 @@ string_view::at(string_view::size_type pos) const {
 
 //----------------------------------------------------------------------------
 
-__cold const char *fptu_type_name(const fptu_type type) {
-  switch (int(/* hush 'not in enumerated' */ type)) {
+__cold const char *fptu_type_name(const fptu_type value) {
+  switch (int(/* hush 'not in enumerated' */ value)) {
   default: {
     static __thread char buf[32];
-    snprintf(buf, sizeof(buf), "invalid(fptu_type)%i", (int)type);
+    snprintf(buf, sizeof(buf), "invalid(fptu::type=%i)", int(value));
     return buf;
   }
   case fptu_null:
@@ -298,9 +298,12 @@ __cold const char *fptu_type_name(const fptu_type type) {
   }
 }
 
-//----------------------------------------------------------------------------
-
 namespace std {
+
+static __cold ostream &invalid(ostream &out, const char *name,
+                               const intptr_t value) {
+  return out << "invalid(fptu::" << name << "=" << value << ")";
+}
 
 #define FPTU_TOSTRING_IMP(type)                                                \
   __cold string to_string(type value) {                                        \
@@ -309,8 +312,8 @@ namespace std {
     return out.str();                                                          \
   }
 
-__cold ostream &operator<<(ostream &out, const fptu_error error) {
-  switch (error) {
+__cold ostream &operator<<(ostream &out, const fptu_error value) {
+  switch (value) {
   case FPTU_SUCCESS:
     return out << "FPTU: Success";
   case FPTU_ENOFIELD:
@@ -320,18 +323,16 @@ __cold ostream &operator<<(ostream &out, const fptu_error error) {
   case FPTU_ENOSPACE:
     return out << "FPTU: No space left in tuple (ENOSPC)";
   default:
-    return fptu::format(out, "invalid(fptu_error)%i", (int)error);
+    return invalid(out, "error", value);
   }
 }
-
 FPTU_TOSTRING_IMP(const fptu_error)
 
-__cold ostream &operator<<(ostream &out, const fptu_type type) {
-  return out << fptu_type_name(type);
+__cold ostream &operator<<(ostream &out, const fptu_type value) {
+  return out << fptu_type_name(value);
 }
-
-__cold string to_string(const fptu_type type) {
-  return std::string(fptu_type_name(type));
+__cold string to_string(const fptu_type value) {
+  return std::string(fptu_type_name(value));
 }
 
 template <typename native>
@@ -591,10 +592,10 @@ __cold ostream &operator<<(ostream &out, const fptu_rw &rw) {
 
 FPTU_TOSTRING_IMP(const fptu_rw &)
 
-__cold ostream &operator<<(ostream &out, const fptu_lge lge) {
-  switch (lge) {
+__cold ostream &operator<<(ostream &out, const fptu_lge value) {
+  switch (value) {
   default:
-    return fptu::format(out, "invalid(fptu_lge)%i", (int)lge);
+    return invalid(out, "lge", value);
   case fptu_ic:
     return out << "><";
   case fptu_eq:
