@@ -54,6 +54,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstring> // for memcpy()
+#include <ostream>
 #if defined(HAVE_IEEE754_H) || __has_include(<ieee754.h>)
 #include <ieee754.h>
 #endif
@@ -559,4 +560,28 @@ static inline __maybe_unused char *d2a_fast(
   return d2a<false>(value, buffer);
 }
 
+template <bool accurate = true> struct output_double {
+  const double value;
+  cxx11_constexpr output_double(const output_double &) = default;
+  cxx11_constexpr output_double(const double value) : value(value) {}
+};
+
 } // namespace erthink
+
+namespace std {
+
+inline ostream &operator<<(ostream &out,
+                           const erthink::output_double<false> &it) {
+  char buf[erthink::d2a_max_chars];
+  char *end = erthink::d2a_fast(it.value, buf);
+  return out.write(buf, end - buf);
+}
+
+inline ostream &operator<<(ostream &out,
+                           const erthink::output_double<true> &it) {
+  char buf[erthink::d2a_max_chars];
+  char *end = erthink::d2a_accurate(it.value, buf);
+  return out.write(buf, end - buf);
+}
+
+} // namespace std
