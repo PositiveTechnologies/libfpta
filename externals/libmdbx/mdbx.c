@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY db6b08d7ff46aebd71d9009e5435a0d60e4953781aed2cc2a66e7cae237531d5_v0_7_0_18_g19454f26e
+#define MDBX_BUILD_SOURCERY c8e0f423d8768d4b505c69cdc9c87a3def44caaec8b84a73c9bb2882ac8ace95_v0_7_0_26_gabf38e97c
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -664,26 +664,9 @@
 #else
 #define SYSCTL_LEGACY_NONCONST_MIB
 #endif
-#if defined(__APPLE__) && !__has_include(<sys/vmmeter.h>)
-#warning "The <sys/vmmeter.h> header is missing in iOS SDK. "   \
-   "Copy it manually from the OSX SDK or iPhoneSimulator SDK. " \
-   "Don't forget to thank Apple for taking care of you!"
-/*** FOR INSTANCE:
-   $ xcode-select --install
-   $ sudo installer -pkg
-       /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg
-       -target $ cd <your Xcode.app>
-   $ sudo cp
-       ./Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/vmmeter.h
-       ./Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include/sys/
- *** OR:
-   $ cd <your Xcode.app>
-   $ sudo cp
-       ./Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/sys/vmmeter.h
-       ./Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include/sys/
- ***/
-#endif /* iOS */
+#ifndef __MACH__
 #include <sys/vmmeter.h>
+#endif
 #else
 #include <malloc.h>
 #if !(defined(__sun) || defined(__SVR4) || defined(__svr4__) ||                \
@@ -1088,6 +1071,8 @@ MDBX_INTERNAL_FUNC int mdbx_vasprintf(char **strp, const char *fmt, va_list ap);
 
 #if defined(__linux__) || defined(__gnu_linux__)
 MDBX_INTERNAL_VAR uint32_t mdbx_linux_kernel_version;
+MDBX_INTERNAL_VAR bool
+    mdbx_RunningOnWSL /* Windows Subsystem for Linux is mad and trouble-full */;
 #endif /* Linux */
 
 /* Get the size of a memory page for the system.
@@ -8682,6 +8667,9 @@ static void mdbx_txn_valgrind(MDBX_env *env, MDBX_txn *txn) {
       /* inside write-txn */
       MDBX_meta *head = mdbx_meta_head(env);
       last = head->mm_geo.next;
+    } else if (env->me_flags & MDBX_RDONLY) {
+      /* read-only mode, no write-txn, no wlock mutex */
+      last = NUM_METAS;
     } else if (mdbx_txn_lock(env, true) == MDBX_SUCCESS) {
       /* no write-txn */
       last = NUM_METAS;
@@ -13056,12 +13044,13 @@ int __cold mdbx_env_open(MDBX_env *env, const char *pathname, unsigned flags,
 #endif
 
 bailout:
-#if defined(MDBX_USE_VALGRIND) || defined(__SANITIZE_ADDRESS__)
-  mdbx_txn_valgrind(env, nullptr);
-#endif
-  if (rc) {
+  if (rc != MDBX_SUCCESS) {
     rc = mdbx_env_close0(env) ? MDBX_PANIC : rc;
     env->me_flags = saved_me_flags | MDBX_FATAL_ERROR;
+  } else {
+#if defined(MDBX_USE_VALGRIND) || defined(__SANITIZE_ADDRESS__)
+    mdbx_txn_valgrind(env, nullptr);
+#endif
   }
   mdbx_free(lck_pathname);
   return rc;
@@ -23393,9 +23382,9 @@ __dll_export
         0,
         7,
         0,
-        1960,
-        {"2020-04-08T22:02:17+03:00", "d370adc178b9cf06989edbd564a74e47b73e20ab", "19454f26e6a258b4ec7306dcb94a3483538cbf72",
-         "v0.7.0-18-g19454f26e"},
+        1968,
+        {"2020-04-11T20:51:24+03:00", "29cd87ba90a9f400fe1ceb1e30651aab9010967d", "abf38e97cce09f2fb6f62c1d0dcde301ff431137",
+         "v0.7.0-26-gabf38e97c"},
         sourcery};
 
 __dll_export
@@ -24233,10 +24222,20 @@ static void mdbx_winnt_import(void) {
 /* global constructor/destructor */
 
 #if defined(__linux__) || defined(__gnu_linux__)
+
 #include <sys/utsname.h>
+
 #ifndef MDBX_ALLOY
 uint32_t mdbx_linux_kernel_version;
+bool mdbx_RunningOnWSL;
 #endif /* MDBX_ALLOY */
+
+static __cold bool probe_for_WSL(const char *tag) {
+  /* "Official" way of detecting WSL but not WSL2
+   * https://github.com/Microsoft/WSL/issues/423#issuecomment-221627364 */
+  return strstr(tag, "Microsoft") || strstr(tag, "WSL");
+}
+
 #endif /* Linux */
 
 static __cold __attribute__((__constructor__)) void
@@ -24244,6 +24243,9 @@ mdbx_global_constructor(void) {
 #if defined(__linux__) || defined(__gnu_linux__)
   struct utsname buffer;
   if (uname(&buffer) == 0) {
+    mdbx_RunningOnWSL = probe_for_WSL(buffer.version) ||
+                        probe_for_WSL(buffer.sysname) ||
+                        probe_for_WSL(buffer.release);
     int i = 0;
     char *p = buffer.release;
     while (*p && i < 4) {
@@ -24335,7 +24337,8 @@ static void __cold choice_fcntl() {
 #if defined(__linux__) || defined(__gnu_linux__)
       && mdbx_linux_kernel_version >
              0x030f0000 /* OFD locks are available since 3.15, but engages here
-             only for 3.16 and larer kernels (LTS) for reliability reasons */
+                           only for 3.16 and later kernels (i.e. LTS) because
+                           of reliability reasons */
 #endif                  /* linux */
   ) {
     op_setlk = F_OFD_SETLK;
@@ -24503,6 +24506,17 @@ MDBX_INTERNAL_FUNC int __cold mdbx_lck_seize(MDBX_env *env) {
 #endif /* MDBX_USE_OFDLOCKS */
 
   int rc = MDBX_SUCCESS;
+#if defined(__linux__) || defined(__gnu_linux__)
+  if (unlikely(mdbx_RunningOnWSL)) {
+    rc = ENOLCK /* No record locks available */;
+    mdbx_error("%s, err %u",
+               "WSL (Windows Subsystem for Linux) is mad and trouble-full, "
+               "injecting failure to avoid data loss",
+               rc);
+    return rc;
+  }
+#endif /* Linux */
+
   if (env->me_lfd == INVALID_HANDLE_VALUE) {
     /* LY: without-lck mode (e.g. exclusive or on read-only filesystem) */
     rc =
