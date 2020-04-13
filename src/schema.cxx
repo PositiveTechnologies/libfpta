@@ -403,8 +403,7 @@ static int fpta_schema_clone(const fpta_shove_t schema_key,
   return FPTA_SUCCESS;
 }
 
-static cxx14_constexpr bool
-fpta_check_indextype(const fpta_index_type index_type) {
+bool fpta_index_is_valid(const fpta_index_type index_type) {
   switch (index_type) {
   default:
     return false;
@@ -472,7 +471,7 @@ static int fpta_columns_description_validate(
   for (size_t i = 0; i < shoves_count; ++i) {
     const fpta_shove_t shove = shoves[i];
     const fpta_index_type index_type = fpta_shove2index(shove);
-    if (!fpta_check_indextype(index_type))
+    if (!fpta_index_is_valid(index_type))
       return FPTA_EFLAG;
 
     if ((i == 0) !=
@@ -608,7 +607,7 @@ int fpta_column_set_add(fpta_column_set *column_set, const char *id_name,
   if (unlikely(!name_shove))
     return FPTA_ENAME;
 
-  if (!fpta_check_indextype(index_type))
+  if (!fpta_index_is_valid(index_type))
     return FPTA_EFLAG;
 
   assert((index_type & fpta_column_index_mask) == index_type);

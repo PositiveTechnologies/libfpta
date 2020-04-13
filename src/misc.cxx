@@ -16,6 +16,10 @@
  */
 
 #include "details.h"
+#include <iomanip>
+#include <sstream>
+
+#include "externals/libfptu/src/erthink/erthink.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #ifdef _MSC_VER
@@ -34,7 +38,9 @@
 #pragma GCC diagnostic ignored "-Wattributes"
 #endif /* GCC 8.x */
 
-__cold static const char *__fpta_errstr(int errnum) {
+using fptu::string_view;
+
+static __cold const char *error2cp(int32_t errcode) {
 #if defined(_WIN32) || defined(_WIN64)
   static_assert(FPTA_ENOMEM == ERROR_OUTOFMEMORY, "error code mismatch");
   static_assert(FPTA_ENOIMP == ERROR_NOT_SUPPORTED, "error code mismatch");
@@ -49,497 +55,519 @@ __cold static const char *__fpta_errstr(int errnum) {
   static_assert(FPTA_EFLAG == ERROR_INVALID_FLAG_NUMBER, "error code mismatch");
 #endif /* static_asserts for Windows */
 
-  switch (errnum) {
-  default:
-    return NULL;
+  static const char *const msgs[] = {
+      "FPTA_EOOPS: Internal unexpected Oops",
+      "FPTA_SCHEMA_CORRUPTED: Schema is invalid or corrupted",
+      "FPTA_ETYPE: Type mismatch (given value vs column/field or index",
+      "FPTA_DATALEN_MISMATCH: Data length mismatch (given value vs data type",
+      "FPTA_KEY_MISMATCH: Key mismatch while updating row via cursor",
+      "FPTA_COLUMN_MISSING: Required column missing",
+      "FPTA_INDEX_CORRUPTED: Index is inconsistent or corrupted",
+      "FPTA_NO_INDEX: No (such) index for given column",
+      "FPTA_SCHEMA_CHANGED: Schema changed (transaction should be restared",
+      "FPTA_ECURSOR: Cursor is not positioned",
+      "FPTA_TOOMANY: Too many columns or indexes (limit reached)",
+      "FPTA_WANNA_DIE: Failure while transaction rollback (wanna die)",
+      "FPTA_TXN_CANCELLED: Transaction already cancelled",
+      "FPTA_SIMILAR_INDEX: Adding index which is similar to one of the "
+      "existing",
+      "FPTA_TARDY_DBI: Another thread still use handle(s) that should be "
+      "reopened",
+      "FPTA_CLUMSY_INDEX: Adding index which is too clumsy"};
 
+  static_assert(erthink::array_length(msgs) ==
+                    FPTA_CLUMSY_INDEX - FPTA_ERRROR_BASE,
+                "WTF?");
+
+  switch (errcode) {
   case FPTA_SUCCESS:
-    return "FPTA: Success";
-
-  case FPTA_EOOPS:
-    return "FPTA: Internal unexpected Oops";
-
-  case FPTA_SCHEMA_CORRUPTED:
-    return "FPTA: Schema is invalid or corrupted";
-
-  case FPTA_ETYPE:
-    return "FPTA: Type mismatch (given value vs column/field or index)";
-
-  case FPTA_DATALEN_MISMATCH:
-    return "FPTA: Data length mismatch (given value vs data type)";
-
-  case FPTA_KEY_MISMATCH:
-    return "FPTA: Key mismatch while updating row via cursor";
-
-  case FPTA_COLUMN_MISSING:
-    return "FPTA: Required column missing";
-
-  case FPTA_INDEX_CORRUPTED:
-    return "FPTA: Index is inconsistent or corrupted";
-
-  case FPTA_NO_INDEX:
-    return "FPTA: No (such) index for given column";
-
-  case FPTA_SCHEMA_CHANGED:
-    return "FPTA: Schema changed (transaction should be restared)";
-
-  case FPTA_ECURSOR:
-    return "FPTA: Cursor is not positioned";
-
-  case FPTA_TOOMANY:
-    return "FPTA: Too many columns or indexes (limit reached)";
-
-  case FPTA_WANNA_DIE:
-    return "FPTA: Failure while transaction rollback (wanna die)";
-
-  case FPTA_TXN_CANCELLED:
-    return "FPTA: Transaction already cancelled";
-
-  case FPTA_SIMILAR_INDEX:
-    return "FPTA: Adding index which is similar to one of the existing";
-
-  case FPTA_TARDY_DBI:
-    return "FPTA: Another thread still use handle(s) that should be reopened";
-
-  case FPTA_CLUMSY_INDEX:
-    return "FPTA: Adding index which is too clumsy";
-
-  case FPTA_NODATA /* -1, EOF */:
-    return "FPTA: No data or EOF was reached";
+    return "FPTA_SUCCESS";
+  case FPTA_NODATA:
+    return "FPTA_NODATA: No data or EOF was reached";
+  case int32_t(FPTA_DEADBEEF):
+    return "FPTA_DEADBEEF: No value returned";
+  default:
+    if (errcode >= FPTA_EOOPS && errcode <= FPTA_CLUMSY_INDEX)
+      return msgs[errcode - FPTA_EOOPS];
   }
+  return nullptr;
 }
 
-__cold const char *fpta_strerror(int errnum) {
-  const char *msg = __fpta_errstr(errnum);
-  return msg ? msg : mdbx_strerror(errnum);
+__cold const char *fpta_strerror(int errcode) {
+  const char *msg = error2cp(errcode);
+  return msg ? msg : mdbx_strerror(errcode);
 }
 
-__cold const char *fpta_strerror_r(int errnum, char *buf, size_t buflen) {
-  const char *msg = __fpta_errstr(errnum);
-  return msg ? msg : mdbx_strerror_r(errnum, buf, buflen);
+__cold const char *fpta_strerror_r(int errcode, char *buf, size_t buflen) {
+  const char *msg = error2cp(errcode);
+  return msg ? msg : mdbx_strerror_r(errcode, buf, buflen);
 }
+
+//------------------------------------------------------------------------------
 
 namespace std {
 
-__cold string to_string(const fpta_error errnum) {
-  /* FIXME: use fpta_strerror_r() ? */
-  return fpta_strerror(errnum);
+static __cold ostream &invalid(ostream &out, const char *name,
+                               const intptr_t value) {
+  return out << "invalid(fpta::" << name << "=" << value << ")";
 }
 
-__cold string to_string(const fpta_value_type type) {
-  switch (type) {
-  default:
-    return fptu::format("invalid(fpta_value_type)%i", (int)type);
-
-  case fpta_null:
-    return "null";
-  case fpta_signed_int:
-    return "signed_int";
-  case fpta_unsigned_int:
-    return "unsigned_int";
-  case fpta_datetime:
-    return "datetime";
-  case fpta_float_point:
-    return "float_point";
-  case fpta_string:
-    return "string";
-  case fpta_binary:
-    return "binary";
-  case fpta_shoved:
-    return "shoved";
-  case fpta_begin:
-    return "<begin>";
-  case fpta_end:
-    return "<end>";
+#define FPTA_TOSTRING_IMP(type)                                                \
+  __cold string to_string(type value) {                                        \
+    ostringstream out;                                                         \
+    out << value;                                                              \
+    return out.str();                                                          \
   }
+
+static __cold string_view error2sv(const fpta_error value) {
+  return string_view(fpta_strerror(value));
+}
+__cold ostream &operator<<(ostream &out, const fpta_error value) {
+  return out << error2sv(value);
+}
+__cold string to_string(const fpta_error value) {
+  return string(error2sv(value));
 }
 
-__cold string to_string(const fpta_value *value) {
-  if (value == nullptr)
-    return "nullptr";
+static __cold string_view value_type2sv(const fpta_value_type value) {
+  static const char *const names[] = {"null",     "signed_int",  "unsigned_int",
+                                      "datetime", "float_point", "string",
+                                      "binary",   "shoved",      "<begin>",
+                                      "<end>",    "<epsilon>"};
 
+  static_assert(erthink::array_length(names) == size_t(fpta_invalid), "WTF?");
+  return (value >= fpta_null && value < fpta_invalid)
+             ? string_view(names[size_t(value) - fpta_null])
+             : string_view("invalid");
+}
+__cold ostream &operator<<(ostream &out, const fpta_value_type value) {
+  return out << value_type2sv(value);
+}
+__cold string to_string(const fpta_value_type value) {
+  return string(value_type2sv(value));
+}
+
+__cold ostream &operator<<(ostream &out, const fpta_value *value) {
+  if (!value)
+    return out << "nullptr";
+
+  out << value->type;
   switch (value->type) {
   default:
-    return fptu::format("invalid(fpta_value_type)%i", (int)value->type);
-
+    assert(false);
   case fpta_null:
-    return "null";
   case fpta_begin:
-    return "<begin>";
   case fpta_end:
-    return "<end>";
+  case fpta_epsilon:
+    return out;
 
   case fpta_signed_int:
-    return fptu::format("%-" PRId64, value->sint);
+    if (value->sint >= 0)
+      out << "+";
+    return out << value->sint;
 
   case fpta_unsigned_int:
-    return fptu::format("%" PRIu64, value->sint);
+    return out << value->uint;
 
   case fpta_datetime:
-    return to_string(value->datetime);
+    return out << value->datetime;
 
   case fpta_float_point:
-    return fptu::format("%.10Lg", (long double)value->fp);
+    return out << erthink::output_double<true>(value->fp);
 
   case fpta_string:
-    return fptu::format("\"%.*s\"", value->binary_length,
-                        (const char *)value->binary_data);
+    return out << "\""
+               << string_view((const char *)value->binary_data,
+                              value->binary_length)
+               << "\"";
 
   case fpta_binary:
-    return fptu::hexadecimal_string(value->binary_data, value->binary_length);
+    return out << fptu::output_hexadecimal(value->binary_data,
+                                           value->binary_length);
 
   case fpta_shoved:
-    return "@" +
-           fptu::hexadecimal_string(value->binary_data, value->binary_length);
+    return out << "@"
+               << fptu::output_hexadecimal(value->binary_data,
+                                           value->binary_length);
   }
 }
+FPTA_TOSTRING_IMP(const fpta_value *);
 
-__cold string to_string(const fpta_durability durability) {
-  switch (durability) {
+__cold ostream &operator<<(ostream &out, const fpta_durability value) {
+  switch (value) {
   default:
-    return fptu::format("invalid(fpta_durability)%i", (int)durability);
+    return invalid(out, "durability", value);
   case fpta_readonly:
-    return "mode-readonly";
+    return out << "mode-readonly";
   case fpta_sync:
-    return "mode-sync";
+    return out << "mode-sync";
   case fpta_lazy:
-    return "mode-lazy";
+    return out << "mode-lazy";
   case fpta_weak:
-    return "mode-async";
+    return out << "mode-weak";
   }
 }
+FPTA_TOSTRING_IMP(const fpta_durability &);
 
-__cold string to_string(const fpta_level level) {
-  switch (level) {
+__cold ostream &operator<<(ostream &out, const fpta_level value) {
+  switch (value) {
   default:
-    return fptu::format("invalid(fpta_level)%i", (int)level);
+    return invalid(out, "level", value);
   case fpta_read:
-    return "level-read";
+    return out << "level-read";
   case fpta_write:
-    return "level-write";
+    return out << "level-write";
   case fpta_schema:
-    return "level-schema";
+    return out << "level-schema";
   }
 }
+FPTA_TOSTRING_IMP(const fpta_level &);
 
-__cold string to_string(const fpta_index_type index) {
-  switch (index) {
-  default:
-    return fptu::format("invalid(fpta_index_type)%i", (int)index);
+__cold ostream &operator<<(ostream &out, const fpta_index_type value) {
+  if (unlikely(fpta_index_is_valid(value)))
+    return invalid(out, "index", value);
 
-  case fpta_index_none:
-    return "index-none";
-  case fpta_noindex_nullable:
-    return "index-none.nullable";
-
-  case fpta_primary_withdups_ordered_obverse:
-    return "primary-withdups-ordered.obverse";
-  case fpta_primary_withdups_ordered_obverse_nullable:
-    return "primary-withdups-ordered.obverse-nullable";
-  case fpta_primary_withdups_ordered_reverse:
-    return "primary-withdups-ordered.reverse";
-  case fpta_primary_withdups_ordered_reverse_nullable:
-    return "primary-withdups-ordered.reverse-nullable";
-
-  case fpta_primary_unique_ordered_obverse:
-    return "primary-unique-ordered.obverse";
-  case fpta_primary_unique_ordered_obverse_nullable:
-    return "primary-unique-ordered.obverse-nullable";
-  case fpta_primary_unique_ordered_reverse:
-    return "primary-unique-ordered.reverse";
-  case fpta_primary_unique_ordered_reverse_nullable:
-    return "primary-unique-ordered.reverse-nullable";
-
-  case fpta_primary_unique_unordered:
-    return "primary-unique-unordered";
-  case fpta_primary_unique_unordered_nullable_obverse:
-    return "primary-unique-unordered.nullable-obverse";
-  case fpta_primary_unique_unordered_nullable_reverse:
-    return "primary-unique-unordered.nullable-reverse";
-
-  case fpta_primary_withdups_unordered:
-    return "primary-withdups-unordered";
-  case fpta_primary_withdups_unordered_nullable_obverse:
-    return "primary-withdups-unordered.nullable-obverse";
-
-  case fpta_secondary_withdups_ordered_obverse:
-    return "secondary-withdups-ordered.obverse";
-  case fpta_secondary_withdups_ordered_obverse_nullable:
-    return "secondary-withdups-ordered.obverse-nullable";
-  case fpta_secondary_withdups_ordered_reverse:
-    return "secondary-withdups-ordered.reverse";
-  case fpta_secondary_withdups_ordered_reverse_nullable:
-    return "secondary-withdups-ordered.reverse-nullable";
-
-  case fpta_secondary_unique_ordered_obverse:
-    return "secondary-unique-ordered.obverse";
-  case fpta_secondary_unique_ordered_obverse_nullable:
-    return "secondary-unique-ordered.obverse-nullable";
-  case fpta_secondary_unique_ordered_reverse:
-    return "secondary-unique-ordered.reverse";
-  case fpta_secondary_unique_ordered_reverse_nullable:
-    return "secondary-unique-ordered.reverse-nullable";
-
-  case fpta_secondary_unique_unordered:
-    return "secondary-unique-unordered";
-  case fpta_secondary_unique_unordered_nullable_obverse:
-    return "secondary-unique-unordered.nullable-obverse";
-  case fpta_secondary_unique_unordered_nullable_reverse:
-    return "secondary-unique-unordered.nullable-reverse";
-
-  case fpta_secondary_withdups_unordered:
-    return "secondary-withdups-unordered";
-  case fpta_secondary_withdups_unordered_nullable_obverse:
-    return "secondary-withdups-unordered.nullable-obverse";
-  case fpta_secondary_withdups_unordered_nullable_reverse:
-    return "secondary-withdups-unordered.nullable-reverse";
+  if (!fpta_is_indexed(value))
+    out << "noindex";
+  else {
+    out << (fpta_index_is_primary(value) ? "primary" : "secondary")
+        << (fpta_index_is_unique(value) ? "-unique" : "-withdups")
+        << (fpta_index_is_ordered(value) ? "-ordered" : "-unordered")
+        << (fpta_index_is_obverse(value) ? "-obverse" : "-reverse");
   }
+  if (fpta_column_is_nullable(value))
+    out << ".nullable";
+  return out;
 }
+FPTA_TOSTRING_IMP(const fpta_index_type);
 
-/* LY: unused for now
-static __cold string to_string(const fpta_schema_item item) {
-  switch (item) {
+__cold ostream &operator<<(ostream &out, const fpta_filter_bits value) {
+  switch (value) {
   default:
-    return fptu::format("invalid(fpta_schema_item)%i", (int)item);
-  case fpta_table:
-    return "table";
-  case fpta_column:
-    return "column";
-  }
-} */
-
-__cold string to_string(const fpta_filter_bits bits) {
-  switch (bits) {
-  default:
-    return fptu::format("invalid(fpta_filter_bits)%i", (int)bits);
+    return invalid(out, "filter_bits", value);
   case fpta_node_not:
-    return "NOT";
+    return out << "NOT";
   case fpta_node_or:
-    return "OR";
+    return out << "OR";
   case fpta_node_and:
-    return "AND";
+    return out << "AND";
   case fpta_node_fncol:
-    return "FN_COLUMN()";
+    return out << "FN_COLUMN()";
   case fpta_node_fnrow:
-    return "FN_ROW()";
+    return out << "FN_ROW()";
   case fpta_node_lt:
   case fpta_node_gt:
   case fpta_node_le:
   case fpta_node_ge:
   case fpta_node_eq:
   case fpta_node_ne:
-    return to_string((fptu_lge)bits);
+    return out << fptu_lge(value);
   }
 }
+FPTA_TOSTRING_IMP(const fpta_filter_bits);
 
-__cold string to_string(const fpta_cursor_options op) {
-  switch (op) {
+__cold ostream &operator<<(ostream &out, const fpta_cursor_options value) {
+  switch (value & ~(fpta_dont_fetch | fpta_zeroed_range_is_point)) {
   default:
-    return fptu::format("invalid(fpta_cursor_options)%i", (int)op);
+    return invalid(out, "cursor_options", value);
   case fpta_unsorted:
-    return "unsorted";
+    out << "unsorted";
+    break;
   case fpta_ascending:
-    return "ascending";
+    out << "ascending";
+    break;
   case fpta_descending:
-    return "descending";
-  case fpta_unsorted_dont_fetch:
-    return "unsorted.dont-fetch";
-  case fpta_ascending_dont_fetch:
-    return "ascending.dont-fetch";
-  case fpta_descending_dont_fetch:
-    return "descending.dont-fetch";
+    out << "descending";
+    break;
   }
+  if (value & fpta_zeroed_range_is_point)
+    out << ".zeroed_range_is_point";
+  if (value & fpta_dont_fetch)
+    out << ".dont_fetch";
+  return out;
 }
+FPTA_TOSTRING_IMP(const fpta_cursor_options);
 
-__cold string to_string(const fpta_seek_operations op) {
-  switch (op) {
+__cold ostream &operator<<(ostream &out, const fpta_seek_operations value) {
+  switch (value) {
   default:
-    return fptu::format("invalid(fpta_seek_operations)%i", (int)op);
+    return invalid(out, "seek_operations", value);
   case fpta_first:
-    return "row.first";
+    return out << "row.first";
   case fpta_last:
-    return "row.last";
+    return out << "row.last";
   case fpta_next:
-    return "row.next";
+    return out << "row.next";
   case fpta_prev:
-    return "row.prev";
+    return out << "row.prev";
+
   case fpta_dup_first:
-    return "dup.first";
+    return out << "dup.first";
   case fpta_dup_last:
-    return "dup.last";
+    return out << "dup.last";
   case fpta_dup_next:
-    return "dup.next";
+    return out << "dup.next";
   case fpta_dup_prev:
-    return "dup.prev";
+    return out << "dup.prev";
+
   case fpta_key_next:
-    return "key.next";
+    return out << "key.next";
   case fpta_key_prev:
-    return "key.prev";
+    return out << "key.prev";
   }
 }
+FPTA_TOSTRING_IMP(const fpta_seek_operations);
 
-__cold string to_string(const fpta_put_options op) {
-  switch (op) {
+__cold ostream &operator<<(ostream &out, const fpta_put_options value) {
+  switch (value & ~fpta_skip_nonnullable_check) {
   default:
-    return fptu::format("invalid(fpta_put_options)%i", (int)op);
+    return invalid(out, "put_options", value);
   case fpta_insert:
-    return "insert";
+    out << "insert";
+    break;
   case fpta_update:
-    return "update";
+    out << "update";
+    break;
   case fpta_upsert:
-    return "upsert";
+    out << "upsert";
+    break;
+  }
+  if (value & fpta_skip_nonnullable_check)
+    out << ".skip_nonnullable_check";
+  return out;
+}
+FPTA_TOSTRING_IMP(const fpta_put_options);
+
+__cold ostream &operator<<(ostream &out, const fpta_name *value) {
+  out << "name_";
+  if (!value)
+    return out << "nullptr";
+
+  const bool is_table =
+      fpta_shove2index(value->shove) == fpta_index_type(fpta_flag_table);
+
+  out << (is_table ? "table." : "column.") << static_cast<const void *>(value)
+      << "@{" << std::hex << value->shove << std::dec << ", v"
+      << value->version_tsn;
+
+  if (is_table) {
+    const fpta_table_schema *table_def = value->table_schema;
+    if (table_def == nullptr)
+      return out << ", no-schema}";
+
+    const fpta_index_type index = fpta_shove2index(table_def->table_pk());
+    const fptu_type type = fpta_shove2type(table_def->table_pk());
+    return out << ", " << index << "." << type << ", dbi-hint#"
+               << table_def->handle_cache(0) << "}";
+  }
+
+  const fpta_name *table_id = value->column.table;
+  if (!table_id)
+    return out << ", orphan}";
+
+  const fpta_table_schema *table_def = table_id->table_schema;
+  if (!table_def)
+    return out << ", table." << static_cast<const void *>(table_id) << "@"
+               << std::hex << table_id->shove << std::dec << ", no-schema}";
+
+  const fpta_index_type index = fpta_name_colindex(value);
+  out << ", col#" << value->column.num << ", table."
+      << static_cast<const void *>(table_id) << "@" << std::hex
+      << table_id->shove << std::dec << ", " << index << ", ";
+
+  if (fpta_column_is_composite(value))
+    out << "composite";
+  else
+    out << fpta_name_coltype(value);
+  return out << ", dbi-hint#" << table_def->handle_cache(value->column.num)
+             << "}";
+}
+FPTA_TOSTRING_IMP(const fpta_name *);
+
+__cold ostream &operator<<(ostream &out, const fpta_filter *filter) {
+  if (!filter)
+    return out << "TRUE";
+
+  switch (filter->type) {
+  default:
+    return invalid(out, "filter-type", filter->type);
+  case fpta_node_not:
+    return out << "NOT (" << filter->node_not << ")";
+  case fpta_node_or:
+    return out << "(" << filter->node_or.a << " OR " << filter->node_or.b
+               << ")";
+  case fpta_node_and:
+    return out << "(" << filter->node_or.a << " AND " << filter->node_or.b
+               << ")";
+  case fpta_node_fncol:
+    return out << "FN_COLUMN." << filter->node_fncol.predicate << "("
+               << filter->node_fncol.column_id << ", arg."
+               << filter->node_fncol.arg << ")";
+  case fpta_node_fnrow:
+    return out << "FN_ROW." << filter->node_fnrow.predicate << "(context."
+               << filter->node_fnrow.context << ", arg."
+               << filter->node_fnrow.arg << ")";
+
+  case fpta_node_lt:
+  case fpta_node_gt:
+  case fpta_node_le:
+  case fpta_node_ge:
+  case fpta_node_eq:
+  case fpta_node_ne:
+    return out << filter->node_cmp.left_id << " " << fptu_lge(filter->type)
+               << " " << filter->node_cmp.right_value;
   }
 }
+FPTA_TOSTRING_IMP(const fpta_filter *);
 
-__cold string to_string(const fpta_table_schema *def) {
-  if (def == nullptr)
-    return "nullptr";
+__cold ostream &operator<<(ostream &out, const fpta_column_set *value) {
+  return out << "column_set." << static_cast<const void *>(value) << "@" FIXME;
+}
+FPTA_TOSTRING_IMP(const fpta_column_set *);
 
-  string result =
-      fptu::format("%p={v%" PRIu64 ", $%" PRIx32 "_%" PRIx64 ", @%" PRIx64
-                   ", %" PRIuSIZE "=[",
-                   def, def->version_tsn(), def->signature(), def->checksum(),
-                   def->table_shove(), def->column_count());
+__cold ostream &operator<<(ostream &out, const fpta_db *value) {
+  return out << "db." << static_cast<const void *>(value) << "@" FIXME;
+}
+FPTA_TOSTRING_IMP(const fpta_db *);
+
+__cold ostream &operator<<(ostream &out, const fpta_txn *value) {
+  return out << "txn." << static_cast<const void *>(value) << "@" FIXME;
+}
+FPTA_TOSTRING_IMP(const fpta_txn *);
+
+__cold ostream &operator<<(ostream &out, const fpta_cursor *cursor) {
+  out << "cursor.";
+  if (!cursor)
+    return out << "nullptr";
+
+  out << static_cast<const void *>(cursor)
+      << "={\n"
+         "\tmdbx "
+      << static_cast<const void *>(cursor->mdbx_cursor)
+      << ",\n"
+         "\toptions "
+      << cursor->options;
+
+  if (cursor->is_filled())
+    out << ",\n"
+           "\tcurrent "
+        << cursor->current;
+  else if (cursor->is_before_first())
+    out << ",\n"
+           "\tstate before-first (FPTA_NODATA)";
+  else if (cursor->is_after_last())
+    out << ",\n"
+           "\tstate after-last (FPTA_NODATA)";
+  else
+    out << ",\n"
+           "\tstate non-positioned (FPTA_ECURSOR)";
+
+  const fpta_shove_t shove = cursor->index_shove();
+  const fpta_index_type index = fpta_shove2index(shove);
+  const fptu_type type = fpta_shove2type(shove);
+
+  out << ",\n"
+         "\t"
+      << cursor->table_id
+      << ",\n"
+         "\tindex {@"
+      << hex << shove << dec << ", " << index << ", ";
+  if (type)
+    out << type;
+  else
+    out << "composite";
+
+  return out << ", col#" << cursor->column_number << ", dbi#"
+             << cursor->tbl_handle << "_" << cursor->idx_handle
+             << "},\n"
+                "\trange-from-key "
+             << cursor->range_from_key
+             << ",\n"
+                "\trange-to-key "
+             << cursor->range_to_key
+             << ",\n"
+                "\tfilter "
+             << cursor->filter
+             << ",\n"
+                "\ttxn "
+             << cursor->txn
+             << ",\n"
+                "\tdb "
+             << cursor->db << "\n}";
+}
+FPTA_TOSTRING_IMP(const fpta_cursor *);
+
+__cold ostream &operator<<(ostream &out, const struct fpta_table_schema *def) {
+  out << "table_schema.";
+  if (!def)
+    return out << "nullptr";
+
+  out << static_cast<const void *>(def) << "={v" << def->version_tsn() << ", $"
+      << hex << def->signature() << "_" << def->checksum() << ", @"
+      << def->table_shove() << dec << ", " << def->column_count() << "=[";
+
+  fptu::format("%p={v%" PRIu64 ", $%" PRIx32 "_%" PRIx64 ", @%" PRIx64
+               ", %" PRIuSIZE "=[",
+               def, def->version_tsn(), def->signature(), def->checksum(),
+               def->table_shove(), def->column_count());
 
   for (size_t i = 0; i < def->column_count(); ++i) {
     const fpta_shove_t shove = def->column_shove(i);
     const fpta_index_type index = fpta_shove2index(shove);
     const fptu_type type = fpta_shove2type(shove);
-    result += fptu::format(&", @%" PRIx64 "."[(i == 0) ? 2 : 0], shove) +
-              to_string(index) + "." + to_string(type);
-  }
-
-  return result + "]}";
-}
-
-__cold string to_string(const fpta_name *id) {
-  if (id == nullptr)
-    return "nullptr";
-
-  const bool is_table =
-      fpta_shove2index(id->shove) == (fpta_index_type)fpta_flag_table;
-
-  if (is_table) {
-    string partial = fptu::format("table.%p{@%" PRIx64 ", v%" PRIu64 ", ", id,
-                                  id->shove, id->version_tsn);
-    const fpta_table_schema *table_def = id->table_schema;
-    if (table_def == nullptr)
-      return partial + ", no-schema}";
-
-    const fpta_index_type index = fpta_shove2index(table_def->table_pk());
-    const fptu_type type = fpta_shove2type(table_def->table_pk());
-    return partial + to_string(index) + "." + to_string(type) +
-           fptu::format(", dbi-hint#%u, ", table_def->handle_cache(0)) +
-           to_string(table_def) + "}";
-  }
-
-  string partial = fptu::format("column.%p{@%" PRIx64 ", v%" PRIu64, id,
-                                id->shove, id->version_tsn);
-
-  const fpta_name *table_id = id->column.table;
-  if (table_id == nullptr)
-    return partial + ", no-table, no-schema}";
-
-  const fpta_table_schema *table_def = table_id->table_schema;
-  if (table_def == nullptr)
-    return partial + fptu::format(", @%" PRIx64 ".%p, no-schema}",
-                                  table_id->shove, table_id);
-
-  const fpta_index_type index = fpta_name_colindex(id);
-  const fptu_type type = fpta_name_coltype(id);
-  return partial +
-         fptu::format(", col#%i, @%" PRIx64 ".%p, ", id->column.num,
-                      table_id->shove, table_id) +
-         to_string(index) + "." + to_string(type) +
-         fptu::format(", dbi-hint#%u}",
-                      table_def->handle_cache(id->column.num));
-}
-
-__cold string to_string(const fpta_column_set *) { return FIXME; }
-
-__cold string to_string(const fpta_filter *filter) {
-  if (filter == nullptr)
-    return "TRUE";
-
-  switch (filter->type) {
-  default:
-    return fptu::format("invalid(filter-type)%i", (int)filter->type);
-  case fpta_node_not:
-    return "NOT (" + to_string(filter->node_not) + "(";
-  case fpta_node_or:
-    return "(" + to_string(filter->node_or.a) + " OR " +
-           to_string(filter->node_or.b) + ")";
-  case fpta_node_and:
-    return "(" + to_string(filter->node_and.a) + " AND " +
-           to_string(filter->node_and.b) + ")";
-  case fpta_node_fncol:
-    return fptu::format("FN_COLUMN.%p(", filter->node_fncol.predicate) +
-           to_string(filter->node_fncol.column_id) +
-           fptu::format(", arg.%p)", filter->node_fncol.arg);
-  case fpta_node_fnrow:
-    return fptu::format("FN_ROW.%p(", filter->node_fnrow.predicate) +
-           fptu::format(", context.%p, arg.%p)", filter->node_fnrow.context,
-                        filter->node_fncol.arg);
-  case fpta_node_lt:
-  case fpta_node_gt:
-  case fpta_node_le:
-  case fpta_node_ge:
-  case fpta_node_eq:
-  case fpta_node_ne:
-    return to_string(filter->node_cmp.left_id) + " " +
-           to_string((fptu_lge)filter->type) + " " +
-           to_string(filter->node_cmp.right_value);
-  }
-}
-
-__cold string to_string(const fpta_db *db) {
-  return fptu::format("%p." FIXME, db);
-}
-
-__cold string to_string(const fpta_txn *txt) {
-  return fptu::format("%p." FIXME, txt);
-}
-
-__cold string to_string(const MDBX_val &value) {
-  return fptu::format("%" PRIuPTR "_%p (", value.iov_len, value.iov_base) +
-         fptu::hexadecimal_string(value.iov_base, value.iov_len) + ")";
-}
-
-__cold string to_string(const fpta_key &key) { return to_string(key.mdbx); }
-
-__cold string to_string(const fpta_cursor *cursor) {
-  string result = fptu::format("cursor.%p={", cursor);
-  if (cursor) {
-    result += fptu::format("\n\tmdbx %p,\n\toptions ", cursor->mdbx_cursor) +
-              to_string(cursor->options);
-
-    if (cursor->is_filled())
-      result += ",\n\tcurrent " + to_string(cursor->current);
-    else if (cursor->is_before_first())
-      result += ",\n\tstate before-first (FPTA_NODATA)";
-    else if (cursor->is_after_last())
-      result += ",\n\tstate after-last (FPTA_NODATA)";
+    if (i)
+      out << ", ";
+    out << "{@" << hex << shove << ", " << index << ", ";
+    if (type)
+      out << type;
     else
-      result += ",\n\tstate non-positioned (FPTA_ECURSOR)";
-
-    const fpta_shove_t shove = cursor->index_shove();
-    const fpta_index_type index = fpta_shove2index(shove);
-    const fptu_type type = fpta_shove2type(shove);
-
-    result += ",\n\t" + to_string(cursor->table_id) +
-              fptu::format(",\n\tindex {@%" PRIx64 ".", shove) +
-              to_string(index) + "." + to_string(type) +
-              fptu::format(", col#%u, dbi#%u_%u},\n\trange-from-key ",
-                           cursor->column_number, cursor->tbl_handle,
-                           cursor->idx_handle) +
-              to_string(cursor->range_from_key) + ",\n\trange-to-key " +
-              to_string(cursor->range_to_key) + ",\n\tfilter " +
-              to_string(cursor->filter) + ",\n\ttxn " + to_string(cursor->txn) +
-              ",\n\tdb " + to_string(cursor->db) + "\n";
+      out << "composite";
+    out << "}";
   }
-  return result + "}";
+
+  return out << "]}";
 }
+FPTA_TOSTRING_IMP(const fpta_table_schema *);
+
+FPTA_API ostream &operator<<(ostream &out, const MDBX_val &value) {
+  out << value.iov_len << "_" << value.iov_base;
+  if (value.iov_len && value.iov_base)
+    out << "=" << fptu::output_hexadecimal(value.iov_base, value.iov_len);
+  return out;
+}
+FPTA_TOSTRING_IMP(const MDBX_val &);
+
+FPTA_API ostream &operator<<(ostream &out, const fpta_key &value) {
+  if (value.mdbx.iov_len) {
+    const char *const begin = static_cast<const char *>(value.mdbx.iov_base);
+    const char *const end = begin + value.mdbx.iov_len;
+    const char *const inplace_begin =
+        reinterpret_cast<const char *>(&value.place);
+    const char *const inplace_end = inplace_begin + sizeof(value.place);
+    if ((begin >= inplace_begin && begin < inplace_end) ||
+        (end > inplace_begin && end <= inplace_end)) {
+      out << "inplace_";
+      if (begin == inplace_begin && end == inplace_end)
+        out << "whole_";
+      else if (begin > inplace_begin && end < inplace_end)
+        out << "middle_";
+      else if (begin == inplace_begin && end < inplace_end)
+        out << "head_";
+      else if (begin > inplace_begin && end == inplace_end)
+        out << "tail_";
+      else
+        out << "invalid_";
+    }
+  } else {
+    out << "empty_";
+  }
+  return out << value.mdbx;
+}
+FPTA_TOSTRING_IMP(const fpta_key &);
+
 } // namespace std
+
+//------------------------------------------------------------------------------
 
 int_fast32_t mrand64(void) {
   static uint_fast64_t state;

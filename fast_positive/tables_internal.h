@@ -122,11 +122,9 @@ extern "C" char *gets(char *);
 
 static cxx11_constexpr fpta_shove_t fpta_column_shove(
     fpta_shove_t shove, fptu_type data_type, fpta_index_type index_type) {
-#if __cplusplus >= 201402L
-  assert((data_type & ~fpta_column_typeid_mask) == 0);
-  assert((index_type & ~fpta_column_index_mask) == 0);
-  assert((shove & ((1 << fpta_name_hash_shift) - 1)) == 0);
-#endif /* C++14 */
+  constexpr_assert((data_type & ~fpta_column_typeid_mask) == 0);
+  constexpr_assert((index_type & ~fpta_column_index_mask) == 0);
+  constexpr_assert((shove & ((1 << fpta_name_hash_shift) - 1)) == 0);
   return shove | data_type | index_type;
 }
 
@@ -166,21 +164,19 @@ static cxx11_constexpr fpta_index_type fpta_id2index(const fpta_name *id) {
   return fpta_shove2index(id->shove);
 }
 
+bool fpta_index_is_valid(const fpta_index_type index_type);
+
 static cxx11_constexpr bool fpta_is_indexed(const fpta_shove_t index) {
   return (index & (fpta_column_index_mask - fpta_index_fnullable)) != 0;
 }
 
 static cxx11_constexpr bool fpta_index_is_unique(const fpta_shove_t index) {
-#if __cplusplus >= 201402L
-  assert(fpta_is_indexed(index));
-#endif /* C++14 */
+  constexpr_assert(fpta_is_indexed(index));
   return (index & fpta_index_funique) != 0;
 }
 
 static cxx11_constexpr bool fpta_index_is_ordered(const fpta_shove_t index) {
-#if __cplusplus >= 201402L
-  assert(fpta_is_indexed(index));
-#endif /* C++14 */
+  constexpr_assert(fpta_is_indexed(index));
   return (index & fpta_index_fordered) != 0;
 }
 
@@ -197,9 +193,7 @@ static cxx11_constexpr bool fpta_index_is_reverse(const fpta_shove_t index) {
 }
 
 static cxx11_constexpr bool fpta_index_is_primary(const fpta_shove_t index) {
-#if __cplusplus >= 201402L
-  assert(fpta_is_indexed(index));
-#endif /* C++14 */
+  constexpr_assert(fpta_is_indexed(index));
   return (index & fpta_index_fsecondary) == 0;
 }
 
@@ -215,9 +209,7 @@ static cxx11_constexpr bool fpta_index_is_ordinal(fpta_shove_t shove) {
 
 static cxx11_constexpr bool
 fpta_is_indexed_and_nullable(const fpta_index_type index) {
-#if __cplusplus >= 201402L
-  assert(index == (index & fpta_column_index_mask));
-#endif /* C++14 */
+  constexpr_assert(index == (index & fpta_column_index_mask));
   return index > fpta_index_fnullable;
 }
 
@@ -251,10 +243,8 @@ static cxx11_constexpr bool fpta_is_intersected(const void *left_begin,
                                                 const void *left_end,
                                                 const void *right_begin,
                                                 const void *right_end) {
-#if __cplusplus >= 201402L
-  assert(left_begin <= left_end);
-  assert(right_begin <= right_end);
-#endif /* C++14 */
+  constexpr_assert(left_begin <= left_end);
+  constexpr_assert(right_begin <= right_end);
 
   return !(left_begin >= right_end || right_begin >= left_end);
 }
@@ -274,9 +264,7 @@ struct fpta_table_schema final {
   cxx11_constexpr uint64_t version_tsn() const { return _stored.version_tsn; }
   cxx11_constexpr size_t column_count() const { return _stored.count; }
   cxx11_constexpr fpta_shove_t column_shove(size_t number) const {
-#if __cplusplus >= 201402L
-    assert(number < _stored.count);
-#endif /* C++14 */
+    constexpr_assert(number < _stored.count);
     return _stored.columns[number];
   }
   cxx11_constexpr const fpta_shove_t *column_shoves_array() const {
@@ -521,6 +509,8 @@ void fpta_cursor_free(fpta_db *db, fpta_cursor *cursor);
 int fpta_internal_abort(fpta_txn *txn, int errnum, bool txn_maybe_dead = false);
 
 namespace std {
+FPTA_API ostream &operator<<(ostream &out, const MDBX_val &);
+FPTA_API ostream &operator<<(ostream &out, const fpta_key &);
 FPTA_API string to_string(const MDBX_val &);
 FPTA_API string to_string(const fpta_key &);
 } // namespace std

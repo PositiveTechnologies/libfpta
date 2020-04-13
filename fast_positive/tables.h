@@ -345,7 +345,7 @@ enum fpta_error {
   /* Adding index which is too clumsy */,
 
   FPTA_NODATA = -1 /* No data or EOF was reached */,
-  FPTA_DEADBEEF = UINT32_C(0xDeadBeef) /* Pseudo error for results by refs,
+  FPTA_DEADBEEF = INT32_C(0xDeadBeef) /* Pseudo error for results by refs,
     mean `no value` returned */
   ,
 
@@ -1526,10 +1526,10 @@ typedef enum fpta_index_type {
       fpta_secondary_withdups_unordered_nullable_obverse - fpta_index_fobverse
 } fpta_index_type;
 
-#if defined(__cplusplus) && __cplusplus >= 201103L
+#if defined(__cplusplus)
 cxx11_constexpr fpta_index_type operator|(const fpta_index_type a,
                                           const fpta_index_type b) {
-  return (fpta_index_type)((unsigned)a | (unsigned)b);
+  return fpta_index_type(unsigned(a) | unsigned(b));
 }
 
 cxx11_constexpr fpta_index_type nullable(const fpta_index_type index) {
@@ -3289,17 +3289,51 @@ extern FPTA_API const fpta_build_info fpta_build;
 //----------------------------------------------------------------------------
 /* Сервисные функции и классы для C++ (будет пополняться, существенно). */
 
+#include <ostream>
+
 namespace std {
-FPTA_API string to_string(const fpta_error errnum);
+
+FPTA_API ostream &operator<<(ostream &out, const fpta_error);
+FPTA_API ostream &operator<<(ostream &out, const fpta_value_type);
+FPTA_API ostream &operator<<(ostream &out, const fpta_value *);
+FPTA_API ostream &operator<<(ostream &out, const fpta_durability);
+FPTA_API ostream &operator<<(ostream &out, const fpta_level);
+FPTA_API ostream &operator<<(ostream &out, const fpta_index_type);
+FPTA_API ostream &operator<<(ostream &out, const fpta_filter_bits);
+FPTA_API ostream &operator<<(ostream &out, const fpta_cursor_options);
+FPTA_API ostream &operator<<(ostream &out, const fpta_seek_operations);
+FPTA_API ostream &operator<<(ostream &out, const fpta_put_options);
+FPTA_API ostream &operator<<(ostream &out, const fpta_name *);
+FPTA_API ostream &operator<<(ostream &out, const fpta_filter *);
+FPTA_API ostream &operator<<(ostream &out, const fpta_column_set *);
+FPTA_API ostream &operator<<(ostream &out, const fpta_db *);
+FPTA_API ostream &operator<<(ostream &out, const fpta_txn *);
+FPTA_API ostream &operator<<(ostream &out, const fpta_cursor *);
+FPTA_API ostream &operator<<(ostream &out, const struct fpta_table_schema *);
+
+inline ostream &operator<<(ostream &out, const fpta_column_set &def) {
+  return out << &def;
+}
+inline ostream &operator<<(ostream &out, const fpta_value &value) {
+  return out << &value;
+}
+inline ostream &operator<<(ostream &out, const fpta_name &id) {
+  return out << &id;
+}
+inline ostream &operator<<(ostream &out, const fpta_filter &filter) {
+  return out << &filter;
+}
+
+FPTA_API string to_string(const fpta_error);
 FPTA_API string to_string(const fpta_value_type);
 FPTA_API string to_string(const fpta_value *);
-FPTA_API string to_string(const fpta_durability durability);
-FPTA_API string to_string(const fpta_level level);
-FPTA_API string to_string(const fpta_index_type index);
-FPTA_API string to_string(const fpta_filter_bits bits);
-FPTA_API string to_string(const fpta_cursor_options op);
-FPTA_API string to_string(const fpta_seek_operations op);
-FPTA_API string to_string(const fpta_put_options op);
+FPTA_API string to_string(const fpta_durability);
+FPTA_API string to_string(const fpta_level);
+FPTA_API string to_string(const fpta_index_type);
+FPTA_API string to_string(const fpta_filter_bits);
+FPTA_API string to_string(const fpta_cursor_options);
+FPTA_API string to_string(const fpta_seek_operations);
+FPTA_API string to_string(const fpta_put_options);
 FPTA_API string to_string(const fpta_name *);
 FPTA_API string to_string(const fpta_filter *);
 FPTA_API string to_string(const fpta_column_set *);
