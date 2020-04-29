@@ -1,11 +1,13 @@
 version: 2
 jobs:
   build:
-    docker:
-      - image: circleci/buildpack-deps:19.04-browsers
     environment:
-      GTEST_SHUFFLE: 1
-      GTEST_RUNTIME_LIMIT: 142
+      - MALLOC_CHECK_: 7
+      - MALLOC_PERTURB_: 42
+      - GTEST_SHUFFLE: 1
+      - GTEST_RUNTIME_LIMIT: 199
+    docker:
+      - image: circleci/buildpack-deps:18.04-browsers
     steps:
       - run: sudo apt update -q && sudo apt install cmake libgtest-dev clang-format valgrind
       - checkout
