@@ -33,7 +33,7 @@
 #
 # Get version
 if(HAVE_FPTA_VERSIONINFO)
-  fetch_version(FPTA "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION")
+  fetch_version(FPTA "${CMAKE_CURRENT_SOURCE_DIR}/.." TRUE)
   message(STATUS "libfpta version is ${FPTA_VERSION}")
 else()
   set(FPTA_VERSION "unversioned")
