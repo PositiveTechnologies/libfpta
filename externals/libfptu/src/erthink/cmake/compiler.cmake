@@ -1,4 +1,4 @@
-﻿##  Copyright (c) 2012-2020 Leonid Yuriev <leo@yuriev.ru>.
+##  Copyright (c) 2012-2020 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ##  Licensed under the Apache License, Version 2.0 (the "License");
 ##  you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@ if(NOT (CMAKE_C_COMPILER_LOADED OR CMAKE_CXX_COMPILER_LOADED))
   message(FATAL_ERROR "This module required C or C++ to be enabled")
 endif()
 
-include(CMakeDependentOption)
-
 if(CMAKE_CXX_COMPILER_LOADED)
   include(CheckCXXSourceRuns)
   include(CheckCXXSourceCompiles)
@@ -38,6 +36,9 @@ if(CMAKE_C_COMPILER_LOADED)
   include(CheckCSourceCompiles)
   include(CheckCCompilerFlag)
 endif()
+include(CMakeDependentOption)
+include(CheckLibraryExists)
+include(CheckIncludeFiles)
 
 # Check if the same compile family is used for both C and CXX
 if(CMAKE_C_COMPILER_LOADED AND CMAKE_CXX_COMPILER_LOADED AND
@@ -148,6 +149,16 @@ if(WIN32 AND CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG})
     set(MINGW64 1)
   endif()
   unset(__GCC_TARGET_MACHINE)
+endif()
+
+if(NOT DEFINED IOS)
+  if(APPLE AND (CMAKE_SYSTEM_NAME STREQUAL "iOS"
+      OR DEFINED CMAKE_IOS_DEVELOPER_ROOT
+      OR DEFINED IOS_PLATFORM OR DEFINED IOS_ARCH))
+    set(IOS TRUE)
+  else()
+    set(IOS FALSE)
+  endif()
 endif()
 
 if(CMAKE_COMPILER_IS_ELBRUSC OR CMAKE_SYSTEM_PROCESSOR MATCHES "e2k.*|E2K.*|elbrus.*|ELBRUS.*")
@@ -426,7 +437,7 @@ if(ENABLE_BACKTRACE)
 endif()
 
 macro(setup_compile_flags)
-  # LY: save initial C/CXX flags
+  # save initial C/CXX flags
   if(NOT INITIAL_CMAKE_FLAGS_SAVED)
     if(MSVC)
       string(REGEX REPLACE "^(.*)(/EHsc)( *)(.*)$" "\\1/EHs\\3\\4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -440,7 +451,7 @@ macro(setup_compile_flags)
     set(INITIAL_CMAKE_FLAGS_SAVED TRUE CACHE INTERNAL "State of initial CMake's flags" FORCE)
   endif()
 
-  # LY: reset C/CXX flags
+  # reset C/CXX flags
   set(CXX_FLAGS ${INITIAL_CMAKE_CXX_FLAGS})
   set(C_FLAGS ${INITIAL_CMAKE_C_FLAGS})
   set(EXE_LINKER_FLAGS ${INITIAL_CMAKE_EXE_LINKER_FLAGS})
@@ -550,10 +561,6 @@ macro(setup_compile_flags)
     endif()
   endif()
 
-  if(HAVE_OPENMP)
-    add_compile_flags("C;CXX" "-fopenmp")
-  endif()
-
   if(ENABLE_ASAN)
     add_compile_flags("C;CXX" -fsanitize=address)
   endif()
@@ -652,7 +659,7 @@ macro(setup_compile_flags)
     endif()
   endif()
 
-  # LY: push C/CXX flags into the cache
+  # push C/CXX flags into the cache
   set(CMAKE_CXX_FLAGS ${CXX_FLAGS} CACHE STRING "Flags used by the C++ compiler during all build types" FORCE)
   set(CMAKE_C_FLAGS ${C_FLAGS} CACHE STRING "Flags used by the C compiler during all build types" FORCE)
   set(CMAKE_EXE_LINKER_FLAGS ${EXE_LINKER_FLAGS} CACHE STRING "Flags used by the linker" FORCE)
