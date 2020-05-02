@@ -640,10 +640,12 @@ __cold ostream &operator<<(ostream &out, const fptu_time &value) {
   }
 #endif
 
-  out << setfill('0') << setw(4) << utc_tm.tm_year + year_offset << "-"
-      << setw(2) << utc_tm.tm_mon + 1 << "-" << setw(2) << utc_tm.tm_mday << "T"
-      << setw(2) << utc_tm.tm_hour << ":" << setw(2) << utc_tm.tm_min << ":"
-      << setw(2) << utc_tm.tm_sec;
+  const auto save_fmtfl = out.flags();
+  const auto safe_fill = out.fill('0');
+  out << setw(4) << utc_tm.tm_year + year_offset << "-" << setw(2)
+      << utc_tm.tm_mon + 1 << "-" << setw(2) << utc_tm.tm_mday << "T" << setw(2)
+      << utc_tm.tm_hour << ":" << setw(2) << utc_tm.tm_min << ":" << setw(2)
+      << utc_tm.tm_sec;
 
   if (value.fractional) {
     char buffer[32];
@@ -669,6 +671,9 @@ __cold ostream &operator<<(ostream &out, const fptu_time &value) {
     assert(length > 0 && length < ptrdiff_t(sizeof(buffer)));
     out.write(buffer, length);
   }
+
+  out.fill(safe_fill);
+  out.flags(save_fmtfl);
   return out;
 }
 
