@@ -102,6 +102,7 @@ include(cmake/compiler.cmake)
 include(cmake/profile.cmake)
 
 if(NOT SUBPROJECT)
+  set(CMAKE_MACOSX_RPATH ON)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." OFF)
 
@@ -134,8 +135,7 @@ if(NOT SUBPROJECT)
 
   # Enable 'make reformat' target.
   find_program(CLANG_FORMAT
-    NAMES clang-format-6.0 clang-format-5.0 clang-format-4.0
-    clang-format-3.9 clang-format-3.8 clang-format-3.7 clang-format)
+    NAMES clang-format-12 clang-format-11 clang-format-10 clang-format-9 clang-format-8 clang-format)
   if(CLANG_FORMAT AND UNIX)
     add_custom_target(reformat
       VERBATIM

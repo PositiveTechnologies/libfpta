@@ -37,9 +37,13 @@ struct P {
   P(const long double v) : v(v) {}
   friend bool operator==(const P &a, const P &b) { return a.v == b.v; }
   friend bool operator!=(const P &a, const P &b) { return a.v != b.v; }
-  friend std::ostream &operator<<(std::ostream &os, const P &v) {
-    return os << std::setprecision(19) << v.v << '(' << std::hexfloat << v.v
-              << ')';
+  friend std::ostream &operator<<(std::ostream &out, const P &v) {
+    const auto save_fmtfl = out.flags();
+    const auto safe_precision = out.precision(19);
+    out << v.v << '(' << std::hexfloat << v.v << ')';
+    out.precision(safe_precision);
+    out.flags(save_fmtfl);
+    return out;
   }
 };
 
