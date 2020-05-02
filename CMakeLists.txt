@@ -102,6 +102,7 @@ include(cmake/compiler.cmake)
 include(cmake/profile.cmake)
 
 if(NOT SUBPROJECT)
+  set(CMAKE_MACOSX_RPATH ON)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." OFF)
 
