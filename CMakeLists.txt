@@ -234,15 +234,14 @@ endif(CTAGS)
 #
 # Enable 'make reformat' target.
 find_program(CLANG_FORMAT
-  NAMES clang-format-6.0 clang-format-5.0 clang-format-4.0
-  clang-format-3.9 clang-format-3.8 clang-format-3.7 clang-format)
+  NAMES clang-format-12 clang-format-11 clang-format-10 clang-format-9 clang-format-8 clang-format)
 if(CLANG_FORMAT AND UNIX)
   add_custom_target(reformat
     VERBATIM
     COMMAND
-      git ls-files |
-      grep -E \\.\(c|cxx|cc|cpp|h|hxx|hpp\)\(\\.in\)?\$ |
-      xargs ${CLANG_FORMAT} -i --style=file
+    git ls-files |
+    grep -E \\.\(c|cxx|cc|cpp|h|hxx|hpp\)\(\\.in\)?\$ |
+    xargs ${CLANG_FORMAT} -i --style=file
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()
 
