@@ -62,7 +62,7 @@ strip: all
 clean:
 	rm -rf $(TOOLS) mdbx_test @* *.[ao] *.[ls]o *~ tmp.db/* \
 		*.gcov *.log *.err src/*.o test/*.o mdbx_example dist \
-		config.h src/elements/config.h src/elements/version.c *.tar*
+		config.h src/config.h src/version.c *.tar*
 
 libmdbx.a: mdbx-static.o
 	$(AR) rs $@ $?

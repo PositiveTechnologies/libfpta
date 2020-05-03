@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY c8e0f423d8768d4b505c69cdc9c87a3def44caaec8b84a73c9bb2882ac8ace95_v0_7_0_26_gabf38e97c
+#define MDBX_BUILD_SOURCERY 83a8cadf16dfde0be2b0533ad8c67d4339614c681ae50030d88dde79616c0b8d_v0_7_0_67_g2d75e9b5b
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -836,6 +836,13 @@ typedef pthread_mutex_t mdbx_fastmutex_t;
 #define malloc_usable_size(ptr) _msize(ptr)
 #endif /* malloc_usable_size */
 
+#ifdef __ANDROID_API__
+#include <android/log.h>
+#if __ANDROID_API__ >= 21
+#include <sys/sendfile.h>
+#endif
+#endif /* Android */
+
 /* *INDENT-OFF* */
 /* clang-format off */
 #if defined(HAVE_SYS_STAT_H) || __has_include(<sys/stat.h>)
@@ -936,7 +943,7 @@ typedef pthread_mutex_t mdbx_fastmutex_t;
 
 /* *INDENT-OFF* */
 /* clang-format off */
-#if defined(__GLIBC__) || defined(__GNU_LIBRARY__) || defined(__ANDROID__) ||  \
+#if defined(__GLIBC__) || defined(__GNU_LIBRARY__) || defined(__ANDROID_API__) ||  \
     defined(HAVE_ENDIAN_H) || __has_include(<endian.h>)
 #include <endian.h>
 #elif defined(__APPLE__) || defined(__MACH__) || defined(__OpenBSD__) ||       \
@@ -1610,8 +1617,10 @@ extern LIBMDBX_API const char *const mdbx_sourcery_anchor;
 /* Some platforms define the EOWNERDEAD error code even though they
  * don't support Robust Mutexes. If doubt compile with -MDBX_LOCKING=2001. */
 #if defined(EOWNERDEAD) && _POSIX_THREAD_PROCESS_SHARED >= 200809L &&          \
-    (defined(_POSIX_THREAD_ROBUST_PRIO_INHERIT) ||                             \
-     defined(_POSIX_THREAD_ROBUST_PRIO_PROTECT) ||                             \
+    ((defined(_POSIX_THREAD_ROBUST_PRIO_INHERIT) &&                            \
+      _POSIX_THREAD_ROBUST_PRIO_INHERIT > 0) ||                                \
+     (defined(_POSIX_THREAD_ROBUST_PRIO_PROTECT) &&                            \
+      _POSIX_THREAD_ROBUST_PRIO_PROTECT > 0) ||                                \
      defined(PTHREAD_MUTEX_ROBUST) || defined(PTHREAD_MUTEX_ROBUST_NP)) &&     \
     (!defined(__GLIBC__) ||                                                    \
      __GLIBC_PREREQ(2, 10) /* troubles with Robust mutexes before 2.10 */)
@@ -2445,15 +2454,7 @@ typedef struct MDBX_cursor_couple {
 /* The database environment. */
 struct MDBX_env {
 #define MDBX_ME_SIGNATURE UINT32_C(0x9A899641)
-  size_t me_signature;
-  mdbx_mmap_t me_dxb_mmap; /*  The main data file */
-#define me_map me_dxb_mmap.dxb
-#define me_lazy_fd me_dxb_mmap.fd
-  mdbx_filehandle_t me_dsync_fd;
-  mdbx_mmap_t me_lck_mmap; /*  The lock file */
-#define me_lfd me_lck_mmap.fd
-#define me_lck me_lck_mmap.lck
-
+  uint32_t me_signature;
   /* Failed to update the meta page. Probably an I/O error. */
 #define MDBX_FATAL_ERROR UINT32_C(0x80000000)
   /* Additional flag for mdbx_sync_locked() */
@@ -2462,7 +2463,15 @@ struct MDBX_env {
 #define MDBX_ENV_ACTIVE UINT32_C(0x20000000)
   /* me_txkey is set */
 #define MDBX_ENV_TXKEY UINT32_C(0x10000000)
-  uint32_t me_flags;      /* see mdbx_env */
+  uint32_t me_flags;
+  mdbx_mmap_t me_dxb_mmap; /*  The main data file */
+#define me_map me_dxb_mmap.dxb
+#define me_lazy_fd me_dxb_mmap.fd
+  mdbx_filehandle_t me_dsync_fd;
+  mdbx_mmap_t me_lck_mmap; /*  The lock file */
+#define me_lfd me_lck_mmap.fd
+#define me_lck me_lck_mmap.lck
+
   unsigned me_psize;      /* DB page size, inited from me_os_psize */
   unsigned me_psize2log;  /* log2 of DB page size */
   unsigned me_os_psize;   /* OS page size, from mdbx_syspagesize() */
@@ -2574,8 +2583,6 @@ MDBX_INTERNAL_FUNC void mdbx_debug_log(int type, const char *function, int line,
                                        const char *fmt, ...)
     __printf_args(4, 5);
 
-MDBX_INTERNAL_FUNC void mdbx_panic(const char *fmt, ...) __printf_args(1, 2);
-
 #if MDBX_DEBUG
 
 #define mdbx_assert_enabled() unlikely(mdbx_runtime_flags &MDBX_DBG_ASSERT)
@@ -2607,8 +2614,20 @@ MDBX_INTERNAL_FUNC void mdbx_panic(const char *fmt, ...) __printf_args(1, 2);
 
 #endif /* MDBX_DEBUG */
 
+#if defined(__ANDROID_API__)
+#define mdbx_panic(fmt, ...)                                                   \
+  __android_log_assert("panic", "mdbx", fmt, __VA_ARGS__)
+#else
+MDBX_INTERNAL_FUNC void mdbx_panic(const char *fmt, ...) __printf_args(1, 2);
+#endif
+
+#if !MDBX_DEBUG && defined(__ANDROID_API__)
+#define mdbx_assert_fail(env, msg, func, line)                                 \
+  __android_log_assert(msg, "mdbx", "%s:%u", func, line)
+#else
 MDBX_INTERNAL_FUNC void mdbx_assert_fail(const MDBX_env *env, const char *msg,
                                          const char *func, int line);
+#endif
 
 #define mdbx_debug_extra(fmt, ...)                                             \
   do {                                                                         \
@@ -3753,19 +3772,17 @@ bailout:
 }
 
 static void usage(char *prog) {
-  fprintf(
-      stderr,
-      "usage: %s [-V] [-v] [-n] [-q] [-c] [-w] [-d] [-i] [-s subdb] dbpath\n"
-      "  -V\t\tprint version and exit\n"
-      "  -v\t\tmore verbose, could be used multiple times\n"
-      "  -n\t\tNOSUBDIR mode for open\n"
-      "  -q\t\tbe quiet\n"
-      "  -c\t\tforce cooperative mode (don't try exclusive)\n"
-      "  -w\t\tlock DB for writing while checking\n"
-      "  -d\t\tdisable page-by-page traversal of B-tree\n"
-      "  -i\t\tignore wrong order errors (for custom comparators case)\n"
-      "  -s subdb\tprocess a specific subdatabase only\n",
-      prog);
+  fprintf(stderr,
+          "usage: %s [-V] [-v] [-q] [-c] [-w] [-d] [-i] [-s subdb] dbpath\n"
+          "  -V\t\tprint version and exit\n"
+          "  -v\t\tmore verbose, could be used multiple times\n"
+          "  -q\t\tbe quiet\n"
+          "  -c\t\tforce cooperative mode (don't try exclusive)\n"
+          "  -w\t\tlock DB for writing while checking\n"
+          "  -d\t\tdisable page-by-page traversal of B-tree\n"
+          "  -i\t\tignore wrong order errors (for custom comparators case)\n"
+          "  -s subdb\tprocess a specific subdatabase only\n",
+          prog);
   exit(EXIT_INTERRUPTED);
 }
 
@@ -4271,8 +4288,8 @@ int main(int argc, char *argv[]) {
 
     if (verbose) {
       uint64_t total_page_bytes = walk.pgcount * envstat.ms_psize;
-      print(" - pages: total %" PRIu64 ", unused %" PRIu64 "\n", walk.pgcount,
-            unused_pages);
+      print(" - pages: walked %" PRIu64 ", left/unused %" PRIu64 "\n",
+            walk.pgcount, unused_pages);
       if (verbose > 1) {
         for (walk_dbi_t *dbi = walk.dbi; dbi < ARRAY_END(walk.dbi) && dbi->name;
              ++dbi) {
