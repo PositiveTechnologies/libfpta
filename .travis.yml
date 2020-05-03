@@ -1,58 +1,95 @@
 language: cpp
-dist: xenial
+sudo: required
 
 env:
   global:
-    - GTEST_SHUFFLE=1
-    - GTEST_RUNTIME_LIMIT=142
     - secure: "VB9Ni1X3t4Ey08EdFKjwX74n66OedisIl5NgRZpcchcqW3wyU1w1wCE2lsYAGx26NwKh77CbFArmofLi6QpJarWnLpelwUnhNT02eggXFOCmMQSdrRNifScROBJJScCn8sFfPueJTw1MifGOHaruoqMrfjHWeuFZtaZV5Xku4cYOPNMgvQSxV5FradnjbfdzS0hmZQgh8XO7Mj6+nhDU0GTLENjajBZ6BAGBezpiR8FZ0PQjVkAEYn66qusUXSdFXVxi8lEqIC4ehLDwxtmImgtN05hpMETiR1mlO9AR3tZuLe0bk1u+gFabzbrPHHoSAb45yDI5k+C69hsmA5ntwkLOkE/ZWXqvqeA82yaAXdICq9E5knXpNJEiwAug+EC5SaY1nhi7/WdbrN9RlLh0kNdC4GvMQlw5pP2F64nDU2Dxq6meDLdXZ9NHVnU95QvGS2XpGJzZ69Y1cTe4cRGyCsQU3EIFspjL+e1ZnY3QOLpkg9W2Ni2h8lVFItUoBLgpAs+jNLwxCN+UY/QkvWTLK8CFrr7ym/SFMnQ3z/vS6YuPPKk4F2+EQxwomMY08MOjqXZzWeJQbfYdWGPhIYc9o35nUxLxfZ7aZDO55avRRZCk+gZRwddCxZjJigdeGlJCf26GI28E8oEHmjP07wfrJFSVfup4PdImKi7zIQPzg3c="
+    - GTEST_SHUFFLE=1
+    - GTEST_RUNTIME_LIMIT=99
 
 addons:
   apt:
-    update: true
     sources:
       - ubuntu-toolchain-r-test
     packages:
       - cmake
       - libgtest-dev
-      - valgrind
       - clang-format
+    update: true
 
-  coverity_scan:
-    project:
-      name: "erthink/libfpta"
-      description: "Build submitted via Travis CI"
-    notification_email: leo@yuriev.ru
-    build_command_prepend: "git fetch --unshallow --tags --prune && git submodule foreach --recursive git fetch --unshallow --tags --prune && cmake ."
-    build_command: make --keep-going
-    branch_pattern: coverity_scan
+matrix:
+  include:
+    - os: linux
+      dist: focal
+      compiler: gcc
+      env: CC=cc CXX=c++
+    - os: linux
+      dist: focal
+      compiler: clang
+      env: CC=clang CXX=clang++
+    - os: linux
+      dist: bionic
+      compiler: gcc
+      env: CC=cc CXX=c++
+    - os: linux
+      dist: bionic
+      compiler: clang
+      env: CC=clang CXX=clang++
+    - os: linux
+      dist: xenial
+      compiler: gcc
+      env: CC=cc CXX=c++
+    - os: linux
+      dist: xenial
+      compiler: clang
+      env: CC=clang CXX=clang++
+    - os: osx
+      osx_image: xcode11.3
+      env: CC=cc CXX=c++
+    - os: osx
+      osx_image: xcode9.4
+      env: CC=cc CXX=c++
 
-compiler:
-  - gcc
-  - clang
-
-os:
-  - linux
-  - osx
-
-before_install: >
-  if [ "${COVERITY_SCAN_BRANCH}" = 1 ]; then
-    echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+before_script: |
+  if [ "${TRAVIS_BRANCH}" = "coverity_scan" ]; then
+    # call Coverity Scan manually of addons.coverity_scan for first job only
+    if [ "${TRAVIS_JOB_NUMBER}" = "${TRAVIS_BUILD_NUMBER}.1" ]; then
+      export COVERITY_SCAN_BRANCH=1
+      echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+      curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' -o coverity_scan.sh
+    else
+      echo 'echo "Skip CoverityScan for unrelated os/compiler"' > coverity_scan.sh
+    fi
   fi
 
-script: >
-  if [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then
-    git fetch --unshallow --tags --prune &&
-    git submodule foreach --recursive git fetch --unshallow --tags --prune &&
-    cmake --version &&
-    cmake . &&
-    (if which clang-format-8.0 > /dev/null && make reformat && [[ -n $(git diff) ]];
-      then
-        echo "You must run 'make reformat' before submitting a pull request";
-        echo "";
-        git diff;
-        exit -1;
-      fi) &&
-    make --keep-going all && MALLOC_CHECK_=7 MALLOC_PERTURB_=42 make --keep-going test &&
-    externals/libfptu/test/fptu_c_mode && test/fpta_c_mode;
+script: |
+  git fetch --unshallow --tags --prune
+  git submodule foreach --recursive git fetch --unshallow --tags --prune
+  cmake --version
+  if [ ! -s ./coverity_scan.sh ]; then
+    cmake . && \
+    make --keep-going all && \
+    MALLOC_CHECK_=7 MALLOC_PERTURB_=42 make --keep-going test && \
+    MALLOC_CHECK_=7 MALLOC_PERTURB_=42 externals/libfptu/test/fptu_c_mode && \
+    MALLOC_CHECK_=7 MALLOC_PERTURB_=42 test/fpta_c_mode
+  else
+    COVERITY_SCAN_PROJECT_NAME="leo-yuriev/libfptu" \
+    COVERITY_SCAN_NOTIFICATION_EMAIL="leo@yuriev.ru" \
+    COVERITY_SCAN_BUILD_COMMAND_PREPEND="cmake ." \
+    COVERITY_SCAN_BUILD_COMMAND="make" \
+    COVERITY_SCAN_BRANCH_PATTERN="$TRAVIS_BRANCH" \
+      bash ./coverity_scan.sh || cat cov-int/scm_log.txt
   fi
+
+after_script: |
+  if [ "${TRAVIS_BRANCH}" != "coverity_scan" -a "${TRAVIS_JOB_NUMBER}" = "${TRAVIS_BUILD_NUMBER}.1" ] && make reformat && [[ -n $(git diff) ]]; then
+    echo "You must run 'make reformat' before submitting a pull request"
+    echo "-------------------------------------------------------------------------------"
+    git diff
+    sleep 1
+    echo "-------------------------------------------------------------------------------"
+    sleep 1
+    exit -1
+  fi
+  echo "-------------------------------------------------------------------------------"
+  sleep 1
