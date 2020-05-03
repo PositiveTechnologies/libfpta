@@ -18,6 +18,7 @@ include(CTest)
 if(BUILD_TESTING)
   cmake_policy(PUSH)
 
+  cmake_policy(SET CMP0042 NEW)
   cmake_policy(SET CMP0054 NEW)
   if(NOT CMAKE_VERSION VERSION_LESS 3.9)
     cmake_policy(SET CMP0068 NEW)
@@ -102,6 +103,14 @@ if(BUILD_TESTING)
             set_property(TARGET gmock gmock_main PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
           endif()
         endif()
+      endif()
+      if(TARGET gtest)
+        set_target_properties(gtest gtest_main PROPERTIES
+          SKIP_BUILD_RPATH FALSE MACOSX_RPATH TRUE)
+      endif()
+      if(TARGET gmock)
+        set_target_properties(gmock gmock_main PROPERTIES
+          SKIP_BUILD_RPATH FALSE MACOSX_RPATH TRUE)
       endif()
 
       list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_20 local_HAS_CXX20)
@@ -199,7 +208,9 @@ if(BUILD_TESTING)
 
       set(target "${params_PREFIX}${name}")
       add_executable(${target} ${params_SOURCE})
-      set_target_properties(${target} PROPERTIES SKIP_BUILD_RPATH FALSE)
+      set_target_properties(${target} PROPERTIES
+        SKIP_BUILD_RPATH FALSE
+        BUILD_WITH_INSTALL_RPATH FALSE)
 
       if(params_DEPEND)
         add_dependencies(${target} ${params_DEPEND})
