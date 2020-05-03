@@ -1415,8 +1415,8 @@ protected:
   std::string a_col_name, b_col_name, c_col_name, d_col_name;
   std::string ab_col_name, cd_col_name;
 
-  fpta_name table, col_a, col_b, col_c, col_d;
-  fpta_name col_ab, col_cd, col_linear, col_checksum;
+  fpta_name table{}, col_a{}, col_b{}, col_c{}, col_d{};
+  fpta_name col_ab{}, col_cd{}, col_linear{}, col_checksum{};
 
   bool should_drop_table = false;
   bool should_drop_names = false;
