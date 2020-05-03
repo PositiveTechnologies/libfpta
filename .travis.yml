@@ -73,7 +73,7 @@ script: |
     MALLOC_CHECK_=7 MALLOC_PERTURB_=42 externals/libfptu/test/fptu_c_mode && \
     MALLOC_CHECK_=7 MALLOC_PERTURB_=42 test/fpta_c_mode
   else
-    COVERITY_SCAN_PROJECT_NAME="leo-yuriev/libfptu" \
+    COVERITY_SCAN_PROJECT_NAME="leo-yuriev/libfpta" \
     COVERITY_SCAN_NOTIFICATION_EMAIL="leo@yuriev.ru" \
     COVERITY_SCAN_BUILD_COMMAND_PREPEND="cmake ." \
     COVERITY_SCAN_BUILD_COMMAND="make" \
