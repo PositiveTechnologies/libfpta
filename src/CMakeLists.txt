@@ -109,13 +109,26 @@ else()
   target_compile_definitions(fpta PRIVATE -Dfpta_STATIC)
 endif()
 
-install(TARGETS fpta
-  LIBRARY DESTINATION lib COMPONENT runtime
-  RUNTIME DESTINATION lib COMPONENT runtime
-  ARCHIVE DESTINATION lib/static COMPONENT devel
-  PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-  PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-)
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  install(TARGETS fpta EXPORT fpta
+    RUNTIME DESTINATION bin COMPONENT runtime
+    LIBRARY DESTINATION bin COMPONENT runtime
+    OBJECTS DESTINATION lib COMPONENT devel
+    ARCHIVE DESTINATION lib COMPONENT devel
+    PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+  #  PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+    INCLUDES DESTINATION include/fast_positive/ COMPONENT devel)
+else()
+  install(TARGETS fpta EXPORT fpta
+    RUNTIME DESTINATION bin COMPONENT runtime
+    LIBRARY DESTINATION bin COMPONENT runtime
+    NAMELINK_COMPONENT devel
+    OBJECTS DESTINATION lib COMPONENT devel
+    ARCHIVE DESTINATION lib COMPONENT devel
+    PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+  #  PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+    INCLUDES DESTINATION include/fast_positive/ COMPONENT devel)
+endif()
 
 ###############################################################################
 #
