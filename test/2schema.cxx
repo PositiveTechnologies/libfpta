@@ -195,13 +195,13 @@ TEST(Schema, Base) {
   EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def2));
 
   //------------------------------------------------------------------------
-  // создаем первую таблицу в отдельной транзакции
   EXPECT_EQ(FPTA_EINVAL, fpta_transaction_begin(db, fpta_read, nullptr));
   EXPECT_EQ(FPTA_EFLAG, fpta_transaction_begin(db, (fpta_level)0, &txn));
   EXPECT_EQ(nullptr, txn);
+
+  // создаем первую таблицу в отдельной транзакции
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
   ASSERT_NE(nullptr, txn);
-
   EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_1", &def));
 
   fpta_schema_info schema_info;
@@ -326,9 +326,6 @@ TEST(Schema, Base) {
 
   //------------------------------------------------------------------------
   // создаем вторую таблицу в отдельной транзакции
-  EXPECT_EQ(FPTA_EINVAL, fpta_transaction_begin(db, fpta_read, nullptr));
-  EXPECT_EQ(FPTA_EFLAG, fpta_transaction_begin(db, (fpta_level)0, &txn));
-  EXPECT_EQ(nullptr, txn);
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
   ASSERT_NE(nullptr, txn);
 
@@ -907,15 +904,7 @@ TEST(Schema, FailingDrop) {
    *  - создаем три таблицы, две с одной primary-колонкой,
    *    третью с двумя неиндексируемыми и одной composite-колонкой.
    *  - в новой транзакции проверяем, что в базе есть три таблицы,
-   *    и последовательно удаляем их.
-   *
-   * Результат:
-   *  - на удалении table_2 срабатывает ассерт index_id < fpta_max_indexes
-   *    (details.h:176)
-   *  - если порядок удаления поменять на table_2, table_1, table_3,
-   *    ассерт срабатывает на удалении table_1
-   *  - если table_3 удалять не последней, тест успешно завершается
-   *  - если не удалять одну из table_1, table_2, тест успешно завершается */
+   *    и последовательно удаляем их. */
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
