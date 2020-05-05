@@ -750,6 +750,7 @@ static int fpta_schema_read(fpta_txn *txn, fpta_shove_t schema_key,
     rc = fpta_schema_open(txn, false);
     if (rc != MDBX_SUCCESS)
       return rc;
+    assert(db->schema_dbi > 0);
   }
 
   MDBX_val schema_data, key;
@@ -1104,7 +1105,7 @@ int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
   }
 
   if (unlikely(table_id->table_schema == nullptr))
-    return MDBX_NOTFOUND;
+    return FPTA_NOTFOUND;
 
   fpta_table_schema *schema = table_id->table_schema;
   if (unlikely(schema->signature() != FTPA_SCHEMA_SIGNATURE))
