@@ -336,18 +336,26 @@ int fpta_transaction_end(fpta_txn *txn, bool abort) {
   if (txn->level == fpta_read) {
     // TODO: reuse txn with mdbx_txn_reset(), but pool needed...
     rc = mdbx_txn_commit(txn->mdbx_txn);
-  } else if (unlikely(abort)) {
-    rc = fpta_internal_abort(txn, FPTA_OK);
-  } else {
+    abort = false;
+  } else if (likely(!abort)) {
     rc = mdbx_canary_put(txn->mdbx_txn, &txn->canary);
-    if (likely(rc == MDBX_SUCCESS))
-      rc = mdbx_txn_commit(txn->mdbx_txn);
     if (unlikely(rc != MDBX_SUCCESS))
-      rc = fpta_internal_abort(txn, rc, true);
+      abort = true;
+    else {
+      /* Текущая версия libmdbx либо фиксирует транзакцию,
+       * либо самостоятельно её прерывает, т.е. в любом случае mdbx_txn_commit()
+       * завершает транзакцию */
+      rc = mdbx_txn_commit(txn->mdbx_txn);
+      if (unlikely(rc == MDBX_RESULT_TRUE))
+        rc = FPTA_TXN_CANCELLED;
+    }
   }
-  txn->mdbx_txn = nullptr;
+
+  if (unlikely(abort))
+    rc = fpta_internal_abort(txn, FPTA_OK);
 
 cancelled:
+  txn->mdbx_txn = nullptr;
   int err = fpta_db_unlock(txn->db, txn->level);
   assert(err == 0);
   (void)err;
