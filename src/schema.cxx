@@ -152,7 +152,7 @@ class trivial_dict {
   void append(const fpta::string_view &name) {
     const fpta_shove_t shove = internal(name);
     assert(is_valid(shove));
-    for (const auto i : vector)
+    for (const auto &i : vector)
       if (i.first == shove)
         return;
     vector.emplace_back(item(shove, name.begin()));
