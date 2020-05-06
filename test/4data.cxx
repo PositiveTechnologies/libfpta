@@ -71,7 +71,7 @@ TEST(Data, Field2Value) {
   EXPECT_EQ(FPTU_OK, fptu_upsert_uint64(pt, 111, 15047220096467327));
   EXPECT_EQ(FPTU_OK, fptu_upsert_int64(pt, 3, -60585001468255361));
   EXPECT_EQ(FPTU_OK, fptu_upsert_fp64(pt, 2, 3.14159265358979323846));
-  EXPECT_EQ(FPTU_OK, fptu_upsert_fp32(pt, 4, (float_t)2.7182818284590452354));
+  EXPECT_EQ(FPTU_OK, fptu_upsert_fp32(pt, 4, float_t(2.7182818284590452354)));
   EXPECT_EQ(FPTU_OK, fptu_upsert_null(pt, 0));
 
   static const uint8_t *_96 = pattern;
@@ -132,7 +132,7 @@ TEST(Data, Field2Value) {
 
   value = fpta_field2value(fptu::lookup(pt, 4, fptu_fp32));
   EXPECT_EQ(fpta_float_point, value.type);
-  EXPECT_EQ((float)2.7182818284590452354, value.fp);
+  EXPECT_EQ(float(2.7182818284590452354), value.fp);
   EXPECT_EQ(FPTA_OK, fpta_value_destroy(&value));
   EXPECT_EQ(FPTA_EINVAL, fpta_value_destroy(&value));
 
@@ -530,11 +530,11 @@ TEST(Data, UpsertColumn) {
   EXPECT_EQ(FPTA_EVALUE,
             fpta_upsert_column(
                 pt, &col_fp32,
-                fpta_value_float(FLT_MAX + (double)FLT_MAX * FLT_EPSILON)));
+                fpta_value_float(FLT_MAX + double(FLT_MAX) * FLT_EPSILON)));
   EXPECT_EQ(FPTA_EVALUE,
             fpta_upsert_column(
                 pt, &col_fp32,
-                fpta_value_float(-FLT_MAX - (double)FLT_MAX * FLT_EPSILON)));
+                fpta_value_float(-FLT_MAX - double(FLT_MAX) * FLT_EPSILON)));
   // теперь подходящие значения, последнее должно остаться в силе
   EXPECT_EQ(FPTA_OK,
             fpta_upsert_column(pt, &col_fp32, fpta_value_float(DBL_MIN)));
@@ -620,7 +620,7 @@ TEST(Data, UpsertColumn) {
   EXPECT_EQ(FPTU_OK, error);
   EXPECT_EQ(-8782211, fptu_get_int32(row, col_int32.column.num, &error));
   EXPECT_EQ(FPTU_OK, error);
-  EXPECT_EQ((float)-2.7182818284590452354,
+  EXPECT_EQ(float(-2.7182818284590452354),
             fptu_get_fp32(row, col_fp32.column.num, &error));
   EXPECT_EQ(FPTU_OK, error);
 
@@ -900,13 +900,12 @@ TEST(Data, Compare_uint64) {
   ASSERT_EQ(pf, fptu::lookup(pt, 0, fptu_uint64));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_sint(INT64_MAX)));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_uint(INT64_MAX)));
-  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float((double_t)INT64_MAX)));
+  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float(double_t(INT64_MAX))));
   EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_sint(INT64_MAX - INT64_C(1))));
   EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_uint(INT64_MAX - UINT64_C(1))));
-  EXPECT_EQ(fptu_lt,
-            filter_cmp(pf, fpta_value_uint((uint64_t)INT64_MAX + (uint64_t)1)));
+  EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_uint(uint64_t(INT64_MAX) + 1u)));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_uint(UINT64_MAX)));
-  EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_float((double_t)UINT64_MAX)));
+  EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_float(double_t(UINT64_MAX))));
   fptu_erase_field(pt, pf);
 
   ASSERT_STREQ(nullptr, fptu::check(pt));
@@ -1049,7 +1048,7 @@ TEST(Data, Compare_int64) {
   ASSERT_EQ(pf, fptu::lookup(pt, 0, fptu_int64));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_sint(INT64_MAX)));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_uint(INT64_MAX)));
-  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float((double_t)INT64_MAX)));
+  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float(double_t(INT64_MAX))));
   EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_sint(INT64_MAX - INT64_C(1))));
   EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_uint(INT64_MAX - UINT64_C(1))));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_uint(INT64_MAX + UINT64_C(1))));
@@ -1121,17 +1120,15 @@ TEST(Data, Compare_fp64) {
   EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_float(-DBL_MIN)));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_float(FLT_MIN)));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_float(DBL_MIN)));
-  EXPECT_EQ(FPTU_OK, fptu_upsert_fp64(pt, 0, (double_t)INT64_MAX));
+  EXPECT_EQ(FPTU_OK, fptu_upsert_fp64(pt, 0, double_t(INT64_MAX)));
   ASSERT_EQ(pf, fptu::lookup(pt, 0, fptu_fp64));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_sint(INT64_MAX)));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_uint(INT64_MAX)));
-  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float((double_t)INT64_MAX)));
-  EXPECT_EQ(fptu_gt,
-            filter_cmp(pf, fpta_value_sint((int64_t)(INT64_MAX / 2.0))));
-  EXPECT_EQ(fptu_gt,
-            filter_cmp(pf, fpta_value_uint((uint64_t)(INT64_MAX / 2.0))));
+  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float(double_t(INT64_MAX))));
+  EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_sint(int64_t(INT64_MAX / 2))));
+  EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_uint(uint64_t(INT64_MAX / 2))));
   EXPECT_EQ(fptu_lt,
-            filter_cmp(pf, fpta_value_uint((uint64_t)(INT64_MAX + 2048ull))));
+            filter_cmp(pf, fpta_value_uint(uint64_t(INT64_MAX + 2048ull))));
   EXPECT_EQ(FPTU_OK, fptu_upsert_fp64(pt, 0, INT64_MIN));
   ASSERT_EQ(pf, fptu::lookup(pt, 0, fptu_fp64));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_sint(0)));
@@ -1216,17 +1213,15 @@ TEST(Data, Compare_fp32) {
   EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_float(-DBL_MIN)));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_float(FLT_MIN)));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_float(DBL_MIN)));
-  EXPECT_EQ(FPTU_OK, fptu_upsert_fp32(pt, 0, (float_t)INT64_MAX));
+  EXPECT_EQ(FPTU_OK, fptu_upsert_fp32(pt, 0, float_t(INT64_MAX)));
   ASSERT_EQ(pf, fptu::lookup(pt, 0, fptu_fp32));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_sint(INT64_MAX)));
   EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_uint(INT64_MAX)));
-  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float((double_t)INT64_MAX)));
-  EXPECT_EQ(fptu_gt,
-            filter_cmp(pf, fpta_value_sint((int64_t)(INT64_MAX / 2.0))));
-  EXPECT_EQ(fptu_gt,
-            filter_cmp(pf, fpta_value_uint((uint64_t)(INT64_MAX / 2.0))));
+  EXPECT_EQ(fptu_eq, filter_cmp(pf, fpta_value_float(double_t(INT64_MAX))));
+  EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_sint(INT64_MAX / 2)));
+  EXPECT_EQ(fptu_gt, filter_cmp(pf, fpta_value_uint(uint64_t(INT64_MAX / 2))));
   EXPECT_EQ(fptu_lt,
-            filter_cmp(pf, fpta_value_uint((uint64_t)INT64_MAX + UINT32_MAX)));
+            filter_cmp(pf, fpta_value_uint(uint64_t(INT64_MAX) + UINT32_MAX)));
   EXPECT_EQ(FPTU_OK, fptu_upsert_fp32(pt, 0, INT64_MIN));
   ASSERT_EQ(pf, fptu::lookup(pt, 0, fptu_fp32));
   EXPECT_EQ(fptu_lt, filter_cmp(pf, fpta_value_sint(0)));

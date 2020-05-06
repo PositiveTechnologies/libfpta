@@ -319,6 +319,10 @@ struct scalar_range_stepper {
 #pragma diag_suppress divide_by_zero
 #endif /* __LCC__ */
 
+  /* max integer round-trip convertible to float */
+  static constexpr type safe_max =
+      static_cast<type>(std::numeric_limits<int32_t>::max() - 127);
+
   static type value(int order, int const N) {
     assert(N > 0);
     const int scope_neg =
@@ -332,20 +336,19 @@ struct scalar_range_stepper {
         (!std::is_signed<type>() || std::numeric_limits<type>::lowest() < 0) &&
         "expected lowest() < 0 for signed types");
     assert(scope_pos > 1 && "seems N is too small");
-    assert(std::numeric_limits<type>::max() > (double)scope_pos &&
-           "seems N is too big");
+    static_assert(std::numeric_limits<type>::max() > safe_max, "Oops!");
+    assert(safe_max > double(scope_pos) && "seems N is too big");
 
     if (std::is_signed<type>()) {
       if (std::numeric_limits<type>::has_infinity && order-- == 0)
         return (type)-std::numeric_limits<type>::infinity();
       if (order < scope_neg && scope_neg) {
-        type shift = (std::numeric_limits<type>::max() < INT_MAX)
+        type shift = (std::numeric_limits<type>::max() < safe_max)
                          ? (type)(std::numeric_limits<type>::lowest() * order /
                                   scope_neg)
                          : (type)(std::numeric_limits<type>::lowest() /
                                   scope_neg * order);
-        /* LY: division by 0 (scope_neg) NOT possible here, but MSC is stupid...
-         */
+        /* division by 0 (scope_neg) NOT possible here, but MSVC is stupid... */
         return (type)(std::numeric_limits<type>::lowest() - shift);
       }
       order -= scope_neg;
@@ -358,7 +361,7 @@ struct scalar_range_stepper {
       return std::numeric_limits<type>::infinity();
     if (order == scope_pos || scope_pos == 0)
       return std::numeric_limits<type>::max();
-    return (std::numeric_limits<type>::max() < INT_MAX)
+    return (std::numeric_limits<type>::max() < safe_max)
                ? (type)(std::numeric_limits<type>::max() * order / scope_pos)
                : (type)(std::numeric_limits<type>::max() / scope_pos * order);
   }
