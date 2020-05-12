@@ -71,7 +71,11 @@ script: |
   if [ ! -s ./coverity_scan.sh ]; then
     cmake . && \
     make --keep-going all && \
-    MALLOC_CHECK_=7 MALLOC_PERTURB_=42 make --keep-going test && \
+    (MALLOC_CHECK_=7 MALLOC_PERTURB_=42 make --keep-going test || \
+       (echo "-------------------------------------------------------------------------------"; \
+       cat Testing/Temporary/*.log && \
+       echo "-------------------------------------------------------------------------------" ) \
+    ) && \
     ([ ! -x test/fptu_c_mode ] || MALLOC_CHECK_=7 MALLOC_PERTURB_=42 test/fptu_c_mode)
   else
     COVERITY_SCAN_PROJECT_NAME="leo-yuriev/libfptu" \

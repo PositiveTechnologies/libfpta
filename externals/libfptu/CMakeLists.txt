@@ -124,10 +124,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
     "At least 'Microsoft Visual Studio 2015' is required.")
 endif()
 
-find_program(ECHO echo)
-find_program(CAT cat)
 find_program(GIT git)
-find_program(LD ld)
 
 check_function_exists(memmem HAVE_MEMMEM)
 check_function_exists(memrchr HAVE_MEMRCHR)
@@ -179,6 +176,9 @@ if(NOT SUBPROJECT)
       message(STATUS "FPTU indulge Link-Time Optimization by GCC")
     elseif(CLANG_LTO_AVAILABLE)
       set(LTO_ENABLED TRUE)
+      if(CMAKE_CLANG_LD)
+        set(CMAKE_LINKER ${CMAKE_CLANG_LD} CACHE PATH "Path to lld or ld program with LTO-plugin" FORCE)
+      endif()
       set(CMAKE_AR ${CMAKE_CLANG_AR} CACHE PATH "Path to ar program with LTO-plugin" FORCE)
       set(CMAKE_NM ${CMAKE_CLANG_NM} CACHE PATH "Path to nm program with LTO-plugin" FORCE)
       set(CMAKE_RANLIB ${CMAKE_CLANG_RANLIB} CACHE PATH "Path to ranlib program with LTO-plugin" FORCE)
@@ -226,18 +226,23 @@ if(NOT SUBPROJECT)
     add_custom_target(ctags DEPENDS tags)
   endif(CTAGS)
 
-  #
-  # Enable 'make reformat' target.
-  find_program(CLANG_FORMAT
-    NAMES clang-format-12 clang-format-11 clang-format-10 clang-format-9 clang-format-8 clang-format)
-  if(CLANG_FORMAT AND UNIX)
-    add_custom_target(reformat
-      VERBATIM
-      COMMAND
-      git ls-files |
-      grep -E \\.\(c|cxx|cc|cpp|h|hxx|hpp\)\(\\.in\)?\$ |
-      xargs ${CLANG_FORMAT} -i --style=file
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  if(UNIX)
+    find_program(CLANG_FORMAT
+      NAMES clang-format-12 clang-format-11 clang-format-10 clang-format)
+    if(CLANG_FORMAT)
+      execute_process(COMMAND ${CLANG_FORMAT} "--version" OUTPUT_VARIABLE clang_format_version_info)
+      string(REGEX MATCH "version ([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?" clang_format_version_info CLANG_FORMAT_VERSION)
+      if(clang_format_version_info AND NOT CLANG_FORMAT_VERSION VERSION_LESS 10.0)
+        # Enable 'make reformat' target.
+        add_custom_target(reformat
+          VERBATIM
+          COMMAND
+          git ls-files |
+          grep -E \\.\(c|cxx|cc|cpp|h|hxx|hpp\)\(\\.in\)?\$ |
+          xargs ${CLANG_FORMAT} -i --style=file
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+      endif()
+    endif()
   endif()
 
   if(NOT "${PROJECT_BINARY_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
