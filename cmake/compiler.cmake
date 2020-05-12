@@ -64,11 +64,11 @@ endmacro(check_compiler_flag)
 
 # We support building with Clang and gcc. First check
 # what we're using for build.
-if(CMAKE_C_COMPILER_LOADED AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_C_COMPILER_LOADED AND CMAKE_C_COMPILER_ID MATCHES ".*[Cc][Ll][Aa][Nn][Gg].*")
   set(CMAKE_COMPILER_IS_CLANG  ON)
   set(CMAKE_COMPILER_IS_GNUCC  OFF)
 endif()
-if(CMAKE_CXX_COMPILER_LOADED AND CMAKE_CXx_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_LOADED AND CMAKE_CXX_COMPILER_ID MATCHES ".*[Cc][Ll][Aa][Nn][Gg].*")
   set(CMAKE_COMPILER_IS_CLANG  ON)
   set(CMAKE_COMPILER_IS_GNUCXX OFF)
 endif()
