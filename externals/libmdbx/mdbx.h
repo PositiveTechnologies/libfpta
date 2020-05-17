@@ -3333,8 +3333,8 @@ LIBMDBX_API int mdbx_is_dirty(const MDBX_txn *txn, const void *ptr);
  * [in] increment  Value to increase the sequence,
  *                 must be 0 for read-only transactions.
  *
- * Returns A non-zero error value on failure and 0 on success, some
- * possible errors are:
+ * Returns A non-zero error value on failure and 0 on success,
+ * some possible errors are:
  *  - MDBX_RESULT_TRUE   = Increasing the sequence has resulted in an overflow
  *                         and therefore cannot be executed. */
 LIBMDBX_API int mdbx_dbi_sequence(MDBX_txn *txn, MDBX_dbi dbi, uint64_t *result,
@@ -3530,7 +3530,7 @@ MDBX_pgvisitor_func(const uint64_t pgno, const unsigned number, void *const ctx,
 
 /* B-tree traversal function. */
 LIBMDBX_API int mdbx_env_pgwalk(MDBX_txn *txn, MDBX_pgvisitor_func *visitor,
-                                void *ctx);
+                                void *ctx, int dont_check_keys_ordering);
 
 /**** Attribute support functions for Nexenta *********************************/
 #ifdef MDBX_NEXENTA_ATTRS

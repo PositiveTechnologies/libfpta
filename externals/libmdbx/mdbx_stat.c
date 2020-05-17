@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 83a8cadf16dfde0be2b0533ad8c67d4339614c681ae50030d88dde79616c0b8d_v0_7_0_67_g2d75e9b5b
+#define MDBX_BUILD_SOURCERY 804dcb060864e9b4251c2a4128c340609ce22859b63d8d86635d73c362ea5bbc_v0_7_0_110_g78e592579
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -631,7 +631,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 #if !defined(_NO_CRT_STDIO_INLINE) && MDBX_BUILD_SHARED_LIBRARY &&             \
-    !defined(MDBX_TOOLS)
+    !defined(MDBX_TOOLS) && MDBX_AVOID_CRT
 #define _NO_CRT_STDIO_INLINE
 #endif
 #elif !defined(_POSIX_C_SOURCE)
@@ -1799,10 +1799,13 @@ typedef uint32_t pgno_t;
 #define MAX_PAGENO UINT32_C(0x7FFFffff)
 #define MIN_PAGENO NUM_METAS
 
+#define SAFE64_INVALID_THRESHOLD UINT64_C(0xffffFFFF00000000)
+
 /* A transaction ID. */
 typedef uint64_t txnid_t;
 #define PRIaTXN PRIi64
 #define MIN_TXNID UINT64_C(1)
+#define MAX_TXNID (SAFE64_INVALID_THRESHOLD - 1)
 #define INVALID_TXNID UINT64_MAX
 /* LY: for testing non-atomic 64-bit txnid on 32-bit arches.
  * #define MDBX_TXNID_STEP (UINT32_MAX / 3) */
@@ -1842,8 +1845,6 @@ typedef union mdbx_safe64 {
 #endif /* __BYTE_ORDER__ */
   };
 } mdbx_safe64_t;
-
-#define SAFE64_INVALID_THRESHOLD UINT64_C(0xffffFFFF00000000)
 
 /* Information about a single database in the environment. */
 typedef struct MDBX_db {
@@ -2273,9 +2274,12 @@ typedef MDBX_DP *MDBX_DPL;
  * The information here is mostly static/read-only. There is
  * only a single copy of this record in the environment. */
 typedef struct MDBX_dbx {
-  MDBX_val md_name;       /* name of the database */
-  MDBX_cmp_func *md_cmp;  /* function for comparing keys */
-  MDBX_cmp_func *md_dcmp; /* function for comparing data items */
+  MDBX_val md_name;                /* name of the database */
+  MDBX_cmp_func *md_cmp;           /* function for comparing keys */
+  MDBX_cmp_func *md_dcmp;          /* function for comparing data items */
+  size_t md_klen_min, md_klen_max; /* min/max key length for the database */
+  size_t md_vlen_min,
+      md_vlen_max; /* min/max value/data length for the database */
 } MDBX_dbx;
 
 /* A database transaction.
@@ -2318,6 +2322,8 @@ struct MDBX_txn {
   MDBX_db *mt_dbs;
   /* Array of sequence numbers for each DB handle */
   unsigned *mt_dbiseqs;
+  /* In write txns, array of cursors for each DB */
+  MDBX_cursor **mt_cursors;
 
   /* Transaction DB Flags */
 #define DB_DIRTY MDBX_TBL_DIRTY /* DB was written in this txn */
@@ -2328,10 +2334,8 @@ struct MDBX_txn {
 #define DB_USRVALID 0x20        /* As DB_VALID, but not set for FREE_DBI */
 #define DB_DUPDATA 0x40         /* DB is MDBX_DUPSORT data */
 #define DB_AUDITED 0x80         /* Internal flag for accounting during audit */
-  /* In write txns, array of cursors for each DB */
-  MDBX_cursor **mt_cursors;
   /* Array of flags for each DB */
-  uint8_t *mt_dbflags;
+  uint8_t *mt_dbstate;
   /* Number of DB records in use, or 0 when the txn is finished.
    * This number only ever increments until the txn finishes; we
    * don't decrement it when individual DB handles are closed. */
@@ -2414,18 +2418,26 @@ struct MDBX_cursor {
   MDBX_db *mc_db;
   /* The database auxiliary record for this cursor */
   MDBX_dbx *mc_dbx;
-  /* The mt_dbflag for this database */
-  uint8_t *mc_dbflag;
-  uint16_t mc_snum;               /* number of pushed pages */
-  uint16_t mc_top;                /* index of top page, normally mc_snum-1 */
-                                  /* Cursor state flags. */
-#define C_INITIALIZED 0x01        /* cursor has been initialized and is valid */
-#define C_EOF 0x02                /* No more data */
-#define C_SUB 0x04                /* Cursor is a sub-cursor */
-#define C_DEL 0x08                /* last op was a cursor_del */
-#define C_UNTRACK 0x10            /* Un-track cursor when closing */
-#define C_RECLAIMING 0x20         /* GC lookup is prohibited */
-#define C_GCFREEZE 0x40           /* reclaimed_pglist must not be updated */
+  /* The mt_dbstate for this database */
+  uint8_t *mc_dbstate;
+  unsigned mc_snum; /* number of pushed pages */
+  unsigned mc_top;  /* index of top page, normally mc_snum-1 */
+
+  /* Cursor state flags. */
+#define C_INITIALIZED 0x01 /* cursor has been initialized and is valid */
+#define C_EOF 0x02         /* No more data */
+#define C_SUB 0x04         /* Cursor is a sub-cursor */
+#define C_DEL 0x08         /* last op was a cursor_del */
+#define C_UNTRACK 0x10     /* Un-track cursor when closing */
+#define C_RECLAIMING 0x20  /* GC lookup is prohibited */
+#define C_GCFREEZE 0x40    /* reclaimed_pglist must not be updated */
+
+  /* Cursor checing flags. */
+#define C_COPYING 0x100  /* skip key-value length check (copying simplify) */
+#define C_UPDATING 0x200 /* update/rebalance pending */
+#define C_RETIRING 0x400 /* refs to child pages may be invalid */
+#define C_SKIPORD 0x800  /* don't check keys ordering */
+
   unsigned mc_flags;              /* see mdbx_cursor */
   MDBX_page *mc_pg[CURSOR_STACK]; /* stack of pushed pages */
   indx_t mc_ki[CURSOR_STACK];     /* stack of page indices */
@@ -2442,8 +2454,8 @@ typedef struct MDBX_xcursor {
   MDBX_db mx_db;
   /* The auxiliary DB record for this Dup DB */
   MDBX_dbx mx_dbx;
-  /* The mt_dbflag for this Dup DB */
-  uint8_t mx_dbflag;
+  /* The mt_dbstate for this Dup DB */
+  uint8_t mx_dbstate;
 } MDBX_xcursor;
 
 typedef struct MDBX_cursor_couple {
@@ -2827,11 +2839,6 @@ MDBX_INTERNAL_FUNC void mdbx_rthc_thread_dtor(void *ptr);
  * Used in pages of type P_BRANCH and P_LEAF without P_LEAF2.
  * We guarantee 2-byte alignment for 'MDBX_node's.
  *
- * mn_lo and mn_hi are used for data size on leaf nodes, and for child
- * pgno on branch nodes.  On 64 bit platforms, mn_flags is also used
- * for pgno.  (Branch nodes have no flags).  Lo and hi are in host byte
- * order in case some accesses can be optimized to 32-bit word access.
- *
  * Leaf node flags describe node contents.  F_BIGDATA says the node's
  * data part is the page number of an overflow page with actual data.
  * F_DUPDATA and F_SUBDATA can be combined giving duplicate data in
@@ -2839,9 +2846,6 @@ MDBX_INTERNAL_FUNC void mdbx_rthc_thread_dtor(void *ptr);
 typedef struct MDBX_node {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   union {
-    struct {
-      uint16_t mn_lo, mn_hi; /* part of data size or pgno */
-    };
     uint32_t mn_dsize;
     uint32_t mn_pgno32;
   };
@@ -2855,9 +2859,6 @@ typedef struct MDBX_node {
   union {
     uint32_t mn_pgno32;
     uint32_t mn_dsize;
-    struct {
-      uint16_t mn_hi, mn_lo; /* part of data size or pgno */
-    };
   };
 #endif /* __BYTE_ORDER__ */
 
@@ -2872,11 +2873,11 @@ typedef struct MDBX_node {
 } MDBX_node;
 
 #define MDBX_VALID 0x8000 /* DB handle is valid, for me_dbflags */
-#define PERSISTENT_FLAGS (0xffff & ~(MDBX_VALID))
+#define PERSISTENT_FLAGS (0xffff & ~(MDBX_VALID | MDBX_NOSUBDIR))
 /* mdbx_dbi_open() flags */
 #define VALID_FLAGS                                                            \
   (MDBX_REVERSEKEY | MDBX_DUPSORT | MDBX_INTEGERKEY | MDBX_DUPFIXED |          \
-   MDBX_INTEGERDUP | MDBX_REVERSEDUP | MDBX_CREATE)
+   MDBX_INTEGERDUP | MDBX_REVERSEDUP | MDBX_CREATE | MDBX_ACCEDE)
 
 /* max number of pages to commit in one writev() call */
 #define MDBX_COMMIT_PAGES 64
@@ -3050,7 +3051,7 @@ static void signal_handler(int sig) {
 
 #endif /* !WINDOWS */
 
-static void prstat(MDBX_stat *ms) {
+static void print_stat(MDBX_stat *ms) {
   printf("  Pagesize: %u\n", ms->ms_psize);
   printf("  Tree depth: %u\n", ms->ms_depth);
   printf("  Branch pages: %" PRIu64 "\n", ms->ms_branch_pages);
@@ -3059,7 +3060,7 @@ static void prstat(MDBX_stat *ms) {
   printf("  Entries: %" PRIu64 "\n", ms->ms_entries);
 }
 
-static void usage(char *prog) {
+static void usage(const char *prog) {
   fprintf(stderr,
           "usage: %s [-V] [-e] [-f[f[f]]] [-r[r]] [-a|-s name] dbpath\n"
           "  -V\t\tprint version and exit\n"
@@ -3094,6 +3095,11 @@ static int reader_list_func(void *ctx, int num, int slot, mdbx_pid_t pid,
   return user_break ? MDBX_RESULT_TRUE : MDBX_RESULT_FALSE;
 }
 
+const char *prog;
+static void error(const char *func, int rc) {
+  fprintf(stderr, "%s: %s() error %d %s\n", prog, func, rc, mdbx_strerror(rc));
+}
+
 int main(int argc, char *argv[]) {
   int o, rc;
   MDBX_env *env;
@@ -3101,9 +3107,9 @@ int main(int argc, char *argv[]) {
   MDBX_dbi dbi;
   MDBX_stat mst;
   MDBX_envinfo mei;
-  char *prog = argv[0];
+  prog = argv[0];
   char *envname;
-  char *subname = NULL;
+  char *subname = nullptr;
   int alldbs = 0, envinfo = 0, envflags = 0, freinfo = 0, rdrinfo = 0;
 
   if (argc < 2)
@@ -3173,41 +3179,51 @@ int main(int argc, char *argv[]) {
   printf("mdbx_stat %s (%s, T-%s)\nRunning for %s...\n",
          mdbx_version.git.describe, mdbx_version.git.datetime,
          mdbx_version.git.tree, envname);
-  fflush(NULL);
+  fflush(nullptr);
 
   rc = mdbx_env_create(&env);
-  if (rc) {
-    fprintf(stderr, "mdbx_env_create failed, error %d %s\n", rc,
-            mdbx_strerror(rc));
+  if (unlikely(rc != MDBX_SUCCESS)) {
+    error("mdbx_env_create", rc);
     return EXIT_FAILURE;
   }
 
-  if (alldbs || subname)
-    mdbx_env_set_maxdbs(env, 4);
+  if (alldbs || subname) {
+    rc = mdbx_env_set_maxdbs(env, 2);
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      error("mdbx_env_set_maxdbs", rc);
+      goto env_close;
+    }
+  }
 
   rc = mdbx_env_open(env, envname, envflags | MDBX_RDONLY, 0664);
-  if (rc) {
-    fprintf(stderr, "mdbx_env_open failed, error %d %s\n", rc,
-            mdbx_strerror(rc));
+  if (unlikely(rc != MDBX_SUCCESS)) {
+    error("mdbx_env_open", rc);
     goto env_close;
   }
 
-  rc = mdbx_txn_begin(env, NULL, MDBX_RDONLY, &txn);
-  if (rc) {
-    fprintf(stderr, "mdbx_txn_begin failed, error %d %s\n", rc,
-            mdbx_strerror(rc));
-    goto env_close;
+  rc = mdbx_txn_begin(env, nullptr, MDBX_RDONLY, &txn);
+  if (unlikely(rc != MDBX_SUCCESS)) {
+    error("mdbx_txn_begin", rc);
+    goto txn_abort;
   }
 
   if (envinfo || freinfo) {
-    (void)mdbx_env_info_ex(env, txn, &mei, sizeof(mei));
+    rc = mdbx_env_info_ex(env, txn, &mei, sizeof(mei));
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      error("mdbx_env_info_ex", rc);
+      goto txn_abort;
+    }
   } else {
     /* LY: zap warnings from gcc */
     memset(&mei, 0, sizeof(mei));
   }
 
   if (envinfo) {
-    (void)mdbx_env_stat_ex(env, txn, &mst, sizeof(mst));
+    rc = mdbx_env_stat_ex(env, txn, &mst, sizeof(mst));
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      error("mdbx_env_stat_ex", rc);
+      goto txn_abort;
+    }
     printf("Environment Info\n");
     printf("  Pagesize: %u\n", mst.ms_psize);
     if (mei.mi_geo.lower != mei.mi_geo.upper) {
@@ -3247,11 +3263,19 @@ int main(int argc, char *argv[]) {
 
   if (rdrinfo) {
     rc = mdbx_reader_list(env, reader_list_func, nullptr);
+    if (MDBX_IS_ERROR(rc)) {
+      error("mdbx_reader_list", rc);
+      goto txn_abort;
+    }
     if (rc == MDBX_RESULT_TRUE)
       printf("Reader Table is empty\n");
     else if (rc == MDBX_SUCCESS && rdrinfo > 1) {
       int dead;
       rc = mdbx_reader_check(env, &dead);
+      if (MDBX_IS_ERROR(rc)) {
+        error("mdbx_reader_check", rc);
+        goto txn_abort;
+      }
       if (rc == MDBX_RESULT_TRUE) {
         printf("  %d stale readers cleared.\n", dead);
         rc = mdbx_reader_list(env, reader_list_func, nullptr);
@@ -3260,38 +3284,31 @@ int main(int argc, char *argv[]) {
       } else
         printf("  No stale readers.\n");
     }
-    if (MDBX_IS_ERROR(rc)) {
-      fprintf(stderr, "mdbx_txn_begin failed, error %d %s\n", rc,
-              mdbx_strerror(rc));
-      goto env_close;
-    }
     if (!(subname || alldbs || freinfo))
-      goto env_close;
+      goto txn_abort;
   }
 
   if (freinfo) {
-    MDBX_cursor *cursor;
-    MDBX_val key, data;
-    pgno_t pages = 0, *iptr;
-    pgno_t reclaimable = 0;
-
     printf("Garbage Collection\n");
     dbi = 0;
+    MDBX_cursor *cursor;
     rc = mdbx_cursor_open(txn, dbi, &cursor);
-    if (rc) {
-      fprintf(stderr, "mdbx_cursor_open failed, error %d %s\n", rc,
-              mdbx_strerror(rc));
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      error("mdbx_cursor_open", rc);
       goto txn_abort;
     }
     rc = mdbx_dbi_stat(txn, dbi, &mst, sizeof(mst));
-    if (rc) {
-      fprintf(stderr, "mdbx_dbi_stat failed, error %d %s\n", rc,
-              mdbx_strerror(rc));
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      error("mdbx_dbi_stat", rc);
       goto txn_abort;
     }
-    prstat(&mst);
-    while ((rc = mdbx_cursor_get(cursor, &key, &data, MDBX_NEXT)) ==
-           MDBX_SUCCESS) {
+    print_stat(&mst);
+
+    pgno_t pages = 0, *iptr;
+    pgno_t reclaimable = 0;
+    MDBX_val key, data;
+    while (MDBX_SUCCESS ==
+           (rc = mdbx_cursor_get(cursor, &key, &data, MDBX_NEXT))) {
       if (user_break) {
         rc = MDBX_EINTR;
         break;
@@ -3339,6 +3356,7 @@ int main(int argc, char *argv[]) {
       }
     }
     mdbx_cursor_close(cursor);
+    cursor = nullptr;
 
     switch (rc) {
     case MDBX_SUCCESS:
@@ -3348,8 +3366,7 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Interrupted by signal/user\n");
       goto txn_abort;
     default:
-      fprintf(stderr, "mdbx_cursor_get failed, error %d %s\n", rc,
-              mdbx_strerror(rc));
+      error("mdbx_cursor_get", rc);
       goto txn_abort;
     }
 
@@ -3387,59 +3404,75 @@ int main(int argc, char *argv[]) {
       printf("  GC: %" PRIaPGNO " pages\n", pages);
   }
 
-  rc = mdbx_dbi_open(txn, subname, 0, &dbi);
-  if (rc) {
-    fprintf(stderr, "mdbx_open failed, error %d %s\n", rc, mdbx_strerror(rc));
+  rc = mdbx_dbi_open(txn, subname, MDBX_ACCEDE, &dbi);
+  if (unlikely(rc != MDBX_SUCCESS)) {
+    error("mdbx_dbi_open", rc);
     goto txn_abort;
   }
-
   rc = mdbx_dbi_stat(txn, dbi, &mst, sizeof(mst));
-  if (rc) {
-    fprintf(stderr, "mdbx_dbi_stat failed, error %d %s\n", rc,
-            mdbx_strerror(rc));
+  if (unlikely(rc != MDBX_SUCCESS)) {
+    error("mdbx_dbi_stat", rc);
     goto txn_abort;
   }
   printf("Status of %s\n", subname ? subname : "Main DB");
-  prstat(&mst);
+  print_stat(&mst);
 
   if (alldbs) {
     MDBX_cursor *cursor;
-    MDBX_val key;
-
     rc = mdbx_cursor_open(txn, dbi, &cursor);
-    if (rc) {
-      fprintf(stderr, "mdbx_cursor_open failed, error %d %s\n", rc,
-              mdbx_strerror(rc));
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      error("mdbx_cursor_open", rc);
       goto txn_abort;
     }
-    while ((rc = mdbx_cursor_get(cursor, &key, NULL, MDBX_NEXT_NODUP)) == 0) {
-      char *str;
-      MDBX_dbi db2;
+
+    MDBX_val key;
+    while (MDBX_SUCCESS ==
+           (rc = mdbx_cursor_get(cursor, &key, nullptr, MDBX_NEXT_NODUP))) {
+      MDBX_dbi subdbi;
       if (memchr(key.iov_base, '\0', key.iov_len))
         continue;
-      str = mdbx_malloc(key.iov_len + 1);
-      memcpy(str, key.iov_base, key.iov_len);
-      str[key.iov_len] = '\0';
-      rc = mdbx_dbi_open(txn, str, 0, &db2);
+      subname = mdbx_malloc(key.iov_len + 1);
+      memcpy(subname, key.iov_base, key.iov_len);
+      subname[key.iov_len] = '\0';
+      rc = mdbx_dbi_open(txn, subname, MDBX_ACCEDE, &subdbi);
       if (rc == MDBX_SUCCESS)
-        printf("Status of %s\n", str);
-      mdbx_free(str);
-      if (rc)
-        continue;
-      rc = mdbx_dbi_stat(txn, db2, &mst, sizeof(mst));
-      if (rc) {
-        fprintf(stderr, "mdbx_dbi_stat failed, error %d %s\n", rc,
-                mdbx_strerror(rc));
+        printf("Status of %s\n", subname);
+      mdbx_free(subname);
+      if (unlikely(rc != MDBX_SUCCESS)) {
+        if (rc == MDBX_INCOMPATIBLE)
+          continue;
+        error("mdbx_dbi_open", rc);
         goto txn_abort;
       }
-      prstat(&mst);
-      mdbx_dbi_close(env, db2);
+
+      rc = mdbx_dbi_stat(txn, subdbi, &mst, sizeof(mst));
+      if (unlikely(rc != MDBX_SUCCESS)) {
+        error("mdbx_dbi_stat", rc);
+        goto txn_abort;
+      }
+      print_stat(&mst);
+
+      rc = mdbx_dbi_close(env, subdbi);
+      if (unlikely(rc != MDBX_SUCCESS)) {
+        error("mdbx_dbi_close", rc);
+        goto txn_abort;
+      }
     }
     mdbx_cursor_close(cursor);
+    cursor = nullptr;
   }
 
-  if (rc == MDBX_NOTFOUND)
-    rc = MDBX_SUCCESS;
+  switch (rc) {
+  case MDBX_SUCCESS:
+  case MDBX_NOTFOUND:
+    break;
+  case MDBX_EINTR:
+    fprintf(stderr, "Interrupted by signal/user\n");
+    break;
+  default:
+    if (unlikely(rc != MDBX_SUCCESS))
+      error("mdbx_cursor_get", rc);
+  }
 
   mdbx_dbi_close(env, dbi);
 txn_abort:

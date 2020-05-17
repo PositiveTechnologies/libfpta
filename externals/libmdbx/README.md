@@ -61,7 +61,8 @@ _MithrilDB_ is rightly relevant name.
 
 [![https://t.me/libmdbx](https://raw.githubusercontent.com/wiki/erthink/libmdbx/img/telegram.png)](https://t.me/libmdbx)
 [![Build Status](https://travis-ci.org/erthink/libmdbx.svg?branch=master)](https://travis-ci.org/erthink/libmdbx)
-[![Build status](https://ci.appveyor.com/api/projects/status/ue94mlopn50dqiqg/branch/master?svg=true)](https://ci.appveyor.com/project/erthink/libmdbx/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/ue94mlopn50dqiqg/branch/master?svg=true)](https://ci.appveyor.com/project/leo-yuriev/libmdbx/branch/master)
+[![CircleCI](https://circleci.com/gh/erthink/libmdbx/tree/master.svg?style=svg)](https://circleci.com/gh/erthink/libmdbx/tree/master)
 [![Coverity Scan Status](https://scan.coverity.com/projects/12915/badge.svg)](https://scan.coverity.com/projects/reopen-libmdbx)
 
 *The Future will (be) [Positive](https://www.ptsecurity.com). Всё будет хорошо.*
@@ -384,8 +385,8 @@ the basic tests.
 
 ### Windows
 For build _libmdbx_ on Windows the _original_ CMake and [Microsoft Visual
-Studio](https://en.wikipedia.org/wiki/Microsoft_Visual_Studio) are
-recommended.
+Studio 2019](https://en.wikipedia.org/wiki/Microsoft_Visual_Studio) are
+recommended. Otherwise do not forget add `ntdll.lib` to linking.
 
 Building by MinGW, MSYS or Cygwin is potentially possible. However,
 these scripts are not tested and will probably require you to modify the
