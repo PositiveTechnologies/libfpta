@@ -317,18 +317,6 @@ static cxx14_constexpr bool shove_index_compare(const fpta_shove_t &left,
 
 //----------------------------------------------------------------------------
 
-static int fpta_schema_open(fpta_txn *txn, bool create) {
-  assert(fpta_txn_validate(txn, create ? fpta_schema : fpta_read) ==
-         FPTA_SUCCESS);
-  const fpta_shove_t key_shove =
-      fpta_column_shove(0, fptu_uint64, fpta_primary_unique_ordered_obverse);
-  const fpta_shove_t data_shove =
-      fpta_column_shove(0, fptu_opaque, fpta_primary_unique_ordered_obverse);
-  return fpta_dbi_open(txn, 0, txn->db->schema_dbi,
-                       create ? MDBX_INTEGERKEY | MDBX_CREATE : MDBX_INTEGERKEY,
-                       key_shove, data_shove);
-}
-
 static size_t fpta_schema_stored_size(fpta_column_set *column_set,
                                       const void *composites_end) {
   assert(column_set != nullptr);
@@ -744,19 +732,15 @@ static int fpta_schema_read(fpta_txn *txn, fpta_shove_t schema_key,
                             fpta_table_schema **def) {
   assert(fpta_txn_validate(txn, fpta_read) == FPTA_SUCCESS && def);
 
-  int rc;
   fpta_db *db = txn->db;
-  if (db->schema_dbi < 1) {
-    rc = fpta_schema_open(txn, false);
-    if (rc != MDBX_SUCCESS)
-      return rc;
-    assert(db->schema_dbi > 0);
-  }
+  if (unlikely(db->schema_dbi == 0))
+    return MDBX_NOTFOUND;
+  assert(db->schema_dbi > 1);
 
   MDBX_val schema_data, key;
   key.iov_len = sizeof(schema_key);
   key.iov_base = &schema_key;
-  rc = mdbx_get(txn->mdbx_txn, db->schema_dbi, &key, &schema_data);
+  int rc = mdbx_get(txn->mdbx_txn, db->schema_dbi, &key, &schema_data);
   if (rc != MDBX_SUCCESS)
     return rc;
 
@@ -877,12 +861,12 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
     return rc;
 
   fpta_db *db = txn->db;
-  if (db->schema_dbi < 1) {
-    rc = fpta_schema_open(txn, false);
-    if (unlikely(rc != MDBX_SUCCESS))
-      return rc;
-  }
+  if (unlikely(db->schema_dbi == 0))
+    return MDBX_NOTFOUND;
+  assert(db->schema_dbi > 1);
 
+  // получаем версию и номер ревизии схемы
+  // важно: info->version.tsn != info->version.csn
   info->version.tsn = txn->schema_tsn();
   rc = mdbx_dbi_sequence(txn->mdbx_txn, txn->db->schema_dbi, &info->version.csn,
                          0);
@@ -1190,11 +1174,7 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     return rc;
 
   fpta_db *db = txn->db;
-  if (db->schema_dbi < 1) {
-    rc = fpta_schema_open(txn, true);
-    if (rc != MDBX_SUCCESS)
-      return rc;
-  }
+  assert(db->schema_dbi > 1);
 
   fpta_schema_info schema_info;
   rc = fpta_schema_fetch(txn, &schema_info);
@@ -1314,6 +1294,7 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     assert(fpta_schema_image_validate(table_shove, data, dict_data));
 #endif
 
+    // увеличиваем номер ревизии схемы
     rc = mdbx_dbi_sequence(txn->mdbx_txn, txn->db->schema_dbi, nullptr, 1);
     if (rc == MDBX_SUCCESS) {
       txn->schema_tsn() = txn->db_version;
@@ -1334,11 +1315,7 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
     return FPTA_ENAME;
 
   fpta_db *db = txn->db;
-  if (db->schema_dbi < 1) {
-    rc = fpta_schema_open(txn, false);
-    if (rc != MDBX_SUCCESS)
-      return rc;
-  }
+  assert(db->schema_dbi > 1);
 
   MDBX_dbi dbi[fpta_max_indexes];
   memset(dbi, 0, sizeof(dbi));

@@ -334,15 +334,10 @@ struct fpta_txn {
   fpta_level level;
   int unused_gap;
   uint64_t db_version;
-  mdbx_canary canary;
+  uint64_t schema_tsn_;
 
-  uint64_t &schema_tsn() { return canary.x; }
-  uint64_t &db_sequence() { return canary.y; }
-  uint64_t &manna() { return canary.z; }
-
-  uint64_t schema_tsn() const { return canary.x; }
-  uint64_t db_sequence() const { return canary.y; }
-  uint64_t manna() const { return canary.z; }
+  uint64_t &schema_tsn() { return schema_tsn_; }
+  uint64_t schema_tsn() const { return schema_tsn_; }
 };
 
 struct fpta_key {

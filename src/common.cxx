@@ -116,6 +116,8 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
   default:
     return FPTA_EFLAG;
   case fpta_readonly:
+    if (creation_params != nullptr)
+      return FPTA_EINVAL;
     mdbx_flags |= MDBX_RDONLY;
     break;
   case fpta_weak:
@@ -262,6 +264,60 @@ int fpta_db_close(fpta_db *db) {
 
 //----------------------------------------------------------------------------
 
+static int fpta_open_schema(fpta_txn *txn) {
+  int rc;
+  if (txn->db->schema_dbi < 1) {
+    fpta_dbi_name dbi_name;
+    fpta_shove2str(0, &dbi_name);
+    rc = mdbx_dbi_open(txn->mdbx_txn, dbi_name.cstr,
+                       (txn->level >= fpta_schema)
+                           ? MDBX_INTEGERKEY | MDBX_CREATE
+                           : MDBX_INTEGERKEY,
+                       &txn->db->schema_dbi);
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      switch (rc) {
+      case MDBX_NOTFOUND:
+        assert(txn->db->schema_dbi == 0);
+        txn->schema_tsn_ = 0;
+        return MDBX_SUCCESS;
+      case MDBX_INCOMPATIBLE:
+        assert(txn->db->schema_dbi == 0);
+        return (int)FPTA_SCHEMA_CORRUPTED;
+      default:
+        assert(txn->db->schema_dbi == 0);
+        return rc;
+      }
+    }
+  }
+
+  assert(txn->db->schema_dbi > 1);
+  MDBX_stat schema_stat;
+  rc = mdbx_dbi_stat(txn->mdbx_txn, txn->db->schema_dbi, &schema_stat,
+                     sizeof(schema_stat));
+  if (unlikely(rc != MDBX_SUCCESS))
+    return rc;
+
+  txn->schema_tsn_ = schema_stat.ms_mod_txnid;
+  /* if (txn->schema_tsn_ == 0) {
+    unsigned tbl_flags = 0, tbl_state = 0;
+    rc = mdbx_dbi_flags_ex(txn->mdbx_txn, txn->db->schema_dbi, &tbl_flags,
+                           &tbl_state);
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
+    if (tbl_state & MDBX_TBL_CREAT)
+      txn->schema_tsn_ = txn->db_version;
+    assert(txn->schema_tsn_ > 0);
+  } */
+  assert(txn->schema_tsn_ <= txn->db_version);
+
+  /* rc = mdbx_dbi_sequence(txn->mdbx_txn, txn->db->schema_dbi,
+                          &txn->schema_csn_, 0);
+   if (unlikely(rc != MDBX_SUCCESS))
+     return rc; */
+
+  return MDBX_SUCCESS;
+}
+
 int fpta_transaction_begin(fpta_db *db, fpta_level level, fpta_txn **ptxn) {
   if (unlikely(ptxn == nullptr))
     return FPTA_EINVAL;
@@ -289,13 +345,10 @@ int fpta_transaction_begin(fpta_db *db, fpta_level level, fpta_txn **ptxn) {
     goto bailout;
 
   for (;;) {
-    rc = mdbx_canary_get(txn->mdbx_txn, &txn->canary);
-    if (unlikely(rc != MDBX_SUCCESS))
-      break;
-
     txn->db_version = mdbx_txn_id(txn->mdbx_txn);
-    assert(txn->schema_tsn() <=
-           ((level > fpta_read) ? txn->db_version - 1 : txn->db_version));
+    rc = fpta_open_schema(txn);
+    if (unlikely(rc != MDBX_SUCCESS))
+      goto bailout;
 
     rc = fpta_dbicache_cleanup(txn, nullptr);
     if (likely(rc == FPTA_SUCCESS)) {
@@ -338,17 +391,12 @@ int fpta_transaction_end(fpta_txn *txn, bool abort) {
     rc = mdbx_txn_commit(txn->mdbx_txn);
     abort = false;
   } else if (likely(!abort)) {
-    rc = mdbx_canary_put(txn->mdbx_txn, &txn->canary);
-    if (unlikely(rc != MDBX_SUCCESS))
-      abort = true;
-    else {
-      /* Текущая версия libmdbx либо фиксирует транзакцию,
-       * либо самостоятельно её прерывает, т.е. в любом случае mdbx_txn_commit()
-       * завершает транзакцию */
-      rc = mdbx_txn_commit(txn->mdbx_txn);
-      if (unlikely(rc == MDBX_RESULT_TRUE))
-        rc = FPTA_TXN_CANCELLED;
-    }
+    /* Текущая версия libmdbx либо фиксирует транзакцию,
+     * либо самостоятельно её прерывает, т.е. в любом случае mdbx_txn_commit()
+     * завершает транзакцию */
+    rc = mdbx_txn_commit(txn->mdbx_txn);
+    if (unlikely(rc == MDBX_RESULT_TRUE))
+      rc = FPTA_TXN_CANCELLED;
   }
 
   if (unlikely(abort))
@@ -385,22 +433,8 @@ int fpta_db_sequence(fpta_txn *txn, uint64_t *result, uint64_t increment) {
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  *result = txn->db_sequence();
-  if (increment) {
-    if (unlikely(txn->level < fpta_write))
-      return FPTA_EPERM;
-
-    uint64_t value = txn->db_sequence() + increment;
-    if (value < increment) {
-      static_assert(FPTA_NODATA == MDBX_RESULT_TRUE, "expect equal");
-      return FPTA_NODATA;
-    }
-
-    assert(txn->db_sequence() < value);
-    txn->db_sequence() = value;
-  }
-
-  return FPTA_SUCCESS;
+  return mdbx_dbi_sequence(txn->mdbx_txn, 1 /* MDBX_MAIN_DBI */, result,
+                           increment);
 }
 
 //----------------------------------------------------------------------------
@@ -552,12 +586,10 @@ int fpta_transaction_restart(fpta_txn *txn) {
     if (unlikely(err != MDBX_SUCCESS))
       return fpta_internal_abort(txn, err);
 
-    err = mdbx_canary_get(txn->mdbx_txn, &txn->canary);
+    txn->db_version = mdbx_txn_id(txn->mdbx_txn);
+    err = fpta_open_schema(txn);
     if (unlikely(err != MDBX_SUCCESS))
       return fpta_internal_abort(txn, err);
-
-    txn->db_version = mdbx_txn_id(txn->mdbx_txn);
-    assert(txn->schema_tsn() <= txn->db_version);
 
     err = fpta_dbicache_cleanup(txn, nullptr);
     if (likely(err == MDBX_SUCCESS))
