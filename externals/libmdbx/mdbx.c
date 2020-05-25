@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 804dcb060864e9b4251c2a4128c340609ce22859b63d8d86635d73c362ea5bbc_v0_7_0_110_g78e592579
+#define MDBX_BUILD_SOURCERY a1ba54bbfadbf5c66d8da41dc448efae6591a0d574ed0e86dfb8ecb19fcdc7be_v0_7_0_127_gf7b8b699b
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -734,8 +734,8 @@ typedef unsigned mdbx_thread_key_t;
 #define THREAD_RESULT DWORD
 typedef struct {
   HANDLE mutex;
-  HANDLE event;
-} mdbx_condmutex_t;
+  HANDLE event[2];
+} mdbx_condpair_t;
 typedef CRITICAL_SECTION mdbx_fastmutex_t;
 
 #if MDBX_AVOID_CRT
@@ -796,8 +796,8 @@ typedef pthread_key_t mdbx_thread_key_t;
 #define THREAD_RESULT void *
 typedef struct {
   pthread_mutex_t mutex;
-  pthread_cond_t cond;
-} mdbx_condmutex_t;
+  pthread_cond_t cond[2];
+} mdbx_condpair_t;
 typedef pthread_mutex_t mdbx_fastmutex_t;
 #define mdbx_malloc malloc
 #define mdbx_calloc calloc
@@ -1116,12 +1116,13 @@ MDBX_INTERNAL_FUNC int mdbx_memalign_alloc(size_t alignment, size_t bytes,
 MDBX_INTERNAL_FUNC void mdbx_memalign_free(void *ptr);
 #endif
 
-MDBX_INTERNAL_FUNC int mdbx_condmutex_init(mdbx_condmutex_t *condmutex);
-MDBX_INTERNAL_FUNC int mdbx_condmutex_lock(mdbx_condmutex_t *condmutex);
-MDBX_INTERNAL_FUNC int mdbx_condmutex_unlock(mdbx_condmutex_t *condmutex);
-MDBX_INTERNAL_FUNC int mdbx_condmutex_signal(mdbx_condmutex_t *condmutex);
-MDBX_INTERNAL_FUNC int mdbx_condmutex_wait(mdbx_condmutex_t *condmutex);
-MDBX_INTERNAL_FUNC int mdbx_condmutex_destroy(mdbx_condmutex_t *condmutex);
+MDBX_INTERNAL_FUNC int mdbx_condpair_init(mdbx_condpair_t *condpair);
+MDBX_INTERNAL_FUNC int mdbx_condpair_lock(mdbx_condpair_t *condpair);
+MDBX_INTERNAL_FUNC int mdbx_condpair_unlock(mdbx_condpair_t *condpair);
+MDBX_INTERNAL_FUNC int mdbx_condpair_signal(mdbx_condpair_t *condpair,
+                                            bool part);
+MDBX_INTERNAL_FUNC int mdbx_condpair_wait(mdbx_condpair_t *condpair, bool part);
+MDBX_INTERNAL_FUNC int mdbx_condpair_destroy(mdbx_condpair_t *condpair);
 
 MDBX_INTERNAL_FUNC int mdbx_fastmutex_init(mdbx_fastmutex_t *fastmutex);
 MDBX_INTERNAL_FUNC int mdbx_fastmutex_acquire(mdbx_fastmutex_t *fastmutex);
@@ -14997,7 +14998,7 @@ int mdbx_cursor_put(MDBX_cursor *mc, const MDBX_val *key, MDBX_val *data,
     if (likely(rc == MDBX_SUCCESS)) {
       if (exact) {
         if (mc->mc_flags & C_SUB) {
-          mdbx_assert(env, data->iov_len == 0 && olddata.iov_len == 0);
+          mdbx_assert(env, data->iov_len == 0);
           return (flags & MDBX_NODUPDATA) ? MDBX_KEYEXIST : MDBX_SUCCESS;
         }
         if (!(flags & MDBX_RESERVE) &&
@@ -18272,7 +18273,7 @@ int mdbx_put(MDBX_txn *txn, MDBX_dbi dbi, const MDBX_val *key, MDBX_val *data,
 typedef struct mdbx_copy {
   MDBX_env *mc_env;
   MDBX_txn *mc_txn;
-  mdbx_condmutex_t mc_condmutex;
+  mdbx_condpair_t mc_condpair;
   uint8_t *mc_wbuf[2];
   uint8_t *mc_over[2];
   size_t mc_wlen[2];
@@ -18292,10 +18293,10 @@ static THREAD_RESULT __cold THREAD_CALL mdbx_env_copythr(void *arg) {
   uint8_t *ptr;
   int toggle = 0;
 
-  mdbx_condmutex_lock(&my->mc_condmutex);
+  mdbx_condpair_lock(&my->mc_condpair);
   while (!my->mc_error) {
     while (!my->mc_new && !my->mc_error) {
-      int err = mdbx_condmutex_wait(&my->mc_condmutex);
+      int err = mdbx_condpair_wait(&my->mc_condpair, true);
       if (err != MDBX_SUCCESS) {
         my->mc_error = err;
         goto bailout;
@@ -18325,10 +18326,10 @@ static THREAD_RESULT __cold THREAD_CALL mdbx_env_copythr(void *arg) {
     toggle ^= 1;
     /* Return the empty buffer to provider */
     my->mc_new--;
-    mdbx_condmutex_signal(&my->mc_condmutex);
+    mdbx_condpair_signal(&my->mc_condpair, false);
   }
 bailout:
-  mdbx_condmutex_unlock(&my->mc_condmutex);
+  mdbx_condpair_unlock(&my->mc_condpair);
   return (THREAD_RESULT)0;
 }
 
@@ -18337,15 +18338,15 @@ bailout:
  * [in] my control structure.
  * [in] adjust (1 to hand off 1 buffer) | (MDBX_EOF when ending). */
 static int __cold mdbx_env_cthr_toggle(mdbx_copy *my, int adjust) {
-  mdbx_condmutex_lock(&my->mc_condmutex);
+  mdbx_condpair_lock(&my->mc_condpair);
   my->mc_new += (short)adjust;
-  mdbx_condmutex_signal(&my->mc_condmutex);
+  mdbx_condpair_signal(&my->mc_condpair, true);
   while (!my->mc_error && (my->mc_new & 2) /* both buffers in use */) {
-    int err = mdbx_condmutex_wait(&my->mc_condmutex);
+    int err = mdbx_condpair_wait(&my->mc_condpair, false);
     if (err != MDBX_SUCCESS)
       my->mc_error = err;
   }
-  mdbx_condmutex_unlock(&my->mc_condmutex);
+  mdbx_condpair_unlock(&my->mc_condpair);
 
   my->mc_toggle ^= (adjust & 1);
   /* Both threads reset mc_wlen, to be safe from threading errors */
@@ -18610,7 +18611,7 @@ static int __cold mdbx_env_compact(MDBX_env *env, MDBX_txn *read_txn,
 
     mdbx_copy ctx;
     memset(&ctx, 0, sizeof(ctx));
-    rc = mdbx_condmutex_init(&ctx.mc_condmutex);
+    rc = mdbx_condpair_init(&ctx.mc_condpair);
     if (unlikely(rc != MDBX_SUCCESS))
       return rc;
 
@@ -18633,7 +18634,7 @@ static int __cold mdbx_env_compact(MDBX_env *env, MDBX_txn *read_txn,
         rc = mdbx_env_cwalk(&ctx, &root, 0);
       mdbx_env_cthr_toggle(&ctx, 1 | MDBX_EOF);
       thread_err = mdbx_thread_join(thread);
-      mdbx_condmutex_destroy(&ctx.mc_condmutex);
+      mdbx_condpair_destroy(&ctx.mc_condpair);
     }
     if (unlikely(thread_err != MDBX_SUCCESS))
       return thread_err;
@@ -19043,6 +19044,56 @@ int __cold mdbx_env_stat_ex(const MDBX_env *env, const MDBX_txn *txn,
                recent_meta == mdbx_meta_head(env)))
       return MDBX_SUCCESS;
   }
+}
+
+int __cold mdbx_dbi_dupsort_depthmask(MDBX_txn *txn, MDBX_dbi dbi,
+                                      uint32_t *mask) {
+  int rc = check_txn(txn, MDBX_TXN_BLOCKED);
+  if (unlikely(rc != MDBX_SUCCESS))
+    return rc;
+
+  if (unlikely(!mask))
+    return MDBX_EINVAL;
+
+  if (unlikely(!mdbx_txn_dbi_exists(txn, dbi, DB_VALID)))
+    return MDBX_EINVAL;
+
+  MDBX_cursor_couple cx;
+  rc = mdbx_cursor_init(&cx.outer, txn, dbi);
+  if (unlikely(rc != MDBX_SUCCESS))
+    return rc;
+  if ((cx.outer.mc_db->md_flags & MDBX_DUPSORT) == 0)
+    return MDBX_RESULT_TRUE;
+
+  MDBX_val key, data;
+  rc = mdbx_cursor_first(&cx.outer, &key, &data);
+  *mask = 0;
+  while (rc == MDBX_SUCCESS) {
+    const MDBX_node *node = page_node(cx.outer.mc_pg[cx.outer.mc_top],
+                                      cx.outer.mc_ki[cx.outer.mc_top]);
+    const MDBX_db *db = node_data(node);
+    const unsigned flags = node_flags(node);
+    switch (flags) {
+    case F_BIGDATA:
+    case 0:
+      /* single-value entry, deep = 0 */
+      *mask |= 1 << 0;
+      break;
+    case F_DUPDATA:
+      /* single sub-page, deep = 1 */
+      *mask |= 1 << 1;
+      break;
+    case F_DUPDATA | F_SUBDATA:
+      /* sub-tree */
+      *mask |= 1 << unaligned_peek_u16(1, &db->md_depth);
+      break;
+    default:
+      return MDBX_CORRUPTED;
+    }
+    rc = mdbx_cursor_next(&cx.outer, &key, &data, MDBX_NEXT_NODUP);
+  }
+
+  return (rc == MDBX_NOTFOUND) ? MDBX_SUCCESS : rc;
 }
 
 int __cold mdbx_env_info(MDBX_env *env, MDBX_envinfo *arg, size_t bytes) {
@@ -22127,106 +22178,98 @@ char *mdbx_strdup(const char *str) {
 
 /*----------------------------------------------------------------------------*/
 
-MDBX_INTERNAL_FUNC int mdbx_condmutex_init(mdbx_condmutex_t *condmutex) {
+MDBX_INTERNAL_FUNC int mdbx_condpair_init(mdbx_condpair_t *condpair) {
+  int rc;
+  memset(condpair, 0, sizeof(mdbx_condpair_t));
 #if defined(_WIN32) || defined(_WIN64)
-  int rc = MDBX_SUCCESS;
-  condmutex->event = NULL;
-  condmutex->mutex = CreateMutexW(NULL, FALSE, NULL);
-  if (!condmutex->mutex)
-    return GetLastError();
-
-  condmutex->event = CreateEventW(NULL, TRUE, FALSE, NULL);
-  if (!condmutex->event) {
+  if ((condpair->mutex = CreateMutexW(NULL, FALSE, NULL)) == NULL) {
     rc = GetLastError();
-    (void)CloseHandle(condmutex->mutex);
-    condmutex->mutex = NULL;
+    goto bailout_mutex;
   }
-  return rc;
+  if ((condpair->event[0] = CreateEventW(NULL, FALSE, FALSE, NULL)) == NULL) {
+    rc = GetLastError();
+    goto bailout_event;
+  }
+  if ((condpair->event[1] = CreateEventW(NULL, FALSE, FALSE, NULL)) != NULL)
+    return MDBX_SUCCESS;
+
+  rc = GetLastError();
+  (void)CloseHandle(condpair->event[0]);
+bailout_event:
+  (void)CloseHandle(condpair->mutex);
 #else
-  memset(condmutex, 0, sizeof(mdbx_condmutex_t));
-  int rc = pthread_mutex_init(&condmutex->mutex, NULL);
-  if (rc == 0) {
-    rc = pthread_cond_init(&condmutex->cond, NULL);
-    if (rc != 0)
-      (void)pthread_mutex_destroy(&condmutex->mutex);
-  }
-  return rc;
+  rc = pthread_mutex_init(&condpair->mutex, NULL);
+  if (unlikely(rc != 0))
+    goto bailout_mutex;
+  rc = pthread_cond_init(&condpair->cond[0], NULL);
+  if (unlikely(rc != 0))
+    goto bailout_cond;
+  rc = pthread_cond_init(&condpair->cond[1], NULL);
+  if (likely(rc == 0))
+    return MDBX_SUCCESS;
+
+  (void)pthread_cond_destroy(&condpair->cond[0]);
+bailout_cond:
+  (void)pthread_mutex_destroy(&condpair->mutex);
 #endif
+bailout_mutex:
+  memset(condpair, 0, sizeof(mdbx_condpair_t));
+  return rc;
 }
 
-static bool is_allzeros(const void *ptr, size_t bytes) {
-  const uint8_t *u8 = ptr;
-  for (size_t i = 0; i < bytes; ++i)
-    if (u8[i] != 0)
-      return false;
-  return true;
-}
-
-MDBX_INTERNAL_FUNC int mdbx_condmutex_destroy(mdbx_condmutex_t *condmutex) {
-  int rc = MDBX_EINVAL;
+MDBX_INTERNAL_FUNC int mdbx_condpair_destroy(mdbx_condpair_t *condpair) {
 #if defined(_WIN32) || defined(_WIN64)
-  if (condmutex->event) {
-    rc = CloseHandle(condmutex->event) ? MDBX_SUCCESS : GetLastError();
-    if (rc == MDBX_SUCCESS)
-      condmutex->event = NULL;
-  }
-  if (condmutex->mutex) {
-    rc = CloseHandle(condmutex->mutex) ? MDBX_SUCCESS : GetLastError();
-    if (rc == MDBX_SUCCESS)
-      condmutex->mutex = NULL;
-  }
+  int rc = CloseHandle(condpair->mutex) ? MDBX_SUCCESS : GetLastError();
+  rc = CloseHandle(condpair->event[0]) ? rc : GetLastError();
+  rc = CloseHandle(condpair->event[1]) ? rc : GetLastError();
 #else
-  if (!is_allzeros(&condmutex->cond, sizeof(condmutex->cond))) {
-    rc = pthread_cond_destroy(&condmutex->cond);
-    if (rc == 0)
-      memset(&condmutex->cond, 0, sizeof(condmutex->cond));
-  }
-  if (!is_allzeros(&condmutex->mutex, sizeof(condmutex->mutex))) {
-    rc = pthread_mutex_destroy(&condmutex->mutex);
-    if (rc == 0)
-      memset(&condmutex->mutex, 0, sizeof(condmutex->mutex));
-  }
+  int err, rc = pthread_mutex_destroy(&condpair->mutex);
+  rc = (err = pthread_cond_destroy(&condpair->cond[0])) ? err : rc;
+  rc = (err = pthread_cond_destroy(&condpair->cond[1])) ? err : rc;
 #endif
+  memset(condpair, 0, sizeof(mdbx_condpair_t));
   return rc;
 }
 
-MDBX_INTERNAL_FUNC int mdbx_condmutex_lock(mdbx_condmutex_t *condmutex) {
+MDBX_INTERNAL_FUNC int mdbx_condpair_lock(mdbx_condpair_t *condpair) {
 #if defined(_WIN32) || defined(_WIN64)
-  DWORD code = WaitForSingleObject(condmutex->mutex, INFINITE);
+  DWORD code = WaitForSingleObject(condpair->mutex, INFINITE);
   return waitstatus2errcode(code);
 #else
-  return pthread_mutex_lock(&condmutex->mutex);
+  return pthread_mutex_lock(&condpair->mutex);
 #endif
 }
 
-MDBX_INTERNAL_FUNC int mdbx_condmutex_unlock(mdbx_condmutex_t *condmutex) {
+MDBX_INTERNAL_FUNC int mdbx_condpair_unlock(mdbx_condpair_t *condpair) {
 #if defined(_WIN32) || defined(_WIN64)
-  return ReleaseMutex(condmutex->mutex) ? MDBX_SUCCESS : GetLastError();
+  return ReleaseMutex(condpair->mutex) ? MDBX_SUCCESS : GetLastError();
 #else
-  return pthread_mutex_unlock(&condmutex->mutex);
+  return pthread_mutex_unlock(&condpair->mutex);
 #endif
 }
 
-MDBX_INTERNAL_FUNC int mdbx_condmutex_signal(mdbx_condmutex_t *condmutex) {
+MDBX_INTERNAL_FUNC int mdbx_condpair_signal(mdbx_condpair_t *condpair,
+                                            bool part) {
 #if defined(_WIN32) || defined(_WIN64)
-  return SetEvent(condmutex->event) ? MDBX_SUCCESS : GetLastError();
+  return SetEvent(condpair->event[part]) ? MDBX_SUCCESS : GetLastError();
 #else
-  return pthread_cond_signal(&condmutex->cond);
+  return pthread_cond_signal(&condpair->cond[part]);
 #endif
 }
 
-MDBX_INTERNAL_FUNC int mdbx_condmutex_wait(mdbx_condmutex_t *condmutex) {
+MDBX_INTERNAL_FUNC int mdbx_condpair_wait(mdbx_condpair_t *condpair,
+                                          bool part) {
 #if defined(_WIN32) || defined(_WIN64)
-  DWORD code =
-      SignalObjectAndWait(condmutex->mutex, condmutex->event, INFINITE, FALSE);
+  DWORD code = SignalObjectAndWait(condpair->mutex, condpair->event[part],
+                                   INFINITE, FALSE);
   if (code == WAIT_OBJECT_0) {
-    code = WaitForSingleObject(condmutex->mutex, INFINITE);
+    code = WaitForSingleObject(condpair->mutex, INFINITE);
     if (code == WAIT_OBJECT_0)
-      return ResetEvent(condmutex->event) ? MDBX_SUCCESS : GetLastError();
+      return MDBX_SUCCESS;
   }
   return waitstatus2errcode(code);
 #else
-  return pthread_cond_wait(&condmutex->cond, &condmutex->mutex);
+  return pthread_cond_wait(&condpair->cond[part], &condpair->mutex);
 #endif
 }
 
@@ -23966,9 +24009,9 @@ __dll_export
         0,
         7,
         0,
-        2052,
-        {"2020-05-17T19:16:35+03:00", "4664e82999963dbf6a824424e1cde6eb7ace8099", "78e592579a75b405cdaca26ee4d6f55afe29f39c",
-         "v0.7.0-110-g78e592579"},
+        2069,
+        {"2020-05-25T14:53:38+03:00", "b083f26d62bda755128a71381ebb533dc055725a", "f7b8b699b85117377d895329bbc304f332ddb352",
+         "v0.7.0-127-gf7b8b699b"},
         sourcery};
 
 __dll_export
@@ -24329,13 +24372,6 @@ mdbx_resume_threads_after_remap(mdbx_handle_array_t *array) {
  *    i.e. free/shared/exclusive x free/shared/exclusive == 9.
  *    Only 6 states of FSM are used, which 2 of ones are transitive.
  *
- *  The mdbx_lck_seize() moves the locking-FSM from the initial free/unlocked
- *  state to the "exclusive write" (and returns MDBX_RESULT_TRUE) if possible,
- *  or to the "used" (and returns MDBX_RESULT_FALSE).
- *
- *  The mdbx_lck_downgrade() moves the locking-FSM from "exclusive write"
- *  state to the "used" (i.e. shared) state.
- *
  * States:
  *   ?-?  = free, i.e. unlocked
  *   S-?  = used, i.e. shared lock
@@ -24346,6 +24382,16 @@ mdbx_resume_threads_after_remap(mdbx_handle_array_t *array) {
  *   S-E  = locked (transitive state)
  *   E-S
  *   E-E  = exclusive-write, i.e. exclusive due (re)initialization
+ *
+ *  The mdbx_lck_seize() moves the locking-FSM from the initial free/unlocked
+ *  state to the "exclusive write" (and returns MDBX_RESULT_TRUE) if possible,
+ *  or to the "used" (and returns MDBX_RESULT_FALSE).
+ *
+ *  The mdbx_lck_downgrade() moves the locking-FSM from "exclusive write"
+ *  state to the "used" (i.e. shared) state.
+ *
+ *  The mdbx_lck_upgrade() moves the locking-FSM from "used" (i.e. shared)
+ *  state to the "exclusive write" state.
  */
 
 static void lck_unlock(MDBX_env *env) {
@@ -24389,30 +24435,6 @@ static void lck_unlock(MDBX_env *env) {
     (void)err;
     SetLastError(ERROR_SUCCESS);
   }
-}
-
-MDBX_INTERNAL_FUNC int mdbx_lck_init(MDBX_env *env,
-                                     MDBX_env *inprocess_neighbor,
-                                     int global_uniqueness_flag) {
-  (void)env;
-  (void)inprocess_neighbor;
-  (void)global_uniqueness_flag;
-  return MDBX_SUCCESS;
-}
-
-MDBX_INTERNAL_FUNC int mdbx_lck_destroy(MDBX_env *env,
-                                        MDBX_env *inprocess_neighbor) {
-  (void)inprocess_neighbor;
-
-  /* LY: should unmap before releasing the locks to avoid race condition and
-   * STATUS_USER_MAPPED_FILE/ERROR_USER_MAPPED_FILE */
-  if (env->me_map)
-    mdbx_munmap(&env->me_dxb_mmap);
-  if (env->me_lck)
-    mdbx_munmap(&env->me_lck_mmap);
-
-  lck_unlock(env);
-  return MDBX_SUCCESS;
 }
 
 /* Seize state as 'exclusive-write' (E-E and returns MDBX_RESULT_TRUE)
@@ -24511,43 +24533,91 @@ MDBX_INTERNAL_FUNC int mdbx_lck_seize(MDBX_env *env) {
 }
 
 MDBX_INTERNAL_FUNC int mdbx_lck_downgrade(MDBX_env *env) {
-  /* Transite from exclusive state (E-?) to used (S-?) */
+  /* Transite from exclusive-write state (E-E) to used (S-?) */
   assert(env->me_lazy_fd != INVALID_HANDLE_VALUE);
   assert(env->me_lfd != INVALID_HANDLE_VALUE);
 
-#if 1
   if (env->me_flags & MDBX_EXCLUSIVE)
     return MDBX_SUCCESS /* nope since files were must be opened non-shareable */
         ;
-#else
-  /* 1) must be at E-E (exclusive-write) */
-  if (env->me_flags & MDBX_EXCLUSIVE) {
-    /* transite from E-E to E_? (exclusive-read) */
-    if (!funlock(env->me_lfd, LCK_UPPER))
-      mdbx_panic("%s(%s) failed: err %u", __func__,
-                 "E-E(exclusive-write) >> E-?(exclusive-read)", GetLastError());
-    return MDBX_SUCCESS /* 2) now at E-? (exclusive-read), done */;
-  }
-#endif
-
-  /* 3) now at E-E (exclusive-write), transite to ?_E (middle) */
+  /* 1) now at E-E (exclusive-write), transite to ?_E (middle) */
   if (!funlock(env->me_lfd, LCK_LOWER))
     mdbx_panic("%s(%s) failed: err %u", __func__,
                "E-E(exclusive-write) >> ?-E(middle)", GetLastError());
 
-  /* 4) now at ?-E (middle), transite to S-E (locked) */
+  /* 2) now at ?-E (middle), transite to S-E (locked) */
   if (!flock(env->me_lfd, LCK_SHARED | LCK_DONTWAIT, LCK_LOWER)) {
-    int rc = GetLastError() /* 5) something went wrong, give up */;
+    int rc = GetLastError() /* 3) something went wrong, give up */;
     mdbx_error("%s, err %u", "?-E(middle) >> S-E(locked)", rc);
     return rc;
   }
 
-  /* 6) got S-E (locked), continue transition to S-? (used) */
+  /* 4) got S-E (locked), continue transition to S-? (used) */
   if (!funlock(env->me_lfd, LCK_UPPER))
     mdbx_panic("%s(%s) failed: err %u", __func__, "S-E(locked) >> S-?(used)",
                GetLastError());
 
-  return MDBX_SUCCESS /* 7) now at S-? (used), done */;
+  return MDBX_SUCCESS /* 5) now at S-? (used), done */;
+}
+
+MDBX_INTERNAL_FUNC int mdbx_lck_upgrade(MDBX_env *env) {
+  /* Transite from used state (S-?) to exclusive-write (E-E) */
+  assert(env->me_lfd != INVALID_HANDLE_VALUE);
+
+  if (env->me_flags & MDBX_EXCLUSIVE)
+    return MDBX_SUCCESS /* nope since files were must be opened non-shareable */
+        ;
+
+  int rc;
+  /* 1) now on S-? (used), try S-E (locked) */
+  mdbx_jitter4testing(false);
+  if (!flock(env->me_lfd, LCK_EXCLUSIVE | LCK_DONTWAIT, LCK_UPPER)) {
+    rc = GetLastError() /* 2) something went wrong, give up */;
+    mdbx_verbose("%s, err %u", "S-?(used) >> S-E(locked)", rc);
+    return rc;
+  }
+
+  /* 3) now on S-E (locked), transite to ?-E (middle) */
+  if (!funlock(env->me_lfd, LCK_LOWER))
+    mdbx_panic("%s(%s) failed: err %u", __func__, "S-E(locked) >> ?-E(middle)",
+               GetLastError());
+
+  /* 4) now on ?-E (middle), try E-E (exclusive-write) */
+  mdbx_jitter4testing(false);
+  if (!flock(env->me_lfd, LCK_EXCLUSIVE | LCK_DONTWAIT, LCK_LOWER)) {
+    rc = GetLastError() /* 5) something went wrong, give up */;
+    mdbx_verbose("%s, err %u", "?-E(middle) >> E-E(exclusive-write)", rc);
+    return rc;
+  }
+
+  return MDBX_SUCCESS /* 6) now at E-E (exclusive-write), done */;
+}
+
+MDBX_INTERNAL_FUNC int mdbx_lck_init(MDBX_env *env,
+                                     MDBX_env *inprocess_neighbor,
+                                     int global_uniqueness_flag) {
+  (void)env;
+  (void)inprocess_neighbor;
+  (void)global_uniqueness_flag;
+  return MDBX_SUCCESS;
+}
+
+MDBX_INTERNAL_FUNC int mdbx_lck_destroy(MDBX_env *env,
+                                        MDBX_env *inprocess_neighbor) {
+  /* LY: should unmap before releasing the locks to avoid race condition and
+   * STATUS_USER_MAPPED_FILE/ERROR_USER_MAPPED_FILE */
+  if (env->me_map)
+    mdbx_munmap(&env->me_dxb_mmap);
+  if (env->me_lck) {
+    const bool synced = env->me_lck_mmap.lck->mti_unsynced_pages == 0;
+    mdbx_munmap(&env->me_lck_mmap);
+    if (synced && !inprocess_neighbor && env->me_lfd != INVALID_HANDLE_VALUE &&
+        mdbx_lck_upgrade(env) == MDBX_SUCCESS)
+      /* this will fail if LCK is used/mmapped by other process(es) */
+      mdbx_ftruncate(env->me_lfd, 0);
+  }
+  lck_unlock(env);
+  return MDBX_SUCCESS;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -25253,8 +25323,10 @@ MDBX_INTERNAL_FUNC int __cold mdbx_lck_destroy(MDBX_env *env,
 
     mdbx_assert(env, rc == 0);
     if (rc == 0) {
+      const bool synced = env->me_lck_mmap.lck->mti_unsynced_pages == 0;
       mdbx_munmap(&env->me_lck_mmap);
-      rc = ftruncate(env->me_lfd, 0) ? errno : 0;
+      if (synced)
+        rc = ftruncate(env->me_lfd, 0) ? errno : 0;
     }
 
     mdbx_jitter4testing(false);
