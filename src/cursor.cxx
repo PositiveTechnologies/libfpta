@@ -105,12 +105,14 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
   cursor->tbl_handle = tbl_handle;
   cursor->idx_handle = idx_handle;
 
+  assert(cursor->seek_range_flags == 0);
   if (range_from.type <= fpta_shoved) {
     rc = fpta_index_value2key(cursor->index_shove(), range_from,
                               cursor->range_from_key, true);
     if (unlikely(rc != FPTA_SUCCESS))
       goto bailout;
     assert(cursor->range_from_key.mdbx.iov_base != nullptr);
+    cursor->seek_range_flags |= fpta_cursor::need_cmp_range_from;
   }
 
   if (range_to.type <= fpta_shoved) {
@@ -119,6 +121,7 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
     if (unlikely(rc != FPTA_SUCCESS))
       goto bailout;
     assert(cursor->range_to_key.mdbx.iov_base != nullptr);
+    cursor->seek_range_flags |= fpta_cursor::need_cmp_range_to;
   }
 
   rc =
@@ -151,6 +154,9 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
     /* Взводим флажок fpta_zeroed_range_is_point
        как признак необходимости epsilon-обработки. */
     cursor->options |= fpta_zeroed_range_is_point;
+    cursor->seek_range_flags = cursor->range_from_key.mdbx.iov_base
+                                   ? fpta_cursor::need_cmp_range_both
+                                   : fpta_cursor::need_key4epsilon;
     if ((options & fpta_dont_fetch) != 0 &&
         !cursor->range_from_key.mdbx.iov_base) {
       assert(cursor->range_to_key.mdbx.iov_base == nullptr);
@@ -206,6 +212,20 @@ int fpta_cursor::bring(MDBX_val *key, MDBX_val *data, const MDBX_cursor_op op) {
   metrics.scans += 1 & (ops_scan_mask >> op);
   metrics.searches += 1 & (ops_search_mask >> op);
   return mdbx_cursor_get(mdbx_cursor, key, data, op);
+}
+
+static inline bool is_forward_direction(MDBX_cursor_op op) {
+  cxx11_constexpr_var unsigned mask =
+      1 << MDBX_NEXT | 1 << MDBX_NEXT_DUP | 1 << MDBX_NEXT_MULTIPLE |
+      1 << MDBX_NEXT_NODUP | 1 << MDBX_LAST | 1 << MDBX_LAST_DUP;
+  return 1 & (mask >> op);
+}
+
+static inline bool is_backward_direction(MDBX_cursor_op op) {
+  cxx11_constexpr_var unsigned mask =
+      1 << MDBX_PREV | 1 << MDBX_PREV_DUP | 1 << MDBX_PREV_NODUP |
+      1 << MDBX_PREV_MULTIPLE | 1 << MDBX_FIRST | 1 << MDBX_FIRST_DUP;
+  return 1 & (mask >> op);
 }
 
 static int fpta_cursor_seek(fpta_cursor *cursor,
@@ -294,10 +314,32 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
     }
   }
 
+  if (unlikely(cursor->seek_range_flags == fpta_cursor::need_key4epsilon)) {
+    /* Если при установленном флажке fpta_zeroed_range_is_point не задана
+       граница диапазона, то значит был передан псевдо-тип fpta_epsilon в
+       комбинации c fpta_begin/fpta_end. Соответственно, требуется ограничить
+       выборку строками со значением ключа равным первой или последней
+       строке. Для этого достаточно перенести текущий ключ в границы
+       диапазона при первой seek-операции в конец или начало. */
+    assert(cursor->range_from_key.mdbx.iov_base == nullptr &&
+           cursor->range_to_key.mdbx.iov_base == nullptr);
+    assert(mdbx_seek_op == MDBX_FIRST || mdbx_seek_op == MDBX_LAST);
+    assert(cursor->current.iov_len <= sizeof(cursor->range_from_key.place));
+    cursor->range_from_key.mdbx.iov_len =
+        std::min(cursor->current.iov_len,
+                 /* paranoia */ sizeof(cursor->range_from_key.place));
+    cursor->range_from_key.mdbx.iov_base =
+        ::memcpy(&cursor->range_from_key.place, cursor->current.iov_base,
+                 cursor->range_from_key.mdbx.iov_len);
+    cursor->range_to_key.mdbx = cursor->range_from_key.mdbx;
+    cursor->seek_range_state = cursor->seek_range_flags =
+        fpta_cursor::need_cmp_range_both;
+  }
+
   while (rc == MDBX_SUCCESS) {
     MDBX_cursor_op step_op = mdbx_step_op;
 
-    if (cursor->range_from_key.mdbx.iov_base) {
+    if (cursor->seek_range_state & fpta_cursor::need_cmp_range_from) {
       const auto cmp = mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle,
                                 &cursor->current, &cursor->range_from_key.mdbx);
       if (cmp < 0) {
@@ -329,28 +371,14 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
           goto next;
         }
         goto eof;
+      } else if (is_forward_direction(step_op)) {
+        /* больше не нужно сравнивать с range_from_key,
+         * ибо остальные ключи буду больше или равны */
+        cursor->seek_range_state -= fpta_cursor::need_cmp_range_from;
       }
-    } else if (unlikely(cursor->options & fpta_zeroed_range_is_point)) {
-      /* Если при установленном флажке fpta_zeroed_range_is_point не задана
-         граница диапазона, то значит был передан псевдо-тип fpta_epsilon в
-         комбинации c fpta_begin/fpta_end. Соответственно, требуется ограничить
-         выборку строками со значением ключа равным первой или последней
-         строке. Для этого достаточно перенести текущий ключ в границы
-         диапазона при первой seek-операции в конец или начало. */
-      assert(cursor->range_from_key.mdbx.iov_base == nullptr &&
-             cursor->range_to_key.mdbx.iov_base == nullptr);
-      assert(mdbx_seek_op == MDBX_FIRST || mdbx_seek_op == MDBX_LAST);
-      assert(cursor->current.iov_len <= sizeof(cursor->range_from_key.place));
-      cursor->range_from_key.mdbx.iov_len =
-          std::min(cursor->current.iov_len,
-                   /* paranoia */ sizeof(cursor->range_from_key.place));
-      cursor->range_from_key.mdbx.iov_base =
-          ::memcpy(&cursor->range_from_key.place, cursor->current.iov_base,
-                   cursor->range_from_key.mdbx.iov_len);
-      cursor->range_to_key.mdbx = cursor->range_from_key.mdbx;
     }
 
-    if (cursor->range_to_key.mdbx.iov_base) {
+    if (cursor->seek_range_state & fpta_cursor::need_cmp_range_to) {
       const auto cmp = mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle,
                                 &cursor->current, &cursor->range_to_key.mdbx);
       if (cmp >=
@@ -386,6 +414,10 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
           break;
         }
         goto eof;
+      } else if (is_backward_direction(mdbx_step_op)) {
+        /* больше не нужно сравнивать с range_to_key,
+         * ибо остальные ключи буду меньше или равны */
+        cursor->seek_range_state -= fpta_cursor::need_cmp_range_to;
       }
     }
 
@@ -423,16 +455,19 @@ eof:
   switch (mdbx_seek_op) {
   default:
     cursor->set_poor();
+    cursor->seek_range_state = 0;
     return FPTA_NODATA;
 
   case MDBX_NEXT:
   case MDBX_NEXT_NODUP:
     cursor->set_eof(fpta_cursor::after_last);
+    cursor->seek_range_state = 0;
     return FPTA_NODATA;
 
   case MDBX_PREV:
   case MDBX_PREV_NODUP:
     cursor->set_eof(fpta_cursor::before_first);
+    cursor->seek_range_state = 0;
     return FPTA_NODATA;
 
   case MDBX_PREV_DUP:
@@ -471,6 +506,7 @@ int fpta_cursor_move(fpta_cursor *cursor, fpta_seek_operations op) {
       mdbx_seek_op = MDBX_SET_RANGE;
     }
     mdbx_step_op = MDBX_NEXT;
+    cursor->seek_range_state = cursor->seek_range_flags;
     break;
 
   case fpta_last:
@@ -482,19 +518,26 @@ int fpta_cursor_move(fpta_cursor *cursor, fpta_seek_operations op) {
       mdbx_seek_op = MDBX_SET_RANGE;
     }
     mdbx_step_op = MDBX_PREV;
+    cursor->seek_range_state = cursor->seek_range_flags;
     break;
 
   case fpta_next:
     if (unlikely(cursor->is_poor()))
       return FPTA_ECURSOR;
-    mdbx_seek_op = unlikely(cursor->is_before_first()) ? MDBX_FIRST : MDBX_NEXT;
-    mdbx_step_op = MDBX_NEXT;
+    mdbx_seek_op = mdbx_step_op = MDBX_NEXT;
+    if (unlikely(cursor->is_before_first())) {
+      mdbx_seek_op = MDBX_FIRST;
+      cursor->seek_range_state = cursor->seek_range_flags;
+    }
     break;
   case fpta_prev:
     if (unlikely(cursor->is_poor()))
       return FPTA_ECURSOR;
-    mdbx_seek_op = unlikely(cursor->is_after_last()) ? MDBX_LAST : MDBX_PREV;
-    mdbx_step_op = MDBX_PREV;
+    mdbx_seek_op = mdbx_step_op = MDBX_PREV;
+    if (unlikely(cursor->is_after_last())) {
+      mdbx_seek_op = MDBX_LAST;
+      cursor->seek_range_state = cursor->seek_range_flags;
+    }
     break;
 
   /* Перемещение по дубликатам значения ключа, в случае если
@@ -538,17 +581,21 @@ int fpta_cursor_move(fpta_cursor *cursor, fpta_seek_operations op) {
   case fpta_key_next:
     if (unlikely(cursor->is_poor()))
       return FPTA_ECURSOR;
-    mdbx_seek_op =
-        unlikely(cursor->is_before_first()) ? MDBX_FIRST : MDBX_NEXT_NODUP;
-    mdbx_step_op = MDBX_NEXT_NODUP;
+    mdbx_seek_op = mdbx_step_op = MDBX_NEXT_NODUP;
+    if (unlikely(cursor->is_before_first())) {
+      mdbx_seek_op = MDBX_FIRST;
+      cursor->seek_range_state = cursor->seek_range_flags;
+    }
     break;
 
   case fpta_key_prev:
     if (unlikely(cursor->is_poor()))
       return FPTA_ECURSOR;
-    mdbx_seek_op =
-        unlikely(cursor->is_after_last()) ? MDBX_LAST : MDBX_PREV_NODUP;
-    mdbx_step_op = MDBX_PREV_NODUP;
+    mdbx_seek_op = mdbx_step_op = MDBX_PREV_NODUP;
+    if (unlikely(cursor->is_after_last())) {
+      mdbx_seek_op = MDBX_LAST;
+      cursor->seek_range_state = cursor->seek_range_flags;
+    }
     break;
   }
 

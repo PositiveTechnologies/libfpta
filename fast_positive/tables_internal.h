@@ -423,13 +423,22 @@ struct fpta_cursor {
 
   fpta_name *table_id;
   unsigned column_number;
-  fpta_cursor_options options;
+  /* uint8_t */ fpta_cursor_options options;
+  uint8_t seek_range_state;
+  uint8_t seek_range_flags;
   MDBX_dbi tbl_handle, idx_handle;
 
   fpta_table_schema *table_schema() const { return table_id->table_schema; }
   fpta_shove_t index_shove() const {
     return table_schema()->column_shove(column_number);
   }
+
+  enum : uint8_t {
+    need_cmp_range_from = 1,
+    need_cmp_range_to = 2,
+    need_cmp_range_both = need_cmp_range_from | need_cmp_range_to,
+    need_key4epsilon = 4,
+  };
 
   fpta_key range_from_key;
   fpta_key range_to_key;

@@ -2294,7 +2294,11 @@ FPTA_API bool fpta_filter_match(const fpta_filter *fn, fptu_ro tuple);
 /* Управление курсорами. */
 
 /* Порядок по индексной колонке для строк видимых через курсор. */
-typedef enum fpta_cursor_options {
+typedef enum fpta_cursor_options
+#ifdef __cplusplus
+    : uint8_t
+#endif
+{
   /* Без обязательного порядка. Требуется для неупорядоченных индексов,
      для упорядоченных равносилен fpta_ascending */
   fpta_unsorted = 0,
