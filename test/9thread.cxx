@@ -16,6 +16,7 @@
  */
 
 #include "fpta_test.h"
+#include <functional> // for std::ref
 #include <string>
 #include <thread>
 
@@ -670,7 +671,225 @@ TEST(Threaded, ParallelOpen) {
 
 //------------------------------------------------------------------------------
 
+static void commander_thread(fpta_db *db, const volatile bool &done_flag) {
+  SCOPED_TRACE("commander-thread started");
+
+  // описываем простейшую таблицу с двумя колонками
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("pk", fptu_uint64,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("x", fptu_cstr, fpta_noindex_nullable, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  unsigned prev_state = 0;
+  int i = 0;
+  while (!done_flag) {
+    fpta_txn *txn;
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+    ASSERT_NE(nullptr, txn);
+    std::this_thread::yield();
+
+    unsigned new_state = (((i++ + 58511) * 977) >> 3) & 3;
+    if ((prev_state ^ new_state) & 1) {
+      // создаем или удаляем первую таблицу
+      if (new_state & 1) {
+        EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table1", &def));
+      } else {
+        EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table1"));
+      }
+    }
+    if ((prev_state ^ new_state) & 2) {
+      // создаем или удаляем вторую таблицу
+      if (new_state & 2) {
+        EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table2", &def));
+      } else {
+        EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table2"));
+      }
+    }
+
+    ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
+    txn = nullptr;
+    prev_state = new_state;
+    std::this_thread::yield();
+  }
+
+  // разрушаем описание таблицы
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+
+  SCOPED_TRACE("commander-thread finished");
+}
+
+static void executor_thread(fpta_db *db, const char *const read,
+                            const char *const write, volatile bool &done_flag) {
+  SCOPED_TRACE(
+      fptu::format("executor-thread read(%s) write(%s) started", read, write));
+  fpta_name r_table, w_table, col_pk, col_x;
+  int err;
+  fptu_rw *tuple = fptu_alloc(2, 256);
+  ASSERT_NE(nullptr, tuple);
+
+  // инициализируем идентификаторы таблицы и её колонок
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&r_table, read));
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&w_table, write));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_pk, "pk"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_x, "x"));
+
+  for (int counter = 0; counter < 3; ++counter) {
+    for (int achieved = 0; achieved != 31;) {
+      fpta_txn *txn;
+      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+      ASSERT_NE(nullptr, txn);
+
+      err = fpta_name_refresh_couple(txn, &w_table, &col_pk);
+      if (err == FPTA_SUCCESS) {
+        EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_x));
+        fptu_clear(tuple);
+        uint64_t seq = 0;
+        EXPECT_EQ(FPTA_OK, fpta_table_sequence(txn, &w_table, &seq, 1));
+        EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk,
+                                              fpta_value_uint(seq % 100)));
+        EXPECT_EQ(FPTA_OK,
+                  fpta_upsert_column(tuple, &col_x, fpta_value_cstr("x")));
+        EXPECT_EQ(FPTA_OK, fpta_upsert_row(txn, &w_table, fptu_take(tuple)));
+        achieved |= 1 << 0;
+      } else {
+        ASSERT_EQ(FPTA_NOTFOUND, err);
+        achieved |= 1 << 1;
+      }
+      ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
+      txn = nullptr;
+
+      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+      ASSERT_NE(nullptr, txn);
+
+      if (done_flag)
+        achieved |= 1 << 2;
+      unsigned lag = 42;
+      do {
+        std::this_thread::yield();
+        size_t row_count;
+        fpta_table_stat stat;
+        err = fpta_table_info(txn, &r_table, &row_count, &stat);
+        switch (err) {
+        case FPTA_SCHEMA_CHANGED:
+          achieved |= 1 << 2;
+          break;
+        case FPTA_NOTFOUND:
+          achieved |= 1 << 3;
+          break;
+        default:
+          ASSERT_EQ(FPTA_SUCCESS, err);
+          achieved |= 1 << 4;
+          ASSERT_EQ(FPTA_OK, fpta_transaction_lag(txn, &lag, nullptr));
+          break;
+        }
+      } while (err == FPTA_SUCCESS && lag < 42 && !done_flag);
+
+      ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
+      txn = nullptr;
+    }
+  }
+
+  // разрушаем привязанные идентификаторы
+  fpta_name_destroy(&r_table);
+  fpta_name_destroy(&w_table);
+  fpta_name_destroy(&col_pk);
+  fpta_name_destroy(&col_x);
+
+  done_flag = true;
+  free(tuple);
+  SCOPED_TRACE(
+      fptu::format("executor-thread read(%s) write(%s) finished", read, write));
+}
+
+TEST(Threaded, AsyncSchemaChange) {
+  /*
+   * 1. В "коммандере" создаем пустую БД, а в "корреляторе" и "обогатителе"
+   *    открываем её.
+   *
+   * 2. На стороне "коррелятора" и "обогатителя" запускаем по несколько
+   * потоков, которые пытаются читать и вставлять данные в разные таблицы:
+   *      - ошибки отсутвия таблиц и FPTA_SCHEMA_CHANGED считаются
+   *        допустимыми.
+   *      - при отсутствии таблицы пропускаются соответствующие действия.
+   *      - FPTA_SCHEMA_CHANGED транзакция чтения перезапускается.
+   *
+   * 3. В "командере" несколько раз создаем, изменяем и удаляем используемые
+   *    таблицы. После каждого изменения ждем пока потоки в "корреляторе"
+   *    и "командере" не сделают несколько итераций.
+   *
+   * 4. Завершаем операции и освобождаем ресурсы.
+   */
+
+  /* FIXME: Описание сценария теста */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  // чистим
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db *db_commander = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  20, true, &db_commander));
+  ASSERT_NE(nullptr, db_commander);
+
+  fpta_db *db_enricher = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  20, false, &db_enricher));
+  ASSERT_NE(nullptr, db_enricher);
+
+  fpta_db *db_correlator = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  20, false, &db_correlator));
+  ASSERT_NE(nullptr, db_correlator);
+
+  volatile bool commander_done = false;
+  auto commander =
+      std::thread(commander_thread, db_commander, std::cref(commander_done));
+
+  volatile bool enricher_done = false;
+  auto enricher1 = std::thread(executor_thread, db_enricher, "table1", "table2",
+                               std::ref(enricher_done));
+  auto enricher2 = std::thread(executor_thread, db_enricher, "table2", "table1",
+                               std::ref(enricher_done));
+
+  volatile bool correlator_done = false;
+  auto correlator1 = std::thread(executor_thread, db_correlator, "table1",
+                                 "table2", std::ref(correlator_done));
+  auto correlator2 = std::thread(executor_thread, db_correlator, "table2",
+                                 "table1", std::ref(correlator_done));
+
+  enricher1.join();
+  correlator1.join();
+  enricher2.join();
+  correlator2.join();
+
+  commander_done = true;
+  commander.join();
+
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db_commander));
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db_enricher));
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//------------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
+  mdbx_setup_debug(MDBX_LOG_WARN,
+                   MDBX_DBG_ASSERT | MDBX_DBG_AUDIT | MDBX_DBG_DUMP |
+                       MDBX_DBG_LEGACY_MULTIOPEN | MDBX_DBG_JITTER,
+                   nullptr);
   return RUN_ALL_TESTS();
 }
