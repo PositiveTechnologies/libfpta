@@ -21,6 +21,7 @@
 
 #include "fpta_test.h"
 #include "tools.hpp"
+#include <chrono>
 
 static const char testdb_name[] = TEST_DB_DIR "ut_smoke.fpta";
 static const char testdb_name_lck[] =
@@ -5724,6 +5725,353 @@ TEST(SmokeCrud, TableVersion) {
 
   // закрываем базу
   ASSERT_EQ(FPTA_OK, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//-----------------------------------------------------------------------------
+
+TEST(Smoke, DISABLED_IndexCosts) {
+  /* Псевдо-тест оценки стоимости операций.
+   *
+   * 1. Создаем базу с одной таблицей, в которой три колонки:
+   *     - pk_int32 с первичным индексом;
+   *     - strA с вторичным индексом с контролем уникальности;
+   *     - strB с вторичным индексом без контроля уникальности
+   *       и низкой кардинальностью.
+   *
+   *  2. Таблица наполняется до ~10 миллионов записей, при этом в ~40 точках
+   *     по геометрической прогрессии (с коэффициентом ~1.4) делается замер
+   *     стоимости операций (cost_scan_O1N, cost_search_OlogN,
+   *     cost_uniq_MOlogN, cost_alter_MOlogN, в том числе для каждого индекса).
+   *
+   *  3. В тех же точках для индексов прогоняется бенчмарки
+   *     замеряющих реальную стоимость операций scan и search/seek.
+   *
+   *  4. В консоль выводится сводная таблица собранных значений, в которой
+   *     в сталбцах "EST" (estimated) и "ACT" (actual) выводится отношения
+   *     прогнозируемых и актуальных стоимостей поиска и сканирования.
+   *
+   *  5. Проверяется что оценочная стоимость отличается не более чем в 2 раза
+   *     от реальной стоимости при больших размерах таблицы (>100K строк),
+   *     и не более чем в 3 раза при меньших размерах.
+   */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // открываем/создаем базу в 128 мегабайт
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  2048, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // описываем простейшую таблицу с тремя колонками
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("pk_i32", fptu_int32,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("strA", fptu_cstr,
+                                 fpta_secondary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                         "strB", fptu_cstr,
+                         fpta_secondary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  // запускам транзакцию и создаем таблицу с обозначенным набором колонок
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_commit(txn));
+  txn = nullptr;
+
+  // разрушаем описание таблицы
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  //---------------------------------------------------------------------------
+  // инициализируем идентификаторы таблицы и её колонок
+  fpta_name table, col_pk, col_a, col_b;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk, "pk_i32"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_a, "strA"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_b, "strB"));
+
+  // начинаем транзакцию для вставки данных
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  // для вставки делаем привязку вручную
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_pk));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_a));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_b));
+
+  // создаем кортеж для наполнения таблицы
+  fptu_rw *tuple = fptu_alloc(3, 256);
+  ASSERT_NE(nullptr, tuple);
+  ASSERT_STREQ(nullptr, fptu::check(tuple));
+
+  struct point {
+    size_t row_count;
+    size_t total_items;
+    size_t total_bytes;
+    unsigned btree_depth;
+    size_t branch_pages;
+    size_t leaf_pages;
+    size_t large_pages;
+    unsigned cost_scan_O1N;
+    unsigned cost_search_OlogN;
+    unsigned cost_uniq_MOlogN;
+    unsigned cost_alter_MOlogN;
+
+    fpta_table_stat::index_cost_info index_costs[3];
+    struct {
+      double scan, search;
+    } index_bench[3];
+  };
+
+  std::pair<unsigned, unsigned> minmax{INT_MAX, 0};
+  std::vector<point> bunch;
+  int err = FPTA_OK;
+
+  // генератор значений колонок
+  struct generator {
+    char buf[128];
+
+    fpta_value pk(unsigned n) { return fpta_value_uint(n); }
+
+    fpta_value a(unsigned n) {
+      snprintf(buf, sizeof(buf), "%0*u", (n + 22621) % 23 + 1, n);
+      return fpta_value_cstr(buf);
+    }
+    fpta_value b(unsigned n) {
+      snprintf(buf, sizeof(buf), "%*u", n % 11 + 1, n % 5);
+      return fpta_value_cstr(buf);
+    }
+  };
+
+  for (int n = 42, count = 0; !err && n <= 9'999'999; n = (n * 177) >> 7) {
+    //-------------------------------------------------------------------------
+    // наполняем до следующей границы
+    while (count < n) {
+      generator maker;
+      fptu_clear(tuple);
+      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk, maker.pk(count)));
+      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_a, maker.a(count)));
+      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_b, maker.b(count)));
+      ASSERT_EQ(nullptr, fptu::check(tuple));
+      err = fpta_upsert_row(txn, &table, fptu_take(tuple));
+      if (err != FPTA_OK) {
+        EXPECT_EQ(err, FPTA_DB_FULL);
+        break;
+      }
+      count++;
+    }
+
+    if (err == FPTA_OK) {
+      //-----------------------------------------------------------------------
+      // получаем метрики
+      union {
+        fpta_table_stat stat;
+        char space[sizeof(fpta_table_stat) +
+                   sizeof(fpta_table_stat::index_cost_info) * 2];
+      } snap;
+
+      ASSERT_EQ(FPTA_OK, fpta_table_info_ex(txn, &table, nullptr, &snap.stat,
+                                            sizeof(snap)));
+      ASSERT_EQ(size_t(n), snap.stat.row_count);
+
+      bunch.emplace_back();
+      point &y = bunch.back();
+      y.row_count = snap.stat.row_count;
+      y.total_items = snap.stat.total_items;
+      y.total_bytes = snap.stat.total_bytes;
+      y.btree_depth = snap.stat.btree_depth;
+      y.branch_pages = snap.stat.branch_pages;
+      y.leaf_pages = snap.stat.leaf_pages;
+      y.large_pages = snap.stat.large_pages;
+      y.cost_scan_O1N = snap.stat.cost_scan_O1N;
+      y.cost_search_OlogN = snap.stat.cost_search_OlogN;
+      y.cost_uniq_MOlogN = snap.stat.cost_uniq_MOlogN;
+      y.cost_alter_MOlogN = snap.stat.cost_alter_MOlogN;
+      y.index_costs[0] = snap.stat.index_costs[0];
+      y.index_costs[1] = snap.stat.index_costs[1];
+      y.index_costs[2] = snap.stat.index_costs[2];
+
+      const auto i_minmax =
+          std::minmax({y.cost_scan_O1N, y.cost_search_OlogN, y.cost_uniq_MOlogN,
+                       y.cost_alter_MOlogN, y.index_costs[0].scan_O1N,
+                       y.index_costs[0].search_OlogN, y.index_costs[1].scan_O1N,
+                       y.index_costs[1].search_OlogN, y.index_costs[2].scan_O1N,
+                       y.index_costs[2].search_OlogN});
+      minmax.first = std::min(minmax.first, i_minmax.first);
+      minmax.second = std::min(minmax.second, i_minmax.second);
+
+      //-----------------------------------------------------------------------
+      // замеряем реальные затраты
+
+      struct bench {
+        static double probe(int (*proba)(fpta_cursor *, unsigned,
+                                         fpta_value (generator::*)(unsigned)),
+                            fpta_txn *txn, fpta_name *col, unsigned count,
+                            fpta_value (generator::*make)(unsigned)) {
+          fpta_cursor *cursor;
+          int err =
+              fpta_cursor_open(txn, col, fpta_value_begin(), fpta_value_end(),
+                               nullptr, fpta_unsorted_dont_fetch, &cursor);
+          scoped_cursor_guard cursor_guard;
+          cursor_guard.reset(cursor);
+
+          const auto start = std::chrono::steady_clock::now();
+          std::chrono::nanoseconds duration;
+          int i = 0;
+          do {
+            err = proba(cursor, count, make);
+            EXPECT_EQ(FPTA_OK, err);
+            ++i;
+            duration = std::chrono::steady_clock::now() - start;
+          } while (err == FPTA_OK &&
+                   duration < std::chrono::milliseconds(1000));
+          return duration.count() * 1e-9 / i;
+        }
+
+        static int scan(fpta_cursor *cursor, unsigned count,
+                        fpta_value (generator::*make)(unsigned)) {
+          (void)make;
+          int err = fpta_cursor_move(cursor, fpta_first);
+          for (unsigned i = 1; i < count && err == FPTA_OK; ++i)
+            err = fpta_cursor_move(cursor, fpta_next);
+          return err;
+        }
+
+        static int search(fpta_cursor *cursor, unsigned count,
+                          fpta_value (generator::*make)(unsigned)) {
+          const uint64_t mixer = UINT64_C(3131777041);
+          assert(mixer > count && count > 1);
+          generator maker;
+          for (unsigned i = 0; i < count; ++i) {
+            unsigned n = ((i + 49057) * mixer) % count;
+            const auto key = (maker.*make)(n);
+            int err = fpta_cursor_locate(cursor, true, &key, nullptr);
+            if (err != FPTA_OK)
+              return err;
+          }
+          return FPTA_OK;
+        }
+      };
+
+      y.index_bench[0].scan =
+          bench::probe(bench::scan, txn, &col_pk, count, &generator::pk);
+      y.index_bench[0].search =
+          bench::probe(bench::search, txn, &col_pk, count, &generator::pk);
+      y.index_bench[1].scan =
+          bench::probe(bench::scan, txn, &col_a, count, &generator::a);
+      y.index_bench[1].search =
+          bench::probe(bench::search, txn, &col_a, count, &generator::a);
+      y.index_bench[2].scan =
+          bench::probe(bench::scan, txn, &col_b, count, &generator::b);
+      y.index_bench[2].search =
+          bench::probe(bench::search, txn, &col_b, count, &generator::b);
+    }
+  }
+
+  fpta_transaction_abort(txn);
+  txn = nullptr;
+
+  //---------------------------------------------------------------------------
+  // вывод результатов
+
+  struct scale {
+    double ratio;
+    double operator()(unsigned value) const { return value * ratio; }
+  };
+  const scale s{1.0 / minmax.first};
+
+  std::cout << "         overall_____________  pk_i4____________  "
+               "uniq_str_________  dups_str_________\n";
+  std::cout
+      << "#######  scan seek uniq alter  scan seek EST ACT  scan seek EST "
+         "ACT  scan seek EST ACT\n";
+
+  for (const auto &i : bunch) {
+    const auto ratio_pk_est =
+        double(i.index_costs[0].search_OlogN) / i.index_costs[0].scan_O1N;
+    const auto ratio_pk_act = i.index_bench[0].search / i.index_bench[0].scan;
+
+    const auto ratio_a_est =
+        double(i.index_costs[1].search_OlogN) / i.index_costs[1].scan_O1N;
+    const auto ratio_a_act = i.index_bench[1].search / i.index_bench[1].scan;
+
+    const auto ratio_b_est =
+        double(i.index_costs[2].search_OlogN) / i.index_costs[2].scan_O1N;
+    const auto ratio_b_act = i.index_bench[2].search / i.index_bench[2].scan;
+
+    fptu::format(
+        std::cout,
+        "%7zu  %4.f %4.f %4.f %5.f  %4.f %4.f %3.f %3.f  %4.f %4.f %3.f %3.f "
+        " %4.f %4.f %3.f %3.f\n",
+        i.row_count, s(i.cost_scan_O1N), s(i.cost_search_OlogN),
+        s(i.cost_uniq_MOlogN), s(i.cost_alter_MOlogN),
+
+        s(i.index_costs[0].scan_O1N), s(i.index_costs[0].search_OlogN),
+        ratio_pk_est, ratio_pk_act,
+
+        s(i.index_costs[1].scan_O1N), s(i.index_costs[1].search_OlogN),
+        ratio_a_est, ratio_a_act,
+
+        s(i.index_costs[2].scan_O1N), s(i.index_costs[2].search_OlogN),
+        ratio_b_est, ratio_b_act);
+
+    if (i.row_count < 100000) {
+      EXPECT_GE(ratio_pk_est * 3, ratio_pk_act);
+      EXPECT_LE(ratio_pk_est, ratio_pk_act * 3);
+      EXPECT_GE(ratio_a_est * 3, ratio_a_act);
+      EXPECT_LE(ratio_a_est, ratio_a_act * 3);
+      EXPECT_GE(ratio_b_est * 3, ratio_b_act);
+      EXPECT_LE(ratio_b_est, ratio_b_act * 3);
+    } else {
+      EXPECT_GE(ratio_pk_est * 2, ratio_pk_act);
+      EXPECT_LE(ratio_pk_est, ratio_pk_act * 2);
+      EXPECT_GE(ratio_a_est * 2, ratio_a_act);
+      EXPECT_LE(ratio_a_est, ratio_a_act * 2);
+      EXPECT_GE(ratio_b_est * 2, ratio_b_act);
+      EXPECT_LE(ratio_b_est, ratio_b_act * 2);
+    }
+
+    /* Для отладки
+    fptu::format(std::cout, "col_pk: depth %u, branch %zu, leaf %zu\n",
+                 i.index_costs[0].btree_depth, i.index_costs[0].branch_pages,
+                 i.index_costs[0].leaf_pages);
+    fptu::format(std::cout, "col_a: depth %u, branch %zu, leaf %zu\n",
+                 i.index_costs[1].btree_depth, i.index_costs[1].branch_pages,
+                 i.index_costs[1].leaf_pages);
+    fptu::format(std::cout, "col_b: depth %u, branch %zu, leaf %zu\n",
+                 i.index_costs[2].btree_depth, i.index_costs[2].branch_pages,
+                 i.index_costs[2].leaf_pages); */
+  }
+
+  //---------------------------------------------------------------------------
+  // освобождаем ресурсы
+  EXPECT_EQ(FPTU_OK, fptu_clear(tuple));
+  free(tuple);
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&col_pk);
+  fpta_name_destroy(&col_a);
+  fpta_name_destroy(&col_b);
+
+  // закрываем и удаляем базу
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
