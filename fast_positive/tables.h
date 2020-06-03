@@ -1915,7 +1915,6 @@ typedef struct fpta_table_stat {
   size_t row_count /* Количество строк-записей. */;
   size_t total_items /* Суммарное количество записей, включая все индексы. */;
   size_t total_bytes /* Занимаемое место, включая все индексы. */;
-  unsigned reserved_pad4align;
   unsigned btree_depth /* Глубина/Высота самого большого дерева страниц из всех
                           связанных с таблицей, включая все индексы. */
       ;
