@@ -15,6 +15,13 @@ addons:
       - cmake
       - libgtest-dev
       - clang-format
+      - xz-utils
+      - coreutils
+    update: true
+  homebrew:
+    packages:
+      - xz
+      - base64
     update: true
 
 matrix:
@@ -71,7 +78,7 @@ script: |
     make --keep-going all && \
     (MALLOC_CHECK_=7 MALLOC_PERTURB_=42 make --keep-going test || \
        (echo "-------------------------------------------------------------------------------"; \
-       cat Testing/Temporary/*.log && \
+       xz -c -9 Testing/Temporary/LastTest.log | base64 && \
        echo "-------------------------------------------------------------------------------" ) \
     ) && \
     MALLOC_CHECK_=7 MALLOC_PERTURB_=42 externals/libfptu/test/fptu_c_mode && \
