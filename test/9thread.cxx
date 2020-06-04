@@ -748,13 +748,16 @@ static void executor_thread(fpta_db *db, const char *const read,
         EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_x));
         fptu_clear(tuple);
         uint64_t seq = 0;
-        EXPECT_EQ(FPTA_OK, fpta_table_sequence(txn, &w_table, &seq, 1));
-        EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk,
-                                              fpta_value_uint(seq % 100)));
-        EXPECT_EQ(FPTA_OK,
-                  fpta_upsert_column(tuple, &col_x, fpta_value_cstr("x")));
-        EXPECT_EQ(FPTA_OK, fpta_upsert_row(txn, &w_table, fptu_take(tuple)));
-        achieved |= 1 << 0;
+        err = fpta_table_sequence(txn, &w_table, &seq, 1);
+        if (err != FPTA_TARDY_DBI) {
+          EXPECT_EQ(FPTA_OK, err);
+          EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk,
+                                                fpta_value_uint(seq % 100)));
+          EXPECT_EQ(FPTA_OK,
+                    fpta_upsert_column(tuple, &col_x, fpta_value_cstr("x")));
+          EXPECT_EQ(FPTA_OK, fpta_upsert_row(txn, &w_table, fptu_take(tuple)));
+          achieved |= 1 << 0;
+        }
       } else {
         ASSERT_EQ(FPTA_NOTFOUND, err);
         achieved |= 1 << 1;
