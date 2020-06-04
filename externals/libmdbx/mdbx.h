@@ -653,9 +653,9 @@ typedef pthread_t mdbx_tid_t;
 
 /*----------------------------------------------------------------------------*/
 
-/* MDBX version 0.7.0, released 2020-03-18 */
+/* MDBX version 0.8.0, released 2020-06-05 */
 #define MDBX_VERSION_MAJOR 0
-#define MDBX_VERSION_MINOR 7
+#define MDBX_VERSION_MINOR 8
 
 #ifndef LIBMDBX_API
 #if defined(LIBMDBX_EXPORTS)
@@ -1383,7 +1383,8 @@ typedef enum MDBX_cursor_op {
   MDBX_FIRST_DUP,      /* MDBX_DUPSORT-only: Position at first data item
                         * of current key. */
   MDBX_GET_BOTH,       /* MDBX_DUPSORT-only: Position at key/data pair. */
-  MDBX_GET_BOTH_RANGE, /* MDBX_DUPSORT-only: position at key, nearest data. */
+  MDBX_GET_BOTH_RANGE, /* MDBX_DUPSORT-only: Position at given key and at first
+                        * data greater than or equal to specified data. */
   MDBX_GET_CURRENT,    /* Return key/data at current cursor position */
   MDBX_GET_MULTIPLE,   /* MDBX_DUPFIXED-only: Return up to a page of duplicate
                         * data items from current cursor position.
@@ -2972,7 +2973,8 @@ LIBMDBX_API int mdbx_replace(MDBX_txn *txn, MDBX_dbi dbi, const MDBX_val *key,
  *
  * NOTE: The data parameter is NOT ignored regardless the database does
  * support sorted duplicate data items or not. If the data parameter
- * is non-NULL only the matching data item will be deleted.
+ * is non-NULL only the matching data item will be deleted. Otherwise, if data
+ * parameter is NULL, any/all value(s) for specified key will be deleted.
  *
  * This function will return MDBX_NOTFOUND if the specified key/data
  * pair is not in the database.
@@ -3087,14 +3089,15 @@ LIBMDBX_API int mdbx_cursor_get(MDBX_cursor *cursor, MDBX_val *key,
  * [in] key       The key operated on.
  * [in,out] data  The data operated on.
  * [in] flags     Options for this operation. This parameter
- *                must be set to 0 or one of the values described here:
+ *                must be set to 0 or by bitwise OR'ing together one or more of
+ *                the values described here:
  *
  *  - MDBX_CURRENT
  *      Replace the item at the current cursor position. The key parameter
  *      must still be provided, and must match it, otherwise the function
  *      return MDBX_EKEYMISMATCH.
  *
- *      NOTE: MDBX unlike LMDB allows you to change the size of the data and
+ *      NOTE: MDBX allows (unlike LMDB) you to change the size of the data and
  *      automatically handles reordering for sorted duplicates (MDBX_DUPSORT).
  *
  *  - MDBX_NODUPDATA
@@ -3159,8 +3162,8 @@ LIBMDBX_API int mdbx_cursor_put(MDBX_cursor *cursor, const MDBX_val *key,
  *              or one of the values described here.
  *
  *  - MDBX_NODUPDATA
- *      Delete all of the data items for the current key. This flag may only
- *      be specified if the database was opened with MDBX_DUPSORT.
+ *      Delete all of the data items for the current key. This flag has effect
+ *      only for database(s) was created with MDBX_DUPSORT.
  *
  * Returns A non-zero error value on failure and 0 on success, some
  * possible errors are:

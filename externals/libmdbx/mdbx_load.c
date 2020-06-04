@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY a1ba54bbfadbf5c66d8da41dc448efae6591a0d574ed0e86dfb8ecb19fcdc7be_v0_7_0_127_gf7b8b699b
+#define MDBX_BUILD_SOURCERY 73916d6da717bac27893435625073db781d2361ccb60579724132037a218cb60_v0_8_0_0_g0117473cb
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -3575,7 +3575,7 @@ int main(int argc, char *argv[]) {
     rc = readhdr();
     if (unlikely(rc != MDBX_SUCCESS)) {
       if (rc == EOF)
-        rc = ENODATA;
+        rc = MDBX_ENODATA;
       error("readheader", rc);
       goto env_close;
     }

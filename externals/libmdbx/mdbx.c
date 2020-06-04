@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY a1ba54bbfadbf5c66d8da41dc448efae6591a0d574ed0e86dfb8ecb19fcdc7be_v0_7_0_127_gf7b8b699b
+#define MDBX_BUILD_SOURCERY 73916d6da717bac27893435625073db781d2361ccb60579724132037a218cb60_v0_8_0_0_g0117473cb
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -10484,17 +10484,25 @@ static int mdbx_flush_iov(MDBX_txn *const txn, struct iovec *iov,
                           unsigned iov_items, size_t iov_off,
                           size_t iov_bytes) {
   MDBX_env *const env = txn->mt_env;
-  int rc = mdbx_pwritev(env->me_lazy_fd, iov, iov_items, iov_off, iov_bytes);
-  if (unlikely(rc != MDBX_SUCCESS)) {
-    mdbx_error("Write error: %s", mdbx_strerror(rc));
-    txn->mt_flags |= MDBX_TXN_ERROR;
+  mdbx_assert(env, iov_items > 0);
+  if (likely(iov_items == 1)) {
+    mdbx_assert(env, iov->iov_len == iov_bytes);
+    int rc = mdbx_pwrite(env->me_lazy_fd, iov->iov_base, iov_bytes, iov_off);
+    mdbx_dpage_free(env, (MDBX_page *)iov->iov_base,
+                    bytes2pgno(env, iov_bytes));
+    return rc;
+  } else {
+    int rc = mdbx_pwritev(env->me_lazy_fd, iov, iov_items, iov_off, iov_bytes);
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      mdbx_error("Write error: %s", mdbx_strerror(rc));
+      txn->mt_flags |= MDBX_TXN_ERROR;
+    }
+
+    for (unsigned i = 0; i < iov_items; i++)
+      mdbx_dpage_free(env, (MDBX_page *)iov[i].iov_base,
+                      bytes2pgno(env, iov[i].iov_len));
+    return rc;
   }
-
-  for (unsigned i = 0; i < iov_items; i++)
-    mdbx_dpage_free(env, (MDBX_page *)iov[i].iov_base,
-                    bytes2pgno(env, iov[i].iov_len));
-
-  return rc;
 }
 
 /* Flush (some) dirty pages to the map, after clearing their dirty flag.
@@ -12718,6 +12726,16 @@ static int __cold mdbx_setup_lck(MDBX_env *env, char *lck_pathname,
     mdbx_jitter4testing(false);
     lck->mti_magic_and_version = MDBX_LOCK_MAGIC;
     lck->mti_os_and_format = MDBX_LOCK_FORMAT;
+    err = mdbx_msync(&env->me_lck_mmap, 0, (size_t)size, false);
+    if (unlikely(err != MDBX_SUCCESS)) {
+      mdbx_error("initial-%s for lck-file failed", "msync");
+      goto bailout;
+    }
+    err = mdbx_filesync(env->me_lck_mmap.fd, MDBX_SYNC_SIZE);
+    if (unlikely(err != MDBX_SUCCESS)) {
+      mdbx_error("initial-%s for lck-file failed", "fsync");
+      goto bailout;
+    }
   } else {
     if (lck->mti_magic_and_version != MDBX_LOCK_MAGIC) {
       mdbx_error("%s", "lock region has invalid magic/version");
@@ -19250,7 +19268,7 @@ static int mdbx_dbi_bind(MDBX_txn *txn, const MDBX_dbi dbi, unsigned user_flags,
    *    = assume that a properly create request with custom flags;
    */
   if ((user_flags ^ txn->mt_dbs[dbi].md_flags) & PERSISTENT_FLAGS) {
-    /* flags ara differs, check other conditions */
+    /* flags are differs, check other conditions */
     if ((!user_flags && (!keycmp || keycmp == txn->mt_dbxs[dbi].md_cmp) &&
          (!datacmp || datacmp == txn->mt_dbxs[dbi].md_dcmp)) ||
         user_flags == MDBX_ACCEDE) {
@@ -19498,7 +19516,7 @@ int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
       if (env->me_numdbs <= slot)
         env->me_numdbs = slot + 1;
     } else {
-      env->me_dbiseqs[slot] += 1;
+      env->me_dbiseqs[slot]++;
     }
     txn->mt_dbiseqs[slot] = env->me_dbiseqs[slot];
     *dbi = slot;
@@ -19554,7 +19572,6 @@ static int mdbx_dbi_close_locked(MDBX_env *env, MDBX_dbi dbi) {
   env->me_dbflags[dbi] = 0;
   env->me_dbxs[dbi].md_name.iov_len = 0;
   mdbx_compiler_barrier();
-  env->me_dbiseqs[dbi]++;
   env->me_dbxs[dbi].md_name.iov_base = NULL;
   mdbx_free(ptr);
   return MDBX_SUCCESS;
@@ -19740,6 +19757,7 @@ int mdbx_drop(MDBX_txn *txn, MDBX_dbi dbi, int del) {
         txn->mt_flags |= MDBX_TXN_ERROR;
         goto bailout;
       }
+      env->me_dbiseqs[dbi]++;
       mdbx_dbi_close_locked(env, dbi);
       mdbx_ensure(env,
                   mdbx_fastmutex_release(&env->me_dbi_lock) == MDBX_SUCCESS);
@@ -23987,7 +24005,7 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
 
 
 #if MDBX_VERSION_MAJOR != 0 ||                             \
-    MDBX_VERSION_MINOR != 7
+    MDBX_VERSION_MINOR != 8
 #error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
@@ -24007,11 +24025,11 @@ __dll_export
 #endif
     const mdbx_version_info mdbx_version = {
         0,
-        7,
+        8,
         0,
-        2069,
-        {"2020-05-25T14:53:38+03:00", "b083f26d62bda755128a71381ebb533dc055725a", "f7b8b699b85117377d895329bbc304f332ddb352",
-         "v0.7.0-127-gf7b8b699b"},
+        2086,
+        {"2020-06-05T03:00:43+03:00", "5b1f9574a2d7d88533efba98d98d27fd082acb8f", "0117473cbc1ce9be99a7044fa14c2385d705e220",
+         "v0.8.0-0-g0117473cb"},
         sourcery};
 
 __dll_export
