@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 73916d6da717bac27893435625073db781d2361ccb60579724132037a218cb60_v0_8_0_0_g0117473cb
+#define MDBX_BUILD_SOURCERY ae16f675275e5ce441615d24d9357b6abab224a084f61fd4aa1109c8fc5feba1_v0_8_0_3_g7ab9d24d3
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -12100,6 +12100,7 @@ mdbx_env_set_geometry(MDBX_env *env, intptr_t size_lower, intptr_t size_now,
         env->me_txn->mt_geo = new_geo;
         env->me_txn->mt_flags |= MDBX_TXN_DIRTY;
       } else {
+        meta.mm_geo = new_geo;
         mdbx_meta_set_txnid(
             env, &meta, safe64_txnid_next(mdbx_meta_txnid_stable(env, head)));
         rc = mdbx_sync_locked(env, env->me_flags, &meta);
@@ -12227,8 +12228,9 @@ static int __cold mdbx_setup_dxb(MDBX_env *env, const int lck_rc) {
         meta.mm_geo.upper * pagesize, meta.mm_geo.grow * pagesize,
         meta.mm_geo.shrink * pagesize, meta.mm_psize);
     if (unlikely(err != MDBX_SUCCESS)) {
-      mdbx_error("%s", "could not use present dbsize-params from db");
-      return MDBX_INCOMPATIBLE;
+      mdbx_error("%s: err %d", "could not apply preconfigured db-geometry",
+                 err);
+      return (err == MDBX_EINVAL) ? MDBX_INCOMPATIBLE : err;
     }
   } else if (env->me_dbgeo.now) {
     /* silently growth to last used page */
@@ -12259,8 +12261,9 @@ static int __cold mdbx_setup_dxb(MDBX_env *env, const int lck_rc) {
                                   env->me_dbgeo.upper, env->me_dbgeo.grow,
                                   env->me_dbgeo.shrink, meta.mm_psize);
       if (unlikely(err != MDBX_SUCCESS)) {
-        mdbx_error("%s", "could not apply preconfigured dbsize-params to db");
-        return MDBX_INCOMPATIBLE;
+        mdbx_error("%s: err %d", "could not apply preconfigured db-geometry",
+                   err);
+        return (err == MDBX_EINVAL) ? MDBX_INCOMPATIBLE : err;
       }
 
       /* update meta fields */
@@ -24027,9 +24030,9 @@ __dll_export
         0,
         8,
         0,
-        2086,
-        {"2020-06-05T03:00:43+03:00", "5b1f9574a2d7d88533efba98d98d27fd082acb8f", "0117473cbc1ce9be99a7044fa14c2385d705e220",
-         "v0.8.0-0-g0117473cb"},
+        2089,
+        {"2020-06-08T19:12:12+03:00", "102fe4c1453fee13ae7b3ae0be47c9681b62e3ba", "7ab9d24d3b7bd3eec4e78288cfc890aac8580792",
+         "v0.8.0-3-g7ab9d24d3"},
         sourcery};
 
 __dll_export
