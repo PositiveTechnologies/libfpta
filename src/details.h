@@ -92,7 +92,7 @@ public:
 
 bool fpta_filter_validate(const fpta_filter *filter);
 
-static __inline bool fpta_db_validate(fpta_db *db) {
+static __inline bool fpta_db_validate(const fpta_db *db) {
   if (unlikely(db == nullptr || db->mdbx_env == nullptr))
     return false;
 
@@ -100,7 +100,8 @@ static __inline bool fpta_db_validate(fpta_db *db) {
   return true;
 }
 
-static __inline int fpta_txn_validate(fpta_txn *txn, fpta_level min_level) {
+static __inline int fpta_txn_validate(const fpta_txn *txn,
+                                      fpta_level min_level) {
   if (unlikely(txn == nullptr || !fpta_db_validate(txn->db)))
     return FPTA_EINVAL;
   if (unlikely(txn->level < min_level || txn->level > fpta_schema))

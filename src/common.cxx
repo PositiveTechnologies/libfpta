@@ -116,8 +116,6 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
   default:
     return FPTA_EFLAG;
   case fpta_readonly:
-    if (creation_params != nullptr)
-      return FPTA_EINVAL;
     mdbx_flags |= MDBX_RDONLY;
     break;
   case fpta_weak:
