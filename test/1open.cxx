@@ -69,6 +69,70 @@ TEST(Open, Trivia) {
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
 
+TEST(Open, SingleProcess_ChangeDbSize) {
+  // чистим
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db_stat_t stat;
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  1, false, &db));
+  ASSERT_NE(nullptr, db);
+  ASSERT_EQ(FPTA_OK, fpta_db_info(db, nullptr, &stat));
+  EXPECT_EQ(stat.geo.current, 1u * 1024 * 1024);
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0, false, &db));
+  ASSERT_NE(nullptr, db);
+  ASSERT_EQ(FPTA_OK, fpta_db_info(db, nullptr, &stat));
+  EXPECT_EQ(stat.geo.current, 1u * 1024 * 1024);
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  32, false, &db));
+  ASSERT_NE(nullptr, db);
+  ASSERT_EQ(FPTA_OK, fpta_db_info(db, nullptr, &stat));
+  EXPECT_EQ(stat.geo.current, 32u * 1024 * 1024);
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  0, false, &db));
+  ASSERT_NE(nullptr, db);
+  ASSERT_EQ(FPTA_OK, fpta_db_info(db, nullptr, &stat));
+  EXPECT_EQ(stat.geo.current, 32u * 1024 * 1024);
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                  3, false, &db));
+  ASSERT_NE(nullptr, db);
+  ASSERT_EQ(FPTA_OK, fpta_db_info(db, nullptr, &stat));
+  EXPECT_EQ(stat.geo.current, 3u * 1024 * 1024);
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+
+  fpta_db_creation_params_t creation_params;
+  creation_params.params_size = sizeof(creation_params);
+  creation_params.file_mode = 0640;
+  creation_params.size_lower = creation_params.size_upper = 8 << 20;
+  creation_params.growth_step = 0;
+  creation_params.shrink_threshold = 0;
+  creation_params.pagesize = -1;
+  ASSERT_EQ(FPTA_OK,
+            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_saferam, true,
+                                   &db, &creation_params));
+  ASSERT_NE(nullptr, db);
+  ASSERT_EQ(FPTA_OK, fpta_db_info(db, nullptr, &stat));
+  EXPECT_EQ(stat.geo.current, 8u * 1024 * 1024);
+  EXPECT_EQ(stat.geo.lower, 8u * 1024 * 1024);
+  EXPECT_EQ(stat.geo.upper, 8u * 1024 * 1024);
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
