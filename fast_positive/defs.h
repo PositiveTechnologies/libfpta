@@ -589,22 +589,22 @@
 // In FPTU we sure to that uint_fast32_t is enough for casting.
 #define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE)                                      \
   extern "C++" {                                                               \
-  inline ENUMTYPE operator|(ENUMTYPE a, ENUMTYPE b) {                          \
+  cxx11_constexpr ENUMTYPE operator|(ENUMTYPE a, ENUMTYPE b) {                 \
     return ENUMTYPE(((uint_fast32_t)a) | ((uint_fast32_t)b));                  \
   }                                                                            \
   inline ENUMTYPE &operator|=(ENUMTYPE &a, ENUMTYPE b) {                       \
     return (ENUMTYPE &)(((uint_fast32_t &)a) |= ((uint_fast32_t)b));           \
   }                                                                            \
-  inline ENUMTYPE operator&(ENUMTYPE a, ENUMTYPE b) {                          \
+  cxx11_constexpr ENUMTYPE operator&(ENUMTYPE a, ENUMTYPE b) {                 \
     return ENUMTYPE(((uint_fast32_t)a) & ((uint_fast32_t)b));                  \
   }                                                                            \
   inline ENUMTYPE &operator&=(ENUMTYPE &a, ENUMTYPE b) {                       \
     return (ENUMTYPE &)(((uint_fast32_t &)a) &= ((uint_fast32_t)b));           \
   }                                                                            \
-  inline ENUMTYPE operator~(ENUMTYPE a) {                                      \
+  cxx11_constexpr ENUMTYPE operator~(ENUMTYPE a) {                             \
     return ENUMTYPE(~((uint_fast32_t)a));                                      \
   }                                                                            \
-  inline ENUMTYPE operator^(ENUMTYPE a, ENUMTYPE b) {                          \
+  cxx11_constexpr ENUMTYPE operator^(ENUMTYPE a, ENUMTYPE b) {                 \
     return ENUMTYPE(((uint_fast32_t)a) ^ ((uint_fast32_t)b));                  \
   }                                                                            \
   inline ENUMTYPE &operator^=(ENUMTYPE &a, ENUMTYPE b) {                       \
