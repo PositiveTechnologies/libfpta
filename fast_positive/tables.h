@@ -953,6 +953,7 @@ typedef enum fpta_regime_flags {
   fpta_madness4testing = 2147483648
 #endif
 } fpta_regime_flags;
+FPT_ENUM_FLAG_OPERATORS(fpta_regime_flags)
 
 /* Структура аккумулирующая параметры требуемые для создания новой или
  * корректировки геометрии существующей БД. */
@@ -3352,11 +3353,6 @@ inline string to_string(const fpta_filter &filter) {
   return to_string(&filter);
 }
 } // namespace std
-
-cxx11_constexpr fpta_regime_flags operator|(const fpta_regime_flags a,
-                                            const fpta_regime_flags b) {
-  return (fpta_regime_flags)((unsigned)a | (unsigned)b);
-}
 
 inline fpta_value fpta_value::negative() const {
   if (type == fpta_signed_int)
