@@ -21,8 +21,20 @@
 
 #include "erthink/erthink.h"
 #include "fast_positive/tuples_internal.h"
+
+#ifdef _MSC_VER
+#pragma warning(disable : 4530) /* C++ exception handler used, but unwind      \
+                                   semantics are not enabled. Specify /EHsc */
+#pragma warning(push, 1)
+#pragma warning(disable : 4577) /* 'noexcept' used with no exception handling  \
+                                    mode specified; termination on exception   \
+                                    is not guaranteed. Specify /EHsc */
+#endif                          /* _MSC_VER (warnings) */
 #include <iomanip>
 #include <sstream>
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 bool fptu_is_under_valgrind(void) {
 #ifdef RUNNING_ON_VALGRIND
