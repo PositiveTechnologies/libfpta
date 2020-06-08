@@ -203,6 +203,18 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;
 
+  if (creation_params && !FPTA_PRESERVE_GEOMETRY) {
+    rc = mdbx_env_set_geometry(
+        db->mdbx_env, creation_params->size_lower,
+        -1 /* current/initial size = default */, creation_params->size_upper,
+        creation_params->growth_step, creation_params->shrink_threshold,
+        creation_params->pagesize);
+    if (unlikely(rc != MDBX_SUCCESS)) {
+      rc = (rc == MDBX_EINVAL) ? int(FPTA_DB_INCOMPAT) : rc;
+      goto bailout;
+    }
+  }
+
   *pdb = db;
   return FPTA_SUCCESS;
 
