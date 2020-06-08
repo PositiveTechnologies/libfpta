@@ -665,3 +665,70 @@ int fpta_enough_for_restart(fpta_txn *txn, size_t lag_threshold,
 
   return FPTA_NODATA;
 }
+
+//----------------------------------------------------------------------------
+
+int fpta_db_info(const fpta_db *db, const fpta_txn *txn, fpta_db_stat_t *stat) {
+  int err;
+  if (unlikely((!db && !txn) || !stat))
+    return FPTA_EINVAL;
+  if (db && unlikely(!fpta_db_validate(db)))
+    return FPTA_EINVAL;
+  if (txn) {
+    err = fpta_txn_validate(txn, fpta_read);
+    if (unlikely(err != FPTA_SUCCESS))
+      return err;
+  }
+
+  MDBX_envinfo mdbx_info;
+  err = mdbx_env_info_ex(db ? db->mdbx_env : nullptr,
+                         txn ? txn->mdbx_txn : nullptr, &mdbx_info,
+                         sizeof(mdbx_info));
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
+
+  stat->geo.lower = mdbx_info.mi_geo.lower;
+  stat->geo.upper = mdbx_info.mi_geo.upper;
+  stat->geo.current = mdbx_info.mi_geo.current;
+  stat->geo.shrink = mdbx_info.mi_geo.shrink;
+  stat->geo.grow = mdbx_info.mi_geo.grow;
+
+  stat->geo.mapsize = mdbx_info.mi_mapsize;
+  stat->geo.allocated = mdbx_info.mi_last_pgno * mdbx_info.mi_dxb_pagesize;
+  stat->geo.pagesize = mdbx_info.mi_dxb_pagesize;
+  stat->geo.sys_pagesize = mdbx_info.mi_sys_pagesize;
+
+  stat->recent_txnid = mdbx_info.mi_recent_txnid;
+  stat->latter_reader_txnid = mdbx_info.mi_latter_reader_txnid;
+  stat->self_latter_reader_txnid = mdbx_info.mi_self_latter_reader_txnid;
+
+  stat->maxreaders = mdbx_info.mi_maxreaders;
+  stat->numreaders = mdbx_info.mi_numreaders;
+
+  stat->unsync_volume = mdbx_info.mi_unsync_volume;
+  stat->autosync_threshold = mdbx_info.mi_autosync_threshold;
+  stat->since_sync_seconds16dot16 = mdbx_info.mi_since_sync_seconds16dot16;
+  stat->autosync_period_seconds16dot16 =
+      mdbx_info.mi_autosync_period_seconds16dot16;
+  stat->since_reader_check_seconds16dot16 =
+      mdbx_info.mi_since_reader_check_seconds16dot16;
+
+  stat->durability =
+      ((mdbx_info.mi_mode & MDBX_UTTERLY_NOSYNC) == MDBX_UTTERLY_NOSYNC)
+          ? fpta_weak
+          : (mdbx_info.mi_mode &
+             (MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC | MDBX_MAPASYNC))
+                ? fpta_lazy
+                : (mdbx_info.mi_mode & MDBX_RDONLY) ? fpta_readonly : fpta_sync;
+
+  static_assert(0 == fpta_regime_default, "Oops");
+  stat->regime_flags =
+      (mdbx_info.mi_mode & MDBX_WRITEMAP) ? fpta_regime_default : fpta_saferam;
+  if (mdbx_info.mi_mode & MDBX_LIFORECLAIM)
+    stat->regime_flags |= fpta_frendly4writeback;
+  if (mdbx_info.mi_mode & MDBX_COALESCE)
+    stat->regime_flags |= fpta_frendly4compaction;
+
+  stat->alterable_schema = db->alterable_schema;
+  return FPTA_SUCCESS;
+}
