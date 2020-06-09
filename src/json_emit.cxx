@@ -28,9 +28,9 @@
 #ifdef _MSC_VER
 #pragma warning(disable : 4774) /* '_snprintf_s' : format string expected in   \
                                    argument 4 is not a string literal */
+#pragma warning(push, 1)
 #pragma warning(disable : 4530) /* C++ exception handler used, but unwind      \
                                    semantics are not enabled. Specify /EHsc */
-#pragma warning(push, 1)
 #pragma warning(disable : 4577) /* 'noexcept' used with no exception handling  \
                                     mode specified; termination on exception   \
                                     is not guaranteed. Specify /EHsc */
@@ -40,6 +40,8 @@
 #include <sstream>
 #ifdef _MSC_VER
 #pragma warning(pop)
+#pragma warning(disable : 4530) /* C++ exception handler used, but unwind      \
+                                   semantics are not enabled. Specify /EHsc */
 #endif
 
 using namespace fptu;
