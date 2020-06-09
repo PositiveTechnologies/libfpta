@@ -475,9 +475,6 @@ endif()
 macro(setup_compile_flags)
   # save initial C/CXX flags
   if(NOT INITIAL_CMAKE_FLAGS_SAVED)
-    if(MSVC)
-      string(REGEX REPLACE "^(.*)(/EHsc)( *)(.*)$" "\\1/EHs\\3\\4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    endif()
     set(INITIAL_CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} CACHE STRING "Initial CMake's flags" FORCE)
     set(INITIAL_CMAKE_C_FLAGS ${CMAKE_C_FLAGS} CACHE STRING "Initial CMake's flags" FORCE)
     set(INITIAL_CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} CACHE STRING "Initial CMake's flags" FORCE)
@@ -501,6 +498,22 @@ macro(setup_compile_flags)
   if(CC_HAS_FCXX_EXCEPTIONS)
     add_compile_flags("CXX" "-fcxx-exceptions -frtti")
   endif()
+  if(MSVC)
+    # checks for /EHa or /clr options exists,
+    # i.e. is enabled structured async WinNT exceptions
+    string(REGEX MATCH "^(.* )*[-/]EHc*a( .*)*$" msvc_async_eh_enabled "${CXX_FLAGS}" "${C_FLAGS}")
+    string(REGEX MATCH "^(.* )*[-/]clr( .*)*$" msvc_clr_enabled "${CXX_FLAGS}" "${C_FLAGS}")
+    # remote any /EH? options
+    string(REGEX REPLACE "( *[-/]-*EH[csa]+ *)+" "" CXX_FLAGS "${CXX_FLAGS}")
+    string(REGEX REPLACE "( *[-/]-*EH[csa]+ *)+" "" C_FLAGS "${C_FLAGS}")
+    if (msvc_clr_enabled STREQUAL "")
+      if(NOT msvc_async_eh_enabled STREQUAL "")
+        add_compile_flags("C;CXX" "/EHa")
+      else()
+        add_compile_flags("C;CXX" "/EHsc")
+      endif()
+    endif()
+  endif(MSVC)
 
   if(CC_HAS_WNO_ATTRIBUTES AND CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG}
       AND CMAKE_${CMAKE_PRIMARY_LANG}_COMPILER_VERSION VERSION_LESS 9)
