@@ -78,7 +78,7 @@ if(BUILD_TESTING)
 
       message(STATUS "Not found GoogleTest sources, downloading it...")
       configure_file(${CMAKE_CURRENT_LIST_DIR}/googletest-download.cmake.in ${CMAKE_BINARY_DIR}/googletest-download/CMakeLists.txt)
-      execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" -D "GTEST_CLONE_TAG:STRING=${GTEST_CLONE_TAG}" .
+      execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
         RESULT_VARIABLE result
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download)
       if(result)
