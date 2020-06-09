@@ -27,6 +27,10 @@ if(BUILD_TESTING)
     set(INSTALL_GTEST OFF CACHE BOOL "Enable installation of googletest")
   endif()
 
+  if(NOT DEFINED GTEST_USE_VERSION)
+    set(GTEST_USE_VERSION "LAST_RELEASE")
+  endif()
+
   cmake_policy(SET CMP0042 NEW)
   cmake_policy(SET CMP0054 NEW)
   if(NOT CMAKE_VERSION VERSION_LESS 3.9)
@@ -64,19 +68,27 @@ if(BUILD_TESTING)
     if(gtest_root)
       message(STATUS "Found GoogleTest sources at ${gtest_root}")
     else()
+      if(NOT DEFINED GTEST_USE_VERSION
+          OR GTEST_USE_VERSION STREQUAL "master"
+          OR GTEST_USE_VERSION STREQUAL "LAST_RELEASE")
+        set(GTEST_CLONE_TAG "master")
+      else()
+        set(GTEST_CLONE_TAG "origin/${GTEST_USE_VERSION}")
+      endif()
+
       message(STATUS "Not found GoogleTest sources, downloading it...")
       configure_file(${CMAKE_CURRENT_LIST_DIR}/googletest-download.cmake.in ${CMAKE_BINARY_DIR}/googletest-download/CMakeLists.txt)
-      execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+      execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" -D "GTEST_CLONE_TAG:STRING=${GTEST_CLONE_TAG}" .
         RESULT_VARIABLE result
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download)
       if(result)
-        message(FATAL_ERROR "CMake step for GoogleTest failed: ${result}")
+        message(FATAL_ERROR "Prepare step for GoogleTest failed: ${result}")
       else()
         execute_process(COMMAND ${CMAKE_COMMAND} --build .
           RESULT_VARIABLE result
-          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download )
+          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download)
         if(result)
-          message(FATAL_ERROR "Build step for GoogleTest failed: ${result}")
+          message(FATAL_ERROR "Download step for GoogleTest failed: ${result}")
         else()
           set(gtest_root "${CMAKE_BINARY_DIR}/googletest-src")
         endif()
@@ -89,6 +101,58 @@ if(BUILD_TESTING)
           AND EXISTS "${gtest_root}/../CMakeLists.txt")
         get_filename_component(gtest_root "${gtest_root}/.." ABSOLUTE)
       endif()
+
+      if(DEFINED GTEST_USE_VERSION AND IS_DIRECTORY "${gtest_root}/.git")
+        find_program(GIT git)
+        if(GIT)
+          if(GTEST_USE_VERSION STREQUAL "LAST_RELEASE")
+            # get list of remote branches like 'v1.10.x'
+            execute_process(
+              COMMAND "${GIT}" branch --remote --sort=-version:refname --list "origin/v[0-9.]*.x" --no-color
+              WORKING_DIRECTORY "${gtest_root}"
+              RESULT_VARIABLE result
+              OUTPUT_VARIABLE branch_list OUTPUT_STRIP_TRAILING_WHITESPACE)
+            set(branch_last_release "")
+            if(result EQUAL 0)
+              string(REGEX REPLACE "\n" ";" branch_list "${branch_list}")
+              list(LENGTH branch_list length)
+              if(length GREATER 0)
+                list(GET branch_list 0 branch_last_release)
+                string(REGEX REPLACE "^  " "" branch_last_release "${branch_last_release}")
+                message(STATUS "GoogleTest last like-release branch: ${branch_last_release}")
+                execute_process(
+                  COMMAND "${GIT}" checkout --detach "${branch_last_release}"
+                  WORKING_DIRECTORY "${gtest_root}" RESULT_VARIABLE result)
+              endif()
+            endif()
+            if(branch_last_release STREQUAL "")
+              # no suitable branch, get list of tags
+              set(tag_last_release "")
+              execute_process(
+                COMMAND ${GIT} tag --sort=-version:refname
+                WORKING_DIRECTORY "${gtest_root}"
+                OUTPUT_VARIABLE tag_list OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE result)
+              if(result EQUAL 0)
+                string(REGEX REPLACE "\n" ";" tag_list "${tag_list}")
+                list(LENGTH tag_list length)
+                if(length GREATER 0)
+                  list(GET tag_list 0 tag_last_release)
+                  message(STATUS "GoogleTest last like-release tag: ${tag_last_release}")
+                  execute_process(
+                    COMMAND "${GIT}" checkout --detach "${tag_last_release}"
+                    WORKING_DIRECTORY "${gtest_root}")
+                endif()
+              endif()
+            endif()
+          else()
+            execute_process(
+              COMMAND "${GIT}" checkout --detach "${GTEST_USE_VERSION}"
+              WORKING_DIRECTORY "${gtest_root}")
+          endif()
+        endif(GIT)
+      endif()
+
       unset(GTEST_INCLUDE_DIR CACHE)
       unset(GTEST_LIBRARY CACHE)
       unset(GTEST_LIBRARY_DEBUG CACHE)
