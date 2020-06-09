@@ -360,7 +360,7 @@ if(CMAKE_COMPILER_IS_CLANG)
     endif()
 
     if(NOT CMAKE_CLANG_LD AND clang_bindirs)
-      find_program(CMAKE_CLANG_LD NAMES lld-link ld.lld ld${CMAKE_TARGET_BITNESS}.lld lld llvm-link llvm-ld PATHS ${clang_bindirs} NO_DEFAULT_PATH)
+      find_program(CMAKE_CLANG_LD NAMES lld-link ld.lld "ld${CMAKE_TARGET_BITNESS}.lld" lld llvm-link llvm-ld PATHS ${clang_bindirs} NO_DEFAULT_PATH)
     endif()
     if(NOT CMAKE_CLANG_AR AND clang_bindirs)
       find_program(CMAKE_CLANG_AR NAMES llvm-ar ar PATHS ${clang_bindirs} NO_DEFAULT_PATH)
@@ -409,7 +409,8 @@ if(CMAKE_COMPILER_IS_CLANG)
       AND ((CLANG_LTO_PLUGIN AND CMAKE_LD_GOLD)
         OR (CMAKE_CLANG_LD
           AND NOT (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux"
-            AND CMAKE_SYSTEM_NAME STREQUAL "Linux"))))
+            AND CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+        OR APPLE))
     set(CLANG_LTO_AVAILABLE TRUE)
     message(STATUS "Link-Time Optimization by CLANG/LLVM is available")
   elseif(CMAKE_TOOLCHAIN_FILE AND NOT CMAKE_${CMAKE_PRIMARY_LANG}_COMPILER_VERSION VERSION_LESS 7.0)
