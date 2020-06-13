@@ -23,7 +23,9 @@
 
 /* TODO: refactoring defines to C++ functions and templateds */
 
+#ifdef __cplusplus
 namespace erthink {
+#endif
 
 #if defined(__e2k__) && __iset__ >= 5
 
@@ -167,4 +169,6 @@ add64carry_last(unsigned carry, uint64_t base, uint64_t addend, uint64_t *sum) {
 }
 #endif /* add64carry_last */
 
+#ifdef __cplusplus
 } // namespace erthink
+#endif
