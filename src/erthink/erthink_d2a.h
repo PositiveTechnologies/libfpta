@@ -37,6 +37,10 @@
  *    but may slightly inferior in a whole on a 16-17 digit values.
  */
 
+#if !defined(__cplusplus) || __cplusplus < 201103L
+#error "This source code requires C++11 at least."
+#endif
+
 #include "erthink_carryadd.h"
 #include "erthink_casting.h"
 #include "erthink_clz.h"

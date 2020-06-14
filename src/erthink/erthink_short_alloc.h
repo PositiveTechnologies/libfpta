@@ -38,6 +38,11 @@
 // SOFTWARE.
 
 #pragma once
+
+#if !defined(__cplusplus) || __cplusplus < 201103L
+#error "This source code requires C++11 at least."
+#endif
+
 #include <cassert>
 #include <cstddef>
 #include <new>
