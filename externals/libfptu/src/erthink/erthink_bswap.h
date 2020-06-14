@@ -125,7 +125,7 @@ template <> constexpr_intrin int64_t bswap<int64_t>(int64_t v) {
   return bswap64(v);
 }
 }
-#endif
+#endif /* __cplusplus */
 
 #pragma pop_macro("bswap16")
 #pragma pop_macro("bswap32")

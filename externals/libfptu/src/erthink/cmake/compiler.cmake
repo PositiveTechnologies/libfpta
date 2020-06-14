@@ -220,7 +220,9 @@ else()
   check_compiler_flag("-Wextra" CC_HAS_WEXTRA)
   check_compiler_flag("-Werror" CC_HAS_WERROR)
   check_compiler_flag("-fexceptions" CC_HAS_FEXCEPTIONS)
-  check_cxx_compiler_flag("-fcxx-exceptions" CC_HAS_FCXX_EXCEPTIONS)
+  if(CMAKE_CXX_COMPILER_LOADED)
+    check_cxx_compiler_flag("-fcxx-exceptions" CC_HAS_FCXX_EXCEPTIONS)
+  endif()
   check_compiler_flag("-funwind-tables" CC_HAS_FUNWIND_TABLES)
   check_compiler_flag("-fno-omit-frame-pointer" CC_HAS_FNO_OMIT_FRAME_POINTER)
   check_compiler_flag("-fno-common" CC_HAS_FNO_COMMON)
@@ -236,10 +238,17 @@ else()
 
   # Check for an omp support
   set(CMAKE_REQUIRED_FLAGS "-fopenmp -Werror")
-  check_cxx_source_compiles("int main(void) {
-    #pragma omp parallel
-    return 0;
-    }" HAVE_OPENMP)
+  if(CMAKE_CXX_COMPILER_LOADED)
+    check_cxx_source_compiles("int main(void) {
+      #pragma omp parallel
+      return 0;
+      }" HAVE_OPENMP)
+  else()
+    check_c_source_compiles("int main(void) {
+      #pragma omp parallel
+      return 0;
+      }" HAVE_OPENMP)
+  endif()
   set(CMAKE_REQUIRED_FLAGS "")
 endif()
 

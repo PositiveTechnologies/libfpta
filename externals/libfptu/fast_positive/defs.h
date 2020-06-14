@@ -298,7 +298,7 @@
 #elif defined(_MSC_VER)
 #define __always_inline __forceinline
 #else
-#define __always_inline
+#define __always_inline __inline
 #endif
 #endif /* __always_inline */
 
@@ -587,29 +587,21 @@
 // Define operator overloads to enable bit operations on enum values that are
 // used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
 // In FPTU we sure to that uint_fast32_t is enough for casting.
-#define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE)                                      \
+#define FPT_ENUM_FLAG_OPERATORS(ENUM)                                          \
   extern "C++" {                                                               \
-  cxx11_constexpr ENUMTYPE operator|(ENUMTYPE a, ENUMTYPE b) {                 \
-    return ENUMTYPE(((uint_fast32_t)a) | ((uint_fast32_t)b));                  \
+  cxx11_constexpr ENUM operator|(ENUM a, ENUM b) {                             \
+    return ENUM(std::size_t(a) | std::size_t(b));                              \
   }                                                                            \
-  inline ENUMTYPE &operator|=(ENUMTYPE &a, ENUMTYPE b) {                       \
-    return (ENUMTYPE &)(((uint_fast32_t &)a) |= ((uint_fast32_t)b));           \
+  cxx14_constexpr ENUM &operator|=(ENUM &a, ENUM b) { return a = a | b; }      \
+  cxx11_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
+    return ENUM(std::size_t(a) & std::size_t(b));                              \
   }                                                                            \
-  cxx11_constexpr ENUMTYPE operator&(ENUMTYPE a, ENUMTYPE b) {                 \
-    return ENUMTYPE(((uint_fast32_t)a) & ((uint_fast32_t)b));                  \
+  cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) { return a = a & b; }      \
+  cxx11_constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }     \
+  cxx11_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
+    return ENUM(std::size_t(a) ^ std::size_t(b));                              \
   }                                                                            \
-  inline ENUMTYPE &operator&=(ENUMTYPE &a, ENUMTYPE b) {                       \
-    return (ENUMTYPE &)(((uint_fast32_t &)a) &= ((uint_fast32_t)b));           \
-  }                                                                            \
-  cxx11_constexpr ENUMTYPE operator~(ENUMTYPE a) {                             \
-    return ENUMTYPE(~((uint_fast32_t)a));                                      \
-  }                                                                            \
-  cxx11_constexpr ENUMTYPE operator^(ENUMTYPE a, ENUMTYPE b) {                 \
-    return ENUMTYPE(((uint_fast32_t)a) ^ ((uint_fast32_t)b));                  \
-  }                                                                            \
-  inline ENUMTYPE &operator^=(ENUMTYPE &a, ENUMTYPE b) {                       \
-    return (ENUMTYPE &)(((uint_fast32_t &)a) ^= ((uint_fast32_t)b));           \
-  }                                                                            \
+  cxx14_constexpr ENUM &operator^=(ENUM &a, ENUM b) { return a = a ^ b; }      \
   }
 #else                                     /* __cplusplus */
 #define FPT_ENUM_FLAG_OPERATORS(ENUMTYPE) /* nope, C allows these operators */

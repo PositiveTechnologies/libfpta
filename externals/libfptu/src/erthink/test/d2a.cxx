@@ -259,6 +259,7 @@ TYPED_TEST_P(d2a, trivia) {
   TestFixture::probe_d2a(buffer, -3.0);
   TestFixture::probe_d2a(buffer, M_PI);
   TestFixture::probe_d2a(buffer, -M_PI);
+  TestFixture::probe_d2a(buffer, 546653e-6 /* ERRATA.GRISU2 */);
 
   TestFixture::probe_d2a(buffer, INT32_MIN);
   TestFixture::probe_d2a(buffer, INT32_MAX);

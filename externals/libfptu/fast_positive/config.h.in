@@ -21,7 +21,8 @@
 #cmakedefine HAVE_UNISTD_H
 #cmakedefine HAVE_SYS_UIO_H
 #cmakedefine HAVE_SYS_STAT_H
-#cmakedefine HAVE_TIMEVAL_TV_USEC
+#cmakedefine HAVE_SYSTIME_H_TIMEVAL_TV_USEC
+#cmakedefine HAVE_SYSSELECT_H_TIMEVAL_TV_USEC
 #cmakedefine HAVE_TIMESPEC_TV_NSEC
 #cmakedefine CMAKE_HAVE_PTHREAD_H
 #cmakedefine HAVE_VALGRIND_MEMCHECK_H

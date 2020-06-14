@@ -94,6 +94,12 @@ struct iovec {
 #define HAVE_STRUCT_IOVEC
 #endif
 
+#if defined(HAVE_SYSTIME_H_TIMEVAL_TV_USEC)
+#include <sys/time.h>
+#elif defined(HAVE_SYSSELECT_H_TIMEVAL_TV_USEC)
+#include <sys/select.h>
+#endif /* HAVE_xxx_TIMEVAL_TV_USEC */
+
 #ifdef __cplusplus
 #include <cmath>     // for std::ldexp
 #include <limits>    // for numeric_limits<>
@@ -274,13 +280,14 @@ union
   }
 #endif /* HAVE_TIMESPEC_TV_NSEC */
 
-#ifdef HAVE_TIMEVAL_TV_USEC
+#if defined(HAVE_SYSTIME_H_TIMEVAL_TV_USEC) ||                                 \
+    defined(HAVE_SYSSELECT_H_TIMEVAL_TV_USEC)
   static FPTU_API fptu_time from_timeval(const struct timeval &tv) {
     fptu_time result = {((uint64_t)tv.tv_sec << 32) |
                         us2fractional((uint_fast32_t)tv.tv_usec)};
     return result;
   }
-#endif /* HAVE_TIMEVAL_TV_USEC */
+#endif /* HAVE_xxx_TIMEVAL_TV_USEC */
 
 #ifdef _FILETIME_
   static FPTU_API fptu_time from_filetime(FILETIME *pFileTime) {

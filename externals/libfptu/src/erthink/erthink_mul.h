@@ -17,6 +17,10 @@
 
 #pragma once
 
+#if !defined(__cplusplus) || __cplusplus < 201103L
+#error "This source code requires C++11 at least."
+#endif
+
 #include "erthink_arch.h"
 #include "erthink_carryadd.h"
 #include "erthink_defs.h"
@@ -24,7 +28,9 @@
 
 /* TODO: refactoring defines to C++ functions and templateds */
 
+#ifdef __cplusplus
 namespace erthink {
+#endif
 
 #if defined(__e2k__) && __iset__ >= 3
 #define mul_64x64_high(a, b) __builtin_e2k_umulhd(a, b)
@@ -86,4 +92,6 @@ static __maybe_unused __always_inline uint64_t mul_64x64_128(uint64_t a,
 }
 #endif /* mul_64x64_128() */
 
+#ifdef __cplusplus
 } // namespace erthink
+#endif
