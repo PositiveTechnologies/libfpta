@@ -298,7 +298,7 @@
 #elif defined(_MSC_VER)
 #define __always_inline __forceinline
 #else
-#define __always_inline
+#define __always_inline __inline
 #endif
 #endif /* __always_inline */
 
