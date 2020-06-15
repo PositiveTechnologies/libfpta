@@ -79,7 +79,8 @@ script: |
     (MALLOC_CHECK_=7 MALLOC_PERTURB_=42 make --keep-going test || \
        (echo "-------------------------------------------------------------------------------"; \
        xz -c -9 Testing/Temporary/LastTest.log | base64 && \
-       echo "-------------------------------------------------------------------------------" ) \
+       echo "-------------------------------------------------------------------------------"; \
+       exit 1) \
     ) && \
     MALLOC_CHECK_=7 MALLOC_PERTURB_=42 externals/libfptu/test/fptu_c_mode && \
     MALLOC_CHECK_=7 MALLOC_PERTURB_=42 test/fpta_c_mode
