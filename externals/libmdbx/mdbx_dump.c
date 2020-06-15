@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY ae16f675275e5ce441615d24d9357b6abab224a084f61fd4aa1109c8fc5feba1_v0_8_0_3_g7ab9d24d3
+#define MDBX_BUILD_SOURCERY be35a31257f96b3492ef130735dc0354ef80645eb3fea78d345d12e6476e5414_v0_8_1_1_g35313d18
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1552,6 +1552,11 @@ extern LIBMDBX_API const char *const mdbx_sourcery_anchor;
  *
  */
 
+/* Support for huge write-transactions */
+#ifndef MDBX_HUGE_TRANSACTIONS
+#define MDBX_HUGE_TRANSACTIONS 0
+#endif /* MDBX_HUGE_TRANSACTIONS */
+
 /* using fcntl(F_FULLFSYNC) with 5-10 times slowdown */
 #define MDBX_OSX_WANNA_DURABILITY 0
 /* using fsync() with chance of data lost on power failure */
@@ -2240,9 +2245,16 @@ typedef MDBX_DP *MDBX_DPL;
 #define MDBX_PNL_GRANULATE 1024
 #define MDBX_PNL_INITIAL                                                       \
   (MDBX_PNL_GRANULATE - 2 - MDBX_ASSUME_MALLOC_OVERHEAD / sizeof(pgno_t))
+
+#if MDBX_HUGE_TRANSACTIONS
+#define MDBX_PNL_MAX                                                           \
+  ((1u << 26) - 2 - MDBX_ASSUME_MALLOC_OVERHEAD / sizeof(pgno_t))
+#define MDBX_DPL_TXNFULL (MDBX_PNL_MAX / 2)
+#else
 #define MDBX_PNL_MAX                                                           \
   ((1u << 24) - 2 - MDBX_ASSUME_MALLOC_OVERHEAD / sizeof(pgno_t))
 #define MDBX_DPL_TXNFULL (MDBX_PNL_MAX / 4)
+#endif /* MDBX_HUGE_TRANSACTIONS */
 
 #define MDBX_TXL_GRANULATE 32
 #define MDBX_TXL_INITIAL                                                       \
@@ -2518,7 +2530,7 @@ struct MDBX_env {
   MDBX_page *me_dpages;        /* list of malloc'd blocks for re-use */
   /* PNL of pages that became unused in a write txn */
   MDBX_PNL me_retired_pages;
-  /* MDBX_DP of pages written during a write txn. Length MDBX_DPL_TXNFULL. */
+  /* MDBX_DP of pages written during a write txn. */
   MDBX_DPL me_dirtylist;
   /* Number of freelist items that can fit in a single overflow page */
   unsigned me_maxgc_ov1page;

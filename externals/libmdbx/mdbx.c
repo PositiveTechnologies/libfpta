@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY ae16f675275e5ce441615d24d9357b6abab224a084f61fd4aa1109c8fc5feba1_v0_8_0_3_g7ab9d24d3
+#define MDBX_BUILD_SOURCERY be35a31257f96b3492ef130735dc0354ef80645eb3fea78d345d12e6476e5414_v0_8_1_1_g35313d18
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1530,6 +1530,11 @@ extern LIBMDBX_API const char *const mdbx_sourcery_anchor;
  *
  */
 
+/* Support for huge write-transactions */
+#ifndef MDBX_HUGE_TRANSACTIONS
+#define MDBX_HUGE_TRANSACTIONS 0
+#endif /* MDBX_HUGE_TRANSACTIONS */
+
 /* using fcntl(F_FULLFSYNC) with 5-10 times slowdown */
 #define MDBX_OSX_WANNA_DURABILITY 0
 /* using fsync() with chance of data lost on power failure */
@@ -2218,9 +2223,16 @@ typedef MDBX_DP *MDBX_DPL;
 #define MDBX_PNL_GRANULATE 1024
 #define MDBX_PNL_INITIAL                                                       \
   (MDBX_PNL_GRANULATE - 2 - MDBX_ASSUME_MALLOC_OVERHEAD / sizeof(pgno_t))
+
+#if MDBX_HUGE_TRANSACTIONS
+#define MDBX_PNL_MAX                                                           \
+  ((1u << 26) - 2 - MDBX_ASSUME_MALLOC_OVERHEAD / sizeof(pgno_t))
+#define MDBX_DPL_TXNFULL (MDBX_PNL_MAX / 2)
+#else
 #define MDBX_PNL_MAX                                                           \
   ((1u << 24) - 2 - MDBX_ASSUME_MALLOC_OVERHEAD / sizeof(pgno_t))
 #define MDBX_DPL_TXNFULL (MDBX_PNL_MAX / 4)
+#endif /* MDBX_HUGE_TRANSACTIONS */
 
 #define MDBX_TXL_GRANULATE 32
 #define MDBX_TXL_INITIAL                                                       \
@@ -2496,7 +2508,7 @@ struct MDBX_env {
   MDBX_page *me_dpages;        /* list of malloc'd blocks for re-use */
   /* PNL of pages that became unused in a write txn */
   MDBX_PNL me_retired_pages;
-  /* MDBX_DP of pages written during a write txn. Length MDBX_DPL_TXNFULL. */
+  /* MDBX_DP of pages written during a write txn. */
   MDBX_DPL me_dirtylist;
   /* Number of freelist items that can fit in a single overflow page */
   unsigned me_maxgc_ov1page;
@@ -3311,9 +3323,9 @@ __cold intptr_t mdbx_limits_valsize_max(intptr_t pagesize, unsigned flags) {
   const unsigned page_ln2 = log2n(pagesize);
   const size_t hard = 0x7FF00000ul;
   const size_t hard_pages = hard >> page_ln2;
-  const size_t limit = (hard_pages < MDBX_DPL_TXNFULL)
+  const size_t limit = (hard_pages < MDBX_DPL_TXNFULL / 3)
                            ? hard
-                           : ((size_t)MDBX_DPL_TXNFULL << page_ln2);
+                           : ((size_t)MDBX_DPL_TXNFULL / 3 << page_ln2);
   return (limit < MAX_MAPSIZE) ? limit / 2 : MAX_MAPSIZE / 2;
 }
 
@@ -7118,8 +7130,17 @@ static int mdbx_page_spill(MDBX_cursor *mc, const MDBX_val *key,
   if (txn->tw.dirtyroom > i)
     return MDBX_SUCCESS;
 
+  /* Less aggressive spill - we originally spilled the entire dirty list,
+   * with a few exceptions for cursor pages and DB root pages. But this
+   * turns out to be a lot of wasted effort because in a large txn many
+   * of those pages will need to be used again. So now we spill only 1/8th
+   * of the dirty pages. Testing revealed this to be a good tradeoff,
+   * better than 1/2, 1/4, or 1/10. */
+  if (need < MDBX_DPL_TXNFULL / 8)
+    need = MDBX_DPL_TXNFULL / 8;
+
   if (!txn->tw.spill_pages) {
-    txn->tw.spill_pages = mdbx_pnl_alloc(MDBX_DPL_TXNFULL / 8);
+    txn->tw.spill_pages = mdbx_pnl_alloc(need);
     if (unlikely(!txn->tw.spill_pages))
       return MDBX_ENOMEM;
   } else {
@@ -7137,15 +7158,6 @@ static int mdbx_page_spill(MDBX_cursor *mc, const MDBX_val *key,
   int rc = mdbx_pages_xkeep(mc, P_DIRTY, true);
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;
-
-  /* Less aggressive spill - we originally spilled the entire dirty list,
-   * with a few exceptions for cursor pages and DB root pages. But this
-   * turns out to be a lot of wasted effort because in a large txn many
-   * of those pages will need to be used again. So now we spill only 1/8th
-   * of the dirty pages. Testing revealed this to be a good tradeoff,
-   * better than 1/2, 1/4, or 1/10. */
-  if (need < MDBX_DPL_TXNFULL / 8)
-    need = MDBX_DPL_TXNFULL / 8;
 
   /* Save the page IDs of all the pages we're flushing */
   /* flush from the tail forward, this saves a lot of shifting later on. */
@@ -8090,7 +8102,7 @@ skip_cache:
       }
 
       /* Don't try to coalesce too much. */
-      if (unlikely(re_len > MDBX_DPL_TXNFULL / 4))
+      if (unlikely(re_len > MDBX_DPL_TXNFULL / 42))
         break;
       if (re_len /* current size */ >= env->me_maxgc_ov1page ||
           (re_len > prev_re_len && re_len - prev_re_len /* delta from prev */ >=
@@ -21730,6 +21742,9 @@ __dll_export
 #else
     #error "FIXME: Unsupported byte order"
 #endif /* __BYTE_ORDER__ */
+#if MDBX_HUGE_TRANSACTIONS
+    " MDBX_HUGE_TRANSACTIONS=YES"
+#endif /* MDBX_HUGE_TRANSACTIONS */
     " MDBX_TXN_CHECKPID=" MDBX_TXN_CHECKPID_CONFIG
     " MDBX_TXN_CHECKOWNER=" MDBX_TXN_CHECKOWNER_CONFIG
     " MDBX_64BIT_ATOMIC=" MDBX_64BIT_ATOMIC_CONFIG
@@ -24029,10 +24044,10 @@ __dll_export
     const mdbx_version_info mdbx_version = {
         0,
         8,
-        0,
-        2089,
-        {"2020-06-08T19:12:12+03:00", "102fe4c1453fee13ae7b3ae0be47c9681b62e3ba", "7ab9d24d3b7bd3eec4e78288cfc890aac8580792",
-         "v0.8.0-3-g7ab9d24d3"},
+        1,
+        1,
+        {"2020-06-15T12:51:35+03:00", "0995403e3dcf0556c07926e88fb9b18374eca5f9", "35313d18bce36e9306c12bd3674e7fbe15eebb55",
+         "v0.8.1-1-g35313d18"},
         sourcery};
 
 __dll_export
@@ -25405,13 +25420,11 @@ MDBX_INTERNAL_FUNC int __cold mdbx_lck_destroy(MDBX_env *env,
 MDBX_INTERNAL_FUNC int __cold mdbx_lck_init(MDBX_env *env,
                                             MDBX_env *inprocess_neighbor,
                                             int global_uniqueness_flag) {
-  if (inprocess_neighbor)
-    return MDBX_SUCCESS /* currently don't need any initialization
-      if LCK already opened/used inside current process */
-        ;
 #if MDBX_LOCKING == MDBX_LOCKING_SYSV
   int semid = -1;
-  if (global_uniqueness_flag) {
+  /* don't initialize semaphores twice */
+  (void)inprocess_neighbor;
+  if (global_uniqueness_flag == MDBX_RESULT_TRUE) {
     struct stat st;
     if (fstat(env->me_lazy_fd, &st))
       return errno;
@@ -25455,14 +25468,17 @@ MDBX_INTERNAL_FUNC int __cold mdbx_lck_init(MDBX_env *env,
   }
 
   env->me_sysv_ipc.semid = semid;
-
   return MDBX_SUCCESS;
 
 #elif MDBX_LOCKING == MDBX_LOCKING_FUTEX
-#warning "TODO"
+  (void)inprocess_neighbor;
+  if (global_uniqueness_flag != MDBX_RESULT_TRUE)
+    return MDBX_SUCCESS;
+#error "FIXME: Not implemented"
 #elif MDBX_LOCKING == MDBX_LOCKING_POSIX1988
 
   /* don't initialize semaphores twice */
+  (void)inprocess_neighbor;
   if (global_uniqueness_flag == MDBX_RESULT_TRUE) {
     if (sem_init(&env->me_lck->mti_rlock, true, 1))
       return errno;
@@ -25473,6 +25489,10 @@ MDBX_INTERNAL_FUNC int __cold mdbx_lck_init(MDBX_env *env,
 
 #elif MDBX_LOCKING == MDBX_LOCKING_POSIX2001 ||                                \
     MDBX_LOCKING == MDBX_LOCKING_POSIX2008
+  if (inprocess_neighbor)
+    return MDBX_SUCCESS /* don't need any initialization for mutexes
+      if LCK already opened/used inside current process */
+        ;
 
     /* FIXME: Unfortunately, there is no other reliable way but to long testing
      * on each platform. On the other hand, behavior like FreeBSD is incorrect
