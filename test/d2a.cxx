@@ -249,6 +249,26 @@ TYPED_TEST_P(d2a, trivia) {
   EXPECT_EQ(1, end - buffer);
   EXPECT_EQ(buffer[0], '0');
 
+  end = TestFixture::convert(std::nan(""), buffer);
+  EXPECT_EQ(3, end - buffer);
+  *end++ = '\0';
+  EXPECT_STREQ("nan", buffer);
+
+  end = TestFixture::convert(-std::nan(""), buffer);
+  EXPECT_EQ(4, end - buffer);
+  *end++ = '\0';
+  EXPECT_STREQ("-nan", buffer);
+
+  end = TestFixture::convert(std::numeric_limits<double>::infinity(), buffer);
+  EXPECT_EQ(3, end - buffer);
+  *end++ = '\0';
+  EXPECT_STREQ("inf", buffer);
+
+  end = TestFixture::convert(-std::numeric_limits<double>::infinity(), buffer);
+  EXPECT_EQ(4, end - buffer);
+  *end++ = '\0';
+  EXPECT_STREQ("-inf", buffer);
+
   TestFixture::probe_d2a(buffer, 0.0);
   TestFixture::probe_d2a(buffer, 1.0);
   TestFixture::probe_d2a(buffer, 2.0);
