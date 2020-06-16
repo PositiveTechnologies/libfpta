@@ -122,6 +122,12 @@ static inline /* LY: 'inline' here is better for performance than 'constexpr' */
 
 namespace grisu {
 
+double inline cast(int64_t i64) { return bit_cast<double>(i64); }
+
+double inline cast(uint64_t u64) { return bit_cast<double>(u64); }
+
+int64_t inline cast(double f64) { return bit_cast<int64_t>(f64); }
+
 static cxx11_constexpr_var uint64_t IEEE754_DOUBLE_EXPONENT_MASK =
     UINT64_C(0x7FF0000000000000);
 static cxx11_constexpr_var uint64_t IEEE754_DOUBLE_MANTISSA_MASK =
@@ -130,8 +136,8 @@ static cxx11_constexpr_var int64_t IEEE754_DOUBLE_IMPLICIT_LEAD =
     INT64_C(0x0010000000000000);
 
 enum {
-#ifndef IEEE754_DOUBLE_BIAS
-  IEEE754_DOUBLE_BIAS = 0x3ff /* Added to exponent. */,
+#ifndef IEEE754_DOUBLE_BIAS /* maybe defined in the ieee754.h */
+  IEEE754_DOUBLE_BIAS = 0x3ff,
 #endif
   IEEE754_DOUBLE_MANTISSA_SIZE = 52,
   GRISU_EXPONENT_BIAS = IEEE754_DOUBLE_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE
@@ -146,30 +152,37 @@ struct diy_fp {
   uint64_t f;
   int e;
 
-  explicit diy_fp(const int64_t i64) {
+  explicit diy_fp(const int64_t i64) cxx11_noexcept {
     const uint64_t exp_bits = (i64 & IEEE754_DOUBLE_EXPONENT_MASK);
     const uint64_t mantissa = (i64 & IEEE754_DOUBLE_MANTISSA_MASK);
-    f = mantissa + (exp_bits ? IEEE754_DOUBLE_IMPLICIT_LEAD : 0u);
+    f = mantissa + (exp_bits ? /* normalized */ IEEE754_DOUBLE_IMPLICIT_LEAD
+                             : /* de-normalized */ 0u);
     e = static_cast<int>(exp_bits >> IEEE754_DOUBLE_MANTISSA_SIZE) -
-        (exp_bits ? GRISU_EXPONENT_BIAS : GRISU_EXPONENT_BIAS - 1);
+        (exp_bits ? /* normalized */ GRISU_EXPONENT_BIAS
+                  : /* de-normalized */ GRISU_EXPONENT_BIAS - 1);
   }
+
   cxx11_constexpr diy_fp(const diy_fp &rhs) cxx11_noexcept = default;
   cxx11_constexpr diy_fp(uint64_t f, int e) cxx11_noexcept : f(f), e(e) {}
   cxx11_constexpr diy_fp &operator=(const diy_fp &rhs) cxx11_noexcept = default;
   diy_fp() = default;
 
   static diy_fp fixedpoint(uint64_t value, int exp2) {
-    assert(value > 0);
     assert(exp2 < 1032 && exp2 > -1127);
-    const int gap = /* avoid underflow of (upper_bound - lower_bound) */ 3;
-    const int shift = clz64(value) - gap;
-    cxx11_constexpr_var uint64_t top = UINT64_MAX >> gap;
-    const uint64_t rounding = UINT64_C(1) << (1 - shift);
-    value = (shift >= 0)
-                ? value << shift
-                : ((value < top - rounding) ? value + rounding : top) >> -shift;
-    assert(top >= value && value > 0);
-    return diy_fp(value, exp2 - shift);
+    if (unlikely(value == 0))
+      return diy_fp(0);
+    else {
+      const int gap = /* avoid underflow of (upper_bound - lower_bound) */ 3;
+      const int shift = clz64(value) - gap;
+      cxx11_constexpr_var uint64_t top = UINT64_MAX >> gap;
+      const uint64_t rounding = UINT64_C(1) << (1 - shift);
+      value =
+          (shift >= 0)
+              ? value << shift
+              : ((value < top - rounding) ? value + rounding : top) >> -shift;
+      assert(top >= value && value > 0);
+      return diy_fp(value, exp2 - shift);
+    }
   }
 
   static diy_fp middle(const diy_fp &upper, const diy_fp &lower) {
@@ -278,29 +291,28 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
   return diy_fp(power10_mas[index], power10_exp2[index]);
 }
 
-static __always_inline void round(char *&end, uint64_t delta, uint64_t rest,
-                                  uint64_t ten_kappa, uint64_t upper,
-                                  int &inout_exp10) {
-  while (delta >= ten_kappa + rest &&
-         (rest + ten_kappa < upper ||
-          (rest < upper &&
-           /* closer */ upper - rest >= rest + ten_kappa - upper))) {
-    end[-1] -= 1;
-    if (unlikely(end[-1] < '1')) {
-      inout_exp10 += 1;
-      end -= 1;
-      return;
+template <typename PRINTER>
+inline void adjust(PRINTER &printer, uint64_t delta, uint64_t rest,
+                   uint64_t ten_kappa, uint64_t upper, int &inout_exp10) {
+  if (printer.is_accurate()) {
+    while (delta >= ten_kappa + rest &&
+           (rest + ten_kappa < upper ||
+            (rest < upper &&
+             /* closer */ upper - rest >= rest + ten_kappa - upper))) {
+      if (!printer.adjust_last_digit(-1)) {
+        ++inout_exp10;
+        break;
+      }
+      rest += ten_kappa;
     }
-    rest += ten_kappa;
   }
 }
 
-static inline char *make_digits(const bool accurate, const uint64_t top,
-                                uint64_t delta, char *const buffer,
-                                int &inout_exp10, const uint64_t value,
-                                unsigned shift) {
+template <typename PRINTER>
+inline void make_digits(PRINTER &printer, const uint64_t top, uint64_t delta,
+                        int &inout_exp10, const uint64_t value,
+                        unsigned shift) {
   uint64_t mask = UINT64_MAX >> (64 - shift);
-  char *ptr = buffer;
   const uint64_t gap = top - value;
 
   assert((top >> shift) <= UINT_E9);
@@ -354,14 +366,12 @@ static inline char *make_digits(const bool accurate, const uint64_t top,
       digit = body;
       if (unlikely(tail < delta)) {
       early_last:
-        *ptr++ = static_cast<char>(digit + '0');
+        printer.mantissa_digit(digit);
       early_skip:
         inout_exp10 += kappa;
         assert(kappa >= 0);
-        if (accurate)
-          round(ptr, delta, tail, dec_power(unsigned(kappa)) << shift, gap,
-                inout_exp10);
-        return ptr;
+        return adjust(printer, delta, tail, dec_power(unsigned(kappa)) << shift,
+                      gap, inout_exp10);
       }
 
       while (true) {
@@ -384,7 +394,7 @@ static inline char *make_digits(const bool accurate, const uint64_t top,
   } while (unlikely(digit == 0));
 
   while (true) {
-    *ptr++ = static_cast<char>(digit + '0');
+    printer.mantissa_digit(digit);
     switch (--kappa) {
     default:
       assert(false);
@@ -440,7 +450,7 @@ static inline char *make_digits(const bool accurate, const uint64_t top,
   }
 
 done:
-  *ptr++ = static_cast<char>(digit + '0');
+  printer.mantissa_digit(digit);
   while (likely(tail > delta)) {
     --kappa;
 #if ERTHINK_D2A_AVOID_MUL
@@ -454,71 +464,117 @@ done:
     digit = static_cast<uint_fast32_t>(tail >> shift);
     tail &= mask;
 #endif /* ERTHINK_D2A_AVOID_MUL */
-    *ptr++ = static_cast<char>(digit + '0');
+    printer.mantissa_digit(digit);
   }
 
   inout_exp10 += kappa;
   assert(kappa >= -19 && kappa <= 0);
-  if (accurate) {
-    const uint64_t unit = dec_power(unsigned(-kappa));
-    round(ptr, delta, tail, mask + 1, gap * unit, inout_exp10);
-  }
-  return ptr;
+  return adjust(printer, delta, tail, mask + 1,
+                gap * dec_power(unsigned(-kappa)), inout_exp10);
 }
 
-static inline char *convert(const bool accurate, diy_fp v, char *const buffer,
-                            int &out_exp10) {
-  if (unlikely(v.f == 0)) {
-    out_exp10 = 0;
-    *buffer = '0';
-    return buffer + 1;
-  }
+template <typename PRINTER>
+inline void convert(PRINTER &printer, const double &value) {
+  const int64_t i64 = grisu::cast(value);
+  printer.sign(i64 < 0);
+  diy_fp diy(i64);
 
-  const int lead_zeros = clz64(v.f);
+  if (unlikely(diy.e == 0x7ff - grisu::GRISU_EXPONENT_BIAS))
+    return (diy.f - grisu::IEEE754_DOUBLE_IMPLICIT_LEAD) ? printer.nan()
+                                                         : printer.inf();
+  if (unlikely(diy.f == 0))
+    return printer.zero();
+
+  const int lead_zeros = clz64(diy.f);
   /* Check to output as ordinal.
    * Given the remaining optimizations, on average it does not have a positive
    * effect (although a little faster in a simplest cases).
    * However, it reduces the number of inaccuracies and non-shortest strings. */
-  if (!accurate && unlikely(v.e >= -52 && v.e <= lead_zeros) &&
-      (v.e >= 0 || (v.f << (64 + v.e)) == 0)) {
-    uint64_t ordinal = (v.e < 0) ? v.f >> -v.e : v.f << v.e;
-    assert(v.f == ((v.e < 0) ? ordinal << -v.e : ordinal >> v.e));
-    out_exp10 = 0;
-    return u2a(ordinal, buffer);
+  if (!printer.is_accurate() && unlikely(diy.e >= -52 && diy.e <= lead_zeros) &&
+      (diy.e >= 0 || (diy.f << (64 + diy.e)) == 0)) {
+    uint64_t ordinal = (diy.e < 0) ? diy.f >> -diy.e : diy.f << diy.e;
+    assert(diy.f == ((diy.e < 0) ? ordinal << -diy.e : ordinal >> diy.e));
+    return printer.integer(ordinal);
   }
 
-  // LY: normalize
-  assert(v.f <= UINT64_MAX / 2 && lead_zeros > 1);
-  v.e -= lead_zeros;
-  v.f <<= lead_zeros;
-  const diy_fp dec_factor = cached_power(v.e, out_exp10);
+  // normalize
+  assert(diy.f <= UINT64_MAX / 2 && lead_zeros > 1);
+  diy.e -= lead_zeros;
+  diy.f <<= lead_zeros;
+  int exp10;
+  const diy_fp dec_factor = grisu::cached_power(diy.e, exp10);
 
-  // LY: get boundaries
-  const int mojo = v.f > UINT64_C(0x80000000000007ff) ? 64 : 65;
+  // get boundaries
+  const int mojo = diy.f > UINT64_C(0x80000000000007ff) ? 64 : 65;
   const uint64_t delta = dec_factor.f >> (mojo - lead_zeros);
   assert(delta >= 2);
-  const uint_fast32_t lsb = v.scale(dec_factor);
-  if (accurate)
+  const uint_fast32_t lsb = diy.scale(dec_factor);
+  if (printer.is_accurate())
     // -1 -2 1 0 1: non-shortest 9522 for 25M probes, ratio 0.038088%
     //              shortest errors: +5727 -9156
     //              non-shortest errors: +3 -5
-    return make_digits(accurate, v.f + ((delta + lsb - 1) >> 1), delta - 2,
-                       buffer, out_exp10, v.f + lsb, -v.e);
+    make_digits(printer, diy.f + ((delta + lsb - 1) >> 1), delta - 2, exp10,
+                diy.f + lsb, -diy.e);
   else
     // -1 -2 1 0 0: non-shortest 9522 for 25M probes, ratio 0.038088%
-    return make_digits(accurate, v.f + ((delta + lsb - 1) >> 1), delta - 2,
-                       buffer, out_exp10, v.f, -v.e);
+    make_digits(printer, diy.f + ((delta + lsb - 1) >> 1), delta - 2, exp10,
+                diy.f, -diy.e);
+  printer.exponenta(exp10);
 }
 
-double inline cast(int64_t i64) { return bit_cast<double>(i64); }
+template <bool accurate> struct ieee754_default_printer {
+  enum { max_chars = 23 };
 
-double inline cast(uint64_t u64) { return bit_cast<double>(u64); }
+  char *end;
 
-int64_t inline cast(double f64) { return bit_cast<int64_t>(f64); }
+  ieee754_default_printer(char *buffer) : end(buffer) {}
+  void sign(bool negative) {
+    // strive for branchless
+    *end = '-';
+    end += negative;
+  }
+  void nan() {
+    end[0] = 'n';
+    end[1] = 'a';
+    end[2] = 'n';
+    end += 3;
+  }
+  void inf() {
+    end[0] = 'i';
+    end[1] = 'n';
+    end[2] = 'f';
+    end += 3;
+  }
+  bool is_accurate() const { return accurate; }
+  void zero() { *end++ = '0'; }
+  void integer(uint64_t value) { end = u2a(value, end); }
+  bool mantissa_digit(unsigned digit) {
+    *end++ = static_cast<char>(digit) + '0';
+    return true;
+  }
+  bool adjust_last_digit(int8_t diff) {
+    assert(diff == -1);
+    end[-1] += diff;
+    if (unlikely(end[-1] < '1')) {
+      --end;
+      return false;
+    }
+    return true;
+  }
+  void exponenta(int value) {
+    if (value) {
+      const branchless_abs<int> pair(value);
+      end[0] = 'e';
+      // strive for branchless
+      end[1] = '+' + (('-' - '+') & pair.expanded_sign);
+      end = dec3(pair.unsigned_abs, end + 2);
+    }
+  }
+};
 
 } // namespace grisu
 
-enum { d2a_max_chars = 23 };
+enum { d2a_max_chars = grisu::ieee754_default_printer<false>::max_chars };
 
 template <bool accurate>
 /* The "accurate" controls the trade-off between conversion speed and accuracy:
@@ -534,22 +590,11 @@ char *
 d2a(const double &value,
     char *const
         buffer /* upto erthink::d2a_max_chars for -22250738585072014e-324 */) {
-  assert(!std::isnan(value) && !std::isinf(value));
-  const int64_t i64 = grisu::cast(value);
-  // LY: strive for branchless (SSA-optimizer must solve this)
-  *buffer = '-';
-  int exponent;
-  char *ptr = grisu::convert(accurate, grisu::diy_fp(i64), buffer + (i64 < 0),
-                             exponent);
-  if (exponent != 0) {
-    const branchless_abs<int> pair(exponent);
-    ptr[0] = 'e';
-    // LY: strive for branchless
-    ptr[1] = '+' + (('-' - '+') & pair.expanded_sign);
-    ptr = dec3(pair.unsigned_abs, ptr + 2);
-  }
-  assert(ptr - buffer <= d2a_max_chars);
-  return ptr;
+  grisu::ieee754_default_printer<accurate> printer(buffer);
+  grisu::convert(printer, value);
+  assert(printer.end - buffer <=
+         grisu::ieee754_default_printer<accurate>::max_chars);
+  return printer.end;
 }
 
 static inline __maybe_unused char *d2a_accurate(
@@ -576,14 +621,14 @@ namespace std {
 
 inline ostream &operator<<(ostream &out,
                            const erthink::output_double<false> &it) {
-  char buf[erthink::d2a_max_chars];
+  char buf[erthink::grisu::ieee754_default_printer<false>::max_chars];
   char *end = erthink::d2a_fast(it.value, buf);
   return out.write(buf, end - buf);
 }
 
 inline ostream &operator<<(ostream &out,
                            const erthink::output_double<true> &it) {
-  char buf[erthink::d2a_max_chars];
+  char buf[erthink::grisu::ieee754_default_printer<true>::max_chars];
   char *end = erthink::d2a_accurate(it.value, buf);
   return out.write(buf, end - buf);
 }
