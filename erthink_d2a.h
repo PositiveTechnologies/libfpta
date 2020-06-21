@@ -59,6 +59,7 @@
 #include <cstddef>
 #include <cstring> // for memcpy()
 #include <ostream>
+#include <utility> // for std::pair
 #if defined(HAVE_IEEE754_H) || __has_include(<ieee754.h>)
 #include <ieee754.h>
 #endif
@@ -209,7 +210,7 @@ struct diy_fp {
 #pragma warning(pop)
 #endif
 
-static diy_fp cached_power(const int in_exp2, int &out_exp10) {
+static diy_fp cached_power(const int in_exp2, int &out_exp10) cxx11_noexcept {
   cxx11_constexpr_var std::size_t n_items =
       (340 + 340) / 8 + 1 /* 10^-340 .. 0 .. 10^340 */;
   assert(in_exp2 < 1096 && in_exp2 > -1191);
@@ -293,7 +294,8 @@ static diy_fp cached_power(const int in_exp2, int &out_exp10) {
 
 template <typename PRINTER>
 inline void adjust(PRINTER &printer, uint64_t delta, uint64_t rest,
-                   uint64_t ten_kappa, uint64_t upper, int &inout_exp10) {
+                   uint64_t ten_kappa, uint64_t upper,
+                   int &inout_exp10) cxx11_noexcept {
   if (printer.is_accurate()) {
     while (delta >= ten_kappa + rest &&
            (rest + ten_kappa < upper ||
@@ -366,7 +368,7 @@ inline void make_digits(PRINTER &printer, const uint64_t top, uint64_t delta,
       digit = body;
       if (unlikely(tail < delta)) {
       early_last:
-        printer.mantissa_digit(digit);
+        printer.mantissa_digit(static_cast<char>(digit) + '0');
       early_skip:
         inout_exp10 += kappa;
         assert(kappa >= 0);
@@ -394,7 +396,8 @@ inline void make_digits(PRINTER &printer, const uint64_t top, uint64_t delta,
   } while (unlikely(digit == 0));
 
   while (true) {
-    printer.mantissa_digit(digit);
+    if (unlikely(!printer.mantissa_digit(static_cast<char>(digit) + '0')))
+      goto early_skip;
     switch (--kappa) {
     default:
       assert(false);
@@ -450,8 +453,8 @@ inline void make_digits(PRINTER &printer, const uint64_t top, uint64_t delta,
   }
 
 done:
-  printer.mantissa_digit(digit);
-  while (likely(tail > delta)) {
+  while (likely(printer.mantissa_digit(static_cast<char>(digit) + '0') &&
+                tail > delta)) {
     --kappa;
 #if ERTHINK_D2A_AVOID_MUL
     tail += tail << 2;   // *= 5
@@ -464,7 +467,6 @@ done:
     digit = static_cast<uint_fast32_t>(tail >> shift);
     tail &= mask;
 #endif /* ERTHINK_D2A_AVOID_MUL */
-    printer.mantissa_digit(digit);
   }
 
   inout_exp10 += kappa;
@@ -474,7 +476,7 @@ done:
 }
 
 template <typename PRINTER>
-inline void convert(PRINTER &printer, const double &value) {
+inline void convert(PRINTER &printer, const double &value) cxx11_noexcept {
   const int64_t i64 = grisu::cast(value);
   printer.sign(i64 < 0);
   diy_fp diy(i64);
@@ -494,7 +496,8 @@ inline void convert(PRINTER &printer, const double &value) {
       (diy.e >= 0 || (diy.f << (64 + diy.e)) == 0)) {
     uint64_t ordinal = (diy.e < 0) ? diy.f >> -diy.e : diy.f << diy.e;
     assert(diy.f == ((diy.e < 0) ? ordinal << -diy.e : ordinal >> diy.e));
-    return printer.integer(ordinal);
+    if (printer.integer(ordinal))
+      return;
   }
 
   // normalize
@@ -524,35 +527,53 @@ inline void convert(PRINTER &printer, const double &value) {
 
 template <bool accurate> struct ieee754_default_printer {
   enum { max_chars = 23 };
-
   char *end;
+  char *begin;
 
-  ieee754_default_printer(char *buffer) : end(buffer) {}
-  void sign(bool negative) {
+  ieee754_default_printer(char *buffer_begin, char *buffer_end) cxx11_noexcept
+      : end(buffer_begin),
+        begin(buffer_begin) {
+    assert(buffer_end - buffer_begin >= max_chars);
+#ifndef NDEBUG
+    std::memset(buffer_begin, '_', buffer_end - buffer_begin);
+#else
+    (void)buffer_end;
+#endif
+  }
+
+  void sign(bool negative) cxx11_noexcept {
     // strive for branchless
     *end = '-';
     end += negative;
   }
-  void nan() {
-    end[0] = 'n';
-    end[1] = 'a';
-    end[2] = 'n';
+
+  void nan() cxx11_noexcept {
+    // assumes compiler optimize-out memcpy() with small fixed length
+    std::memcpy(end, "nan", 4);
     end += 3;
   }
-  void inf() {
-    end[0] = 'i';
-    end[1] = 'n';
-    end[2] = 'f';
+
+  void inf() cxx11_noexcept {
+    // assumes compiler optimize-out memcpy() with small fixed length
+    std::memcpy(end, "inf", 4);
     end += 3;
   }
-  bool is_accurate() const { return accurate; }
-  void zero() { *end++ = '0'; }
-  void integer(uint64_t value) { end = u2a(value, end); }
-  bool mantissa_digit(unsigned digit) {
-    *end++ = static_cast<char>(digit) + '0';
+
+  bool is_accurate() const cxx11_noexcept { return accurate; }
+
+  void zero() cxx11_noexcept { *end++ = '0'; }
+
+  bool integer(uint64_t value) cxx11_noexcept {
+    end = u2a(value, end);
     return true;
   }
-  bool adjust_last_digit(int8_t diff) {
+
+  bool mantissa_digit(char digit) cxx11_noexcept {
+    *end++ = digit;
+    return true;
+  }
+
+  bool adjust_last_digit(int8_t diff) cxx11_noexcept {
     assert(diff == -1);
     end[-1] += diff;
     if (unlikely(end[-1] < '1')) {
@@ -561,13 +582,99 @@ template <bool accurate> struct ieee754_default_printer {
     }
     return true;
   }
-  void exponenta(int value) {
+
+  void exponenta(int value) cxx11_noexcept {
     if (value) {
       const branchless_abs<int> pair(value);
       end[0] = 'e';
       // strive for branchless
       end[1] = '+' + (('-' - '+') & pair.expanded_sign);
       end = dec3(pair.unsigned_abs, end + 2);
+    }
+  }
+
+  std::pair<char *, char *> finalize_and_get() cxx11_noexcept {
+    assert(end > begin && begin + max_chars >= end);
+    return std::make_pair(begin, end);
+  }
+};
+
+// roundtrip-convertible with auto choose between decimal and exponential form
+template <bool accurate = false, int min_exp4dec = -4, int max_exp4dec = 10,
+          bool force_sign = false>
+struct shodan_printer : public ieee754_default_printer<accurate> {
+  using inherited = ieee754_default_printer<accurate>;
+
+  static constexpr int gap = sizeof(uint64_t) * 2;
+  static constexpr size_t buffer_size = inherited::max_chars + gap * 2;
+
+  shodan_printer(char *buffer_begin, char *buffer_end) cxx11_noexcept
+      : inherited(buffer_begin + gap, buffer_end - gap) {
+    static_assert(-min_exp4dec < gap, "Oops, min_exp4dec is too less");
+    static_assert(max_exp4dec < gap, "Oops, max_exp4dec is too large");
+  }
+
+  bool is_negative = false;
+  void sign(bool negative) cxx11_noexcept { is_negative = negative; }
+
+  void zero() cxx11_noexcept {
+    // assumes compiler optimize-out memcpy() with small fixed length
+    std::memcpy(inherited::end, "0.0", 4);
+    inherited::end += 3;
+  }
+
+  bool integer(uint64_t value) cxx11_noexcept {
+    (void)value;
+    return false;
+  }
+
+  std::pair<char *, char *> finalize_and_get() cxx11_noexcept {
+    inherited::begin[-1] = is_negative ? '-' : '+';
+    inherited::begin -= (is_negative || force_sign);
+    return std::make_pair(inherited::begin, inherited::end);
+  }
+
+  void exponenta(int exp) cxx11_noexcept {
+    static constexpr char zeros_with_dot[] = {
+        '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+        '0', '0', '0', '0', '0', '.', '0', 0,   0,   0,   0,
+        0,   0,   0,   0,   0,   0,   0,   0,   0,   0};
+    static_assert(gap * 2 == erthink::array_length(zeros_with_dot), "WTF?");
+    const ptrdiff_t ndigits = inherited::end - inherited::begin;
+    const int canon_exp = int(ndigits) + exp - 1;
+
+    if (canon_exp >= min_exp4dec && canon_exp <= max_exp4dec) {
+      // decimal
+      if (exp < 0) {
+        if (canon_exp >= 0) {
+          // wanna "1.23", have "123", insert dot
+          char *ptr = inherited::begin + ndigits + exp;
+          // assumes compiler optimize-out memmove() with small fixed length
+          std::memmove(ptr + 1, ptr, gap);
+          ptr[0] = '.';
+          inherited::end += 1;
+        } else {
+          // wanna "0.000123", have "123", write ahead "0.000"
+          // assumes compiler optimize-out memcpy() with small fixed length
+          std::memcpy(inherited::begin - gap, zeros_with_dot, gap);
+          inherited::begin += canon_exp - 1;
+          inherited::begin[1] = '.';
+        }
+      } else {
+        // wanna "123000.0", have "123", should append "000.0"
+        // assumes compiler optimize-out memcpy() with small fixed length
+        std::memcpy(inherited::end, zeros_with_dot + gap - exp, gap);
+        inherited::end += exp + 2;
+      }
+    } else {
+      // exponential: wanna "1.23+e456", have "123"
+      inherited::begin -= 1;
+      inherited::begin[0] = inherited::begin[1];
+      inherited::begin[1] = '.';
+      // strive branchless
+      inherited::end[0] = '0';
+      inherited::end += (inherited::end == inherited::begin);
+      inherited::exponenta(canon_exp);
     }
   }
 };
@@ -590,11 +697,10 @@ char *
 d2a(const double &value,
     char *const
         buffer /* upto erthink::d2a_max_chars for -22250738585072014e-324 */) {
-  grisu::ieee754_default_printer<accurate> printer(buffer);
+  grisu::ieee754_default_printer<accurate> printer(
+      buffer, buffer + grisu::ieee754_default_printer<accurate>::max_chars);
   grisu::convert(printer, value);
-  assert(printer.end - buffer <=
-         grisu::ieee754_default_printer<accurate>::max_chars);
-  return printer.end;
+  return printer.finalize_and_get().second;
 }
 
 static inline __maybe_unused char *d2a_accurate(
