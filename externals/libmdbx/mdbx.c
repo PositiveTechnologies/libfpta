@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY be35a31257f96b3492ef130735dc0354ef80645eb3fea78d345d12e6476e5414_v0_8_1_1_g35313d18
+#define MDBX_BUILD_SOURCERY 408c44455086e0600d1617500f05c664bbb3922758b874442e29d3d512c2d5f8_v0_8_1_8_g0afc21eed
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -6116,11 +6116,11 @@ static int __must_check_result mdbx_setup_dbx(MDBX_dbx *const dbx,
                                               const MDBX_db *const db,
                                               const unsigned pagesize);
 
-static MDBX_cmp_func mdbx_cmp_memn, mdbx_cmp_memnr, mdbx_cmp_int_align4,
-    mdbx_cmp_int_align2, mdbx_cmp_int_unaligned, mdbx_cmp_lenfast;
+static MDBX_cmp_func cmp_lexical, cmp_reverse, cmp_int_align4, cmp_int_align2,
+    cmp_int_unaligned, cmp_lenfast;
 
-static MDBX_cmp_func *mdbx_default_keycmp(unsigned flags);
-static MDBX_cmp_func *mdbx_default_datacmp(unsigned flags);
+static __inline MDBX_cmp_func *get_default_keycmp(unsigned flags);
+static __inline MDBX_cmp_func *get_default_datacmp(unsigned flags);
 
 static const char *__mdbx_strerr(int errnum) {
   /* Table of descriptions for MDBX errors */
@@ -13076,9 +13076,8 @@ int __cold mdbx_env_open(MDBX_env *env, const char *pathname, unsigned flags,
     rc = MDBX_ENOMEM;
     goto bailout;
   }
-  env->me_dbxs[FREE_DBI].md_cmp =
-      mdbx_cmp_int_align4; /* aligned MDBX_INTEGERKEY */
-  env->me_dbxs[FREE_DBI].md_dcmp = mdbx_cmp_lenfast;
+  env->me_dbxs[FREE_DBI].md_cmp = cmp_int_align4; /* aligned MDBX_INTEGERKEY */
+  env->me_dbxs[FREE_DBI].md_dcmp = cmp_lenfast;
 
   rc = mdbx_openfile(F_ISSET(flags, MDBX_RDONLY) ? MDBX_OPEN_DXB_READ
                                                  : MDBX_OPEN_DXB_LAZY,
@@ -13118,8 +13117,7 @@ int __cold mdbx_env_open(MDBX_env *env, const char *pathname, unsigned flags,
     goto bailout;
   }
 
-  const unsigned rigorous_flags =
-      MDBX_WRITEMAP | MDBX_SAFE_NOSYNC | MDBX_MAPASYNC;
+  const unsigned rigorous_flags = MDBX_SAFE_NOSYNC | MDBX_MAPASYNC;
   const unsigned mode_flags = rigorous_flags | MDBX_NOMETASYNC |
                               MDBX_LIFORECLAIM | MDBX_COALESCE | MDBX_NORDAHEAD;
 
@@ -13394,7 +13392,7 @@ __cold int mdbx_env_close(MDBX_env *env) {
 }
 
 /* Compare two items pointing at aligned unsigned int's. */
-static int __hot mdbx_cmp_int_align4(const MDBX_val *a, const MDBX_val *b) {
+static int __hot cmp_int_align4(const MDBX_val *a, const MDBX_val *b) {
   mdbx_assert(NULL, a->iov_len == b->iov_len);
   switch (a->iov_len) {
   case 4:
@@ -13411,7 +13409,7 @@ static int __hot mdbx_cmp_int_align4(const MDBX_val *a, const MDBX_val *b) {
 }
 
 /* Compare two items pointing at 2-byte aligned unsigned int's. */
-static int __hot mdbx_cmp_int_align2(const MDBX_val *a, const MDBX_val *b) {
+static int __hot cmp_int_align2(const MDBX_val *a, const MDBX_val *b) {
   mdbx_assert(NULL, a->iov_len == b->iov_len);
   switch (a->iov_len) {
   case 4:
@@ -13430,7 +13428,7 @@ static int __hot mdbx_cmp_int_align2(const MDBX_val *a, const MDBX_val *b) {
 /* Compare two items pointing at unsigneds of unknown alignment.
  *
  * This is also set as MDBX_INTEGERDUP|MDBX_DUPFIXED's MDBX_dbx.md_dcmp. */
-static int __hot mdbx_cmp_int_unaligned(const MDBX_val *a, const MDBX_val *b) {
+static int __hot cmp_int_unaligned(const MDBX_val *a, const MDBX_val *b) {
   mdbx_assert(NULL, a->iov_len == b->iov_len);
   switch (a->iov_len) {
   case 4:
@@ -13447,7 +13445,7 @@ static int __hot mdbx_cmp_int_unaligned(const MDBX_val *a, const MDBX_val *b) {
 }
 
 /* Compare two items lexically */
-static int __hot mdbx_cmp_memn(const MDBX_val *a, const MDBX_val *b) {
+static int __hot cmp_lexical(const MDBX_val *a, const MDBX_val *b) {
   if (a->iov_len == b->iov_len)
     return memcmp(a->iov_base, b->iov_base, a->iov_len);
 
@@ -13458,7 +13456,7 @@ static int __hot mdbx_cmp_memn(const MDBX_val *a, const MDBX_val *b) {
 }
 
 /* Compare two items in reverse byte order */
-static int __hot mdbx_cmp_memnr(const MDBX_val *a, const MDBX_val *b) {
+static int __hot cmp_reverse(const MDBX_val *a, const MDBX_val *b) {
   const uint8_t *pa = (const uint8_t *)a->iov_base + a->iov_len;
   const uint8_t *pb = (const uint8_t *)b->iov_base + b->iov_len;
   const size_t shortest = (a->iov_len < b->iov_len) ? a->iov_len : b->iov_len;
@@ -13473,7 +13471,7 @@ static int __hot mdbx_cmp_memnr(const MDBX_val *a, const MDBX_val *b) {
 }
 
 /* Fast non-lexically comparator */
-static int __hot mdbx_cmp_lenfast(const MDBX_val *a, const MDBX_val *b) {
+static int __hot cmp_lenfast(const MDBX_val *a, const MDBX_val *b) {
   int diff = CMP2INT(a->iov_len, b->iov_len);
   return likely(diff) ? diff : memcmp(a->iov_base, b->iov_base, a->iov_len);
 }
@@ -13534,10 +13532,10 @@ static MDBX_node *__hot mdbx_node_search(MDBX_cursor *mc, const MDBX_val *key,
                : /* There is no entry larger or equal to the key. */ NULL;
   }
 
-  if (cmp == mdbx_cmp_int_align2 && IS_BRANCH(mp))
+  if (cmp == cmp_int_align2 && IS_BRANCH(mp))
     /* Branch pages have no data, so if using integer keys,
      * alignment is guaranteed. Use faster mdbx_cmp_int_align4(). */
-    cmp = mdbx_cmp_int_align4;
+    cmp = cmp_int_align4;
 
   MDBX_node *node;
   do {
@@ -13790,8 +13788,8 @@ __hot static int mdbx_page_search_root(MDBX_cursor *mc, const MDBX_val *key,
 static int mdbx_setup_dbx(MDBX_dbx *const dbx, const MDBX_db *const db,
                           const unsigned pagesize) {
   if (unlikely(!dbx->md_cmp)) {
-    dbx->md_cmp = mdbx_default_keycmp(db->md_flags);
-    dbx->md_dcmp = mdbx_default_datacmp(db->md_flags);
+    dbx->md_cmp = get_default_keycmp(db->md_flags);
+    dbx->md_dcmp = get_default_datacmp(db->md_flags);
   }
 
   dbx->md_klen_min =
@@ -19257,19 +19255,18 @@ int __cold mdbx_env_info_ex(const MDBX_env *env, const MDBX_txn *txn,
   return MDBX_SUCCESS;
 }
 
-static MDBX_cmp_func *mdbx_default_keycmp(unsigned flags) {
+static __inline MDBX_cmp_func *get_default_keycmp(unsigned flags) {
   return (flags & MDBX_REVERSEKEY)
-             ? mdbx_cmp_memnr
-             : (flags & MDBX_INTEGERKEY) ? mdbx_cmp_int_align2 : mdbx_cmp_memn;
+             ? cmp_reverse
+             : (flags & MDBX_INTEGERKEY) ? cmp_int_align2 : cmp_lexical;
 }
 
-static MDBX_cmp_func *mdbx_default_datacmp(unsigned flags) {
+static __inline MDBX_cmp_func *get_default_datacmp(unsigned flags) {
   return !(flags & MDBX_DUPSORT)
-             ? mdbx_cmp_lenfast
+             ? cmp_lenfast
              : ((flags & MDBX_INTEGERDUP)
-                    ? mdbx_cmp_int_unaligned
-                    : ((flags & MDBX_REVERSEDUP) ? mdbx_cmp_memnr
-                                                 : mdbx_cmp_memn));
+                    ? cmp_int_unaligned
+                    : ((flags & MDBX_REVERSEDUP) ? cmp_reverse : cmp_lexical));
 }
 
 static int mdbx_dbi_bind(MDBX_txn *txn, const MDBX_dbi dbi, unsigned user_flags,
@@ -19303,7 +19300,7 @@ static int mdbx_dbi_bind(MDBX_txn *txn, const MDBX_dbi dbi, unsigned user_flags,
 
   if (!keycmp)
     keycmp = txn->mt_dbxs[dbi].md_cmp ? txn->mt_dbxs[dbi].md_cmp
-                                      : mdbx_default_keycmp(user_flags);
+                                      : get_default_keycmp(user_flags);
   if (txn->mt_dbxs[dbi].md_cmp != keycmp) {
     if (txn->mt_dbxs[dbi].md_cmp)
       return MDBX_EINVAL;
@@ -19312,7 +19309,7 @@ static int mdbx_dbi_bind(MDBX_txn *txn, const MDBX_dbi dbi, unsigned user_flags,
 
   if (!datacmp)
     datacmp = txn->mt_dbxs[dbi].md_dcmp ? txn->mt_dbxs[dbi].md_dcmp
-                                        : mdbx_default_datacmp(user_flags);
+                                        : get_default_datacmp(user_flags);
   if (txn->mt_dbxs[dbi].md_dcmp != datacmp) {
     if (txn->mt_dbxs[dbi].md_dcmp)
       return MDBX_EINVAL;
@@ -19370,9 +19367,9 @@ int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
 
   if (txn->mt_dbxs[MAIN_DBI].md_cmp == NULL) {
     txn->mt_dbxs[MAIN_DBI].md_cmp =
-        mdbx_default_keycmp(txn->mt_dbs[MAIN_DBI].md_flags);
+        get_default_keycmp(txn->mt_dbs[MAIN_DBI].md_flags);
     txn->mt_dbxs[MAIN_DBI].md_dcmp =
-        mdbx_default_datacmp(txn->mt_dbs[MAIN_DBI].md_flags);
+        get_default_datacmp(txn->mt_dbs[MAIN_DBI].md_flags);
   }
 
   /* Is the DB already open? */
@@ -21332,18 +21329,50 @@ __cold intptr_t mdbx_limits_txnsize_max(intptr_t pagesize) {
 
 /*** Key-making functions to avoid custom comparators *************************/
 
+static __always_inline double key2double(const int64_t key) {
+  union {
+    uint64_t u;
+    double f;
+  } casting;
+
+  casting.u = (key < 0) ? key + UINT64_C(0x8000000000000000)
+                        : UINT64_C(0xffffFFFFffffFFFF) - key;
+  return casting.f;
+}
+
 static __always_inline uint64_t double2key(const double *const ptr) {
   STATIC_ASSERT(sizeof(double) == sizeof(int64_t));
-  const int64_t i64 = *(const int64_t *)ptr;
-  return (i64 >= 0) ? /* positive */ UINT64_C(0x8000000000000000) + i64
-                    : /* negative */ (uint64_t)-i64;
+  const int64_t i = *(const int64_t *)ptr;
+  const uint64_t u = (i < 0) ? UINT64_C(0xffffFFFFffffFFFF) - i
+                             : i + UINT64_C(0x8000000000000000);
+  if (mdbx_assert_enabled()) {
+    const double f = key2double(u);
+    assert(memcmp(&f, ptr, 8) == 0);
+  }
+  return u;
+}
+
+static __always_inline float key2float(const int32_t key) {
+  union {
+    uint32_t u;
+    float f;
+  } casting;
+
+  casting.u =
+      (key < 0) ? key + UINT32_C(0x80000000) : UINT32_C(0xffffFFFF) - key;
+  return casting.f;
 }
 
 static __always_inline uint32_t float2key(const float *const ptr) {
   STATIC_ASSERT(sizeof(float) == sizeof(int32_t));
-  const int32_t i32 = *(const int32_t *)ptr;
-  return (i32 >= 0) ? /* positive */ UINT32_C(0x80000000) + i32
-                    : /* negative */ (uint32_t)-i32;
+  const int32_t i = *(const int32_t *)ptr;
+  const uint32_t u =
+      (i < 0) ? UINT32_C(0xffffFFFF) - i : i + UINT32_C(0x80000000);
+  if (mdbx_assert_enabled()) {
+    const float f = key2float(u);
+    assert(memcmp(&f, ptr, 4) == 0);
+  }
+  return u;
 }
 
 uint64_t mdbx_key_from_double(const double ieee754_64bit) {
@@ -21363,8 +21392,8 @@ uint32_t mdbx_key_from_ptrfloat(const float *const ieee754_32bit) {
 }
 
 #define IEEE754_DOUBLE_MANTISSA_SIZE 52
-#define IEEE754_DOUBLE_BIAS 0x3FF
-#define IEEE754_DOUBLE_MAX 0x7FF
+#define IEEE754_DOUBLE_EXPONENTA_BIAS 0x3FF
+#define IEEE754_DOUBLE_EXPONENTA_MAX 0x7FF
 #define IEEE754_DOUBLE_IMPLICIT_LEAD UINT64_C(0x0010000000000000)
 #define IEEE754_DOUBLE_MANTISSA_MASK UINT64_C(0x000FFFFFFFFFFFFF)
 #define IEEE754_DOUBLE_MANTISSA_AMAX UINT64_C(0x001FFFFFFFFFFFFF)
@@ -21410,7 +21439,7 @@ static __inline int clz64(uint64_t value) {
   return debruijn_clz64[value * UINT64_C(0x03F79D71B4CB0A89) >> 58];
 }
 
-static uint64_t round_mantissa(const uint64_t u64, int shift) {
+static __inline uint64_t round_mantissa(const uint64_t u64, int shift) {
   assert(shift < 0 && u64 > 0);
   shift = -shift;
   const unsigned half = 1 << (shift - 1);
@@ -21420,7 +21449,7 @@ static uint64_t round_mantissa(const uint64_t u64, int shift) {
 }
 
 uint64_t mdbx_key_from_jsonInteger(const int64_t json_integer) {
-  const uint64_t biased_zero = UINT64_C(0x8000000000000000);
+  const uint64_t bias = UINT64_C(0x8000000000000000);
   if (json_integer > 0) {
     const uint64_t u64 = json_integer;
     int shift = clz64(u64) - (64 - IEEE754_DOUBLE_MANTISSA_SIZE - 1);
@@ -21434,10 +21463,9 @@ uint64_t mdbx_key_from_jsonInteger(const int64_t json_integer) {
     assert(mantissa >= IEEE754_DOUBLE_IMPLICIT_LEAD &&
            mantissa <= IEEE754_DOUBLE_MANTISSA_AMAX);
     const uint64_t exponent =
-        IEEE754_DOUBLE_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE - shift;
-    assert(exponent > 0 && exponent <= IEEE754_DOUBLE_MAX);
-    const uint64_t key = biased_zero +
-                         (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) +
+        IEEE754_DOUBLE_EXPONENTA_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE - shift;
+    assert(exponent > 0 && exponent <= IEEE754_DOUBLE_EXPONENTA_MAX);
+    const uint64_t key = bias + (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) +
                          (mantissa - IEEE754_DOUBLE_IMPLICIT_LEAD);
 #if !defined(_MSC_VER) ||                                                      \
     defined(                                                                   \
@@ -21461,10 +21489,9 @@ uint64_t mdbx_key_from_jsonInteger(const int64_t json_integer) {
     assert(mantissa >= IEEE754_DOUBLE_IMPLICIT_LEAD &&
            mantissa <= IEEE754_DOUBLE_MANTISSA_AMAX);
     const uint64_t exponent =
-        IEEE754_DOUBLE_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE - shift;
-    assert(exponent > 0 && exponent <= IEEE754_DOUBLE_MAX);
-    const uint64_t key = biased_zero -
-                         (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) -
+        IEEE754_DOUBLE_EXPONENTA_BIAS + IEEE754_DOUBLE_MANTISSA_SIZE - shift;
+    assert(exponent > 0 && exponent <= IEEE754_DOUBLE_EXPONENTA_MAX);
+    const uint64_t key = bias - 1 - (exponent << IEEE754_DOUBLE_MANTISSA_SIZE) -
                          (mantissa - IEEE754_DOUBLE_IMPLICIT_LEAD);
 #if !defined(_MSC_VER) ||                                                      \
     defined(                                                                   \
@@ -21475,7 +21502,60 @@ uint64_t mdbx_key_from_jsonInteger(const int64_t json_integer) {
     return key;
   }
 
-  return biased_zero;
+  return bias;
+}
+
+int64_t mdbx_jsonInteger_from_key(const MDBX_val v) {
+  assert(v.iov_len == 8);
+  const uint64_t key = unaligned_peek_u64(2, v.iov_base);
+  const uint64_t bias = UINT64_C(0x8000000000000000);
+  const uint64_t covalent = (key > bias) ? key - bias : bias - key - 1;
+  const int shift = IEEE754_DOUBLE_EXPONENTA_BIAS + 63 -
+                    (IEEE754_DOUBLE_EXPONENTA_MAX &
+                     (int)(covalent >> IEEE754_DOUBLE_MANTISSA_SIZE));
+  if (unlikely(shift < 1))
+    return (key < bias) ? INT64_MIN : INT64_MAX;
+  if (unlikely(shift > 63))
+    return 0;
+
+  const uint64_t unscaled = ((covalent & IEEE754_DOUBLE_MANTISSA_MASK)
+                             << (63 - IEEE754_DOUBLE_MANTISSA_SIZE)) +
+                            bias;
+  const int64_t absolute = unscaled >> shift;
+  const int64_t value = (key < bias) ? -absolute : absolute;
+  assert(key == mdbx_key_from_jsonInteger(value) ||
+         (mdbx_key_from_jsonInteger(value - 1) < key &&
+          key < mdbx_key_from_jsonInteger(value + 1)));
+  return value;
+}
+
+double mdbx_double_from_key(const MDBX_val v) {
+  assert(v.iov_len == 8);
+  return key2double(unaligned_peek_u64(2, v.iov_base));
+}
+
+float mdbx_float_from_key(const MDBX_val v) {
+  assert(v.iov_len == 4);
+  return key2float(unaligned_peek_u32(2, v.iov_base));
+}
+
+int32_t mdbx_int32_from_key(const MDBX_val v) {
+  assert(v.iov_len == 4);
+  return (int32_t)(unaligned_peek_u32(2, v.iov_base) - UINT32_C(0x80000000));
+}
+
+int64_t mdbx_int64_from_key(const MDBX_val v) {
+  assert(v.iov_len == 8);
+  return (int64_t)(unaligned_peek_u64(2, v.iov_base) -
+                   UINT64_C(0x8000000000000000));
+}
+
+__cold MDBX_cmp_func *mdbx_get_keycmp(unsigned flags) {
+  return get_default_keycmp(flags);
+}
+
+__cold MDBX_cmp_func *mdbx_get_datacmp(unsigned flags) {
+  return get_default_datacmp(flags);
 }
 
 /*** Attribute support functions for Nexenta **********************************/
@@ -24045,9 +24125,9 @@ __dll_export
         0,
         8,
         1,
-        1,
-        {"2020-06-15T12:51:35+03:00", "0995403e3dcf0556c07926e88fb9b18374eca5f9", "35313d18bce36e9306c12bd3674e7fbe15eebb55",
-         "v0.8.1-1-g35313d18"},
+        8,
+        {"2020-06-24T17:15:56+03:00", "fee57a72d153d8ba1978b7c34a426c237bd4d8af", "0afc21eed97b2f1259c35136dda633ce9775fb59",
+         "v0.8.1-8-g0afc21eed"},
         sourcery};
 
 __dll_export
