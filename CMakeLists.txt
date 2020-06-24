@@ -227,7 +227,7 @@ set(erthink_HEADERS
 target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")
 
 option(ERTHINK_ENABLE_TESTS "Build erthink tests." ${BUILD_TESTING})
-if(ERTHINK_ENABLE_TESTS)
+if(ERTHINK_ENABLE_TESTS AND BUILD_TESTING)
   add_subdirectory(test)
 endif()
 
