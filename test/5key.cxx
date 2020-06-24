@@ -608,7 +608,7 @@ TEST(Value2Key, fp32) {
   probe(fpta_value_float(-1 - FLT_EPSILON), ++i);
   probe(fpta_value_float(-1), ++i);
 #if !FPTA_PROHIBIT_LOSS_PRECISION
-  probe(fpta_value_float(-1 - DBL_EPSILON), i, true);
+  probe(fpta_value_float(-1 - DBL_EPSILON), i, true); /* -0.0 == 0 */
 #endif
   probe(fpta_value_float(-FLT_MIN), ++i);
   probe(fpta_value_float(0), ++i);
@@ -619,7 +619,7 @@ TEST(Value2Key, fp32) {
   probe(fpta_value_float(FLT_MIN), ++i);
   probe(fpta_value_float(1), ++i);
 #if !FPTA_PROHIBIT_LOSS_PRECISION
-  probe(fpta_value_float(1 + DBL_EPSILON), i, true);
+  probe(fpta_value_float(1 + DBL_EPSILON), i, true); /* +0.0 == 0 */
 #endif
   probe(fpta_value_float(1 + FLT_EPSILON), ++i);
   probe(fpta_value_float(42), ++i);
