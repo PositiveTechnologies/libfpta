@@ -352,12 +352,8 @@ struct fpta_key {
 
   MDBX_val mdbx;
   union {
-    int32_t i32;
     uint32_t u32;
-    int64_t i64;
     uint64_t u64;
-    float f32;
-    double f64;
 
     struct {
       uint64_t head[fpta_max_keylen / sizeof(uint64_t)];
@@ -447,7 +443,6 @@ struct fpta_cursor {
 
 //----------------------------------------------------------------------------
 
-MDBX_cmp_func *fpta_index_shove2comparator(fpta_shove_t shove);
 unsigned fpta_index_shove2primary_dbiflags(fpta_shove_t pk_shove);
 unsigned fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
                                              fpta_shove_t sk_shove);

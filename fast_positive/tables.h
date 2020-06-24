@@ -3315,7 +3315,7 @@ FPTA_API fptu_lge __fpta_filter_cmp(const fptu_field *pf,
                                     const fpta_value *right);
 FPTA_API int __fpta_index_value2key(fpta_shove_t shove, const fpta_value *value,
                                     void *key);
-FPTA_API void *__fpta_index_shove2comparator(fpta_shove_t shove);
+FPTA_API const void *__fpta_index_shove2comparator(fpta_shove_t shove);
 
 static __inline bool fpta_is_under_valgrind(void) {
   return fptu_is_under_valgrind();

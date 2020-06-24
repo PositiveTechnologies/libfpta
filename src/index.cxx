@@ -16,190 +16,24 @@
  */
 
 #include "details.h"
+#include "externals/libfptu/src/erthink/erthink_casting.h"
+
+static inline MDBX_cmp_func *fpta_index_shove2comparator(fpta_shove_t shove) {
+  const fpta_index_type index = fpta_shove2index(shove);
+  if (fpta_index_is_unordered(index))
+    return mdbx_get_keycmp(MDBX_INTEGERKEY);
+
+  const fptu_type type = fpta_shove2type(shove);
+  if (type >= fptu_96 || type == /* composite */ fptu_null)
+    return mdbx_get_keycmp(fpta_index_is_reverse(index) ? MDBX_REVERSEKEY : 0);
+  return mdbx_get_keycmp(MDBX_INTEGERKEY);
+}
+
+const void *__fpta_index_shove2comparator(fpta_shove_t shove) {
+  return (const void *)fpta_index_shove2comparator(shove);
+}
 
 //----------------------------------------------------------------------------
-
-#if !defined(__BYTE_ORDER__) || !defined(__ORDER_LITTLE_ENDIAN__) ||           \
-    !defined(__ORDER_BIG_ENDIAN__)
-#error __BYTE_ORDER__ should be defined.
-#endif
-
-#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__ &&                               \
-    __BYTE_ORDER__ != __ORDER_BIG_ENDIAN__
-#error Unsupported byte order.
-#endif
-
-#ifndef UNALIGNED_OK
-#error UNALIGNED_OK should be defined.
-#endif
-
-static int __hot fpta_idxcmp_binary_last2first(const MDBX_val *a,
-                                               const MDBX_val *b) {
-  const uint8_t *pa = (const uint8_t *)a->iov_base + a->iov_len;
-  const uint8_t *pb = (const uint8_t *)b->iov_base + b->iov_len;
-  const size_t shortest = (a->iov_len < b->iov_len) ? a->iov_len : b->iov_len;
-  const uint8_t *const stopper = pa - shortest;
-
-#if UNALIGNED_OK && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-  if (shortest >= sizeof(size_t)) {
-    do {
-      pa -= sizeof(size_t);
-      pb -= sizeof(size_t);
-      int diff = fptu_cmp2int(*(size_t *)pa, *(size_t *)pb);
-      if (likely(diff))
-        return diff;
-    } while (pa - sizeof(size_t) >= stopper);
-  }
-  if (sizeof(unsigned) < sizeof(size_t) && pa >= stopper + sizeof(unsigned)) {
-    pa -= sizeof(unsigned);
-    pb -= sizeof(unsigned);
-    int diff = fptu_cmp2int(*(unsigned *)pa, *(unsigned *)pb);
-    if (likely(diff))
-      return diff;
-  }
-  if (sizeof(unsigned short) < sizeof(unsigned) &&
-      pa >= stopper + sizeof(unsigned short)) {
-    pa -= sizeof(unsigned short);
-    pb -= sizeof(unsigned short);
-    int diff = *(unsigned short *)pa - *(unsigned short *)pb;
-    if (likely(diff))
-      return diff;
-  }
-#endif
-
-  while (pa != stopper) {
-    int diff = *--pa - *--pb;
-    if (likely(diff))
-      return diff;
-  }
-  return fptu_cmp2int(a->iov_len, b->iov_len);
-}
-
-static int __hot fpta_idxcmp_binary_first2last(const MDBX_val *a,
-                                               const MDBX_val *b) {
-  size_t shortest = (a->iov_len < b->iov_len) ? a->iov_len : b->iov_len;
-  int diff = memcmp(a->iov_base, b->iov_base, shortest);
-  return likely(diff) ? diff : fptu_cmp2int(a->iov_len, b->iov_len);
-}
-
-template <typename T>
-static int __hot fpta_idxcmp_type(const MDBX_val *a, const MDBX_val *b) {
-  assert(a->iov_len == sizeof(T) && b->iov_len == sizeof(T));
-
-  T va, vb;
-  if (UNALIGNED_OK) {
-    va = *(const T *)a->iov_base;
-    vb = *(const T *)b->iov_base;
-  } else {
-    memcpy(&va, a->iov_base, sizeof(T));
-    memcpy(&vb, b->iov_base, sizeof(T));
-  }
-  return fptu_cmp2int(va, vb);
-}
-
-static int __hot fpta_idxcmp_fp32(const MDBX_val *a, const MDBX_val *b) {
-  assert(a->iov_len == 4 && b->iov_len == 4);
-
-  int32_t va, vb;
-  if (UNALIGNED_OK) {
-    va = *(const int32_t *)a->iov_base;
-    vb = *(const int32_t *)b->iov_base;
-  } else {
-    memcpy(&va, a->iov_base, 4);
-    memcpy(&vb, b->iov_base, 4);
-  }
-
-  int32_t negative = va & (1 << 31);
-  if ((negative ^ vb) < 0)
-    return negative ? -1 : 1;
-
-  int32_t cmp = (va & INT32_C(0x7fffFFFF)) - (vb & INT32_C(0x7fffFFFF));
-  return negative ? -cmp : cmp;
-}
-
-static int __hot fpta_idxcmp_fp64(const MDBX_val *a, const MDBX_val *b) {
-  assert(a->iov_len == 8 && b->iov_len == 8);
-
-  int64_t va, vb;
-  if (UNALIGNED_OK) {
-    va = *(const int64_t *)a->iov_base;
-    vb = *(const int64_t *)b->iov_base;
-  } else {
-    memcpy(&va, a->iov_base, 8);
-    memcpy(&vb, b->iov_base, 8);
-  }
-
-  int64_t negative = va & UINT64_C(0x8000000000000000);
-  if ((negative ^ vb) < 0)
-    return negative ? -1 : 1;
-
-  int cmp = fptu_cmp2int(va & UINT64_C(0x7fffFFFFffffFFFF),
-                         vb & UINT64_C(0x7fffFFFFffffFFFF));
-  return negative ? -cmp : cmp;
-}
-
-static int fpta_idxcmp_tuple(const MDBX_val *a, const MDBX_val *b) {
-  switch (fptu_cmp_tuples(*(const fptu_ro *)a, *(const fptu_ro *)b)) {
-  case fptu_eq:
-    return 0;
-  case fptu_lt:
-    return -1;
-  case fptu_gt:
-    return 1;
-  default:
-    assert(0 && "incomparable tuples");
-    return 42;
-  }
-}
-
-static int fpta_idxcmp_mad(const MDBX_val *a, const MDBX_val *b) {
-  (void)a;
-  (void)b;
-  return 0;
-}
-
-__hot MDBX_cmp_func *fpta_index_shove2comparator(fpta_shove_t shove) {
-  fptu_type type = fpta_shove2type(shove);
-  fpta_index_type index = fpta_shove2index(shove);
-
-  switch (type) {
-  default:
-    if (type >= fptu_96 || type == /* composite */ fptu_null) {
-      if (fpta_index_is_unordered(index))
-        return fpta_idxcmp_type<uint64_t>;
-      if (fpta_index_is_reverse(index))
-        return fpta_idxcmp_binary_last2first;
-      return fpta_idxcmp_binary_first2last;
-    }
-    assert(0 && "wrong type for index");
-    return fpta_idxcmp_mad;
-
-  case fptu_nested:
-    return fpta_idxcmp_tuple;
-  case fptu_fp32:
-    static_assert(sizeof(float) == sizeof(int32_t), "something wrong");
-    static_assert(sizeof(int) == 4, "something wrong");
-    return fpta_idxcmp_fp32;
-  case fptu_int32:
-    return fpta_idxcmp_type<int32_t>;
-  case fptu_uint32:
-  case fptu_uint16:
-    return fpta_idxcmp_type<uint32_t>;
-  case fptu_fp64:
-    static_assert(sizeof(double) == sizeof(int64_t), "something wrong");
-    static_assert(sizeof(int64_t) == 8, "something wrong");
-    return fpta_idxcmp_fp64;
-  case fptu_int64:
-    return fpta_idxcmp_type<int64_t>;
-  case fptu_uint64:
-  case fptu_datetime:
-    return fpta_idxcmp_type<uint64_t>;
-  }
-}
-
-void *__fpta_index_shove2comparator(fpta_shove_t shove) {
-  return (void *)fpta_index_shove2comparator(shove);
-}
 
 static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
                                     bool copy) {
@@ -534,12 +368,13 @@ static int fpta_denil_key(const fpta_shove_t shove, fpta_key &key) {
 
   case fptu_uint16:
     key.place.u32 = fpta_index_is_obverse(shove)
-                        ? (unsigned)FPTA_DENIL_UINT16_OBVERSE
-                        : (unsigned)FPTA_DENIL_UINT16_REVERSE;
+                        ? unsigned(FPTA_DENIL_UINT16_OBVERSE)
+                        : unsigned(FPTA_DENIL_UINT16_REVERSE);
     key.mdbx.iov_len = sizeof(key.place.u32);
     key.mdbx.iov_base = &key.place.u32;
     return FPTA_SUCCESS;
 
+  case fptu_int32:
   case fptu_uint32:
     key.place.u32 = fpta_index_is_obverse(shove) ? FPTA_DENIL_UINT32_OBVERSE
                                                  : FPTA_DENIL_UINT32_REVERSE;
@@ -547,6 +382,7 @@ static int fpta_denil_key(const fpta_shove_t shove, fpta_key &key) {
     key.mdbx.iov_base = &key.place.u32;
     return FPTA_SUCCESS;
 
+  case fptu_int64:
   case fptu_uint64:
     key.place.u64 = fpta_index_is_obverse(shove) ? FPTA_DENIL_UINT64_OBVERSE
                                                  : FPTA_DENIL_UINT64_REVERSE;
@@ -554,26 +390,16 @@ static int fpta_denil_key(const fpta_shove_t shove, fpta_key &key) {
     key.mdbx.iov_base = &key.place.u64;
     return FPTA_SUCCESS;
 
-  case fptu_int32:
-    key.place.i32 = FPTA_DENIL_SINT32;
-    key.mdbx.iov_len = sizeof(key.place.i32);
-    key.mdbx.iov_base = &key.place.i32;
-    return FPTA_SUCCESS;
-
-  case fptu_int64:
-    key.place.i64 = FPTA_DENIL_SINT64;
-    key.mdbx.iov_len = sizeof(key.place.i64);
-    key.mdbx.iov_base = &key.place.i64;
-    return FPTA_SUCCESS;
-
   case fptu_fp32:
-    key.place.u32 = FPTA_DENIL_FP32_BIN;
+    key.place.u32 = 0;
+    assert(mdbx_key_from_ptrfloat(&fpta_fp32_denil.__f) == key.place.u32);
     key.mdbx.iov_len = sizeof(key.place.u32);
     key.mdbx.iov_base = &key.place.u32;
     return FPTA_SUCCESS;
 
   case fptu_fp64:
-    key.place.u64 = FPTA_DENIL_FP64_BIN;
+    key.place.u64 = 0;
+    assert(mdbx_key_from_ptrdouble(&fpta_fp64_denil.__d) == key.place.u64);
     key.mdbx.iov_len = sizeof(key.place.u64);
     key.mdbx.iov_base = &key.place.u64;
     return FPTA_SUCCESS;
@@ -606,6 +432,8 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
       return FPTA_ETYPE;
 
     if (value.type == fpta_shoved) {
+      // значение уже преобразовано в формат ключа
+
       if (unlikely(value.binary_length > sizeof(key.place)))
         return FPTA_DATALEN_MISMATCH;
       if (unlikely(value.binary_data == nullptr))
@@ -625,6 +453,8 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
       return FPTA_ETYPE;
 
     if (value.type == fpta_shoved) {
+      // значение уже преобразовано в формат ключа
+
       if (unlikely(value.binary_length != sizeof(key.place.u64)))
         return FPTA_DATALEN_MISMATCH;
       if (unlikely(value.binary_data == nullptr))
@@ -666,7 +496,7 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_ETYPE;
 
   case fptu_uint16:
-    key.place.u32 = (uint16_t)value.sint;
+    key.place.u32 = uint16_t(value.sint);
     if (unlikely(value.sint != key.place.u32))
       return FPTA_EVALUE;
     key.mdbx.iov_len = sizeof(key.place.u32);
@@ -674,7 +504,7 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_SUCCESS;
 
   case fptu_uint32:
-    key.place.u32 = (uint32_t)value.sint;
+    key.place.u32 = uint32_t(value.sint);
     if (unlikely(value.sint != key.place.u32))
       return FPTA_EVALUE;
     key.mdbx.iov_len = sizeof(key.place.u32);
@@ -682,18 +512,17 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_SUCCESS;
 
   case fptu_int32:
-    key.place.i32 = (int32_t)value.sint;
-    if (unlikely(value.sint != key.place.i32))
+    if (unlikely(int32_t(value.sint) != value.sint))
       return FPTA_EVALUE;
-    key.mdbx.iov_len = sizeof(key.place.i32);
-    key.mdbx.iov_base = &key.place.i32;
+    key.place.u32 = mdbx_key_from_int32(int32_t(value.sint));
+    key.mdbx.iov_len = sizeof(key.place.u32);
+    key.mdbx.iov_base = &key.place.u32;
+    assert(mdbx_int32_from_key(key.mdbx) == value.sint);
     return FPTA_SUCCESS;
 
-  case fptu_fp32:
-    key.mdbx.iov_len = sizeof(key.place.f32);
-    key.mdbx.iov_base = &key.place.f32;
-    key.place.f32 = (float)value.fp;
-    switch (std::fpclassify(key.place.f32)) {
+  case fptu_fp32: {
+    float fp = float(value.fp);
+    switch (std::fpclassify(fp)) {
     case FP_INFINITE:
       if (std::isinf(value.fp))
         break;
@@ -701,24 +530,30 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     case FP_NAN:
     default:
       return FPTA_EVALUE;
-    case FP_SUBNORMAL:
     case FP_ZERO:
-      key.place.f32 = 0;
+      /* -0.0 => 0 */
+      fp = 0.0;
+    case FP_SUBNORMAL:
     case FP_NORMAL:
       break;
     }
-#if FPTA_PROHIBIT_LOSS_PRECISION
-    if (unlikely(value.fp != key.place.f32))
+    if (FPTA_PROHIBIT_LOSS_PRECISION && sizeof(value.fp) != sizeof(fp) &&
+        unlikely(value.fp != fp))
       return FPTA_EVALUE;
-#endif
+    key.place.u32 = mdbx_key_from_ptrfloat(&fp);
+    key.mdbx.iov_len = sizeof(key.place.u32);
+    key.mdbx.iov_base = &key.place.u32;
+    assert(mdbx_float_from_key(key.mdbx) == fp);
     return FPTA_SUCCESS;
+  }
 
   case fptu_int64:
     if (unlikely(value.type == fpta_unsigned_int && value.uint > INT64_MAX))
       return FPTA_EVALUE;
-    key.place.i64 = value.sint;
-    key.mdbx.iov_len = sizeof(key.place.i64);
-    key.mdbx.iov_base = &key.place.i64;
+    key.place.u64 = mdbx_key_from_int64(value.sint);
+    key.mdbx.iov_len = sizeof(key.place.u64);
+    key.mdbx.iov_base = &key.place.u64;
+    assert(mdbx_int64_from_key(key.mdbx) == value.sint);
     return FPTA_SUCCESS;
 
   case fptu_uint64:
@@ -729,22 +564,29 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     key.mdbx.iov_base = &key.place.u64;
     return FPTA_SUCCESS;
 
-  case fptu_fp64:
-    key.mdbx.iov_len = sizeof(key.place.f64);
-    key.mdbx.iov_base = &key.place.f64;
-    key.place.f64 = value.fp;
-    switch (std::fpclassify(key.place.f64)) {
+  case fptu_fp64: {
+    double fp = double(value.fp);
+    switch (std::fpclassify(fp)) {
     case FP_NAN:
     default:
       return FPTA_EVALUE;
-    case FP_SUBNORMAL:
     case FP_ZERO:
-      key.place.f64 = 0;
+      /* -0.0 => 0 */
+      fp = 0.0;
+    case FP_SUBNORMAL:
     case FP_INFINITE:
     case FP_NORMAL:
       break;
     }
+    if (FPTA_PROHIBIT_LOSS_PRECISION && sizeof(value.fp) != sizeof(fp) &&
+        unlikely(value.fp != fp))
+      return FPTA_EVALUE;
+    key.place.u64 = mdbx_key_from_ptrdouble(&fp);
+    key.mdbx.iov_len = sizeof(key.place.u64);
+    key.mdbx.iov_base = &key.place.u64;
+    assert(mdbx_double_from_key(key.mdbx) == fp);
     return FPTA_SUCCESS;
+  }
 
   case fptu_datetime:
     assert(value.type == fpta_datetime);
@@ -888,14 +730,14 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_uint16: {
     if (unlikely(mdbx.iov_len != sizeof(uint32_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast16_t denil = numeric_traits<fptu_uint16>::denil(index);
-      if (unlikely(*(uint32_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.uint = *(uint32_t *)mdbx.iov_base;
-    if (unlikely(value.uint > UINT16_MAX))
+    uint32_t u32;
+    memcpy(&u32, mdbx.iov_base, 4);
+    if (unlikely(u32 > UINT16_MAX))
       goto return_corrupted;
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(u32 == numeric_traits<fptu_uint16>::denil(index)))
+      goto return_null;
+    value.uint = u32;
     value.type = fpta_unsigned_int;
     value.binary_length = sizeof(uint32_t);
     return FPTA_SUCCESS;
@@ -904,12 +746,12 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_uint32: {
     if (unlikely(mdbx.iov_len != sizeof(uint32_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast32_t denil = numeric_traits<fptu_uint32>::denil(index);
-      if (unlikely(*(uint32_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.uint = *(uint32_t *)mdbx.iov_base;
+    uint32_t u32;
+    memcpy(&u32, mdbx.iov_base, 4);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(u32 == numeric_traits<fptu_uint32>::denil(index)))
+      goto return_null;
+    value.uint = u32;
     value.type = fpta_unsigned_int;
     value.binary_length = sizeof(uint32_t);
     return FPTA_SUCCESS;
@@ -918,12 +760,10 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_int32: {
     if (unlikely(mdbx.iov_len != sizeof(int32_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const int_fast32_t denil = numeric_traits<fptu_int32>::denil(index);
-      if (unlikely(*(int32_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.sint = *(int32_t *)mdbx.iov_base;
+    value.sint = mdbx_int32_from_key(mdbx);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(value.sint == numeric_traits<fptu_int32>::denil(index)))
+      goto return_null;
     value.type = fpta_signed_int;
     value.binary_length = sizeof(int32_t);
     return FPTA_SUCCESS;
@@ -932,26 +772,24 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_fp32: {
     if (unlikely(mdbx.iov_len != sizeof(uint32_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast32_t denil = FPTA_DENIL_FP32_BIN;
-      if (unlikely(*(uint32_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.fp = *(float *)mdbx.iov_base;
+    const float fp = mdbx_float_from_key(mdbx);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(erthink::bit_cast<uint32_t>(fp) == FPTA_DENIL_FP32_BIN))
+      goto return_null;
+    value.fp = fp;
     value.type = fpta_float_point;
-    value.binary_length = sizeof(float);
+    value.binary_length = sizeof(fp);
     return FPTA_SUCCESS;
   }
 
   case fptu_fp64: {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast64_t denil = FPTA_DENIL_FP64_BIN;
-      if (unlikely(*(uint64_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.fp = *(double *)mdbx.iov_base;
+    const double fp = mdbx_double_from_key(mdbx);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(erthink::bit_cast<uint64_t>(fp) == FPTA_DENIL_FP64_BIN))
+      goto return_null;
+    value.fp = fp;
     value.type = fpta_float_point;
     value.binary_length = sizeof(double);
     return FPTA_SUCCESS;
@@ -960,12 +798,10 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_uint64: {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast64_t denil = numeric_traits<fptu_uint64>::denil(index);
-      if (unlikely(*(uint64_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.uint = *(uint64_t *)mdbx.iov_base;
+    memcpy(&value.uint, mdbx.iov_base, 8);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(value.uint == numeric_traits<fptu_uint64>::denil(index)))
+      goto return_null;
     value.type = fpta_unsigned_int;
     value.binary_length = sizeof(uint64_t);
     return FPTA_SUCCESS;
@@ -974,12 +810,10 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_int64: {
     if (unlikely(mdbx.iov_len != sizeof(int64_t)))
       goto return_corrupted;
-    value.sint = *(int64_t *)mdbx.iov_base;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const int_fast64_t denil = numeric_traits<fptu_int64>::denil(index);
-      if (unlikely(value.sint == denil))
-        goto return_null;
-    }
+    value.sint = mdbx_int64_from_key(mdbx);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(value.sint == numeric_traits<fptu_int64>::denil(index)))
+      goto return_null;
     value.type = fpta_signed_int;
     value.binary_length = sizeof(int64_t);
     return FPTA_SUCCESS;
@@ -988,12 +822,10 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_datetime: {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
-    value.datetime.fixedpoint = *(uint64_t *)mdbx.iov_base;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast64_t denil = FPTA_DENIL_DATETIME_BIN;
-      if (unlikely(value.datetime.fixedpoint == denil))
-        goto return_null;
-    }
+    memcpy(&value.datetime.fixedpoint, mdbx.iov_base, 8);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(value.datetime.fixedpoint == FPTA_DENIL_DATETIME_BIN))
+      goto return_null;
     value.type = fpta_datetime;
     value.binary_length = sizeof(uint64_t);
     return FPTA_SUCCESS;
@@ -1105,6 +937,9 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
     key.mdbx.iov_base = &key.place.u32;
     return FPTA_SUCCESS;
 
+  case fptu_datetime:
+    static_assert(sizeof(payload->dt) == sizeof(payload->u64), "WTF?");
+    assert(payload->dt.fixedpoint == payload->u64);
   case fptu_uint64:
     key.place.u64 = payload->u64;
     key.mdbx.iov_len = sizeof(key.place.u64);
@@ -1112,26 +947,31 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
     return FPTA_SUCCESS;
 
   case fptu_int32:
-  case fptu_fp32:
-    static_assert(sizeof(key.place.f32) == sizeof(key.place.i32),
-                  "something wrong");
-    static_assert(sizeof(key.place.i32) == sizeof(key.place.u32),
-                  "something wrong");
-    key.place.u32 = payload->u32;
+    key.place.u32 = mdbx_key_from_int32(payload->i32);
     key.mdbx.iov_len = sizeof(key.place.u32);
     key.mdbx.iov_base = &key.place.u32;
+    assert(mdbx_int32_from_key(key.mdbx) == payload->i32);
     return FPTA_SUCCESS;
 
-  case fptu_datetime:
+  case fptu_fp32:
+    key.place.u32 = mdbx_key_from_ptrfloat(&payload->fp32);
+    key.mdbx.iov_len = sizeof(key.place.u32);
+    key.mdbx.iov_base = &key.place.u32;
+    assert(mdbx_float_from_key(key.mdbx) == payload->fp32);
+    return FPTA_SUCCESS;
+
   case fptu_int64:
-  case fptu_fp64:
-    static_assert(sizeof(key.place.f64) == sizeof(key.place.i64),
-                  "something wrong");
-    static_assert(sizeof(key.place.i64) == sizeof(key.place.u64),
-                  "something wrong");
-    key.place.u64 = payload->u64;
+    key.place.u64 = mdbx_key_from_int64(payload->i64);
     key.mdbx.iov_len = sizeof(key.place.u64);
     key.mdbx.iov_base = &key.place.u64;
+    assert(mdbx_int64_from_key(key.mdbx) == payload->i64);
+    return FPTA_SUCCESS;
+
+  case fptu_fp64:
+    key.place.u64 = mdbx_key_from_ptrdouble(&payload->fp64);
+    key.mdbx.iov_len = sizeof(key.place.u64);
+    key.mdbx.iov_base = &key.place.u64;
+    assert(mdbx_double_from_key(key.mdbx) == payload->fp64);
     return FPTA_SUCCESS;
 
   case fptu_cstr:
