@@ -95,7 +95,6 @@ set(CMAKE_MACOSX_RPATH ON)
 
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
-list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_relaxed_constexpr HAS_RELAXED_CONSTEXPR)
 if(NOT DEFINED FPTA_CXX_STANDARD)
   if(SUBPROJECT AND DEFINED CMAKE_CXX_STANDARD)
     set(FPTA_CXX_STANDARD ${CMAKE_CXX_STANDARD})
@@ -297,6 +296,8 @@ CMAKE_DEPENDENT_OPTION(T1HA_USE_FAST_ONESHOT_READ
   "Enable oneshot memory reading for little bit faster hashing" ON
   "NOT ENABLE_VALGRIND;NOT ENABLE_ASAN" OFF)
 
+option(FPTA_ENABLE_TESTS "Build FPTA tests" ${BUILD_TESTING})
+
 if(BUILD_SHARED_LIBS)
   set(LIBFPTA_STATIC FALSE)
 else()
@@ -325,7 +326,9 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/fast_positive/config.h.in ${FAST_POSI
 include_directories("${PROJECT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/externals/libfptu" "${PROJECT_SOURCE_DIR}/externals")
 add_subdirectory(externals)
 add_subdirectory(src)
-add_subdirectory(test)
+if(FPTA_ENABLE_TESTS AND BUILD_TESTING)
+  add_subdirectory(test)
+endif()
 
 if(HAVE_FPTA_VERSIONINFO)
   set(PACKAGE "libfpta")

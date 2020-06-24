@@ -34,7 +34,6 @@
 #cmakedefine HAVE_SYS_PARAM_H
 #cmakedefine HAVE_NETINET_IN_H
 #cmakedefine HAVE_RESOLV_H
-#cmakedefine HAS_RELAXED_CONSTEXPR
 
 #cmakedefine LTO_ENABLED
 #cmakedefine ENABLE_VALGRIND
@@ -56,6 +55,8 @@
 #cmakedefine01 FPTA_ENABLE_RETURN_INTO_RANGE
 #cmakedefine01 FPTA_ENABLE_ABORT_ON_PANIC
 #cmakedefine01 FPTA_PRESERVE_GEOMETRY
+#cmakedefine01 FPTA_ENABLE_TESTS
+#cmakedefine01 FPTU_ENABLE_TESTS
 
 #if !LIBFPTA_STATIC && LIBFPTU_STATIC && !defined(fptu_EXPORTS) &&             \
     !defined(fptu_IMPORTS)

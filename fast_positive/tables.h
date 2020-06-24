@@ -3311,11 +3311,13 @@ FPTA_API int fpta_column_inplace(fptu_rw *row, const fpta_name *column_id,
 
 FPTA_API int fpta_column_set_validate(fpta_column_set *column_set);
 FPTA_API void fpta_pollute(void *ptr, size_t bytes, uintptr_t xormask);
+#if FPTA_ENABLE_TESTS
 FPTA_API fptu_lge __fpta_filter_cmp(const fptu_field *pf,
                                     const fpta_value *right);
 FPTA_API int __fpta_index_value2key(fpta_shove_t shove, const fpta_value *value,
                                     void *key);
 FPTA_API const void *__fpta_index_shove2comparator(fpta_shove_t shove);
+#endif /* FPTA_ENABLE_TESTS */
 
 static __inline bool fpta_is_under_valgrind(void) {
   return fptu_is_under_valgrind();

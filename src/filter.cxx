@@ -241,9 +241,11 @@ static __hot fptu_lge fpta_filter_cmp(const fptu_field *pf,
   }
 }
 
+#if FPTA_ENABLE_TESTS
 fptu_lge __fpta_filter_cmp(const fptu_field *pf, const fpta_value *right) {
   return fpta_filter_cmp(pf, *right);
 }
+#endif /* FPTA_ENABLE_TESTS */
 
 __hot bool fpta_filter_match(const fpta_filter *fn, fptu_ro tuple) {
 

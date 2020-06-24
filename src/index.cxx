@@ -18,21 +18,6 @@
 #include "details.h"
 #include "externals/libfptu/src/erthink/erthink_casting.h"
 
-static inline MDBX_cmp_func *fpta_index_shove2comparator(fpta_shove_t shove) {
-  const fpta_index_type index = fpta_shove2index(shove);
-  if (fpta_index_is_unordered(index))
-    return mdbx_get_keycmp(MDBX_INTEGERKEY);
-
-  const fptu_type type = fpta_shove2type(shove);
-  if (type >= fptu_96 || type == /* composite */ fptu_null)
-    return mdbx_get_keycmp(fpta_index_is_reverse(index) ? MDBX_REVERSEKEY : 0);
-  return mdbx_get_keycmp(MDBX_INTEGERKEY);
-}
-
-const void *__fpta_index_shove2comparator(fpta_shove_t shove) {
-  return (const void *)fpta_index_shove2comparator(shove);
-}
-
 //----------------------------------------------------------------------------
 
 static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
@@ -641,11 +626,6 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
   return fpta_normalize_key(index, key, copy);
 }
 
-int __fpta_index_value2key(fpta_shove_t shove, const fpta_value *value,
-                           void *key) {
-  return fpta_index_value2key(shove, *value, *(fpta_key *)key, true);
-}
-
 //----------------------------------------------------------------------------
 
 int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
@@ -1002,3 +982,29 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
 
   return fpta_normalize_key(index, key, copy);
 }
+
+//----------------------------------------------------------------------------
+
+#if FPTA_ENABLE_TESTS
+
+static inline MDBX_cmp_func *index_shove2comparator(fpta_shove_t shove) {
+  const fpta_index_type index = fpta_shove2index(shove);
+  if (fpta_index_is_unordered(index))
+    return mdbx_get_keycmp(MDBX_INTEGERKEY);
+
+  const fptu_type type = fpta_shove2type(shove);
+  if (type >= fptu_96 || type == /* composite */ fptu_null)
+    return mdbx_get_keycmp(fpta_index_is_reverse(index) ? MDBX_REVERSEKEY : 0);
+  return mdbx_get_keycmp(MDBX_INTEGERKEY);
+}
+
+const void *__fpta_index_shove2comparator(fpta_shove_t shove) {
+  return (const void *)index_shove2comparator(shove);
+}
+
+int __fpta_index_value2key(fpta_shove_t shove, const fpta_value *value,
+                           void *key) {
+  return fpta_index_value2key(shove, *value, *(fpta_key *)key, true);
+}
+
+#endif /* FPTA_ENABLE_TESTS */
