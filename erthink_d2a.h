@@ -165,7 +165,7 @@ struct diy_fp {
 
   cxx11_constexpr diy_fp(const diy_fp &rhs) cxx11_noexcept = default;
   cxx11_constexpr diy_fp(uint64_t f, int e) cxx11_noexcept : f(f), e(e) {}
-  cxx11_constexpr diy_fp &operator=(const diy_fp &rhs) cxx11_noexcept = default;
+  cxx14_constexpr diy_fp &operator=(const diy_fp &rhs) cxx11_noexcept = default;
   diy_fp() = default;
 
   static diy_fp fixedpoint(uint64_t value, int exp2) {

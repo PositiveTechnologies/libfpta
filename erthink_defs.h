@@ -278,7 +278,7 @@
 #ifdef NDEBUG
 #define NDEBUG_CONSTEXPR cxx11_constexpr
 #else
-#define NDEBUG_CONSTEXPR
+#define NDEBUG_CONSTEXPR inline
 #endif
 #endif /* NDEBUG_CONSTEXPR */
 
