@@ -30,6 +30,11 @@
 #pragma warning(pop)
 #endif
 
+#if defined(__LCC__)
+#pragma diag_suppress 186 /* pointless comparison of unsigned integer with     \
+                             zero [-Wtype-limits] */
+#endif
+
 //------------------------------------------------------------------------------
 
 struct P {
