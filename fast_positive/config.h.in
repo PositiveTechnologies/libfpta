@@ -38,3 +38,4 @@
 #cmakedefine ENABLE_ASAN
 
 #cmakedefine01 HAVE_FPTU_VERSIONINFO
+#cmakedefine01 FPTU_ENABLE_TESTS

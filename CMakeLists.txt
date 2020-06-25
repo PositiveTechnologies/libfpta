@@ -280,7 +280,11 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/fast_positive/config.h.in ${FAST_POSI
 
 include_directories("${PROJECT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
 add_subdirectory(src)
-add_subdirectory(test)
+
+option(FPTU_ENABLE_TESTS "Build FPTU tests" ${BUILD_TESTING})
+if(FPTU_ENABLE_TESTS AND BUILD_TESTING)
+  add_subdirectory(test)
+endif()
 
 if(HAVE_FPTU_VERSIONINFO)
   set(PACKAGE "libfptu")
