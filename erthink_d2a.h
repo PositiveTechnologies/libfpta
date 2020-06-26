@@ -476,11 +476,7 @@ done:
 }
 
 template <typename PRINTER>
-inline void convert(PRINTER &printer, const double &value) cxx11_noexcept {
-  const int64_t i64 = grisu::cast(value);
-  printer.sign(i64 < 0);
-  diy_fp diy(i64);
-
+inline void convert(PRINTER &printer, diy_fp diy) cxx11_noexcept {
   if (unlikely(diy.e == 0x7ff - grisu::GRISU_EXPONENT_BIAS))
     return (diy.f - grisu::IEEE754_DOUBLE_IMPLICIT_LEAD) ? printer.nan()
                                                          : printer.inf();
@@ -523,6 +519,13 @@ inline void convert(PRINTER &printer, const double &value) cxx11_noexcept {
     make_digits(printer, diy.f + ((delta + lsb - 1) >> 1), delta - 2, exp10,
                 diy.f, -diy.e);
   printer.exponenta(exp10);
+}
+
+template <typename PRINTER>
+inline void convert(PRINTER &printer, const double &value) cxx11_noexcept {
+  const int64_t i64 = grisu::cast(value);
+  printer.sign(i64 < 0);
+  return convert(printer, diy_fp(i64));
 }
 
 template <bool accurate> struct ieee754_default_printer {
@@ -676,6 +679,44 @@ struct shodan_printer : public ieee754_default_printer<accurate> {
       inherited::end += (inherited::end == inherited::begin);
       inherited::exponenta(canon_exp);
     }
+  }
+};
+
+// designed to printing fractional part of a fixed-point value
+struct fractional_printer : public ieee754_default_printer<true> {
+  using inherited = ieee754_default_printer;
+  enum { max_chars = 32 };
+
+  fractional_printer(char *buffer_begin, char *buffer_end) cxx11_noexcept
+      : inherited(buffer_begin, buffer_end) {
+    assert(buffer_end - buffer_begin >= max_chars);
+    *end++ = '.';
+  }
+
+  void sign(bool negative) cxx11_noexcept {
+    constexpr_assert(!negative);
+    (void)negative;
+  }
+
+  void exponenta(int exp) cxx11_noexcept {
+    char *const first = begin + 1;
+    assert(end > first && end <= begin + max_chars);
+    assert(-exp >= end - first);
+    const ptrdiff_t zero_needed = -exp - (end - first);
+    assert(zero_needed >= 0 && zero_needed < max_chars - 1 - (end - first));
+    if (zero_needed > 0) {
+      memmove(first + zero_needed, first, size_t(end - first));
+      memset(first, '0', size_t(zero_needed));
+      end += zero_needed;
+    } else {
+      while (end[-1] == '0')
+        --end;
+    }
+  }
+
+  std::pair<char *, char *> finalize_and_get() cxx11_noexcept {
+    assert(end > begin && begin + max_chars >= end);
+    return std::make_pair(begin, end);
   }
 };
 
