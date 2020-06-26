@@ -842,11 +842,13 @@ FPTA_API extern const fpta_fp64_t fpta_fp64_denil;
 
 #define FPTA_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
 
-#ifndef _MSC_VER /* MSVC provides invalid nan() */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTA_DENIL_FP64_MAS "0x000FffffFFFFffff"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
-#if __GNUC_PREREQ(3, 3) || __has_builtin(nan)
+#if (__GNUC_PREREQ(3, 3) || __has_builtin(nan)) && defined(FPTA_DENIL_FP64_MAS)
 #define FPTA_DENIL_FP (-__builtin_nan(FPTA_DENIL_FP64_MAS))
 #else
 #define FPTA_DENIL_FP (fpta_fp64_denil.__d)

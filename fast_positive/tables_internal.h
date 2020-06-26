@@ -548,14 +548,17 @@ FPTA_API extern const fpta_fp64_t fpta_fp32x64_denil;
 #define FPTA_QSNAN_FP32x64_BIN UINT64_C(0xFFFFffffC0000000)
 FPTA_API extern const fpta_fp64_t fpta_fp32x64_qsnan;
 
-#ifndef _MSC_VER /* MSVC provides invalid nan() */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTA_DENIL_FP32_MAS "0x007FFFFF"
 #define FPTA_QSNAN_FP32_MAS "0x007FFFFE"
 #define FPTA_DENIL_FP32x64_MAS "0x000FffffE0000000"
 #define FPTA_QSNAN_FP32x64_MAS "0x000FffffC0000000"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
-#if __GNUC_PREREQ(3, 3) || __CLANG_PREREQ(3, 6)
+#if (__GNUC_PREREQ(3, 3) || __CLANG_PREREQ(3, 6)) &&                           \
+    defined(FPTA_DENIL_FP32_MAS)
 #define FPTA_DENIL_FP32 (-__builtin_nanf(FPTA_DENIL_FP32_MAS))
 #define FPTA_QSNAN_FP32 (-__builtin_nanf(FPTA_QSNAN_FP32_MAS))
 #else
