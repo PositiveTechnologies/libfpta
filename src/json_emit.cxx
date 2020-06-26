@@ -276,8 +276,6 @@ struct json : public emitter {
   void value_dateime(const fptu_time &value);
   void value_hexadecimal(const uint8_t *data, size_t length);
   void field_value(const fptu_field *field_value);
-  void field_single_or_collection(const fptu_field *field,
-                                  const fptu_field *const begin);
   void tuple(const fptu_ro &tuple);
 };
 #ifdef _MSC_VER

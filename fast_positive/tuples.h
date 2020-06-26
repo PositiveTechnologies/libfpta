@@ -318,7 +318,7 @@ union fptu_payload {
   } other;
 #ifdef __cplusplus
   const void *inner_begin() const { return other.data; }
-  const void *inner_end() const { return other.data - 1 + other.varlen.brutto; }
+  const void *inner_end() const { return other.data + other.varlen.brutto - 1; }
   size_t array_length() const { return other.varlen.array_length; }
 #endif
 };
@@ -1223,7 +1223,7 @@ static __inline const void *fptu_inner_begin(fptu_field *pf) {
 static __inline const void *fptu_inner_end(fptu_field *pf) {
   assert((fptu_field_type(pf) & fptu_farray) != 0);
   const fptu_payload *payload = fptu_get_payload(pf);
-  return payload->other.data - 1 + payload->other.varlen.brutto;
+  return payload->other.data + payload->other.varlen.brutto - 1;
 }
 
 static __inline size_t fptu_array_length(fptu_field *pf) {
