@@ -620,9 +620,11 @@ FPTU_API fptu_time fptu_now_coarse(void);
 //----------------------------------------------------------------------------
 
 #define FPTU_DENIL_FP32_BIN UINT32_C(0xFFFFffff)
-#ifndef _MSC_VER /* MSVC provides invalid nanf(), leave it undefined */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTU_DENIL_FP32_MAS "0x007FFFFF"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
 #if defined(__cplusplus) && HAVE_std_bit_cast
 static cxx11_constexpr float fptu_fp32_denil(void) {
@@ -643,9 +645,11 @@ static __inline float fptu_fp32_denil(void) {
 #define FPTU_DENIL_FP32 fptu_fp32_denil()
 
 #define FPTU_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
-#ifndef _MSC_VER /* MSVC provides invalid nan(), leave it undefined */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTU_DENIL_FP64_MAS "0x000FffffFFFFffff"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
 #if defined(__cplusplus) && HAVE_std_bit_cast
 static cxx11_constexpr double fptu_fp64_denil(void) {
