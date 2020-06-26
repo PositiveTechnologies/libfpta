@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tuples (libfptu), aka Позитивные Кортежи
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -318,7 +318,7 @@ union fptu_payload {
   } other;
 #ifdef __cplusplus
   const void *inner_begin() const { return other.data; }
-  const void *inner_end() const { return other.data - 1 + other.varlen.brutto; }
+  const void *inner_end() const { return other.data + other.varlen.brutto - 1; }
   size_t array_length() const { return other.varlen.array_length; }
 #endif
 };
@@ -620,9 +620,11 @@ FPTU_API fptu_time fptu_now_coarse(void);
 //----------------------------------------------------------------------------
 
 #define FPTU_DENIL_FP32_BIN UINT32_C(0xFFFFffff)
-#ifndef _MSC_VER /* MSVC provides invalid nanf(), leave it undefined */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTU_DENIL_FP32_MAS "0x007FFFFF"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
 #if defined(__cplusplus) && HAVE_std_bit_cast
 static cxx11_constexpr float fptu_fp32_denil(void) {
@@ -643,9 +645,11 @@ static __inline float fptu_fp32_denil(void) {
 #define FPTU_DENIL_FP32 fptu_fp32_denil()
 
 #define FPTU_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
-#ifndef _MSC_VER /* MSVC provides invalid nan(), leave it undefined */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTU_DENIL_FP64_MAS "0x000FffffFFFFffff"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
 #if defined(__cplusplus) && HAVE_std_bit_cast
 static cxx11_constexpr double fptu_fp64_denil(void) {
@@ -1223,7 +1227,7 @@ static __inline const void *fptu_inner_begin(fptu_field *pf) {
 static __inline const void *fptu_inner_end(fptu_field *pf) {
   assert((fptu_field_type(pf) & fptu_farray) != 0);
   const fptu_payload *payload = fptu_get_payload(pf);
-  return payload->other.data - 1 + payload->other.varlen.brutto;
+  return payload->other.data + payload->other.varlen.brutto - 1;
 }
 
 static __inline size_t fptu_array_length(fptu_field *pf) {

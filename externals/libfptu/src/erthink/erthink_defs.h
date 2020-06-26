@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/erthink/erthink
  *
@@ -164,7 +164,9 @@
 #define __fallthrough [[fallthrough]]
 #elif __GNUC_PREREQ(8, 0) && defined(__cplusplus) && __cplusplus >= 201103L
 #define __fallthrough [[fallthrough]]
-#elif __GNUC_PREREQ(7, 0)
+#elif __GNUC_PREREQ(7, 0) &&                                                   \
+    (!defined(__LCC__) || (__LCC__ == 124 && __LCC_MINOR__ >= 12) ||           \
+     (__LCC__ == 125 && __LCC_MINOR__ >= 5) || (__LCC__ >= 126))
 #define __fallthrough __attribute__((__fallthrough__))
 #elif defined(__clang__) && defined(__cplusplus) && __cplusplus >= 201103L &&  \
     __has_feature(cxx_attributes) && __has_warning("-Wimplicit-fallthrough")
@@ -278,7 +280,7 @@
 #ifdef NDEBUG
 #define NDEBUG_CONSTEXPR cxx11_constexpr
 #else
-#define NDEBUG_CONSTEXPR
+#define NDEBUG_CONSTEXPR inline
 #endif
 #endif /* NDEBUG_CONSTEXPR */
 
