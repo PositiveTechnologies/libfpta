@@ -1,4 +1,4 @@
-﻿/* C++ code produced by gperf version 3.1 */
+/* C++ code produced by gperf version 3.1 */
 /* Command-line: gperf --constants-prefix=ECMAScript_keywords__ -Z
  * ECMAScript_keywords -7 --readonly-tables --pic --language=C++ */
 /* Computed positions: -k'1-2' */
