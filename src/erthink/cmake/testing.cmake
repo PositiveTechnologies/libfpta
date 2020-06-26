@@ -1,4 +1,4 @@
-﻿##  Copyright (c) 2012-2020 Leonid Yuriev <leo@yuriev.ru>.
+##  Copyright (c) 2012-2020 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ##  Licensed under the Apache License, Version 2.0 (the "License");
 ##  you may not use this file except in compliance with the License.
@@ -194,6 +194,7 @@ if(BUILD_TESTING)
       list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_20 local_HAS_CXX20)
       list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 local_HAS_CXX17)
       list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 local_HAS_CXX14)
+      list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 local_HAS_CXX11)
 
       if(NOT DEFINED GTEST_CXX_STANDARD)
         if(DEFINED CMAKE_CXX_STANDARD)
@@ -204,14 +205,15 @@ if(BUILD_TESTING)
           set(GTEST_CXX_STANDARD 17)
         elseif(NOT local_HAS_CXX14 LESS 0)
           set(GTEST_CXX_STANDARD 14)
-        else()
+        elseif(NOT local_HAS_CXX11 LESS 0)
           set(GTEST_CXX_STANDARD 11)
         endif()
       endif()
-      message(STATUS "Use C++${GTEST_CXX_STANDARD} for GoogleTest")
-
-      target_compile_features(gtest PRIVATE "cxx_std_${GTEST_CXX_STANDARD}")
-      target_compile_features(gtest_main PRIVATE "cxx_std_${GTEST_CXX_STANDARD}")
+      if(GTEST_CXX_STANDARD)
+        message(STATUS "Use C++${GTEST_CXX_STANDARD} for GoogleTest")
+        target_compile_features(gtest PRIVATE "cxx_std_${GTEST_CXX_STANDARD}")
+        target_compile_features(gtest_main PRIVATE "cxx_std_${GTEST_CXX_STANDARD}")
+      endif()
 
       if(CC_HAS_WERROR)
         if(MSVC)
