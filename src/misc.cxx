@@ -662,25 +662,12 @@ __cold ostream &operator<<(ostream &out, const fptu_time &value) {
       << utc_tm.tm_sec;
 
   if (value.fractional) {
-    char buffer[32];
-    int exponent;
-    char *const begin = buffer + 1;
-    begin[-1] = '.';
-    char *end = erthink::grisu::convert(
-        true, erthink::grisu::diy_fp::fixedpoint(value.fractional, -32), begin,
-        exponent);
-    assert(end > begin && end < begin + 31);
-    assert(-exponent >= end - begin);
-    const ptrdiff_t zero_needed = -exponent - (end - begin);
-    assert(zero_needed >= 0 && zero_needed < 31 - (end - begin));
-    if (zero_needed > 0) {
-      memmove(begin + zero_needed, begin, size_t(end - begin));
-      memset(begin, '0', size_t(zero_needed));
-      end += zero_needed;
-    } else {
-      while (end[-1] == '0')
-        --end;
-    }
+    char buffer[erthink::grisu::fractional_printer::max_chars];
+    erthink::grisu::fractional_printer printer(buffer,
+                                               erthink::array_end(buffer));
+    erthink::grisu::convert(
+        printer, erthink::grisu::diy_fp::fixedpoint(value.fractional, -32));
+    const auto end = printer.finalize_and_get().second;
     const ptrdiff_t length = end - buffer;
     assert(length > 0 && length < ptrdiff_t(sizeof(buffer)));
     out.write(buffer, length);

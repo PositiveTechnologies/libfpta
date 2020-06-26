@@ -482,24 +482,13 @@ void json::value_dateime(const fptu_time &value) {
            utc_tm.tm_sec);
 
     if (value.fractional) {
-      int exponent;
-      char *const begin = wanna(32) + 1;
-      begin[-1] = '.';
-      char *end = erthink::grisu::convert(
-          true, erthink::grisu::diy_fp::fixedpoint(value.fractional, -32),
-          begin, exponent);
-      assert(end > begin && end < begin + 31);
-      assert(-exponent >= end - begin);
-      const ptrdiff_t zero_needed = -exponent - (end - begin);
-      assert(zero_needed >= 0 && zero_needed < 31 - (end - begin));
-      if (zero_needed > 0) {
-        memmove(begin + zero_needed, begin, size_t(end - begin));
-        memset(begin, '0', size_t(zero_needed));
-      } else
-        while (end[-1] == '0')
-          --end;
-      fill +=
-          static_cast<unsigned>(end - begin + zero_needed + /* the dot */ 1);
+      const size_t reserve_space =
+          erthink::grisu::fractional_printer::max_chars;
+      char *const ptr = wanna(reserve_space);
+      erthink::grisu::fractional_printer printer(ptr, ptr + reserve_space);
+      erthink::grisu::convert(
+          printer, erthink::grisu::diy_fp::fixedpoint(value.fractional, -32));
+      fill += unsigned(printer.finalize_and_get().second - ptr);
       assert(fill < sizeof(buffer));
     }
     push('"');
