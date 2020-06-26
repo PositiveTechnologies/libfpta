@@ -93,7 +93,9 @@ set(LIBFPTU_SOURCES
 if(LIBFPTU_TYPE STREQUAL "PILE")
   add_library(fptu_objects OBJECT ${LIBFPTU_SOURCES})
   add_library(fptu INTERFACE)
-  target_compile_features(fptu_objects INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
+  if(FPTU_CXX_STANDARD)
+    target_compile_features(fptu_objects INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
+  endif()
   add_dependencies(fptu fptu_objects)
   target_link_libraries(fptu INTERFACE $<TARGET_OBJECTS:fptu_objects>)
   set(fptu_target fptu_objects)
@@ -107,12 +109,21 @@ set_target_properties(${fptu_target} PROPERTIES
   VERSION "${FPTU_VERSION}"
   PUBLIC_HEADER "../fast_positive/defs.h;../fast_positive/tuples.h;${FAST_POSITIVE_CONFIG_H}"
   PRIVATE_HEADER ../fast_positive/tuples_internal.h
-  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
-  CXX_STANDARD ${FPTU_CXX_STANDARD}
-  CXX_STANDARD_REQUIRED ON
-  C_STANDARD 11
-  C_STANDARD_REQUIRED OFF
-  )
+  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>)
+
+if(FPTU_CXX_STANDARD)
+  set_target_properties(${fptu_target} PROPERTIES
+    CXX_STANDARD ${FPTU_CXX_STANDARD} CXX_STANDARD_REQUIRED ON)
+  target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
+endif()
+list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
+if(HAS_C11)
+  set_target_properties(${fptu_target} PROPERTIES
+    C_STANDARD 11 C_STANDARD_REQUIRED OFF)
+else()
+  set_target_properties(${fptu_target} PROPERTIES
+    C_STANDARD 99 C_STANDARD_REQUIRED ON)
+endif()
 
 if(CC_HAS_VISIBILITY)
   target_compile_options(${fptu_target} PRIVATE "-fvisibility=hidden")
@@ -121,7 +132,6 @@ if(CC_HAS_VISIBILITY)
   endif()
 endif()
 
-target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
 target_link_libraries(fptu INTERFACE ${LIB_MATH} ${CMAKE_THREAD_LIBS_INIT})
 if(UNIX AND NOT APPLE)
   target_link_libraries(fptu INTERFACE rt)

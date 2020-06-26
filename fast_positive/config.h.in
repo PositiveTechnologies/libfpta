@@ -29,7 +29,6 @@
 #cmakedefine HAVE_nanf
 #cmakedefine HAVE_nan
 #cmakedefine HAVE_IEEE754_H
-#cmakedefine HAS_RELAXED_CONSTEXPR
 
 #cmakedefine LTO_ENABLED
 #cmakedefine ENABLE_VALGRIND
