@@ -1,4 +1,4 @@
-﻿##
+##
 ##  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
 ##  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
 ##
