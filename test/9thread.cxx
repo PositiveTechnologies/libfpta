@@ -770,7 +770,7 @@ static void executor_thread(fpta_db *db, const char *const read,
 
       if (done_flag)
         achieved |= 1 << 2;
-      unsigned lag = 42;
+      size_t lag = 42;
       do {
         std::this_thread::yield();
         size_t row_count;
@@ -786,7 +786,8 @@ static void executor_thread(fpta_db *db, const char *const read,
         default:
           ASSERT_EQ(FPTA_SUCCESS, err);
           achieved |= 1 << 4;
-          ASSERT_EQ(FPTA_OK, fpta_transaction_lag(txn, &lag, nullptr));
+          ASSERT_EQ(FPTA_OK,
+                    fpta_transaction_lag_ex(txn, &lag, nullptr, nullptr));
           break;
         }
       } while (err == FPTA_SUCCESS && lag < 42 && !done_flag);

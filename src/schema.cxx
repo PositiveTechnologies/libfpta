@@ -121,14 +121,14 @@ class trivial_dict {
                                     const fpta_shove_t &b) const {
       return a.first > b;
     }
-    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+    /* bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const item &b) const {
       return a > b.first;
     }
     bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const fpta_shove_t &b) const {
       return a > b;
-    }
+    } */
   };
 
   struct eq {
@@ -139,10 +139,10 @@ class trivial_dict {
                                     const fpta_shove_t &b) const {
       return fpta_shove_eq(a.first, b);
     }
-    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+    /* bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const item &b) const {
       return fpta_shove_eq(a, b.first);
-    }
+    } */
     bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const fpta_shove_t &b) const {
       return fpta_shove_eq(a, b);
