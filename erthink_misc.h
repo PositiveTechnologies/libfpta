@@ -63,13 +63,12 @@ template <typename T> struct branchless_abs {
                                    has been removed */
 #endif
 template <typename TYPE, std::size_t LENGTH>
-cxx11_constexpr std::size_t
-array_length(const TYPE __maybe_unused (&array)[LENGTH]) {
+constexpr std::size_t array_length(const TYPE __maybe_unused (&array)[LENGTH]) {
   return LENGTH;
 }
 
 template <typename TYPE, std::size_t LENGTH>
-cxx11_constexpr TYPE *array_end(TYPE (&array)[LENGTH]) {
+constexpr TYPE *array_end(TYPE (&array)[LENGTH]) {
   return array + LENGTH;
 }
 

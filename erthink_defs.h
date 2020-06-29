@@ -201,7 +201,8 @@
 #if !defined(__cplusplus)
 #define cxx11_constexpr __inline
 #define cxx11_constexpr_var const
-#elif __cplusplus < 201103L
+#elif !defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                \
+    (defined(__LCC__) && __LCC__ < 124)
 #define cxx11_constexpr inline
 #define cxx11_constexpr_var const
 #else
@@ -586,6 +587,15 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #define unlikely(x) (x)
 #endif
 #endif /* unlikely */
+
+#if defined(__cplusplus) && __cplusplus >= 201103L && defined(__LCC__) &&      \
+    __LCC__ < 125
+#define constexpr_likely(cond) (cond)
+#define constexpr_unlikely(cond) (cond)
+#else
+#define constexpr_likely(cond) likely(cond)
+#define constexpr_unlikely(cond) unlikely(cond)
+#endif
 
 #if !defined(alignas) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #if defined(__GNUC__) || defined(__clang__) || __has_attribute(__aligned__)
