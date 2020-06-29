@@ -266,13 +266,10 @@
 #endif /* if_constexpr */
 
 #if !defined(constexpr_assert)
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L
+#if !defined(__cpp_constexpr) || __cpp_constexpr >= 201304L
 #define constexpr_assert(cond) assert(cond)
 #else
-#define constexpr_assert(cond)                                                 \
-  do {                                                                         \
-    (void)(cond);                                                              \
-  } while (0)
+#define constexpr_assert(cond)
 #endif
 #endif /* constexpr_assert */
 
