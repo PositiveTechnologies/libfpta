@@ -35,7 +35,7 @@
 #define FAST_POSITIVE_TABLES_H
 
 #define FPTA_VERSION_MAJOR 0
-#define FPTA_VERSION_MINOR 2
+#define FPTA_VERSION_MINOR 3
 
 #include "fast_positive/config.h"
 #include "fast_positive/defs.h"

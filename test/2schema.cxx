@@ -215,18 +215,18 @@ TEST(Schema, Base) {
   tuple = nullptr;
   EXPECT_EQ(
       "{\n    schema_format: 1,\n    schema_t1ha: "
-      "\"86f8fa504adfbcbfa513a0b63b6d3f73\",\n    table: {\n        name: "
+      "\"2935e2cdbecc9dc6eea976dd5312aa8a\",\n    table: {\n        name: "
       "\"table_1\",\n        column: [\n            {\n                name: "
       "\"pk_str_uniq\",\n                number: 0,\n                datatype: "
       "\"cstr\",\n                nullable: false,\n                index: "
       "\"primary\",\n                unique: true,\n                unordered: "
       "false,\n                reverse: false,\n                mdbx: "
-      "\"7onkrwutQ@@\"\n            },\n            {\n                name: "
+      "\"q35_zeSCP@@\"\n            },\n            {\n                name: "
       "\"first_uint\",\n                number: 1,\n                datatype: "
       "\"uint64\",\n                nullable: false,\n                index: "
       "\"secondary\",\n                unique: false,\n                "
       "unordered: false,\n                reverse: false,\n                "
-      "mdbx: \"7onkrwutQ@0\"\n            },\n            {\n                "
+      "mdbx: \"q35_zeSCP@0\"\n            },\n            {\n                "
       "name: \"second_fp\",\n                number: 2,\n                "
       "datatype: \"fp64\",\n                nullable: false,\n                "
       "index: \"none\"\n            }\n        ]\n    }\n}",
@@ -248,30 +248,30 @@ TEST(Schema, Base) {
   EXPECT_EQ(FPTA_EINVAL, fpta_table_column_get(&table, 0, &probe_get));
 
   EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "tAbLe_1"));
-  EXPECT_EQ(UINT64_C(9575621353268990208), table.shove);
+  EXPECT_EQ(UINT64_C(12756162147867353344), table.shove);
   EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table_1"));
-  EXPECT_EQ(UINT64_C(9575621353268990208), table.shove);
+  EXPECT_EQ(UINT64_C(12756162147867353344), table.shove);
   EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk, "pk_str_uniq"));
-  EXPECT_EQ(UINT64_C(2421465332071795712), col_pk.shove);
+  EXPECT_EQ(UINT64_C(5639804144706044928), col_pk.shove);
   EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_a, "First_Uint"));
-  EXPECT_EQ(UINT64_C(17241369320330542080), col_a.shove);
+  EXPECT_EQ(UINT64_C(5795317090906267648), col_a.shove);
   EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_b, "second_FP"));
-  EXPECT_EQ(UINT64_C(12536943114372647936), col_b.shove);
+  EXPECT_EQ(UINT64_C(12049727541333069824), col_b.shove);
 
   EXPECT_GT(0, fpta_table_column_count(&table));
   EXPECT_EQ(FPTA_EINVAL, fpta_table_column_get(&table, 0, &probe_get));
-  EXPECT_EQ(UINT64_C(9575621353268990208), table.shove);
+  EXPECT_EQ(UINT64_C(12756162147867353344), table.shove);
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
   ASSERT_NE(nullptr, txn);
 
   EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_pk));
-  EXPECT_EQ(UINT64_C(9575621353268990208), table.shove);
-  EXPECT_EQ(UINT64_C(2421465332071795949), col_pk.shove);
+  EXPECT_EQ(UINT64_C(12756162147867353344), table.shove);
+  EXPECT_EQ(UINT64_C(5639804144706045165), col_pk.shove);
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_a));
-  EXPECT_EQ(UINT64_C(17241369320330542534), col_a.shove);
+  EXPECT_EQ(UINT64_C(5795317090906268102), col_a.shove);
   EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_b));
-  EXPECT_EQ(UINT64_C(12536943114372647943), col_b.shove);
+  EXPECT_EQ(UINT64_C(12049727541333069831), col_b.shove);
 
   EXPECT_EQ(3, fpta_table_column_count(&table));
   EXPECT_EQ(FPTA_OK, fpta_table_column_get(&table, 0, &probe_get));
@@ -339,35 +339,35 @@ TEST(Schema, Base) {
   tuple = nullptr;
   EXPECT_EQ(
       "{\n    schema_format: 1,\n    schema_t1ha: "
-      "\"1e605e662ac7c6d4949edc9cebc7a3fe\",\n    table: [\n        {\n        "
-      "    name: \"table_1\",\n            column: [\n                {\n      "
-      "              name: \"pk_str_uniq\",\n                    number: 0,\n  "
-      "                  datatype: \"cstr\",\n                    nullable: "
-      "false,\n                    index: \"primary\",\n                    "
-      "unique: true,\n                    unordered: false,\n                  "
-      "  reverse: false,\n                    mdbx: \"7onkrwutQ@@\"\n          "
-      "      },\n                {\n                    name: "
+      "\"0299bc96d94acbff38bc892f1e23e732\",\n    table: [\n        {\n        "
+      "    name: \"table_2\",\n            column: [\n                {\n      "
+      "              name: \"x\",\n                    number: 0,\n            "
+      "        datatype: \"cstr\",\n                    nullable: false,\n     "
+      "               index: \"primary\",\n                    unique: true,\n "
+      "                   unordered: false,\n                    reverse: "
+      "false,\n                    mdbx: \"9LXd44eN3y@\"\n                },\n "
+      "               {\n                    name: \"y\",\n                    "
+      "number: 1,\n                    datatype: \"cstr\",\n                   "
+      " nullable: false,\n                    index: \"secondary\",\n          "
+      "          unique: false,\n                    unordered: false,\n       "
+      "             reverse: false,\n                    mdbx: "
+      "\"9LXd44eN3y0\"\n                }\n            ]\n        },\n        "
+      "{\n            name: \"table_1\",\n            column: [\n              "
+      "  {\n                    name: \"pk_str_uniq\",\n                    "
+      "number: 0,\n                    datatype: \"cstr\",\n                   "
+      " nullable: false,\n                    index: \"primary\",\n            "
+      "        unique: true,\n                    unordered: false,\n          "
+      "          reverse: false,\n                    mdbx: \"q35_zeSCP@@\"\n  "
+      "              },\n                {\n                    name: "
       "\"first_uint\",\n                    number: 1,\n                    "
       "datatype: \"uint64\",\n                    nullable: false,\n           "
       "         index: \"secondary\",\n                    unique: false,\n    "
       "                unordered: false,\n                    reverse: "
-      "false,\n                    mdbx: \"7onkrwutQ@0\"\n                },\n "
+      "false,\n                    mdbx: \"q35_zeSCP@0\"\n                },\n "
       "               {\n                    name: \"second_fp\",\n            "
       "        number: 2,\n                    datatype: \"fp64\",\n           "
       "         nullable: false,\n                    index: \"none\"\n        "
-      "        }\n            ]\n        },\n        {\n            name: "
-      "\"table_2\",\n            column: [\n                {\n                "
-      "    name: \"x\",\n                    number: 0,\n                    "
-      "datatype: \"cstr\",\n                    nullable: false,\n             "
-      "       index: \"primary\",\n                    unique: true,\n         "
-      "           unordered: false,\n                    reverse: false,\n     "
-      "               mdbx: \"tz@R95ATDc@\"\n                },\n              "
-      "  {\n                    name: \"y\",\n                    number: 1,\n "
-      "                   datatype: \"cstr\",\n                    nullable: "
-      "false,\n                    index: \"secondary\",\n                    "
-      "unique: false,\n                    unordered: false,\n                 "
-      "   reverse: false,\n                    mdbx: \"tz@R95ATDc0\"\n         "
-      "       }\n            ]\n        }\n    ]\n}",
+      "        }\n            ]\n        }\n    ]\n}",
       fpta::schema2json(&schema_info, "    ").second);
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
@@ -478,7 +478,7 @@ TEST(Schema, Base) {
   free(tuple);
   tuple = nullptr;
   EXPECT_EQ(
-      "{schema_format:1,schema_t1ha:\"ad06cd0771697748a442f92c7a98808e\"}",
+      "{schema_format:1,schema_t1ha:\"56a25e1b430952eaca159a02d9763a90\"}",
       fpta::schema2json(&schema_info).second);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
@@ -976,14 +976,26 @@ TEST(Schema, FailingDrop) {
   EXPECT_EQ(3u, schema_info.tables_count);
   EXPECT_EQ(
       "{\n    schema_format: 1,\n    schema_t1ha: "
-      "\"e3e9688ae2db035e8c794e15d5ec49c6\",\n    table: [\n        {\n        "
-      "    name: \"table_3\",\n            column: [\n                {\n      "
-      "              name: \"field\",\n                    number: 0,\n        "
-      "            datatype: \"composite\",\n                    nullable: "
+      "\"12e2a2fc43e0c87f685b8b0e963c86e4\",\n    table: [\n        {\n        "
+      "    name: \"table_2\",\n            column: {\n                name: "
+      "\"field\",\n                number: 0,\n                datatype: "
+      "\"cstr\",\n                nullable: false,\n                index: "
+      "\"primary\",\n                unique: true,\n                unordered: "
+      "false,\n                reverse: false,\n                mdbx: "
+      "\"9LXd44eN3y@\"\n            }\n        },\n        {\n            "
+      "name: \"table_1\",\n            column: {\n                name: "
+      "\"field\",\n                number: 0,\n                datatype: "
+      "\"cstr\",\n                nullable: false,\n                index: "
+      "\"primary\",\n                unique: true,\n                unordered: "
+      "false,\n                reverse: false,\n                mdbx: "
+      "\"q35_zeSCP@@\"\n            }\n        },\n        {\n            "
+      "name: \"table_3\",\n            column: [\n                {\n          "
+      "          name: \"field\",\n                    number: 0,\n            "
+      "        datatype: \"composite\",\n                    nullable: "
       "false,\n                    index: \"primary\",\n                    "
       "unique: true,\n                    unordered: false,\n                  "
       "  reverse: false,\n                    tersely: false,\n                "
-      "    mdbx: \"643JRAjGFy@\",\n                    composite_items: [\n    "
+      "    mdbx: \"qxQ3c@Gdp@@\",\n                    composite_items: [\n    "
       "                    \"part_1\",\n                        \"part_2\"\n   "
       "                 ]\n                },\n                {\n             "
       "       name: \"part_1\",\n                    number: 1,\n              "
@@ -992,18 +1004,7 @@ TEST(Schema, FailingDrop) {
       "                 name: \"part_2\",\n                    number: 2,\n    "
       "                datatype: \"cstr\",\n                    nullable: "
       "false,\n                    index: \"none\"\n                }\n        "
-      "    ]\n        },\n        {\n            name: \"table_1\",\n          "
-      "  column: {\n                name: \"field\",\n                number: "
-      "0,\n                datatype: \"cstr\",\n                nullable: "
-      "false,\n                index: \"primary\",\n                unique: "
-      "true,\n                unordered: false,\n                reverse: "
-      "false,\n                mdbx: \"7onkrwutQ@@\"\n            }\n        "
-      "},\n        {\n            name: \"table_2\",\n            column: {\n  "
-      "              name: \"field\",\n                number: 0,\n            "
-      "    datatype: \"cstr\",\n                nullable: false,\n             "
-      "   index: \"primary\",\n                unique: true,\n                "
-      "unordered: false,\n                reverse: false,\n                "
-      "mdbx: \"tz@R95ATDc@\"\n            }\n        }\n    ]\n}",
+      "    ]\n        }\n    ]\n}",
       fpta::schema2json(&schema_info, "    ").second);
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
 
