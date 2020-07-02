@@ -201,7 +201,8 @@
 #if !defined(__cplusplus)
 #define cxx11_constexpr __inline
 #define cxx11_constexpr_var const
-#elif __cplusplus < 201103L
+#elif !defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                \
+    (defined(__LCC__) && __LCC__ < 124)
 #define cxx11_constexpr inline
 #define cxx11_constexpr_var const
 #else
@@ -266,13 +267,10 @@
 #endif /* if_constexpr */
 
 #if !defined(constexpr_assert)
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L
+#if !defined(__cpp_constexpr) || __cpp_constexpr >= 201304L
 #define constexpr_assert(cond) assert(cond)
 #else
-#define constexpr_assert(cond)                                                 \
-  do {                                                                         \
-    (void)(cond);                                                              \
-  } while (0)
+#define constexpr_assert(cond)
 #endif
 #endif /* constexpr_assert */
 
@@ -387,7 +385,9 @@
  * Such a function can be subject to common subexpression elimination
  * and loop optimization just as an arithmetic operator would be.
  * These functions should be declared with the attribute pure. */
-#if defined(__GNUC__) || __has_attribute(__pure__)
+#if (defined(__GNUC__) || __has_attribute(__pure__)) &&                        \
+    (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ ||  \
+     !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #define __pure_function __attribute__((__pure__))
 #else
 #define __pure_function
@@ -589,6 +589,15 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #define unlikely(x) (x)
 #endif
 #endif /* unlikely */
+
+#if defined(__cplusplus) && __cplusplus >= 201103L && defined(__LCC__) &&      \
+    __LCC__ < 125
+#define constexpr_likely(cond) (cond)
+#define constexpr_unlikely(cond) (cond)
+#else
+#define constexpr_likely(cond) likely(cond)
+#define constexpr_unlikely(cond) unlikely(cond)
+#endif
 
 #if !defined(alignas) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #if defined(__GNUC__) || defined(__clang__) || __has_attribute(__aligned__)
