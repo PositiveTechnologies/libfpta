@@ -385,7 +385,9 @@
  * Such a function can be subject to common subexpression elimination
  * and loop optimization just as an arithmetic operator would be.
  * These functions should be declared with the attribute pure. */
-#if defined(__GNUC__) || __has_attribute(__pure__)
+#if (defined(__GNUC__) || __has_attribute(__pure__)) &&                        \
+    (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ ||  \
+     !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #define __pure_function __attribute__((__pure__))
 #else
 #define __pure_function
