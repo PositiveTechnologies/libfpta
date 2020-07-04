@@ -1148,11 +1148,10 @@ static inline unsigned map_linear2stochastic(const unsigned linear,
                                              const unsigned salt) {
   static_assert(N >= 0 && N < 4, "WTF?");
   assert(linear < NNN);
-  cxx11_constexpr_var const unsigned x[] = {4026277019, 2450534059, 968322911,
-                                            4001240291};
-  cxx11_constexpr_var const unsigned y[] = {3351947, 3172243, 16392923,
-                                            12004879};
-  cxx11_constexpr_var const unsigned z[] = {3086191, 856351, 11844137, 1815599};
+  constexpr const unsigned x[] = {4026277019, 2450534059, 968322911,
+                                  4001240291};
+  constexpr const unsigned y[] = {3351947, 3172243, 16392923, 12004879};
+  constexpr const unsigned z[] = {3086191, 856351, 11844137, 1815599};
   uint64_t order = linear + linear + odd;
   order = (order * x[N] + salt) % NNN_UNIQ;
   order = (order * y[N] + z[N]) % NNN_UNIQ;
