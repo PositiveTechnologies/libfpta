@@ -110,6 +110,7 @@ static __inline int_fast32_t mrand48(void) { return mrand64(); }
 #pragma warning(pop)
 #endif
 
+#define MDBX_DEPRECATED
 #include "libmdbx/mdbx.h"
 #include "t1ha/t1ha.h"
 

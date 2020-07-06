@@ -434,7 +434,7 @@ int fpta_table_sequence(fpta_txn *txn, fpta_name *table_id, uint64_t *result,
     return rc;
 
   rc = mdbx_dbi_sequence(txn->mdbx_txn, handle, result, increment);
-  static_assert(FPTA_NODATA == MDBX_RESULT_TRUE, "expect equal");
+  static_assert(FPTA_NODATA == int(MDBX_RESULT_TRUE), "expect equal");
   return rc;
 }
 

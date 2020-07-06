@@ -3963,8 +3963,8 @@ TEST(Smoke, TransacionRestart) {
 
   // взводим флажок MDBX_DBG_LEGACY_OVERLAP, чтобы иметь возмоность наложить
   // читающую и пишущую транзакцию в одном потоке
-  const int debug_flags = mdbx_setup_debug(
-      MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE);
+  const MDBX_debug_flags_t debug_flags = MDBX_debug_flags_t(mdbx_setup_debug(
+      MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE));
   mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags | MDBX_DBG_LEGACY_OVERLAP,
                    MDBX_LOGGER_DONTCHANGE);
 
@@ -4140,7 +4140,7 @@ public:
 
   std::map<unsigned, unsigned> map_pk2se;
   unsigned linear_pk;
-  int debug_flags;
+  MDBX_debug_flags_t debug_flags;
 
   virtual void SetUp() {
     index = GTEST_TUPLE_NAMESPACE_::get<0>(GetParam());
@@ -4155,8 +4155,8 @@ public:
 
     // взводим флажок MDBX_DBG_LEGACY_OVERLAP, чтобы иметь возмоность наложить
     // читающую и пишущую транзакцию в одном потоке
-    debug_flags = mdbx_setup_debug(MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE,
-                                   MDBX_LOGGER_DONTCHANGE);
+    debug_flags = MDBX_debug_flags_t(mdbx_setup_debug(
+        MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE));
     mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags | MDBX_DBG_LEGACY_OVERLAP,
                      MDBX_LOGGER_DONTCHANGE);
 
@@ -4575,8 +4575,8 @@ TEST(Smoke, CursorRERERE_drop_table) {
 
   // взводим флажок MDBX_DBG_LEGACY_OVERLAP, чтобы иметь возмоность наложить
   // читающую и пишущую транзакцию в одном потоке
-  const int debug_flags = mdbx_setup_debug(
-      MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE);
+  const MDBX_debug_flags_t debug_flags = MDBX_debug_flags_t(mdbx_setup_debug(
+      MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE));
   mdbx_setup_debug(MDBX_LOG_DONTCHANGE, debug_flags | MDBX_DBG_LEGACY_OVERLAP,
                    MDBX_LOGGER_DONTCHANGE);
 
