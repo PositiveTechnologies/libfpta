@@ -238,13 +238,15 @@ if(BUILD_TESTING)
       endif()
 
       set(GTEST_BOTH_LIBRARIES gtest gtest_main)
+      add_library(GTest::GTest ALIAS gtest)
+      add_library(GTest::Main ALIAS gtest_main)
       set(GTEST_FOUND TRUE)
     endif()
   endif()
 
   if(GTEST_FOUND)
     enable_testing()
-    set(UT_LIBRARIES ${GTEST_BOTH_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+    set(UT_LIBRARIES GTest::Main GTest::GTest ${CMAKE_THREAD_LIBS_INIT})
     if(MEMORYCHECK_COMMAND OR CMAKE_MEMORYCHECK_COMMAND)
       add_custom_target(test_memcheck
         COMMAND ${CMAKE_CTEST_COMMAND} --force-new-ctest-process --test-action memcheck
