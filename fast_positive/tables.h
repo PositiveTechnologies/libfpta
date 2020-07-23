@@ -332,7 +332,7 @@ enum fpta_error {
   FPTA_ECURSOR
   /* Cursor is not positioned */,
   FPTA_TOOMANY
-  /* Too many columns or indexes (one of fpta's limits reached) */,
+  /* Too many tables, columns or indexes (one of fpta's limits reached) */,
   FPTA_WANNA_DIE
   /* Failure while transaction rollback */,
   FPTA_TXN_CANCELLED

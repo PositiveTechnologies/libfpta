@@ -66,7 +66,8 @@ static __cold const char *error2cp(int32_t errcode) {
       "FPTA_NO_INDEX: No (such) index for given column",
       "FPTA_SCHEMA_CHANGED: Schema changed (transaction should be restared",
       "FPTA_ECURSOR: Cursor is not positioned",
-      "FPTA_TOOMANY: Too many columns or indexes (limit reached)",
+      "FPTA_TOOMANY: Too many tables, columns or indexes (one of libfpta's "
+      "limits reached)",
       "FPTA_WANNA_DIE: Failure while transaction rollback (wanna die)",
       "FPTA_TXN_CANCELLED: Transaction already cancelled",
       "FPTA_SIMILAR_INDEX: Adding index which is similar to one of the "
