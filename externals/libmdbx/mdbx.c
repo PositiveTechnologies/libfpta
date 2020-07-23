@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY dde2d50dea19cfb9457408763f05df2062f21d8936ea5d5d58be15525ce26a87_v0_8_2_0_gfc9ae9ebc_dirty
+#define MDBX_BUILD_SOURCERY b15f37aaf0bd0dc4ebfbe0d44b862ae719644acca9f672cc6209c2e7bb42a3a9_v0_8_2_7_g3d31884c3
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -90,6 +90,11 @@
 #pragma warning(disable : 4366) /* the result of the unary '&' operator may be unaligned */
 #pragma warning(disable : 4200) /* nonstandard extension used: zero-sized array in struct/union */
 #endif                          /* _MSC_VER (warnings) */
+
+#if defined(MDBX_TOOLS)
+#undef MDBX_DEPRECATED
+#define MDBX_DEPRECATED
+#endif /* MDBX_TOOLS */
 
 #include "mdbx.h"
 /*
@@ -1783,10 +1788,6 @@ extern LIBMDBX_API const char *const mdbx_sourcery_anchor;
 #define MAIN_DBI 1
 /* Number of DBs in metapage (free and main) - also hardcoded elsewhere */
 #define CORE_DBS 2
-#define MAX_DBI (INT16_MAX - CORE_DBS)
-#if MAX_DBI != MDBX_MAX_DBI
-#error "Opps, MAX_DBI != MDBX_MAX_DBI"
-#endif
 
 /* Number of meta pages - also hardcoded elsewhere */
 #define NUM_METAS 3
@@ -2328,7 +2329,7 @@ struct MDBX_txn {
 
 #if (TXN_FLAGS & MDBX_TXN_BEGIN_FLAGS) ||                                      \
     ((MDBX_TXN_BEGIN_FLAGS | TXN_FLAGS) & MDBX_SHRINK_ALLOWED)
-#error "Opps, some flags overlapped or wrong"
+#error "Oops, some flags overlapped or wrong"
 #endif
 
   unsigned mt_flags;
@@ -2903,10 +2904,10 @@ typedef struct MDBX_node {
 #define DB_INTERNAL_FLAGS DB_VALID
 
 #if DB_INTERNAL_FLAGS & DB_USABLE_FLAGS
-#error "Opps, some flags overlapped or wrong"
+#error "Oops, some flags overlapped or wrong"
 #endif
 #if DB_PERSISTENT_FLAGS & ~DB_USABLE_FLAGS
-#error "Opps, some flags overlapped or wrong"
+#error "Oops, some flags overlapped or wrong"
 #endif
 
 /* max number of pages to commit in one writev() call */
@@ -2966,6 +2967,28 @@ floor_powerof2(size_t value, size_t granularity) {
 static __pure_function __always_inline __maybe_unused size_t
 ceil_powerof2(size_t value, size_t granularity) {
   return floor_powerof2(value + granularity - 1, granularity);
+}
+
+/* Only a subset of the mdbx_env flags can be changed
+ * at runtime. Changing other flags requires closing the
+ * environment and re-opening it with the new flags. */
+#define ENV_CHANGEABLE_FLAGS                                                   \
+  (MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC | MDBX_MAPASYNC | MDBX_NOMEMINIT |       \
+   MDBX_COALESCE | MDBX_PAGEPERTURB | MDBX_ACCEDE)
+#define ENV_CHANGELESS_FLAGS                                                   \
+  (MDBX_NOSUBDIR | MDBX_RDONLY | MDBX_WRITEMAP | MDBX_NOTLS | MDBX_NORDAHEAD | \
+   MDBX_LIFORECLAIM | MDBX_EXCLUSIVE)
+#define ENV_USABLE_FLAGS (ENV_CHANGEABLE_FLAGS | ENV_CHANGELESS_FLAGS)
+
+static __maybe_unused void static_checks(void) {
+  STATIC_ASSERT_MSG(INT16_MAX - CORE_DBS == MDBX_MAX_DBI,
+                    "Oops, MDBX_MAX_DBI or CORE_DBS?");
+  STATIC_ASSERT_MSG((MDBX_ACCEDE | MDBX_CREATE) ==
+                        ((DB_USABLE_FLAGS | DB_INTERNAL_FLAGS) &
+                         (ENV_USABLE_FLAGS | ENV_INTERNAL_FLAGS)),
+                    "Oops, some flags overlapped or wrong");
+  STATIC_ASSERT_MSG((ENV_INTERNAL_FLAGS & ENV_USABLE_FLAGS) == 0,
+                    "Oops, some flags overlapped or wrong");
 }
 /*
  * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
@@ -12222,7 +12245,7 @@ int __cold mdbx_env_set_mapsize(MDBX_env *env, size_t size) {
 }
 
 int __cold mdbx_env_set_maxdbs(MDBX_env *env, MDBX_dbi dbs) {
-  if (unlikely(dbs > MAX_DBI))
+  if (unlikely(dbs > MDBX_MAX_DBI))
     return MDBX_EINVAL;
 
   if (unlikely(!env))
@@ -12995,26 +13018,6 @@ __cold int mdbx_is_readahead_reasonable(size_t volume, intptr_t redundancy) {
              ? MDBX_RESULT_FALSE
              : MDBX_RESULT_TRUE;
 }
-
-/* Only a subset of the mdbx_env flags can be changed
- * at runtime. Changing other flags requires closing the
- * environment and re-opening it with the new flags. */
-#define ENV_CHANGEABLE_FLAGS                                                   \
-  (MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC | MDBX_MAPASYNC | MDBX_NOMEMINIT |       \
-   MDBX_COALESCE | MDBX_PAGEPERTURB | MDBX_ACCEDE)
-#define ENV_CHANGELESS_FLAGS                                                   \
-  (MDBX_NOSUBDIR | MDBX_RDONLY | MDBX_WRITEMAP | MDBX_NOTLS | MDBX_NORDAHEAD | \
-   MDBX_LIFORECLAIM | MDBX_EXCLUSIVE)
-#define ENV_USABLE_FLAGS (ENV_CHANGEABLE_FLAGS | ENV_CHANGELESS_FLAGS)
-
-#if ENV_INTERNAL_FLAGS & ENV_USABLE_FLAGS
-#error "Opps, some flags overlapped or wrong"
-#endif
-
-#if (MDBX_ACCEDE | MDBX_CREATE) != ((DB_USABLE_FLAGS | DB_INTERNAL_FLAGS) &    \
-                                    (ENV_USABLE_FLAGS | ENV_INTERNAL_FLAGS))
-#error "Opps, some flags overlapped or wrong"
-#endif
 
 /* Merge flags and avoid false MDBX_UTTERLY_NOSYNC */
 static uint32_t merge_flags(const uint32_t a, const uint32_t b) {
@@ -19420,9 +19423,9 @@ static int mdbx_dbi_bind(MDBX_txn *txn, const MDBX_dbi dbi, unsigned user_flags,
   return MDBX_SUCCESS;
 }
 
-int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
-                     MDBX_dbi *dbi, MDBX_cmp_func *keycmp,
-                     MDBX_cmp_func *datacmp) {
+static int dbi_open(MDBX_txn *txn, const char *table_name, unsigned user_flags,
+                    MDBX_dbi *dbi, MDBX_cmp_func *keycmp,
+                    MDBX_cmp_func *datacmp) {
   int rc = MDBX_EINVAL;
   if (unlikely(!dbi))
     return rc;
@@ -19641,7 +19644,13 @@ int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name, unsigned user_flags,
 
 int mdbx_dbi_open(MDBX_txn *txn, const char *table_name, unsigned table_flags,
                   MDBX_dbi *dbi) {
-  return mdbx_dbi_open_ex(txn, table_name, table_flags, dbi, nullptr, nullptr);
+  return dbi_open(txn, table_name, table_flags, dbi, nullptr, nullptr);
+}
+
+int mdbx_dbi_open_ex(MDBX_txn *txn, const char *table_name,
+                     unsigned table_flags, MDBX_dbi *dbi, MDBX_cmp_func *keycmp,
+                     MDBX_cmp_func *datacmp) {
+  return dbi_open(txn, table_name, table_flags, dbi, keycmp, datacmp);
 }
 
 int __cold mdbx_dbi_stat(MDBX_txn *txn, MDBX_dbi dbi, MDBX_stat *dest,
@@ -23619,7 +23628,7 @@ retry_mapview:;
   }
 
   if (limit != map->limit) {
-#if defined(MREMAP_MAYMOVE) && 0
+#if defined(MREMAP_MAYMOVE)
     void *ptr =
         mremap(map->address, map->limit, limit, may_move ? MREMAP_MAYMOVE : 0);
     if (ptr == MAP_FAILED) {
@@ -24276,9 +24285,9 @@ __dll_export
         0,
         8,
         2,
-        0,
-        {"2020-07-06T16:37:35+03:00", "59e1a09a9eafe59bee5269f3994a11f9ab29548e", "fc9ae9ebc611f35989d63caea8b8ab79dd482ce1",
-         "v0.8.2-0-gfc9ae9ebc-dirty"},
+        7,
+        {"2020-07-23T11:47:05+03:00", "f06880d2034194b8dacad1b6a6c7f04d68988b87", "3d31884c3b8a7b3cafb046a2a09a06d13d37955b",
+         "v0.8.2-7-g3d31884c3"},
         sourcery};
 
 __dll_export
