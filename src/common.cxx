@@ -729,6 +729,6 @@ int fpta_db_info(const fpta_db *db, const fpta_txn *txn, fpta_db_stat_t *stat) {
   if (mdbx_info.mi_mode & MDBX_COALESCE)
     stat->regime_flags |= fpta_frendly4compaction;
 
-  stat->alterable_schema = db->alterable_schema;
+  stat->alterable_schema = (db ? db : txn->db)->alterable_schema;
   return FPTA_SUCCESS;
 }

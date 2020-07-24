@@ -920,6 +920,7 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
   case fptu_datetime:
     static_assert(sizeof(payload->dt) == sizeof(payload->u64), "WTF?");
     assert(payload->dt.fixedpoint == payload->u64);
+    __fallthrough;
   case fptu_uint64:
     key.place.u64 = payload->u64;
     key.mdbx.iov_len = sizeof(key.place.u64);
