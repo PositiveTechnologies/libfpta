@@ -48,7 +48,7 @@ LIBRARIES  := libmdbx.a libmdbx.$(SO_SUFFIX)
 TOOLS      := mdbx_stat mdbx_copy mdbx_dump mdbx_load mdbx_chk
 MANPAGES   := mdbx_stat.1 mdbx_copy.1 mdbx_dump.1 mdbx_load.1 mdbx_chk.1
 
-.PHONY: mdbx all install clean test dist check
+.PHONY: mdbx all install clean
 
 all: $(LIBRARIES) $(TOOLS)
 

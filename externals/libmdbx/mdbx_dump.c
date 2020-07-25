@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY b15f37aaf0bd0dc4ebfbe0d44b862ae719644acca9f672cc6209c2e7bb42a3a9_v0_8_2_7_g3d31884c3
+#define MDBX_BUILD_SOURCERY ec7fc015146592dbcbddc86d9e54c44278eae1087313a018e2a0f23c2c8db83c_v0_8_2_14_gaa07d7a3a
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1919,7 +1919,7 @@ typedef struct MDBX_meta {
 #define mm_psize mm_dbs[FREE_DBI].md_xsize
 /* Any persistent environment flags, see mdbx_env */
 #define mm_flags mm_dbs[FREE_DBI].md_flags
-  mdbx_canary mm_canary;
+  MDBX_canary mm_canary;
 
 #define MDBX_DATASIGN_NONE 0u
 #define MDBX_DATASIGN_WEAK 1u
@@ -2385,7 +2385,7 @@ struct MDBX_txn {
    * don't decrement it when individual DB handles are closed. */
   MDBX_dbi mt_numdbs;
   size_t mt_owner; /* thread ID that owns this transaction */
-  mdbx_canary mt_canary;
+  MDBX_canary mt_canary;
 
   union {
     struct {
@@ -3221,7 +3221,7 @@ static int dump_sdb(MDBX_txn *txn, MDBX_dbi dbi, char *name) {
     printf("mapsize=%" PRIu64 "\n", info.mi_geo.upper);
     printf("maxreaders=%u\n", info.mi_maxreaders);
 
-    mdbx_canary canary;
+    MDBX_canary canary;
     rc = mdbx_canary_get(txn, &canary);
     if (unlikely(rc != MDBX_SUCCESS)) {
       error("mdbx_canary_get", rc);

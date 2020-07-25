@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY b15f37aaf0bd0dc4ebfbe0d44b862ae719644acca9f672cc6209c2e7bb42a3a9_v0_8_2_7_g3d31884c3
+#define MDBX_BUILD_SOURCERY ec7fc015146592dbcbddc86d9e54c44278eae1087313a018e2a0f23c2c8db83c_v0_8_2_14_gaa07d7a3a
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1897,7 +1897,7 @@ typedef struct MDBX_meta {
 #define mm_psize mm_dbs[FREE_DBI].md_xsize
 /* Any persistent environment flags, see mdbx_env */
 #define mm_flags mm_dbs[FREE_DBI].md_flags
-  mdbx_canary mm_canary;
+  MDBX_canary mm_canary;
 
 #define MDBX_DATASIGN_NONE 0u
 #define MDBX_DATASIGN_WEAK 1u
@@ -2363,7 +2363,7 @@ struct MDBX_txn {
    * don't decrement it when individual DB handles are closed. */
   MDBX_dbi mt_numdbs;
   size_t mt_owner; /* thread ID that owns this transaction */
-  mdbx_canary mt_canary;
+  MDBX_canary mt_canary;
 
   union {
     struct {
@@ -18699,7 +18699,7 @@ static int __cold mdbx_env_compact(MDBX_env *env, MDBX_txn *read_txn,
   MDBX_meta *const meta = mdbx_init_metas(env, buffer);
   mdbx_meta_set_txnid(env, meta, read_txn->mt_txnid);
 
-  if (flags & MDBX_CP_FORCE_RESIZEABLE)
+  if (flags & MDBX_CP_FORCE_DYNAMIC_SIZE)
     make_sizeable(meta);
 
   /* copy canary sequenses if present */
@@ -18855,7 +18855,7 @@ static int __cold mdbx_env_copy_asis(MDBX_env *env, MDBX_txn *read_txn,
       (MDBX_meta *)(buffer + ((uint8_t *)mdbx_meta_head(env) - env->me_map));
   mdbx_txn_unlock(env);
 
-  if (flags & MDBX_CP_FORCE_RESIZEABLE)
+  if (flags & MDBX_CP_FORCE_DYNAMIC_SIZE)
     make_sizeable(headcopy);
   /* Update signature to steady */
   headcopy->mm_datasync_sign = mdbx_meta_sign(headcopy);
@@ -20657,7 +20657,7 @@ int __cold mdbx_env_pgwalk(MDBX_txn *txn, MDBX_pgvisitor_func *visitor,
   return rc;
 }
 
-int mdbx_canary_put(MDBX_txn *txn, const mdbx_canary *canary) {
+int mdbx_canary_put(MDBX_txn *txn, const MDBX_canary *canary) {
   int rc = check_txn_rw(txn, MDBX_TXN_BLOCKED);
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
@@ -20676,7 +20676,7 @@ int mdbx_canary_put(MDBX_txn *txn, const mdbx_canary *canary) {
   return MDBX_SUCCESS;
 }
 
-int mdbx_canary_get(const MDBX_txn *txn, mdbx_canary *canary) {
+int mdbx_canary_get(const MDBX_txn *txn, MDBX_canary *canary) {
   int rc = check_txn(txn, MDBX_TXN_BLOCKED);
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
@@ -21811,7 +21811,7 @@ __dll_export
     __has_attribute(__externally_visible__)
     __attribute__((__externally_visible__))
 #endif
-    const mdbx_build_info mdbx_build = {
+    const struct MDBX_build_info mdbx_build = {
 #ifdef MDBX_BUILD_TIMESTAMP
     MDBX_BUILD_TIMESTAMP
 #else
@@ -23974,7 +23974,9 @@ __cold MDBX_INTERNAL_FUNC bin128_t mdbx_osal_bootid(void) {
           (fstatfs(fd, &fs) == 0 && fs.f_type == /* procfs */ 0x9FA0)
               ? read(fd, buf, sizeof(buf))
               : -1;
-      close(fd);
+      const int err = close(fd);
+      assert(err == 0);
+      (void)err;
       if (len > 0 && bootid_parse_uuid(&bin, buf, len))
         return bin;
     }
@@ -24281,13 +24283,13 @@ __dll_export
     __has_attribute(__externally_visible__)
     __attribute__((__externally_visible__))
 #endif
-    const mdbx_version_info mdbx_version = {
+    const struct MDBX_version_info mdbx_version = {
         0,
         8,
         2,
-        7,
-        {"2020-07-23T11:47:05+03:00", "f06880d2034194b8dacad1b6a6c7f04d68988b87", "3d31884c3b8a7b3cafb046a2a09a06d13d37955b",
-         "v0.8.2-7-g3d31884c3"},
+        14,
+        {"2020-07-25T04:34:15+03:00", "4f16219e20ca1fa4a279a4aefacb49dae375606e", "aa07d7a3a2beb1d3f6be9d91976d5e961a6e6305",
+         "v0.8.2-14-gaa07d7a3a"},
         sourcery};
 
 __dll_export
