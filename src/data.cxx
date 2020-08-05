@@ -614,7 +614,7 @@ int fpta_put(fpta_txn *txn, fpta_name *table_id, fptu_ro row,
     return rc;
 
   fpta_table_schema *table_def = table_id->table_schema;
-  unsigned flags = MDBX_NODUPDATA;
+  MDBX_put_flags_t flags = MDBX_NODUPDATA;
   switch (op) {
   default:
     return FPTA_EFLAG;

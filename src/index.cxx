@@ -137,13 +137,13 @@ static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
 
 //----------------------------------------------------------------------------
 
-static __inline unsigned shove2dbiflags(fpta_shove_t shove) {
+static __inline MDBX_db_flags_t shove2dbiflags(fpta_shove_t shove) {
   assert(fpta_is_indexed(shove));
   const fptu_type type = fpta_shove2type(shove);
   const fpta_index_type index = fpta_shove2index(shove);
 
-  unsigned dbi_flags =
-      fpta_index_is_unique(index) ? 0u : (unsigned)MDBX_DUPSORT;
+  MDBX_db_flags_t dbi_flags =
+      fpta_index_is_unique(index) ? MDBX_DB_DEFAULTS : MDBX_DUPSORT;
   if ((type != /* composite */ fptu_null && type < fptu_96) ||
       fpta_index_is_unordered(index))
     dbi_flags |= MDBX_INTEGERKEY;
@@ -154,19 +154,19 @@ static __inline unsigned shove2dbiflags(fpta_shove_t shove) {
   return dbi_flags;
 }
 
-unsigned fpta_index_shove2primary_dbiflags(fpta_shove_t pk_shove) {
+MDBX_db_flags_t fpta_index_shove2primary_dbiflags(fpta_shove_t pk_shove) {
   assert(fpta_index_is_primary(fpta_shove2index(pk_shove)));
   return shove2dbiflags(pk_shove);
 }
 
-unsigned fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
-                                             fpta_shove_t sk_shove) {
+MDBX_db_flags_t fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
+                                                    fpta_shove_t sk_shove) {
   assert(fpta_index_is_primary(fpta_shove2index(pk_shove)));
   assert(fpta_index_is_secondary(fpta_shove2index(sk_shove)));
 
   fptu_type pk_type = fpta_shove2type(pk_shove);
   fpta_index_type pk_index = fpta_shove2index(pk_shove);
-  unsigned dbi_flags = shove2dbiflags(sk_shove);
+  MDBX_db_flags_t dbi_flags = shove2dbiflags(sk_shove);
   if (dbi_flags & MDBX_DUPSORT) {
     if (pk_type < fptu_cstr && pk_type != /* composite */ fptu_null)
       dbi_flags |= MDBX_DUPFIXED;
@@ -995,7 +995,8 @@ static inline MDBX_cmp_func *index_shove2comparator(fpta_shove_t shove) {
 
   const fptu_type type = fpta_shove2type(shove);
   if (type >= fptu_96 || type == /* composite */ fptu_null)
-    return mdbx_get_keycmp(fpta_index_is_reverse(index) ? MDBX_REVERSEKEY : 0);
+    return mdbx_get_keycmp(fpta_index_is_reverse(index) ? MDBX_REVERSEKEY
+                                                        : MDBX_DB_DEFAULTS);
   return mdbx_get_keycmp(MDBX_INTEGERKEY);
 }
 

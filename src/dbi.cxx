@@ -135,7 +135,7 @@ __cold MDBX_dbi fpta_dbicache_remove(fpta_db *db, const fpta_shove_t shove,
 
 __cold int fpta_dbi_open(fpta_txn *txn, const fpta_shove_t dbi_shove,
                          MDBX_dbi &__restrict handle,
-                         const unsigned dbi_flags) {
+                         const MDBX_db_flags_t dbi_flags) {
   fpta_dbi_name dbi_name;
   fpta_shove2str(dbi_shove, &dbi_name);
   int rc = mdbx_dbi_open_ex(
@@ -152,7 +152,7 @@ __cold int fpta_dbi_open(fpta_txn *txn, const fpta_shove_t dbi_shove,
 
 static __cold int
 fpta_dbicache_validate_locked(fpta_txn *txn, const fpta_shove_t dbi_shove,
-                              const unsigned dbi_flags,
+                              const MDBX_db_flags_t dbi_flags,
                               unsigned *__restrict const cache_hint) {
   assert(cache_hint);
   fpta_db *db = txn->db;
@@ -196,7 +196,7 @@ fpta_dbicache_validate_locked(fpta_txn *txn, const fpta_shove_t dbi_shove,
 
 __cold int fpta_dbicache_open(fpta_txn *txn, const fpta_shove_t dbi_shove,
                               MDBX_dbi &__restrict handle,
-                              const unsigned dbi_flags,
+                              const MDBX_db_flags_t dbi_flags,
                               unsigned *__restrict const cache_hint) {
   assert(fpta_txn_validate(txn, fpta_read) == FPTA_SUCCESS);
   assert(cache_hint != nullptr);
@@ -301,7 +301,7 @@ __cold int fpta_dbicache_cleanup(fpta_txn *txn, fpta_table_schema *table_def) {
 
 int __hot fpta_open_table(fpta_txn *txn, fpta_table_schema *table_def,
                           MDBX_dbi &handle) {
-  const unsigned dbi_flags =
+  const MDBX_db_flags_t dbi_flags =
       fpta_dbi_flags(table_def->column_shoves_array(), 0);
   const fpta_shove_t dbi_shove = fpta_dbi_shove(table_def->table_shove(), 0);
   handle = fpta_dbicache_peek(txn, dbi_shove, table_def->handle_cache(0),
@@ -327,7 +327,7 @@ int __hot fpta_open_column(fpta_txn *txn, fpta_name *column_id,
     return FPTA_SUCCESS;
   }
 
-  const unsigned dbi_flags =
+  const MDBX_db_flags_t dbi_flags =
       fpta_dbi_flags(table_def->column_shoves_array(), column_id->column.num);
   fpta_shove_t dbi_shove =
       fpta_dbi_shove(table_def->table_shove(), column_id->column.num);
@@ -352,7 +352,7 @@ int __hot fpta_open_secondaries(fpta_txn *txn, fpta_table_schema *table_def,
     if (!fpta_is_indexed(shove))
       break;
 
-    const unsigned dbi_flags =
+    const MDBX_db_flags_t dbi_flags =
         fpta_dbi_flags(table_def->column_shoves_array(), i);
     const fpta_shove_t dbi_shove = fpta_dbi_shove(table_def->table_shove(), i);
 

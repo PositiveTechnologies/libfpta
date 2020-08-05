@@ -115,7 +115,7 @@ int fpta_db_create_or_open(const fpta_appcontent_info *appcontent,
       return FPTA_EINVAL;
   }
 
-  unsigned mdbx_flags = MDBX_NOSUBDIR | MDBX_ACCEDE;
+  MDBX_env_flags_t mdbx_flags = MDBX_NOSUBDIR | MDBX_ACCEDE;
   switch (durability) {
   default:
     return FPTA_EFLAG;
@@ -367,7 +367,8 @@ int fpta_transaction_begin(fpta_db *db, fpta_level level, fpta_txn **ptxn) {
     goto bailout;
 
   rc = mdbx_txn_begin(db->mdbx_env, nullptr,
-                      (level == fpta_read) ? (unsigned)MDBX_RDONLY : 0u,
+                      (level == fpta_read) ? MDBX_TXN_RDONLY
+                                           : MDBX_TXN_READWRITE,
                       &txn->mdbx_txn);
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;

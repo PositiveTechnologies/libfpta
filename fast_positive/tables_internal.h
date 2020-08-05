@@ -446,9 +446,9 @@ struct fpta_cursor {
 
 //----------------------------------------------------------------------------
 
-unsigned fpta_index_shove2primary_dbiflags(fpta_shove_t pk_shove);
-unsigned fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
-                                             fpta_shove_t sk_shove);
+MDBX_db_flags_t fpta_index_shove2primary_dbiflags(fpta_shove_t pk_shove);
+MDBX_db_flags_t fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
+                                                    fpta_shove_t sk_shove);
 
 bool fpta_index_is_compat(fpta_shove_t shove, const fpta_value &value);
 

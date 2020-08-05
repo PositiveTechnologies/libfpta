@@ -300,9 +300,9 @@ static __inline fpta_shove_t fpta_dbi_shove(const fpta_shove_t table_shove,
   return dbi_shove;
 }
 
-static __inline unsigned fpta_dbi_flags(const fpta_shove_t *shoves_defs,
-                                        const size_t n) {
-  const unsigned dbi_flags =
+static __inline MDBX_db_flags_t fpta_dbi_flags(const fpta_shove_t *shoves_defs,
+                                               const size_t n) {
+  const MDBX_db_flags_t dbi_flags =
       (n == 0)
           ? fpta_index_shove2primary_dbiflags(shoves_defs[0])
           : fpta_index_shove2secondary_dbiflags(shoves_defs[0], shoves_defs[n]);
@@ -319,10 +319,10 @@ static __inline fpta_shove_t fpta_data_shove(const fpta_shove_t *shoves_defs,
 }
 
 int fpta_dbi_open(fpta_txn *txn, const fpta_shove_t dbi_shove,
-                  MDBX_dbi &__restrict handle, const unsigned dbi_flags);
+                  MDBX_dbi &__restrict handle, const MDBX_db_flags_t dbi_flags);
 
 int fpta_dbicache_open(fpta_txn *txn, const fpta_shove_t shove,
-                       MDBX_dbi &handle, const unsigned dbi_flags,
+                       MDBX_dbi &handle, const MDBX_db_flags_t dbi_flags,
                        unsigned *const cache_hint);
 
 MDBX_dbi fpta_dbicache_remove(fpta_db *db, const fpta_shove_t shove,
