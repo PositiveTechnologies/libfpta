@@ -34,7 +34,7 @@
 #endif
 
 static int __hot fpta_idxcmp_binary_last2first(const MDBX_val *a,
-                                               const MDBX_val *b) {
+                                               const MDBX_val *b) noexcept {
   const uint8_t *pa = (const uint8_t *)a->iov_base + a->iov_len;
   const uint8_t *pb = (const uint8_t *)b->iov_base + b->iov_len;
   const size_t shortest = (a->iov_len < b->iov_len) ? a->iov_len : b->iov_len;
@@ -75,15 +75,16 @@ static int __hot fpta_idxcmp_binary_last2first(const MDBX_val *a,
   return fptu_cmp2int(a->iov_len, b->iov_len);
 }
 
-static int __hot fpta_idxcmp_binary_first2last(const MDBX_val *a,
-                                               const MDBX_val *b) {
+__hot static int fpta_idxcmp_binary_first2last(const MDBX_val *a,
+                                               const MDBX_val *b) noexcept {
   size_t shortest = (a->iov_len < b->iov_len) ? a->iov_len : b->iov_len;
   int diff = memcmp(a->iov_base, b->iov_base, shortest);
   return likely(diff) ? diff : fptu_cmp2int(a->iov_len, b->iov_len);
 }
 
 template <typename T>
-static int __hot fpta_idxcmp_type(const MDBX_val *a, const MDBX_val *b) {
+__hot static int fpta_idxcmp_type(const MDBX_val *a,
+                                  const MDBX_val *b) noexcept {
   assert(a->iov_len == sizeof(T) && b->iov_len == sizeof(T));
 
   T va, vb;
@@ -97,7 +98,8 @@ static int __hot fpta_idxcmp_type(const MDBX_val *a, const MDBX_val *b) {
   return fptu_cmp2int(va, vb);
 }
 
-static int __hot fpta_idxcmp_fp32(const MDBX_val *a, const MDBX_val *b) {
+__hot static int fpta_idxcmp_fp32(const MDBX_val *a,
+                                  const MDBX_val *b) noexcept {
   assert(a->iov_len == 4 && b->iov_len == 4);
 
   int32_t va, vb;
@@ -117,7 +119,8 @@ static int __hot fpta_idxcmp_fp32(const MDBX_val *a, const MDBX_val *b) {
   return negative ? -cmp : cmp;
 }
 
-static int __hot fpta_idxcmp_fp64(const MDBX_val *a, const MDBX_val *b) {
+__hot static int fpta_idxcmp_fp64(const MDBX_val *a,
+                                  const MDBX_val *b) noexcept {
   assert(a->iov_len == 8 && b->iov_len == 8);
 
   int64_t va, vb;
@@ -138,7 +141,7 @@ static int __hot fpta_idxcmp_fp64(const MDBX_val *a, const MDBX_val *b) {
   return negative ? -cmp : cmp;
 }
 
-static int fpta_idxcmp_tuple(const MDBX_val *a, const MDBX_val *b) {
+static int fpta_idxcmp_tuple(const MDBX_val *a, const MDBX_val *b) noexcept {
   switch (fptu_cmp_tuples(*(const fptu_ro *)a, *(const fptu_ro *)b)) {
   case fptu_eq:
     return 0;
@@ -152,7 +155,7 @@ static int fpta_idxcmp_tuple(const MDBX_val *a, const MDBX_val *b) {
   }
 }
 
-static int fpta_idxcmp_mad(const MDBX_val *a, const MDBX_val *b) {
+static int fpta_idxcmp_mad(const MDBX_val *a, const MDBX_val *b) noexcept {
   (void)a;
   (void)b;
   return 0;
@@ -318,13 +321,13 @@ static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
 
 //----------------------------------------------------------------------------
 
-static __inline unsigned shove2dbiflags(fpta_shove_t shove) {
+static __inline MDBX_db_flags_t shove2dbiflags(fpta_shove_t shove) {
   assert(fpta_is_indexed(shove));
   const fptu_type type = fpta_shove2type(shove);
   const fpta_index_type index = fpta_shove2index(shove);
 
-  unsigned dbi_flags =
-      fpta_index_is_unique(index) ? 0u : (unsigned)MDBX_DUPSORT;
+  MDBX_db_flags_t dbi_flags =
+      fpta_index_is_unique(index) ? MDBX_DB_DEFAULTS : MDBX_DUPSORT;
   if ((type != /* composite */ fptu_null && type < fptu_96) ||
       fpta_index_is_unordered(index))
     dbi_flags |= MDBX_INTEGERKEY;
@@ -335,19 +338,19 @@ static __inline unsigned shove2dbiflags(fpta_shove_t shove) {
   return dbi_flags;
 }
 
-unsigned fpta_index_shove2primary_dbiflags(fpta_shove_t pk_shove) {
+MDBX_db_flags_t fpta_index_shove2primary_dbiflags(fpta_shove_t pk_shove) {
   assert(fpta_index_is_primary(fpta_shove2index(pk_shove)));
   return shove2dbiflags(pk_shove);
 }
 
-unsigned fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
-                                             fpta_shove_t sk_shove) {
+MDBX_db_flags_t fpta_index_shove2secondary_dbiflags(fpta_shove_t pk_shove,
+                                                    fpta_shove_t sk_shove) {
   assert(fpta_index_is_primary(fpta_shove2index(pk_shove)));
   assert(fpta_index_is_secondary(fpta_shove2index(sk_shove)));
 
   fptu_type pk_type = fpta_shove2type(pk_shove);
   fpta_index_type pk_index = fpta_shove2index(pk_shove);
-  unsigned dbi_flags = shove2dbiflags(sk_shove);
+  MDBX_db_flags_t dbi_flags = shove2dbiflags(sk_shove);
   if (dbi_flags & MDBX_DUPSORT) {
     if (pk_type < fptu_cstr && pk_type != /* composite */ fptu_null)
       dbi_flags |= MDBX_DUPFIXED;
