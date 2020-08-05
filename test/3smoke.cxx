@@ -4681,9 +4681,9 @@ TEST(Smoke, Estimate) {
   creation_params.growth_step = creation_params.shrink_threshold = 0;
 
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK,
-            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                   true, &db, &creation_params));
+  ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
+                                            fpta_regime4testing, true, &db,
+                                            &creation_params));
   ASSERT_NE(nullptr, db);
 
   // создаем простую таблицу

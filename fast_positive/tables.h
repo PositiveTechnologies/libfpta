@@ -344,6 +344,14 @@ enum fpta_error {
   FPTA_CLUMSY_INDEX
   /* Adding index which is too clumsy */,
 
+  FPTA_FORMAT_MISMATCH
+  /* Database format mismatch the version of libfpta */,
+
+  FPTA_APP_MISMATCH
+  /* Applicaton version mismatch the database content */,
+
+  FPTA_ERRROR_LAST = FPTA_APP_MISMATCH,
+
   FPTA_NODATA = -1 /* No data or EOF was reached */,
   FPTA_DEADBEEF = INT32_C(0xDeadBeef) /* Pseudo error for results by refs,
     mean `no value` returned */
@@ -1034,6 +1042,17 @@ typedef struct fpta_db_creation_params {
       ;
 } fpta_db_creation_params_t;
 
+/* Информация о содержимом БД и/или создавшем её приложении */
+typedef struct fpta_appcontent_info {
+  uint32_t oldest; /* Номер старейшей версии, с которой совместимо приложение
+                      или содержимое БД */
+  uint32_t newest; /* Номер новейшей версии, с которой совместимо приложение
+                      или содержимое БД */
+  const char
+      *signature; /* Сигнатура приложения или содержимого БД. Должно
+                     полностью совпадать (проверяется равенство дайджестов). */
+} fpta_appcontent_info;
+
 /* Информация о БД.
  *
  * Соответствует структуре MDBX_envinfo в API libmdbx
@@ -1108,7 +1127,8 @@ FPTA_API int fpta_db_info(const fpta_db *db, const fpta_txn *txn,
  * creation_params может быть равен NULL.
  *
  * В случае успеха возвращает ноль, иначе код ошибки. */
-FPTA_API int fpta_db_create_or_open(const char *path,
+FPTA_API int fpta_db_create_or_open(const fpta_appcontent_info *appcontent,
+                                    const char *path,
                                     fpta_durability durability,
                                     fpta_regime_flags regime_flags,
                                     bool alterable_schema, fpta_db **db,
@@ -1124,11 +1144,12 @@ FPTA_API int fpta_db_create_or_open(const char *path,
  * позволяет отказаться от захвата fpta_rwl_t в процессе работы.
  *
  * В случае успеха возвращает ноль, иначе код ошибки. */
-static inline int fpta_db_open_existing(const char *path,
+static inline int fpta_db_open_existing(const fpta_appcontent_info *appcontent,
+                                        const char *path,
                                         fpta_durability durability,
                                         fpta_regime_flags regime_flags,
                                         bool alterable_schema, fpta_db **db) {
-  return fpta_db_create_or_open(path, durability, regime_flags,
+  return fpta_db_create_or_open(appcontent, path, durability, regime_flags,
                                 alterable_schema, db, nullptr);
 }
 

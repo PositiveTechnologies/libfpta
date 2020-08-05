@@ -74,10 +74,12 @@ static __cold const char *error2cp(int32_t errcode) {
       "existing",
       "FPTA_TARDY_DBI: Another thread still use handle(s) that should be "
       "reopened",
-      "FPTA_CLUMSY_INDEX: Adding index which is too clumsy"};
+      "FPTA_CLUMSY_INDEX: Adding index which is too clumsy",
+      "FPTA_FORMAT_MISMATCH: Database format mismatch the libfpta version",
+      "FPTA_APP_MISMATCH: Applicaton version mismatch the database content"};
 
   static_assert(erthink::array_length(msgs) ==
-                    FPTA_CLUMSY_INDEX - FPTA_ERRROR_BASE,
+                    FPTA_ERRROR_LAST - FPTA_ERRROR_BASE,
                 "WTF?");
 
   switch (errcode) {
@@ -88,8 +90,8 @@ static __cold const char *error2cp(int32_t errcode) {
   case int32_t(FPTA_DEADBEEF):
     return "FPTA_DEADBEEF: No value returned";
   default:
-    if (errcode >= FPTA_EOOPS && errcode <= FPTA_CLUMSY_INDEX)
-      return msgs[errcode - FPTA_EOOPS];
+    if (errcode > FPTA_ERRROR_BASE && errcode <= FPTA_ERRROR_LAST)
+      return msgs[errcode - FPTA_ERRROR_BASE - 1];
   }
   return nullptr;
 }

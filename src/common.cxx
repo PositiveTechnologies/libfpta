@@ -89,7 +89,8 @@ void fpta_cursor_free(fpta_db *db, fpta_cursor *cursor) {
 
 //----------------------------------------------------------------------------
 
-int fpta_db_create_or_open(const char *path, fpta_durability durability,
+int fpta_db_create_or_open(const fpta_appcontent_info *appcontent,
+                           const char *path, fpta_durability durability,
                            fpta_regime_flags regime_flags,
                            bool alterable_schema, fpta_db **pdb,
                            fpta_db_creation_params_t *creation_params) {
@@ -102,6 +103,9 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
     return FPTA_EOOPS;
 
   if (unlikely(path == nullptr || *path == '\0'))
+    return FPTA_EINVAL;
+
+  if (appcontent && unlikely(appcontent->newest < appcontent->oldest))
     return FPTA_EINVAL;
 
   if (creation_params) {
@@ -141,6 +145,7 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
   if (unlikely(db == nullptr))
     return FPTA_ENOMEM;
   db->regime_flags = regime_flags;
+  db->app_version = fpta_db::app_version_info(appcontent);
 
   int rc;
   db->alterable_schema = alterable_schema;
@@ -213,8 +218,21 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
     }
   }
 
-  *pdb = db;
-  return FPTA_SUCCESS;
+  /* Для проверки версии БД и приложения читаем схему. */
+  fpta_txn *txn;
+  rc = fpta_transaction_begin(db, fpta_read, &txn);
+  if (likely(rc == MDBX_SUCCESS)) {
+    if (txn->db->schema_dbi /* если есть схема, то хендл будет ненулевым */) {
+      fpta_schema_info schema_info;
+      rc = fpta_schema_fetch(txn, &schema_info);
+      fpta_schema_destroy(&schema_info);
+    }
+    fpta_transaction_end(txn, false);
+  }
+  if (unlikely(rc == MDBX_SUCCESS)) {
+    *pdb = db;
+    return FPTA_SUCCESS;
+  }
 
 bailout:
   if (db->mdbx_env) {
