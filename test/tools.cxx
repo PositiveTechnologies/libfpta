@@ -67,8 +67,10 @@ int test_db_open(const char *path, fpta_durability durability,
                  fpta_regime_flags regime_flags, size_t megabytes,
                  bool alterable_schema, fpta_db **pdb) {
 
+  static const fpta_appcontent_info appcontent{0, 1, "test"};
+
   if (megabytes == 0 || durability == fpta_readonly)
-    return fpta_db_open_existing(nullptr, path, durability, regime_flags,
+    return fpta_db_open_existing(&appcontent, path, durability, regime_flags,
                                  alterable_schema, pdb);
   if (unlikely(pdb == nullptr))
     return FPTA_EINVAL;
@@ -84,6 +86,6 @@ int test_db_open(const char *path, fpta_durability durability,
   creation_params.pagesize = -1;
   creation_params.growth_step = 0;
   creation_params.shrink_threshold = 0;
-  return fpta_db_create_or_open(nullptr, path, durability, regime_flags,
+  return fpta_db_create_or_open(&appcontent, path, durability, regime_flags,
                                 alterable_schema, pdb, &creation_params);
 }
