@@ -322,8 +322,24 @@ static int fpta_open_schema(fpta_txn *txn) {
   MDBX_stat schema_stat;
   rc = mdbx_dbi_stat(txn->mdbx_txn, txn->db->schema_dbi, &schema_stat,
                      sizeof(schema_stat));
-  if (unlikely(rc != MDBX_SUCCESS))
-    return rc;
+  if (unlikely(rc != MDBX_SUCCESS)) {
+    if (rc != MDBX_BAD_DBI || txn->level != fpta_read || !txn->db->schema_dbi)
+      return rc;
+    /* Очень редкая, почти искусственная, ситуация:
+     *  - транзакция чтения была запущена на MVCC-снимке без схемы;
+     *  - одновременно была запущена транзакция записи,
+     *    в которой схема была создана и хендл schema_dbi стал ненулевым;
+     *  - хендл общий, но для транзакции схема недоступна.
+     * В этом случае самый разумный выход перезапустить транзакцию чтения. */
+    rc = mdbx_txn_renew(txn->mdbx_txn);
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
+    txn->db_version = mdbx_txn_id(txn->mdbx_txn);
+    rc = mdbx_dbi_stat(txn->mdbx_txn, txn->db->schema_dbi, &schema_stat,
+                       sizeof(schema_stat));
+    if (unlikely(rc != MDBX_SUCCESS))
+      return rc;
+  }
 
   txn->schema_tsn_ = schema_stat.ms_mod_txnid;
   /* if (txn->schema_tsn_ == 0) {
