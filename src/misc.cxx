@@ -227,7 +227,7 @@ __cold ostream &operator<<(ostream &out, const fpta_level value) {
 FPTA_TOSTRING_IMP(const fpta_level &);
 
 __cold ostream &operator<<(ostream &out, const fpta_index_type value) {
-  if (unlikely(fpta_index_is_valid(value)))
+  if (unlikely(!fpta_index_is_valid(value)))
     return invalid(out, "index", value);
 
   if (!fpta_is_indexed(value))
