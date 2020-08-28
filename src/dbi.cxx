@@ -21,7 +21,7 @@
  * Используется для сверки данных, например при удалении строк по заданному
  * образцу. В отличие от memcmp() результат сравнения не зависит от физического
  * порядка полей в кортеже. */
-static __hot int cmp_rows(const MDBX_val *a, const MDBX_val *b) {
+static __hot int cmp_rows(const MDBX_val *a, const MDBX_val *b) noexcept {
   switch (fptu_cmp_tuples(*(const fptu_ro *)a, *(const fptu_ro *)b)) {
   case fptu_eq:
     return 0;

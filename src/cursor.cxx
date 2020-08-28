@@ -892,7 +892,7 @@ int fpta_cursor_delete(fpta_cursor *cursor) {
 
   cursor->metrics.deletions += 1;
   if (!cursor->table_schema()->has_secondary()) {
-    rc = mdbx_cursor_del(cursor->mdbx_cursor, MDBX_PUT_DEFAULTS);
+    rc = mdbx_cursor_del(cursor->mdbx_cursor, MDBX_put_flags_t(0));
     if (unlikely(rc != FPTA_SUCCESS)) {
       cursor->set_poor();
       return rc;
@@ -950,7 +950,7 @@ int fpta_cursor_delete(fpta_cursor *cursor) {
     }
 
     if (!fpta_index_is_primary(cursor->index_shove())) {
-      rc = mdbx_cursor_del(cursor->mdbx_cursor, MDBX_PUT_DEFAULTS);
+      rc = mdbx_cursor_del(cursor->mdbx_cursor, MDBX_put_flags_t(0));
       if (unlikely(rc != MDBX_SUCCESS)) {
         cursor->set_poor();
         return fpta_internal_abort(cursor->txn, rc);
