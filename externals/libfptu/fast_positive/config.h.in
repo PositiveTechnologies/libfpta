@@ -35,6 +35,9 @@
 #cmakedefine ENABLE_GPROF
 #cmakedefine ENABLE_GCOV
 #cmakedefine ENABLE_ASAN
+#ifndef FPTU_BUILD_TYPE
+#cmakedefine FPTU_BUILD_TYPE "@FPTU_BUILD_TYPE@"
+#endif
 
 #cmakedefine01 HAVE_FPTU_VERSIONINFO
 #cmakedefine01 FPTU_ENABLE_TESTS

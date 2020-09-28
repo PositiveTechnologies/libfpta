@@ -40,6 +40,12 @@
 #cmakedefine ENABLE_GPROF
 #cmakedefine ENABLE_GCOV
 #cmakedefine ENABLE_ASAN
+#ifndef FPTA_BUILD_TYPE
+#cmakedefine FPTA_BUILD_TYPE "@FPTA_BUILD_TYPE@"
+#endif
+#ifndef FPTU_BUILD_TYPE
+#cmakedefine FPTU_BUILD_TYPE "@FPTU_BUILD_TYPE@"
+#endif
 
 #cmakedefine01 LIBFPTU_STATIC
 #cmakedefine01 LIBFPTA_STATIC
