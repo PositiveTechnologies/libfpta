@@ -762,22 +762,18 @@ template <bool accurate = true> struct output_double {
   cxx11_constexpr output_double(const double value) : value(value) {}
 };
 
-} // namespace erthink
-
-namespace std {
-
-inline ostream &operator<<(ostream &out,
-                           const erthink::output_double<false> &it) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const erthink::output_double<false> &it) {
   char buf[erthink::grisu::ieee754_default_printer<false>::max_chars];
   char *end = erthink::d2a_fast(it.value, buf);
   return out.write(buf, end - buf);
 }
 
-inline ostream &operator<<(ostream &out,
-                           const erthink::output_double<true> &it) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const erthink::output_double<true> &it) {
   char buf[erthink::grisu::ieee754_default_printer<true>::max_chars];
   char *end = erthink::d2a_accurate(it.value, buf);
   return out.write(buf, end - buf);
 }
 
-} // namespace std
+} // namespace erthink
