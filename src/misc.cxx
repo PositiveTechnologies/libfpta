@@ -108,31 +108,16 @@ __cold const char *fpta_strerror_r(int errcode, char *buf, size_t buflen) {
 
 //------------------------------------------------------------------------------
 
-namespace std {
-
-static __cold ostream &invalid(ostream &out, const char *name,
-                               const intptr_t value) {
+static __cold std::ostream &invalid(std::ostream &out, const char *name,
+                                    const intptr_t value) {
   return out << "invalid(fpta::" << name << "=" << value << ")";
 }
 
-#define FPTA_TOSTRING_IMP(type)                                                \
-  __cold string to_string(type value) {                                        \
-    ostringstream out;                                                         \
-    out << value;                                                              \
-    return out.str();                                                          \
-  }
-
-static __cold string_view error2sv(const fpta_error value) {
-  return string_view(fpta_strerror(value));
-}
-__cold ostream &operator<<(ostream &out, const fpta_error value) {
-  return out << error2sv(value);
-}
-__cold string to_string(const fpta_error value) {
-  return string(error2sv(value));
+__cold std::ostream &operator<<(std::ostream &out, const fpta_error value) {
+  return out << fpta_strerror(value);
 }
 
-static __cold string_view value_type2sv(const fpta_value_type value) {
+static __cold fptu::string_view value_type2sv(const fpta_value_type value) {
   static const char *const names[] = {"null",     "signed_int",  "unsigned_int",
                                       "datetime", "float_point", "string",
                                       "binary",   "shoved",      "<begin>",
@@ -140,17 +125,15 @@ static __cold string_view value_type2sv(const fpta_value_type value) {
 
   static_assert(erthink::array_length(names) == size_t(fpta_invalid), "WTF?");
   return (value >= fpta_null && value < fpta_invalid)
-             ? string_view(names[size_t(value) - fpta_null])
-             : string_view("invalid");
+             ? fptu::string_view(names[size_t(value) - fpta_null])
+             : fptu::string_view("invalid");
 }
-__cold ostream &operator<<(ostream &out, const fpta_value_type value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_value_type value) {
   return out << value_type2sv(value);
 }
-__cold string to_string(const fpta_value_type value) {
-  return string(value_type2sv(value));
-}
 
-__cold ostream &operator<<(ostream &out, const fpta_value *value) {
+__cold std::ostream &operator<<(std::ostream &out, const fpta_value *value) {
   if (!value)
     return out << "nullptr";
 
@@ -194,9 +177,9 @@ __cold ostream &operator<<(ostream &out, const fpta_value *value) {
                                            value->binary_length);
   }
 }
-FPTA_TOSTRING_IMP(const fpta_value *);
 
-__cold ostream &operator<<(ostream &out, const fpta_durability value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_durability value) {
   switch (value) {
   default:
     return invalid(out, "durability", value);
@@ -210,9 +193,8 @@ __cold ostream &operator<<(ostream &out, const fpta_durability value) {
     return out << "mode-weak";
   }
 }
-FPTA_TOSTRING_IMP(const fpta_durability &);
 
-__cold ostream &operator<<(ostream &out, const fpta_level value) {
+__cold std::ostream &operator<<(std::ostream &out, const fpta_level value) {
   switch (value) {
   default:
     return invalid(out, "level", value);
@@ -224,9 +206,9 @@ __cold ostream &operator<<(ostream &out, const fpta_level value) {
     return out << "level-schema";
   }
 }
-FPTA_TOSTRING_IMP(const fpta_level &);
 
-__cold ostream &operator<<(ostream &out, const fpta_index_type value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_index_type value) {
   if (unlikely(!fpta_index_is_valid(value)))
     return invalid(out, "index", value);
 
@@ -242,9 +224,9 @@ __cold ostream &operator<<(ostream &out, const fpta_index_type value) {
     out << ".nullable";
   return out;
 }
-FPTA_TOSTRING_IMP(const fpta_index_type);
 
-__cold ostream &operator<<(ostream &out, const fpta_filter_bits value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_filter_bits value) {
   switch (value) {
   default:
     return invalid(out, "filter_bits", value);
@@ -267,9 +249,9 @@ __cold ostream &operator<<(ostream &out, const fpta_filter_bits value) {
     return out << fptu_lge(value);
   }
 }
-FPTA_TOSTRING_IMP(const fpta_filter_bits);
 
-__cold ostream &operator<<(ostream &out, const fpta_cursor_options value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_cursor_options value) {
   switch (value & ~(fpta_dont_fetch | fpta_zeroed_range_is_point)) {
   default:
     return invalid(out, "cursor_options", value);
@@ -289,9 +271,9 @@ __cold ostream &operator<<(ostream &out, const fpta_cursor_options value) {
     out << ".dont_fetch";
   return out;
 }
-FPTA_TOSTRING_IMP(const fpta_cursor_options);
 
-__cold ostream &operator<<(ostream &out, const fpta_seek_operations value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_seek_operations value) {
   switch (value) {
   default:
     return invalid(out, "seek_operations", value);
@@ -319,9 +301,9 @@ __cold ostream &operator<<(ostream &out, const fpta_seek_operations value) {
     return out << "key.prev";
   }
 }
-FPTA_TOSTRING_IMP(const fpta_seek_operations);
 
-__cold ostream &operator<<(ostream &out, const fpta_put_options value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_put_options value) {
   switch (value & ~fpta_skip_nonnullable_check) {
   default:
     return invalid(out, "put_options", value);
@@ -339,9 +321,8 @@ __cold ostream &operator<<(ostream &out, const fpta_put_options value) {
     out << ".skip_nonnullable_check";
   return out;
 }
-FPTA_TOSTRING_IMP(const fpta_put_options);
 
-__cold ostream &operator<<(ostream &out, const fpta_name *value) {
+__cold std::ostream &operator<<(std::ostream &out, const fpta_name *value) {
   out << "name_";
   if (!value)
     return out << "nullptr";
@@ -385,9 +366,8 @@ __cold ostream &operator<<(ostream &out, const fpta_name *value) {
   return out << ", dbi-hint#" << table_def->handle_cache(value->column.num)
              << "}";
 }
-FPTA_TOSTRING_IMP(const fpta_name *);
 
-__cold ostream &operator<<(ostream &out, const fpta_filter *filter) {
+__cold std::ostream &operator<<(std::ostream &out, const fpta_filter *filter) {
   if (!filter)
     return out << "TRUE";
 
@@ -421,24 +401,21 @@ __cold ostream &operator<<(ostream &out, const fpta_filter *filter) {
                << " " << filter->node_cmp.right_value;
   }
 }
-FPTA_TOSTRING_IMP(const fpta_filter *);
 
-__cold ostream &operator<<(ostream &out, const fpta_column_set *value) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const fpta_column_set *value) {
   return out << "column_set." << static_cast<const void *>(value) << "@" FIXME;
 }
-FPTA_TOSTRING_IMP(const fpta_column_set *);
 
-__cold ostream &operator<<(ostream &out, const fpta_db *value) {
+__cold std::ostream &operator<<(std::ostream &out, const fpta_db *value) {
   return out << "db." << static_cast<const void *>(value) << "@" FIXME;
 }
-FPTA_TOSTRING_IMP(const fpta_db *);
 
-__cold ostream &operator<<(ostream &out, const fpta_txn *value) {
+__cold std::ostream &operator<<(std::ostream &out, const fpta_txn *value) {
   return out << "txn." << static_cast<const void *>(value) << "@" FIXME;
 }
-FPTA_TOSTRING_IMP(const fpta_txn *);
 
-__cold ostream &operator<<(ostream &out, const fpta_cursor *cursor) {
+__cold std::ostream &operator<<(std::ostream &out, const fpta_cursor *cursor) {
   out << "cursor.";
   if (!cursor)
     return out << "nullptr";
@@ -474,7 +451,7 @@ __cold ostream &operator<<(ostream &out, const fpta_cursor *cursor) {
       << cursor->table_id
       << ",\n"
          "\tindex {@"
-      << hex << shove << dec << ", " << index << ", ";
+      << std::hex << shove << std::dec << ", " << index << ", ";
   if (type)
     out << type;
   else
@@ -498,16 +475,16 @@ __cold ostream &operator<<(ostream &out, const fpta_cursor *cursor) {
                 "\tdb "
              << cursor->db << "\n}";
 }
-FPTA_TOSTRING_IMP(const fpta_cursor *);
 
-__cold ostream &operator<<(ostream &out, const struct fpta_table_schema *def) {
+__cold std::ostream &operator<<(std::ostream &out,
+                                const struct fpta_table_schema *def) {
   out << "table_schema.";
   if (!def)
     return out << "nullptr";
 
   out << static_cast<const void *>(def) << "={v" << def->version_tsn() << ", $"
-      << hex << def->signature() << "_" << def->checksum() << ", @"
-      << def->table_shove() << dec << ", " << def->column_count() << "=[";
+      << std::hex << def->signature() << "_" << def->checksum() << ", @"
+      << def->table_shove() << std::dec << ", " << def->column_count() << "=[";
 
   fptu::format("%p={v%" PRIu64 ", $%" PRIx32 "_%" PRIx64 ", @%" PRIx64
                ", %" PRIuSIZE "=[",
@@ -520,7 +497,7 @@ __cold ostream &operator<<(ostream &out, const struct fpta_table_schema *def) {
     const fptu_type type = fpta_shove2type(shove);
     if (i)
       out << ", ";
-    out << "{@" << hex << shove << ", " << index << ", ";
+    out << "{@" << std::hex << shove << ", " << index << ", ";
     if (type)
       out << type;
     else
@@ -530,17 +507,15 @@ __cold ostream &operator<<(ostream &out, const struct fpta_table_schema *def) {
 
   return out << "]}";
 }
-FPTA_TOSTRING_IMP(const fpta_table_schema *);
 
-FPTA_API ostream &operator<<(ostream &out, const MDBX_val &value) {
+FPTA_API std::ostream &operator<<(std::ostream &out, const MDBX_val &value) {
   out << value.iov_len << "_" << value.iov_base;
   if (value.iov_len && value.iov_base)
     out << "=" << fptu::output_hexadecimal(value.iov_base, value.iov_len);
   return out;
 }
-FPTA_TOSTRING_IMP(const MDBX_val &);
 
-FPTA_API ostream &operator<<(ostream &out, const fpta_key &value) {
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_key &value) {
   if (value.mdbx.iov_len) {
     const char *const begin = static_cast<const char *>(value.mdbx.iov_base);
     const char *const end = begin + value.mdbx.iov_len;
@@ -566,9 +541,6 @@ FPTA_API ostream &operator<<(ostream &out, const fpta_key &value) {
   }
   return out << value.mdbx;
 }
-FPTA_TOSTRING_IMP(const fpta_key &);
-
-} // namespace std
 
 //------------------------------------------------------------------------------
 
@@ -606,7 +578,7 @@ void fpta_pollute(void *ptr, size_t bytes, uintptr_t xormask) {
   }
 }
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 #ifdef __SANITIZE_ADDRESS__
 extern "C" FPTA_API __attribute__((weak)) const char *__asan_default_options() {

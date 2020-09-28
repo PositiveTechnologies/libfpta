@@ -49,6 +49,81 @@ bool fptu_is_under_valgrind(void) {
   return false;
 }
 
+__cold const char *fptu_type_name(const fptu_type value) {
+  switch (int(/* hush 'not in enumerated' */ value)) {
+  default: {
+    static __thread char buf[32];
+    snprintf(buf, sizeof(buf), "invalid(fptu::type=%i)", int(value));
+    return buf;
+  }
+  case fptu_null:
+    return "null";
+  case fptu_uint16:
+    return "uint16";
+  case fptu_int32:
+    return "int32";
+  case fptu_uint32:
+    return "uint32";
+  case fptu_fp32:
+    return "fp32";
+  case fptu_int64:
+    return "int64";
+  case fptu_uint64:
+    return "uint64";
+  case fptu_fp64:
+    return "fp64";
+  case fptu_datetime:
+    return "datetime";
+  case fptu_96:
+    return "b96";
+  case fptu_128:
+    return "b128";
+  case fptu_160:
+    return "b160";
+  case fptu_256:
+    return "b256";
+  case fptu_cstr:
+    return "cstr";
+  case fptu_opaque:
+    return "opaque";
+  case fptu_nested:
+    return "nested";
+
+  case fptu_farray:
+    return "invalid-null[]";
+  case fptu_array_uint16:
+    return "uint16[]";
+  case fptu_array_int32:
+    return "int32[]";
+  case fptu_array_uint32:
+    return "uint32[]";
+  case fptu_array_fp32:
+    return "fp32[]";
+  case fptu_array_int64:
+    return "int64[]";
+  case fptu_array_uint64:
+    return "uint64[]";
+  case fptu_array_fp64:
+    return "fp64[]";
+  case fptu_array_datetime:
+    return "datetime[]";
+  case fptu_array_96:
+    return "b96[]";
+  case fptu_array_128:
+    return "b128[]";
+  case fptu_array_160:
+    return "b160[]";
+  case fptu_array_256:
+    return "b256[]";
+  case fptu_array_cstr:
+    return "cstr[]";
+  case fptu_array_opaque:
+    return "opaque[]";
+  case fptu_array_nested:
+    return "nested[]";
+  }
+}
+
 namespace {
 
 /* access to std::streambuf protected methods */
@@ -233,100 +308,16 @@ string_view::at(string_view::size_type pos) const {
   return str[pos];
 }
 
-} /* namespace fptu */
+} // namespace fptu
 
 //----------------------------------------------------------------------------
 
-__cold const char *fptu_type_name(const fptu_type value) {
-  switch (int(/* hush 'not in enumerated' */ value)) {
-  default: {
-    static __thread char buf[32];
-    snprintf(buf, sizeof(buf), "invalid(fptu::type=%i)", int(value));
-    return buf;
-  }
-  case fptu_null:
-    return "null";
-  case fptu_uint16:
-    return "uint16";
-  case fptu_int32:
-    return "int32";
-  case fptu_uint32:
-    return "uint32";
-  case fptu_fp32:
-    return "fp32";
-  case fptu_int64:
-    return "int64";
-  case fptu_uint64:
-    return "uint64";
-  case fptu_fp64:
-    return "fp64";
-  case fptu_datetime:
-    return "datetime";
-  case fptu_96:
-    return "b96";
-  case fptu_128:
-    return "b128";
-  case fptu_160:
-    return "b160";
-  case fptu_256:
-    return "b256";
-  case fptu_cstr:
-    return "cstr";
-  case fptu_opaque:
-    return "opaque";
-  case fptu_nested:
-    return "nested";
-
-  case fptu_farray:
-    return "invalid-null[]";
-  case fptu_array_uint16:
-    return "uint16[]";
-  case fptu_array_int32:
-    return "int32[]";
-  case fptu_array_uint32:
-    return "uint32[]";
-  case fptu_array_fp32:
-    return "fp32[]";
-  case fptu_array_int64:
-    return "int64[]";
-  case fptu_array_uint64:
-    return "uint64[]";
-  case fptu_array_fp64:
-    return "fp64[]";
-  case fptu_array_datetime:
-    return "datetime[]";
-  case fptu_array_96:
-    return "b96[]";
-  case fptu_array_128:
-    return "b128[]";
-  case fptu_array_160:
-    return "b160[]";
-  case fptu_array_256:
-    return "b256[]";
-  case fptu_array_cstr:
-    return "cstr[]";
-  case fptu_array_opaque:
-    return "opaque[]";
-  case fptu_array_nested:
-    return "nested[]";
-  }
-}
-
-namespace std {
-
-static __cold ostream &invalid(ostream &out, const char *name,
-                               const intptr_t value) {
+static __cold std::ostream &invalid(std::ostream &out, const char *name,
+                                    const intptr_t value) {
   return out << "invalid(fptu::" << name << "=" << value << ")";
 }
 
-#define FPTU_TOSTRING_IMP(type)                                                \
-  __cold string to_string(type value) {                                        \
-    ostringstream out;                                                         \
-    out << value;                                                              \
-    return out.str();                                                          \
-  }
-
-__cold ostream &operator<<(ostream &out, const fptu_error value) {
+__cold std::ostream &operator<<(std::ostream &out, const fptu_error value) {
   switch (value) {
   case FPTU_SUCCESS:
     return out << "FPTU: Success";
@@ -340,17 +331,13 @@ __cold ostream &operator<<(ostream &out, const fptu_error value) {
     return invalid(out, "error", value);
   }
 }
-FPTU_TOSTRING_IMP(const fptu_error)
 
-__cold ostream &operator<<(ostream &out, const fptu_type value) {
+__cold std::ostream &operator<<(std::ostream &out, const fptu_type value) {
   return out << fptu_type_name(value);
-}
-__cold string to_string(const fptu_type value) {
-  return std::string(fptu_type_name(value));
 }
 
 template <typename native>
-static inline void output_array_native(ostream &out,
+static inline void output_array_native(std::ostream &out,
                                        const fptu_payload *const payload,
                                        const char *const tuple_end) {
   const char *const array_begin =
@@ -376,7 +363,7 @@ static inline void output_array_native(ostream &out,
   }
 }
 
-__cold static void output_array_fixbin(ostream &out,
+__cold static void output_array_fixbin(std::ostream &out,
                                        const fptu_payload *payload,
                                        const unsigned itemsize,
                                        const char *const tuple_end) {
@@ -400,7 +387,7 @@ __cold static void output_array_fixbin(ostream &out,
   }
 }
 
-__cold ostream &operator<<(ostream &out, const fptu_field &field) {
+__cold std::ostream &operator<<(std::ostream &out, const fptu_field &field) {
   const fptu_type type_complete = field.type();
   const fptu_type type_base = fptu_type(int(type_complete) & ~int(fptu_farray));
   const auto payload = field.payload();
@@ -570,9 +557,7 @@ __cold ostream &operator<<(ostream &out, const fptu_field &field) {
   return out << "}";
 }
 
-FPTU_TOSTRING_IMP(const fptu_field &)
-
-__cold ostream &operator<<(ostream &out, const fptu_ro &ro) {
+__cold std::ostream &operator<<(std::ostream &out, const fptu_ro &ro) {
   const fptu_field *const begin = fptu::begin(ro);
   const fptu_field *const end = fptu::end(ro);
   out << "(" << ro.total_bytes << " bytes, " << end - begin << " fields, "
@@ -585,9 +570,7 @@ __cold ostream &operator<<(ostream &out, const fptu_ro &ro) {
   return out << "}";
 }
 
-FPTU_TOSTRING_IMP(const fptu_ro &)
-
-__cold ostream &operator<<(ostream &out, const fptu_rw &rw) {
+__cold std::ostream &operator<<(std::ostream &out, const fptu_rw &rw) {
   const void *addr = std::addressof(rw);
   const fptu_field *const begin = fptu::begin(rw);
   const fptu_field *const end = fptu::end(rw);
@@ -604,9 +587,7 @@ __cold ostream &operator<<(ostream &out, const fptu_rw &rw) {
   return out << "}";
 }
 
-FPTU_TOSTRING_IMP(const fptu_rw &)
-
-__cold ostream &operator<<(ostream &out, const fptu_lge value) {
+__cold std::ostream &operator<<(std::ostream &out, const fptu_lge value) {
   switch (value) {
   default:
     return invalid(out, "lge", value);
@@ -627,9 +608,7 @@ __cold ostream &operator<<(ostream &out, const fptu_lge value) {
   }
 }
 
-FPTU_TOSTRING_IMP(const fptu_lge)
-
-__cold ostream &operator<<(ostream &out, const fptu_time &value) {
+__cold std::ostream &operator<<(std::ostream &out, const fptu_time &value) {
   int year_offset = 1900;
   struct tm utc_tm;
 #ifdef _MSC_VER
@@ -656,10 +635,10 @@ __cold ostream &operator<<(ostream &out, const fptu_time &value) {
 
   const auto save_fmtfl = out.flags();
   const auto safe_fill = out.fill('0');
-  out << setw(4) << utc_tm.tm_year + year_offset << "-" << setw(2)
-      << utc_tm.tm_mon + 1 << "-" << setw(2) << utc_tm.tm_mday << "T" << setw(2)
-      << utc_tm.tm_hour << ":" << setw(2) << utc_tm.tm_min << ":" << setw(2)
-      << utc_tm.tm_sec;
+  out << std::setw(4) << utc_tm.tm_year + year_offset << "-" << std::setw(2)
+      << utc_tm.tm_mon + 1 << "-" << std::setw(2) << utc_tm.tm_mday << "T"
+      << std::setw(2) << utc_tm.tm_hour << ":" << std::setw(2) << utc_tm.tm_min
+      << ":" << std::setw(2) << utc_tm.tm_sec;
 
   if (value.fractional) {
     char buffer[erthink::grisu::fractional_printer::max_chars];
@@ -678,11 +657,7 @@ __cold ostream &operator<<(ostream &out, const fptu_time &value) {
   return out;
 }
 
-FPTU_TOSTRING_IMP(const fptu_time &)
-
 /* #define FIXME "FIXME: " __FILE__ ", " FPT_STRINGIFY(__LINE__) */
-
-} /* namespace std */
 
 //----------------------------------------------------------------------------
 

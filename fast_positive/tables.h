@@ -3405,68 +3405,42 @@ extern FPTA_API const fpta_build_info fpta_build;
 }
 
 //----------------------------------------------------------------------------
-/* Сервисные функции и классы для C++ (будет пополняться, существенно). */
+/* Сервисные функции и классы для C++. */
 
 #include <ostream>
 
-namespace std {
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_error);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_value_type);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_value *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_durability);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_level);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_index_type);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_filter_bits);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_cursor_options);
+FPTA_API std::ostream &operator<<(std::ostream &out,
+                                  const fpta_seek_operations);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_put_options);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_name *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_filter *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_column_set *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_db *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_txn *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_cursor *);
+FPTA_API std::ostream &operator<<(std::ostream &out,
+                                  const struct fpta_table_schema *);
 
-FPTA_API ostream &operator<<(ostream &out, const fpta_error);
-FPTA_API ostream &operator<<(ostream &out, const fpta_value_type);
-FPTA_API ostream &operator<<(ostream &out, const fpta_value *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_durability);
-FPTA_API ostream &operator<<(ostream &out, const fpta_level);
-FPTA_API ostream &operator<<(ostream &out, const fpta_index_type);
-FPTA_API ostream &operator<<(ostream &out, const fpta_filter_bits);
-FPTA_API ostream &operator<<(ostream &out, const fpta_cursor_options);
-FPTA_API ostream &operator<<(ostream &out, const fpta_seek_operations);
-FPTA_API ostream &operator<<(ostream &out, const fpta_put_options);
-FPTA_API ostream &operator<<(ostream &out, const fpta_name *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_filter *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_column_set *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_db *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_txn *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_cursor *);
-FPTA_API ostream &operator<<(ostream &out, const struct fpta_table_schema *);
-
-inline ostream &operator<<(ostream &out, const fpta_column_set &def) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_column_set &def) {
   return out << &def;
 }
-inline ostream &operator<<(ostream &out, const fpta_value &value) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_value &value) {
   return out << &value;
 }
-inline ostream &operator<<(ostream &out, const fpta_name &id) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_name &id) {
   return out << &id;
 }
-inline ostream &operator<<(ostream &out, const fpta_filter &filter) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_filter &filter) {
   return out << &filter;
 }
-
-FPTA_API string to_string(const fpta_error);
-FPTA_API string to_string(const fpta_value_type);
-FPTA_API string to_string(const fpta_value *);
-FPTA_API string to_string(const fpta_durability);
-FPTA_API string to_string(const fpta_level);
-FPTA_API string to_string(const fpta_index_type);
-FPTA_API string to_string(const fpta_filter_bits);
-FPTA_API string to_string(const fpta_cursor_options);
-FPTA_API string to_string(const fpta_seek_operations);
-FPTA_API string to_string(const fpta_put_options);
-FPTA_API string to_string(const fpta_name *);
-FPTA_API string to_string(const fpta_filter *);
-FPTA_API string to_string(const fpta_column_set *);
-FPTA_API string to_string(const fpta_db *);
-FPTA_API string to_string(const fpta_txn *);
-FPTA_API string to_string(const fpta_cursor *);
-FPTA_API string to_string(const struct fpta_table_schema *);
-
-inline string to_string(const fpta_column_set &def) { return to_string(&def); }
-inline string to_string(const fpta_value &value) { return to_string(&value); }
-inline string to_string(const fpta_name &id) { return to_string(&id); }
-inline string to_string(const fpta_filter &filter) {
-  return to_string(&filter);
-}
-} // namespace std
 
 inline fpta_value fpta_value::negative() const {
   if (type == fpta_signed_int)
@@ -3528,6 +3502,124 @@ schema2json(const fpta_schema_info *info,
             const fptu_json_options options = fptu_json_sort_Tags);
 
 } // namespace fpta
+
+//------------------------------------------------------------------------------
+
+#include <sstream>
+
+namespace std {
+
+inline string to_string(const fpta_error value) {
+  return string(fpta_strerror(value));
+}
+
+inline string to_string(const fpta_value_type value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_value *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_durability value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_level value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_index_type value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_filter_bits value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_cursor_options value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_seek_operations value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_put_options value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_name *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_filter *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_column_set *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_db *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_txn *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_cursor *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const struct fpta_table_schema *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_column_set &def) { return to_string(&def); }
+
+inline string to_string(const fpta_value &value) { return to_string(&value); }
+
+inline string to_string(const fpta_name &id) { return to_string(&id); }
+
+inline string to_string(const fpta_filter &filter) {
+  return to_string(&filter);
+}
+
+} // namespace std
 
 #endif /* __cplusplus */
 

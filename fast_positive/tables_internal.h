@@ -510,12 +510,8 @@ void fpta_cursor_free(fpta_db *db, fpta_cursor *cursor);
 
 int fpta_internal_abort(fpta_txn *txn, int errnum, bool txn_maybe_dead = false);
 
-namespace std {
-FPTA_API ostream &operator<<(ostream &out, const MDBX_val &);
-FPTA_API ostream &operator<<(ostream &out, const fpta_key &);
-FPTA_API string to_string(const MDBX_val &);
-FPTA_API string to_string(const fpta_key &);
-} // namespace std
+FPTA_API std::ostream &operator<<(std::ostream &out, const MDBX_val &);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_key &);
 
 static __inline bool fpta_is_same(const MDBX_val &a, const MDBX_val &b) {
   return a.iov_len == b.iov_len &&
@@ -629,3 +625,21 @@ static __inline bool fpta_nullable_reverse_sensitive(const fptu_type type) {
   return type == fptu_uint16 || type == fptu_uint32 || type == fptu_uint64 ||
          (type >= fptu_96 && type <= fptu_256);
 }
+
+//------------------------------------------------------------------------------
+
+namespace std {
+
+inline string to_string(const MDBX_val &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_key &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+} // namespace std

@@ -130,18 +130,9 @@ extern "C" {
 #endif
 
 //----------------------------------------------------------------------------
-/* Опции конфигурации управляющие внутренним поведением libfptu, т.е
- * их изменение требует пересборки библиотеки.
- *
- * Чуть позже эти определения передедут в fptu_config.h */
-
-// TBD
-
-//----------------------------------------------------------------------------
 /* Общие перечисления и структуры */
 
-/* Коды ошибок.
- * Список будет пополнен, а описания уточнены. */
+/* Коды ошибок. */
 enum fptu_error {
   FPTU_SUCCESS = 0,
   FPTU_OK = FPTU_SUCCESS,
@@ -2052,38 +2043,22 @@ size_t fptu_field::array_length() const {
   return payload()->array_length();
 }
 
-namespace std {
-
-template <> struct hash<fptu::string_view> {
-  cxx14_constexpr std::size_t operator()(fptu::string_view const &v) const {
-    return v.hash_value();
-  }
-};
-
-inline ostream &operator<<(ostream &out, fptu::string_view &sv) {
+inline std::ostream &operator<<(std::ostream &out, fptu::string_view &sv) {
   return out.write(sv.data(), sv.size());
 }
 
-inline ostream &operator<<(ostream &out, const fptu::output_hexadecimal ones) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const fptu::output_hexadecimal ones) {
   return fptu::hexadecimal_dump(out, ones.data, ones.length);
 }
 
-FPTU_API ostream &operator<<(ostream &out, const fptu_error);
-FPTU_API ostream &operator<<(ostream &out, const fptu_type);
-FPTU_API ostream &operator<<(ostream &out, const fptu_field &);
-FPTU_API ostream &operator<<(ostream &out, const fptu_rw &);
-FPTU_API ostream &operator<<(ostream &out, const fptu_ro &);
-FPTU_API ostream &operator<<(ostream &out, const fptu_lge);
-FPTU_API ostream &operator<<(ostream &out, const fptu_time &);
-
-FPTU_API string to_string(const fptu_error);
-FPTU_API string to_string(const fptu_type);
-FPTU_API string to_string(const fptu_field &);
-FPTU_API string to_string(const fptu_rw &);
-FPTU_API string to_string(const fptu_ro &);
-FPTU_API string to_string(const fptu_lge);
-FPTU_API string to_string(const fptu_time &);
-} /* namespace std */
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_error);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_type);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_field &);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_rw &);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_ro &);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_lge);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_time &);
 
 inline bool operator>(const fptu::string_view &a, const std::string &b) {
   return fptu::string_view::compare(a, b) > 0;
@@ -2128,6 +2103,61 @@ bool operator>(const fptu_lge &, const fptu_lge &) = delete;
 bool operator>=(const fptu_lge &, const fptu_lge &) = delete;
 bool operator<(const fptu_lge &, const fptu_lge &) = delete;
 bool operator<=(const fptu_lge &, const fptu_lge &) = delete;
+
+//------------------------------------------------------------------------------
+
+#include <sstream>
+
+namespace std {
+
+template <> struct hash<fptu::string_view> {
+  cxx14_constexpr size_t operator()(fptu::string_view const &v) const noexcept {
+    return v.hash_value();
+  }
+};
+
+inline string to_string(const fptu_error value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_field &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_ro &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_rw &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_lge value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_time &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_type value) {
+  return string(fptu_type_name(value));
+}
+
+} // namespace std
+
 #endif /* __cplusplus */
 
 #ifdef _MSC_VER
