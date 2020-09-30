@@ -3,11 +3,16 @@
 libmdbx
 ========
 
+> Please refer to the online [documentation](https://erthink.github.io/libmdbx/)
+> with [`C` API description](https://erthink.github.io/libmdbx/group__c__api.html)
+> and pay attention to the preliminary [`C++` API](https://github.com/erthink/libmdbx/blob/devel/mdbx.h%2B%2B).
+> Questions, feedback and suggestions are welcome to the [Telegram' group](https://t.me/libmdbx).
+
 <!-- section-begin overview -->
 _libmdbx_ is an extremely fast, compact, powerful, embedded,
 transactional [key-value database](https://en.wikipedia.org/wiki/Key-value_database),
 with [permissive license](./LICENSE).
-_MDBX_ has a specific set of properties and capabilities,
+_libmdbx_ has a specific set of properties and capabilities,
 focused on creating unique lightweight solutions.
 
 1. Allows **a swarm of multi-threaded processes to
@@ -25,9 +30,9 @@ tree](https://en.wikipedia.org/wiki/B%2B_tree).
 [WAL](https://en.wikipedia.org/wiki/Write-ahead_logging), but that might
 be a caveat for write-intensive workloads with durability requirements.
 
-4. **Compact and friendly for fully embedding**. Only 25KLOC of `C11`,
-64K x86 binary code, no internal threads neither processes, but
-implements a simplified variant of the [Berkeley
+4. **Compact and friendly for fully embedding**. Only ≈25KLOC of `C11`,
+≈64K x86 binary code of core, no internal threads neither server process(es),
+but implements a simplified variant of the [Berkeley
 DB](https://en.wikipedia.org/wiki/Berkeley_DB) and
 [dbm](https://en.wikipedia.org/wiki/DBM_(computing)) API.
 
@@ -46,9 +51,9 @@ OpenSolaris, OpenIndiana, NetBSD, OpenBSD and other systems compliant with
 **POSIX.1-2008**.
 <!-- section-end -->
 
-Historically, _MDBX_ is a deeply revised and extended descendant of the amazing
+Historically, _libmdbx_ is a deeply revised and extended descendant of the amazing
 [Lightning Memory-Mapped Database](https://en.wikipedia.org/wiki/Lightning_Memory-Mapped_Database).
-_MDBX_ inherits all benefits from _LMDB_, but resolves some issues and adds [a set of improvements](#improvements-beyond-lmdb).
+_libmdbx_ inherits all benefits from _LMDB_, but resolves some issues and adds [a set of improvements](#improvements-beyond-lmdb).
 
 <!-- section-begin mithril -->
 The next version is under active non-public development from scratch and will be
@@ -156,19 +161,19 @@ transaction journal. No crash recovery needed. No maintenance is required.
 
 1. There cannot be more than one writer at a time, i.e. no more than one write transaction at a time.
 
-2. MDBX is based on [B+ tree](https://en.wikipedia.org/wiki/B%2B_tree), so access to database pages is mostly random.
+2. _libmdbx_ is based on [B+ tree](https://en.wikipedia.org/wiki/B%2B_tree), so access to database pages is mostly random.
 Thus SSDs provide a significant performance boost over spinning disks for large databases.
 
-3. MDBX uses [shadow paging](https://en.wikipedia.org/wiki/Shadow_paging) instead of [WAL](https://en.wikipedia.org/wiki/Write-ahead_logging). Thus syncing data to disk might be a bottleneck for write intensive workload.
+3. _libmdbx_ uses [shadow paging](https://en.wikipedia.org/wiki/Shadow_paging) instead of [WAL](https://en.wikipedia.org/wiki/Write-ahead_logging). Thus syncing data to disk might be a bottleneck for write intensive workload.
 
-4. MDBX uses [copy-on-write](https://en.wikipedia.org/wiki/Copy-on-write) for [snapshot isolation](https://en.wikipedia.org/wiki/Snapshot_isolation) during updates, but read transactions prevents recycling an old retired/freed pages, since it read ones. Thus altering of data during a parallel
+4. _libmdbx_ uses [copy-on-write](https://en.wikipedia.org/wiki/Copy-on-write) for [snapshot isolation](https://en.wikipedia.org/wiki/Snapshot_isolation) during updates, but read transactions prevents recycling an old retired/freed pages, since it read ones. Thus altering of data during a parallel
 long-lived read operation will increase the process work set, may exhaust entire free database space,
 the database can grow quickly, and result in performance degradation.
 Try to avoid long running read transactions.
 
-5. MDBX is extraordinarily fast and provides minimal overhead for data access,
+5. _libmdbx_ is extraordinarily fast and provides minimal overhead for data access,
 so you should reconsider using brute force techniques and double check your code.
-On the one hand, in the case of MDBX, a simple linear search may be more profitable than complex indexes.
+On the one hand, in the case of _libmdbx_, a simple linear search may be more profitable than complex indexes.
 On the other hand, if you make something suboptimally, you can notice detrimentally only on sufficiently large data.
 
 ## Comparison with other databases
@@ -219,7 +224,7 @@ the user's point of view.
   > _libmdbx_ database format depends only on the [endianness](https://en.wikipedia.org/wiki/Endianness) but not on the [bitness](https://en.wiktionary.org/wiki/bitness).
 
 6. LIFO policy for Garbage Collection recycling. This can significantly increase write performance due write-back disk cache up to several times in a best case scenario.
-  > LIFO means that for reuse will be taken the latest becames unused pages.
+  > LIFO means that for reuse will be taken the latest becomes unused pages.
   > Therefore the loop of database pages circulation becomes as short as possible.
   > In other words, the set of pages, that are (over)written in memory and on disk during a series of write transactions, will be as small as possible.
   > Thus creates ideal conditions for the battery-backed or flash-backed disk cache efficiency.
@@ -229,13 +234,14 @@ be found between a `KEY1` and a `KEY2`. This is a prerequisite for build
 and/or optimize query execution plans.
   > _libmdbx_ performs a rough estimate based on common B-tree pages of the paths from root to corresponding keys.
 
-8. `mdbx_chk` tool for database integrity check.
+8. `mdbx_chk` utility for database integrity check.
+Since version 0.9.1, the utility supports checking the database using any of the three meta pages and the ability to switch to it.
 
 9. Automated steady sync-to-disk upon several thresholds and/or timeout via cheap polling.
 
 10. Sequence generation and three persistent 64-bit markers.
 
-11. Callback for lack-of-space condition of database that allows you to control and/or resolve such situations.
+11. Handle-Slow-Readers callback to resolve a database full/overflow issues due to long-lived read transaction(s).
 
 12. Support for opening databases in the exclusive mode, including on a network share.
 
@@ -299,7 +305,7 @@ named mutexes are used.
 
 # History
 
-Historically, _MDBX_ is a deeply revised and extended descendant of the
+Historically, _libmdbx_ is a deeply revised and extended descendant of the
 [Lightning Memory-Mapped Database](https://en.wikipedia.org/wiki/Lightning_Memory-Mapped_Database).
 At first the development was carried out within the
 [ReOpenLDAP](https://github.com/erthink/ReOpenLDAP) project. About a
@@ -312,7 +318,7 @@ and development is funded by [Positive Technologies](https://www.ptsecurity.com)
 
 ## Acknowledgments
 Howard Chu <hyc@openldap.org> is the author of LMDB, from which
-originated the MDBX in 2015.
+originated the _libmdbx_ in 2015.
 
 Martin Hedenfalk <martin@bzero.se> is the author of `btree.c` code, which
 was used to begin development of LMDB.
