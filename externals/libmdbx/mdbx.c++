@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 601b8f96da444abaa8b1e8f58b17dbd4f7e6e2b1894060f9565caadd0bb4ddb8_v0_9_1_0_g44b1a3bcf
+#define MDBX_BUILD_SOURCERY 1552ef0dbc72acb788c83318edbb54cbec929a4e4731d51008a13ea33b213beb_v0_9_1_14_g77d18a31d
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -653,6 +653,7 @@ extern "C" {
 
 #if defined(__linux__) || defined(__gnu_linux__)
 #include <linux/sysctl.h>
+#include <sched.h>
 #include <sys/sendfile.h>
 #include <sys/statfs.h>
 #endif /* Linux */

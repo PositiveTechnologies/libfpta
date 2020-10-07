@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 601b8f96da444abaa8b1e8f58b17dbd4f7e6e2b1894060f9565caadd0bb4ddb8_v0_9_1_0_g44b1a3bcf
+#define MDBX_BUILD_SOURCERY 1552ef0dbc72acb788c83318edbb54cbec929a4e4731d51008a13ea33b213beb_v0_9_1_14_g77d18a31d
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -653,6 +653,7 @@ extern "C" {
 
 #if defined(__linux__) || defined(__gnu_linux__)
 #include <linux/sysctl.h>
+#include <sched.h>
 #include <sys/sendfile.h>
 #include <sys/statfs.h>
 #endif /* Linux */
@@ -3588,13 +3589,6 @@ page_fill(const MDBX_env *env, const MDBX_page *mp) {
   return page_used(env, mp) * 100.0 / page_space(env);
 }
 
-MDBX_NOTHROW_PURE_FUNCTION static __inline bool
-page_fill_enough(const MDBX_page *mp, unsigned spaceleft_threshold,
-                 unsigned minkeys_threshold) {
-  return page_room(mp) < spaceleft_threshold &&
-         page_numkeys(mp) >= minkeys_threshold;
-}
-
 /* The number of overflow pages needed to store the given size. */
 MDBX_NOTHROW_PURE_FUNCTION static __always_inline pgno_t
 number_of_ovpages(const MDBX_env *env, size_t bytes) {
@@ -3782,7 +3776,8 @@ static __always_inline void atomic_yield(void) {
 #else
   __asm__ __volatile__("hint @pause");
 #endif
-#elif defined(__arm__) || defined(__aarch64__)
+#elif defined(__aarch64__) || (defined(__ARM_ARCH) && __ARM_ARCH > 6) ||       \
+    defined(__ARM_ARCH_6K__)
 #ifdef __CC_ARM
   __yield();
 #else
@@ -3795,7 +3790,9 @@ static __always_inline void atomic_yield(void) {
     defined(__mips64__) || defined(_M_MRX000) || defined(_MIPS_) ||            \
     defined(__MWERKS__) || defined(__sgi)
   __asm__ __volatile__(".word 0x00000140");
-#else
+#elif defined(__linux__) || defined(__gnu_linux__) || defined(_UNIX03_SOURCE)
+  sched_yield();
+#elif (defined(_GNU_SOURCE) && __GLIBC_PREREQ(2, 1)) || defined(_OPEN_THREADS)
   pthread_yield();
 #endif
 }
@@ -6590,17 +6587,18 @@ static __maybe_unused void mdbx_page_list(MDBX_page *mp) {
   do {                                                                         \
     mdbx_cassert(&(mn),                                                        \
                  mn.mc_txn->mt_cursors != NULL /* must be not rdonly txt */);  \
-    MDBX_cursor mc_dummy, **tp = &(mn).mc_txn->mt_cursors[mn.mc_dbi];          \
+    MDBX_cursor mc_dummy;                                                      \
+    MDBX_cursor **tracking_head = &(mn).mc_txn->mt_cursors[mn.mc_dbi];         \
     MDBX_cursor *tracked = &(mn);                                              \
     if ((mn).mc_flags & C_SUB) {                                               \
       mc_dummy.mc_flags = C_INITIALIZED;                                       \
       mc_dummy.mc_xcursor = (MDBX_xcursor *)&(mn);                             \
       tracked = &mc_dummy;                                                     \
     }                                                                          \
-    tracked->mc_next = *tp;                                                    \
-    *tp = tracked;                                                             \
+    tracked->mc_next = *tracking_head;                                         \
+    *tracking_head = tracked;                                                  \
     { act; }                                                                   \
-    *tp = tracked->mc_next;                                                    \
+    *tracking_head = tracked->mc_next;                                         \
   } while (0)
 
 int mdbx_cmp(const MDBX_txn *txn, MDBX_dbi dbi, const MDBX_val *a,
@@ -17661,40 +17659,45 @@ static void mdbx_cursor_copy(const MDBX_cursor *csrc, MDBX_cursor *cdst) {
  * [in] mc Cursor pointing to the page where rebalancing should begin.
  * Returns 0 on success, non-zero on failure. */
 static int mdbx_rebalance(MDBX_cursor *mc) {
-  int rc;
-
   mdbx_cassert(mc, mc->mc_snum > 0);
   mdbx_cassert(mc, mc->mc_snum < mc->mc_db->md_depth ||
                        IS_LEAF(mc->mc_pg[mc->mc_db->md_depth - 1]));
   const int pagetype = PAGETYPE(mc->mc_pg[mc->mc_top]);
 
-  const unsigned minkeys = (P_BRANCH == 1) ? (pagetype & P_BRANCH) + 1
-                                           : (pagetype & P_BRANCH) ? 2 : 1;
+  STATIC_ASSERT(P_BRANCH == 1);
+  const unsigned minkeys = (pagetype & P_BRANCH) + 1;
 
   /* The threshold of minimum page fill factor, in form of a negative binary
-   * exponent, i.e. 2 means 1/(2**3) == 1/4 == 25%. Pages emptier than this
-   * are candidates for merging. */
+   * exponent, i.e. X = 2 means 1/(2**X) == 1/(2**2) == 1/4 == 25%.
+   * Pages emptier than this are candidates for merging. */
   const unsigned threshold_fill_exp2 = 2;
 
   /* The threshold of minimum page fill factor, as a number of free bytes on a
    * page. Pages emptier than this are candidates for merging. */
-  const unsigned spaceleft_threshold =
+  const unsigned room_threshold =
       page_space(mc->mc_txn->mt_env) -
       (page_space(mc->mc_txn->mt_env) >> threshold_fill_exp2);
 
+  const MDBX_page *const tp = mc->mc_pg[mc->mc_top];
   mdbx_debug("rebalancing %s page %" PRIaPGNO " (has %u keys, %.1f%% full)",
-             (pagetype & P_LEAF) ? "leaf" : "branch",
-             mc->mc_pg[mc->mc_top]->mp_pgno,
-             page_numkeys(mc->mc_pg[mc->mc_top]),
-             page_fill(mc->mc_txn->mt_env, mc->mc_pg[mc->mc_top]));
+             (pagetype & P_LEAF) ? "leaf" : "branch", tp->mp_pgno,
+             page_numkeys(tp), page_fill(mc->mc_txn->mt_env, tp));
 
-  if (page_fill_enough(mc->mc_pg[mc->mc_top], spaceleft_threshold, minkeys)) {
-    mdbx_debug("no need to rebalance page %" PRIaPGNO ", above fill threshold",
-               mc->mc_pg[mc->mc_top]->mp_pgno);
+  if (unlikely(page_numkeys(tp) < minkeys)) {
+    mdbx_debug("page %" PRIaPGNO " must be merged due keys < %u threshold",
+               tp->mp_pgno, minkeys);
+  } else if (unlikely(page_room(tp) > room_threshold)) {
+    mdbx_debug("page %" PRIaPGNO " should be merged due room %u > %u threshold",
+               tp->mp_pgno, page_room(tp), room_threshold);
+  } else {
+    mdbx_debug("no need to rebalance page %" PRIaPGNO
+               ", room %u < %u threshold",
+               tp->mp_pgno, page_room(tp), room_threshold);
     mdbx_cassert(mc, mc->mc_db->md_entries > 0);
     return MDBX_SUCCESS;
   }
 
+  int rc;
   if (mc->mc_snum < 2) {
     MDBX_page *const mp = mc->mc_pg[0];
     const unsigned nkeys = page_numkeys(mp);
@@ -17816,7 +17819,7 @@ static int mdbx_rebalance(MDBX_cursor *mc) {
   const indx_t ki_top = mc->mc_ki[mc->mc_top];
   const indx_t ki_pre_top = mn.mc_ki[pre_top];
   const indx_t nkeys = (indx_t)page_numkeys(mn.mc_pg[mn.mc_top]);
-  if (left && page_room(left) > spaceleft_threshold &&
+  if (left && page_room(left) > room_threshold &&
       (!right || page_room(right) < page_room(left))) {
     /* try merge with left */
     mdbx_cassert(mc, page_numkeys(left) >= minkeys);
@@ -17835,7 +17838,7 @@ static int mdbx_rebalance(MDBX_cursor *mc) {
       return rc;
     }
   }
-  if (right && page_room(right) > spaceleft_threshold) {
+  if (right && page_room(right) > room_threshold) {
     /* try merge with right */
     mdbx_cassert(mc, page_numkeys(right) >= minkeys);
     mn.mc_pg[mn.mc_top] = right;
@@ -21537,7 +21540,7 @@ int mdbx_estimate_distance(const MDBX_cursor *first, const MDBX_cursor *last,
     return rc;
 
   if (unlikely(dr.diff == 0) &&
-      F_ISSET(first->mc_db->md_flags & first->mc_db->md_flags,
+      F_ISSET(first->mc_db->md_flags & last->mc_db->md_flags,
               MDBX_DUPSORT | C_INITIALIZED)) {
     first = &first->mc_xcursor->mx_cursor;
     last = &last->mc_xcursor->mx_cursor;
@@ -22816,7 +22819,7 @@ __extern_C void __assert(const char *, const char *, unsigned int, const char *)
 #else
     __nothrow
 #endif /* __THROW */
-    __noreturn;
+    MDBX_NORETURN;
 #define __assert_fail(assertion, file, line, function)                         \
   __assert(assertion, file, line, function)
 
@@ -24979,9 +24982,9 @@ __dll_export
         0,
         9,
         1,
-        0,
-        {"2020-09-30T13:28:01+03:00", "cdf44eb040316fff8c20f34069d5148e758f9ab7", "44b1a3bcff46e2071a8f1c7923afc167ce64a142",
-         "v0.9.1-0-g44b1a3bcf"},
+        14,
+        {"2020-10-07T21:59:30+03:00", "1f55fd2dd96a94338f96353456a2799a85eba23c", "77d18a31dd6b8d9093141af177a4e3b7a84e5da0",
+         "v0.9.1-14-g77d18a31d"},
         sourcery};
 
 __dll_export
