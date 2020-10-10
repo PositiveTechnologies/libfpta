@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 601b8f96da444abaa8b1e8f58b17dbd4f7e6e2b1894060f9565caadd0bb4ddb8_v0_9_1_0_g44b1a3bcf
+#define MDBX_BUILD_SOURCERY ec0819f59c383c9494be6d131d0ef7a775267d4e533198514fe36f243a24a66a_v0_9_1_30_g041a4c0aa
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -675,6 +675,7 @@ extern "C" {
 
 #if defined(__linux__) || defined(__gnu_linux__)
 #include <linux/sysctl.h>
+#include <sched.h>
 #include <sys/sendfile.h>
 #include <sys/statfs.h>
 #endif /* Linux */
@@ -1181,7 +1182,8 @@ enum mdbx_openfile_purpose {
   MDBX_OPEN_DXB_LAZY = 1,
   MDBX_OPEN_DXB_DSYNC = 2,
   MDBX_OPEN_LCK = 3,
-  MDBX_OPEN_COPY = 4
+  MDBX_OPEN_COPY = 4,
+  MDBX_OPEN_DELETE = 5
 };
 
 MDBX_INTERNAL_FUNC int mdbx_openfile(const enum mdbx_openfile_purpose purpose,
@@ -1190,7 +1192,9 @@ MDBX_INTERNAL_FUNC int mdbx_openfile(const enum mdbx_openfile_purpose purpose,
                                      mdbx_mode_t unix_mode_bits);
 MDBX_INTERNAL_FUNC int mdbx_closefile(mdbx_filehandle_t fd);
 MDBX_INTERNAL_FUNC int mdbx_removefile(const char *pathname);
+MDBX_INTERNAL_FUNC int mdbx_removedirectory(const char *pathname);
 MDBX_INTERNAL_FUNC int mdbx_is_pipe(mdbx_filehandle_t fd);
+MDBX_INTERNAL_FUNC int mdbx_lockfile(mdbx_filehandle_t fd, bool wait);
 
 #define MMAP_OPTION_TRUNCATE 1
 #define MMAP_OPTION_SEMAPHORE 2
@@ -1441,6 +1445,12 @@ MDBX_INTERNAL_VAR MDBX_NtExtendSection mdbx_NtExtendSection;
 static __inline bool mdbx_RunningUnderWine(void) {
   return !mdbx_NtExtendSection;
 }
+
+typedef LSTATUS(WINAPI *MDBX_RegGetValueA)(HKEY hkey, LPCSTR lpSubKey,
+                                           LPCSTR lpValue, DWORD dwFlags,
+                                           LPDWORD pdwType, PVOID pvData,
+                                           LPDWORD pcbData);
+MDBX_INTERNAL_VAR MDBX_RegGetValueA mdbx_RegGetValueA;
 
 #endif /* Windows */
 
@@ -2237,7 +2247,7 @@ typedef struct MDBX_lockinfo {
 #if defined(_WIN32) || defined(_WIN64)
 #define MAX_MAPSIZE32 UINT32_C(0x38000000)
 #else
-#define MAX_MAPSIZE32 UINT32_C(0x7ff80000)
+#define MAX_MAPSIZE32 UINT32_C(0x7f000000)
 #endif
 #define MAX_MAPSIZE64 (MAX_PAGENO * (uint64_t)MAX_PAGESIZE)
 
@@ -2571,7 +2581,7 @@ struct MDBX_env {
   MDBX_dbi me_maxdbs;         /* size of the DB table */
   uint32_t me_pid;            /* process ID of this env */
   mdbx_thread_key_t me_txkey; /* thread-key for readers */
-  char *me_path;              /* path to the DB files */
+  char *me_pathname;          /* path to the DB files */
   void *me_pbuf;              /* scratch area for DUPSORT put() */
   MDBX_txn *me_txn;           /* current write transaction */
   MDBX_txn *me_txn0;          /* prealloc'd write transaction */
@@ -3148,6 +3158,14 @@ static BOOL WINAPI ConsoleBreakHandlerRoutine(DWORD dwCtrlType) {
   (void)dwCtrlType;
   user_break = 1;
   return true;
+}
+
+static uint64_t GetMilliseconds(void) {
+  LARGE_INTEGER Counter, Frequency;
+  return (QueryPerformanceFrequency(&Frequency) &&
+          QueryPerformanceCounter(&Counter))
+             ? Counter.QuadPart * 1000ul / Frequency.QuadPart
+             : 0;
 }
 
 #else /* WINDOWS */
@@ -4136,7 +4154,7 @@ int main(int argc, char *argv[]) {
   double elapsed;
 #if defined(_WIN32) || defined(_WIN64)
   uint64_t timestamp_start, timestamp_finish;
-  timestamp_start = GetTickCount64();
+  timestamp_start = GetMilliseconds();
 #else
   struct timespec timestamp_start, timestamp_finish;
   if (clock_gettime(CLOCK_MONOTONIC, &timestamp_start)) {
@@ -4748,7 +4766,7 @@ bailout:
   }
 
 #if defined(_WIN32) || defined(_WIN64)
-  timestamp_finish = GetTickCount64();
+  timestamp_finish = GetMilliseconds();
   elapsed = (timestamp_finish - timestamp_start) * 1e-3;
 #else
   if (clock_gettime(CLOCK_MONOTONIC, &timestamp_finish)) {
