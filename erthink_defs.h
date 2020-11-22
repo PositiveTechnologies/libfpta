@@ -181,7 +181,7 @@
 #endif /* nullptr */
 
 #if !defined(cxx11_noexcept)
-#if defined(__cplusplus) && __cplusplus >= 201103L
+#if defined(DOXYGEN) || (defined(__cplusplus) && __cplusplus >= 201103L)
 #define cxx11_noexcept noexcept
 #else
 #define cxx11_noexcept
@@ -189,8 +189,8 @@
 #endif /* cxx11_noexcept */
 
 #if !defined(cxx17_noexcept)
-#if !defined(__cpp_noexcept_function_type) ||                                  \
-    __cpp_noexcept_function_type < 201510L
+#if !defined(DOXYGEN) && (!defined(__cpp_noexcept_function_type) ||            \
+                          __cpp_noexcept_function_type < 201510L)
 #define cxx17_noexcept
 #else
 #define cxx17_noexcept noexcept
@@ -201,8 +201,13 @@
 #if !defined(__cplusplus)
 #define cxx11_constexpr __inline
 #define cxx11_constexpr_var const
-#elif !defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                \
-    (defined(__LCC__) && __LCC__ < 124)
+#elif !defined(DOXYGEN) &&                                                     \
+    (!defined(__cpp_constexpr) || __cpp_constexpr < 201304 ||                  \
+     (defined(__LCC__) && __LCC__ < 124) ||                                    \
+     (defined(__GNUC__) && __GNUC__ < 6 && !defined(__clang__) &&              \
+      !defined(__LCC__)) ||                                                    \
+     (defined(_MSC_VER) && _MSC_VER < 1910) ||                                 \
+     (defined(__clang__) && __clang_major__ < 5))
 #define cxx11_constexpr inline
 #define cxx11_constexpr_var const
 #else
@@ -215,11 +220,12 @@
 #if !defined(__cplusplus)
 #define cxx14_constexpr __inline
 #define cxx14_constexpr_var const
-#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                \
-    ((defined(_MSC_VER) && _MSC_VER >= 1910) ||                                \
-     (defined(__clang__) && __clang_major__ > 4) ||                            \
-     (defined(__GNUC__) && __GNUC__ > 6) ||                                    \
-     (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
+#elif defined(DOXYGEN) ||                                                      \
+    (defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                 \
+     ((defined(_MSC_VER) && _MSC_VER >= 1910) ||                               \
+      (defined(__clang__) && __clang_major__ > 4) ||                           \
+      (defined(__GNUC__) && __GNUC__ > 6) ||                                   \
+      (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER))))
 #define cxx14_constexpr constexpr
 #define cxx14_constexpr_var constexpr
 #else
@@ -232,11 +238,12 @@
 #if !defined(__cplusplus)
 #define cxx17_constexpr __inline
 #define cxx17_constexpr_var const
-#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                \
-    ((defined(_MSC_VER) && _MSC_VER >= 1915) ||                                \
-     (defined(__clang__) && __clang_major__ > 5) ||                            \
-     (defined(__GNUC__) && __GNUC__ > 7) ||                                    \
-     (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
+#elif defined(DOXYGEN) ||                                                      \
+    (defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                 \
+     ((defined(_MSC_VER) && _MSC_VER >= 1915) ||                               \
+      (defined(__clang__) && __clang_major__ > 5) ||                           \
+      (defined(__GNUC__) && __GNUC__ > 7) ||                                   \
+      (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER))))
 #define cxx17_constexpr constexpr
 #define cxx17_constexpr_var constexpr
 #else
@@ -249,7 +256,8 @@
 #if !defined(__cplusplus)
 #define cxx20_constexpr __inline
 #define cxx20_constexpr_var const
-#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201907L
+#elif defined(DOXYGEN) ||                                                      \
+    (defined(__cpp_constexpr) && __cpp_constexpr >= 201907L)
 #define cxx20_constexpr constexpr
 #define cxx20_constexpr_var constexpr
 #else
@@ -283,7 +291,7 @@
 #endif /* NDEBUG_CONSTEXPR */
 
 #ifndef constexpr_intrin
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(DOXYGEN) || defined(__GNUC__) || defined(__clang__)
 #define constexpr_intrin cxx11_constexpr
 #elif defined(__cplusplus)
 #define constexpr_intrin inline
