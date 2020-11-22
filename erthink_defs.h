@@ -197,6 +197,26 @@
 #endif
 #endif /* cxx17_noexcept */
 
+/* Workaround for old compilers without properly support for constexpr. */
+#if !defined(cxx01_constexpr)
+#if !defined(__cplusplus)
+#define cxx01_constexpr __inline
+#define cxx01_constexpr_var const
+#elif !defined(DOXYGEN) &&                                                     \
+    (!defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                 \
+     (defined(__LCC__) && __LCC__ < 124) ||                                    \
+     (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ < 407) &&          \
+      !defined(__clang__) && !defined(__LCC__)) ||                             \
+     (defined(_MSC_VER) && _MSC_VER < 1910) ||                                 \
+     (defined(__clang__) && __clang_major__ < 4))
+#define cxx01_constexpr inline
+#define cxx01_constexpr_var const
+#else
+#define cxx01_constexpr constexpr
+#define cxx01_constexpr_var constexpr
+#endif
+#endif /* cxx01_constexpr */
+
 #if !defined(cxx11_constexpr)
 #if !defined(__cplusplus)
 #define cxx11_constexpr __inline
