@@ -700,8 +700,15 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
   cxx01_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) & std::size_t(b));                              \
   }                                                                            \
+  cxx01_constexpr ENUM operator&(ENUM a, size_t b) {                           \
+    return ENUM(std::size_t(a) & b);                                           \
+  }                                                                            \
+  cxx01_constexpr ENUM operator&(size_t a, ENUM b) {                           \
+    return ENUM(a & std::size_t(b));                                           \
+  }                                                                            \
   cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) { return a = a & b; }      \
-  cxx01_constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }     \
+  cxx14_constexpr ENUM &operator&=(ENUM &a, size_t b) { return a = a & b; }    \
+  cxx01_constexpr std::size_t operator~(ENUM a) { return ~std::size_t(a); }    \
   cxx01_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) ^ std::size_t(b));                              \
   }                                                                            \
