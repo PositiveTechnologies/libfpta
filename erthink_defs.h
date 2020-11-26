@@ -668,27 +668,59 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 
 //------------------------------------------------------------------------------
 
+/* Oh, below are some songs and dances since:
+ *  - C++ requires explicit definition of the necessary operators.
+ *  - the proper implementation of DEFINE_ENUM_FLAG_OPERATORS for C++ required
+ *    the constexpr feature which is broken in most old compilers;
+ *  - DEFINE_ENUM_FLAG_OPERATORS may be defined broken as in the Windows SDK. */
 #ifndef DEFINE_ENUM_FLAG_OPERATORS
-#if defined(__cplusplus)
-// Define operator overloads to enable bit operations on enum values that are
-// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
+
+#ifdef __cplusplus
+#if !defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                  \
+    (defined(__LCC__) && __LCC__ < 124) ||                                     \
+    (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ < 407) &&           \
+     !defined(__clang__) && !defined(__LCC__)) ||                              \
+    (defined(_MSC_VER) && _MSC_VER < 1910) ||                                  \
+    (defined(__clang__) && __clang_major__ < 4)
+/* The constexpr feature is not available or (may be) broken */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 0
+#else
+/* C always allows these operators for enums */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 1
+#endif /* __cpp_constexpr */
+
+/// Define operator overloads to enable bit operations on enum values that are
+/// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM)                                       \
   extern "C++" {                                                               \
-  cxx11_constexpr ENUM operator|(ENUM a, ENUM b) {                             \
+  cxx01_constexpr ENUM operator|(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) | std::size_t(b));                              \
   }                                                                            \
   cxx14_constexpr ENUM &operator|=(ENUM &a, ENUM b) { return a = a | b; }      \
-  cxx11_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
+  cxx01_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) & std::size_t(b));                              \
   }                                                                            \
   cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) { return a = a & b; }      \
-  cxx11_constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }     \
-  cxx11_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
+  cxx01_constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }     \
+  cxx01_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
     return ENUM(std::size_t(a) ^ std::size_t(b));                              \
   }                                                                            \
   cxx14_constexpr ENUM &operator^=(ENUM &a, ENUM b) { return a = a ^ b; }      \
   }
-#else                                    /* __cplusplus */
-#define DEFINE_ENUM_FLAG_OPERATORS(ENUM) /* nope, C allows these operators */
-#endif                                   /* !__cplusplus */
-#endif                                   /* DEFINE_ENUM_FLAG_OPERATORS */
+#else /* __cplusplus */
+/* nope for C since it always allows these operators for enums */
+#define DEFINE_ENUM_FLAG_OPERATORS(ENUM)
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 1
+#endif /* !__cplusplus */
+
+#elif !defined(CONSTEXPR_ENUM_FLAGS_OPERATIONS)
+
+#ifdef __cplusplus
+/* DEFINE_ENUM_FLAG_OPERATORS may be defined broken as in the Windows SDK */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 0
+#else
+/* C always allows these operators for enums */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 1
+#endif
+
+#endif /* DEFINE_ENUM_FLAG_OPERATORS */
