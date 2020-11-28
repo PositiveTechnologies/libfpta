@@ -427,6 +427,31 @@
 #endif
 #endif /* __pure_function */
 
+#ifndef __nothrow_pure_function
+/** Like \ref __pure_function with addition `noexcept` restriction
+ * that is compatible to CLANG and proposed [[pure]]. */
+#if defined(__GNUC__) ||                                                       \
+    (__has_attribute(__pure__) && __has_attribute(__nothrow__))
+#define __nothrow_pure_function __attribute__((__pure__, __nothrow__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#if __has_cpp_attribute(pure)
+#define __nothrow_pure_function [[pure]]
+#else
+#define __nothrow_pure_function
+#endif
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::pure)
+#if __has_cpp_attribute(gnu::nothrow)
+#define __nothrow_pure_function [[gnu::pure, gnu::nothrow]]
+#else
+#define __nothrow_pure_function [[gnu::pure]]
+#endif
+#elif defined(__cplusplus) && __has_cpp_attribute(pure)
+#define __nothrow_pure_function [[pure]]
+#else
+#define __nothrow_pure_function
+#endif
+#endif /* __nothrow_pure_function */
+
 #ifndef __const_function
 /* Many functions do not examine any values except their arguments,
  * and have no effects except the return value. Basically this is just
