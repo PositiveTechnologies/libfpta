@@ -441,8 +441,13 @@
     (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ ||  \
      !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #define __const_function __attribute__((__const__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#define __const_function __pure_function
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::const) &&               \
+    (!defined(__clang__) || !__has_feature(cxx_exceptions))
+#define __const_function [[gnu::const]]
 #else
-#define __const_function
+#define __const_function __pure_function
 #endif
 #endif /* __const_function */
 
