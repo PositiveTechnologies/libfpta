@@ -476,6 +476,27 @@
 #endif
 #endif /* __const_function */
 
+#ifndef __nothrow_const_function
+/** Like \ref __const_function with addition `noexcept` restriction
+ * that is compatible to CLANG and future [[const]]. */
+#if defined(__GNUC__) ||                                                       \
+    (__has_attribute(__const__) && __has_attribute(__nothrow__))
+#define __nothrow_const_function __attribute__((__const__, __nothrow__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#define __nothrow_const_function __nothrow_pure_function
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::const)
+#if __has_cpp_attribute(gnu::nothrow)
+#define __nothrow_const_function [[gnu::const, gnu::nothrow]]
+#else
+#define __nothrow_const_function [[gnu::const]]
+#endif
+#elif defined(__cplusplus) && __has_cpp_attribute(const)
+#define __nothrow_const_function [[const]]
+#else
+#define __nothrow_const_function __nothrow_pure_function
+#endif
+#endif /* __nothrow_const_function */
+
 #ifndef __optimize
 #if defined(__OPTIMIZE__)
 #if (defined(__GNUC__) && !defined(__clang__)) || __has_attribute(__optimize__)
