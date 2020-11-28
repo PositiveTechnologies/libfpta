@@ -417,6 +417,11 @@
     (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ ||  \
      !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #define __pure_function __attribute__((__pure__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#define __pure_function
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::pure) &&                \
+    (!defined(__clang__) || !__has_feature(cxx_exceptions))
+#define __pure_function [[gnu::pure]]
 #else
 #define __pure_function
 #endif
