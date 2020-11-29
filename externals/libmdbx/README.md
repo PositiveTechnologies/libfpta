@@ -1,12 +1,15 @@
 <!-- Required extensions: pymdownx.betterem, pymdownx.tilde, pymdownx.emoji, pymdownx.tasklist, pymdownx.superfences -->
 
-libmdbx
-========
-
 > Please refer to the online [documentation](https://erthink.github.io/libmdbx/)
 > with [`C` API description](https://erthink.github.io/libmdbx/group__c__api.html)
 > and pay attention to the preliminary [`C++` API](https://github.com/erthink/libmdbx/blob/devel/mdbx.h%2B%2B).
+>
 > Questions, feedback and suggestions are welcome to the [Telegram' group](https://t.me/libmdbx).
+>
+> For NEWS take a look to the [ChangeLog](./ChangeLog.md).
+
+libmdbx
+========
 
 <!-- section-begin overview -->
 _libmdbx_ is an extremely fast, compact, powerful, embedded,
@@ -152,7 +155,7 @@ transaction journal. No crash recovery needed. No maintenance is required.
 
 - **Page size**: a power of 2, maximum `65536` bytes, default `4096` bytes.
 - **Key size**: minimum 0, maximum ≈¼ pagesize (`1300` bytes for default 4K pagesize, `21780` bytes for 64K pagesize).
-- **Value size**: minimum 0, maximum `2146435072` (`0x7FF00000`) bytes for maps, ≈¼ pagesize for multimaps (`1348` bytes default 4K pagesize, `21828` bytes for 64K pagesize).
+- **Value size**: minimum 0, maximum `2146435072` (`0x7FF00000`) bytes for maps, ≈¼ pagesize for multimaps (`1348` bytes for default 4K pagesize, `21828` bytes for 64K pagesize).
 - **Write transaction size**: up to `4194301` (`0x3FFFFD`) pages (16 [GiB](https://en.wikipedia.org/wiki/Gibibyte) for default 4K pagesize, 256 [GiB](https://en.wikipedia.org/wiki/Gibibyte) for 64K pagesize).
 - **Database size**: up to `2147483648` pages (8 [TiB](https://en.wikipedia.org/wiki/Tebibyte) for default 4K pagesize, 128 [TiB](https://en.wikipedia.org/wiki/Tebibyte) for 64K pagesize).
 - **Maximum sub-databases**: `32765`.
@@ -480,6 +483,7 @@ Bindings
 
 | Runtime | GitHub | Author |
 | ------- | ------ | ------ |
+| [Nim](https://en.wikipedia.org/wiki/Nim_(programming_language)) | [NimDBX](https://github.com/snej/nimdbx) | [Jens Alfke](https://github.com/snej)
 | Rust    | [mdbx-rs](https://github.com/Kerollmops/mdbx-rs)   | [Clément Renault](https://github.com/Kerollmops) |
 | Java    | [mdbxjni](https://github.com/castortech/mdbxjni)   | [Castor Technologies](https://castortech.com/) |
 | .NET    | [mdbx.NET](https://github.com/wangjia184/mdbx.NET) | [Jerry Wang](https://github.com/wangjia184) |
