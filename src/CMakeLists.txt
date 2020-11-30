@@ -78,23 +78,16 @@ set_target_properties(fpta PROPERTIES
   VERSION "${FPTA_VERSION}"
   PUBLIC_HEADER "../fast_positive/tables.h;${FAST_POSITIVE_CONFIG_H};../externals/libfptu/fast_positive/defs.h;../externals/libfptu/fast_positive/tuples.h"
   PRIVATE_HEADER "../fast_positive/tables_internal.h;../externals/libfptu/fast_positive/tuples_internal.h;../externals/libmdbx/mdbx.h;../externals/t1ha/t1ha.h"
-  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
-  C_STANDARD 11
-  C_STANDARD_REQUIRED OFF
-  )
+  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>)
 
 if(FPTA_CXX_STANDARD)
   set_target_properties(fpta PROPERTIES
     CXX_STANDARD ${FPTA_CXX_STANDARD} CXX_STANDARD_REQUIRED ON)
   target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
 endif()
-list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
-if(HAS_C11)
+if(FPTA_C_STANDARD)
   set_target_properties(fpta PROPERTIES
-    C_STANDARD 11 C_STANDARD_REQUIRED ON)
-else()
-  set_target_properties(fpta PROPERTIES
-    C_STANDARD 99 C_STANDARD_REQUIRED ON)
+    C_STANDARD ${FPTA_C_STANDARD} C_STANDARD_REQUIRED ON)
 endif()
 
 add_dependencies(fpta t1ha)

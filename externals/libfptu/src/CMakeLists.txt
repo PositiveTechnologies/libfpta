@@ -116,13 +116,9 @@ if(FPTU_CXX_STANDARD)
     CXX_STANDARD ${FPTU_CXX_STANDARD} CXX_STANDARD_REQUIRED ON)
   target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
 endif()
-list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
-if(HAS_C11)
+if(FPTU_C_STANDARD)
   set_target_properties(${fptu_target} PROPERTIES
-    C_STANDARD 11 C_STANDARD_REQUIRED OFF)
-else()
-  set_target_properties(${fptu_target} PROPERTIES
-    C_STANDARD 99 C_STANDARD_REQUIRED ON)
+    C_STANDARD ${FPTU_C_STANDARD} C_STANDARD_REQUIRED ON)
 endif()
 
 if(CC_HAS_VISIBILITY)

@@ -34,6 +34,7 @@ endif()
 
 if(DEFINED PROJECT_NAME)
   set(SUBPROJECT ON)
+  enable_language(CXX)
 else()
   set(SUBPROJECT OFF)
   project(erthink

@@ -93,6 +93,7 @@ string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
 set(CMAKE_MACOSX_RPATH ON)
 
+list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 HAS_CXX11)
@@ -107,8 +108,17 @@ if(NOT DEFINED FPTA_CXX_STANDARD)
     set(FPTA_CXX_STANDARD 11)
   endif()
 endif()
+if(NOT DEFINED FPTA_C_STANDARD)
+  # MSVC >= 19.28 (Microsoft Visual Studio 16.8) is mad!
+  #               It unable process Windows SDK headers in the C11 mode!
+  if(HAS_C11 LESS 0 OR (MSVC AND MSVC_VERSION GREATER 1927))
+    set(FPTA_C_STANDARD 99)
+  else()
+    set(FPTA_C_STANDARD 11)
+  endif()
+endif()
 if(FPTA_CXX_STANDARD)
-  message(STATUS "Use C++${FPTA_CXX_STANDARD} for libfpta")
+  message(STATUS "Use C++${FPTA_CXX_STANDARD} and C${FPTA_C_STANDARD} for libfpta")
 endif()
 
 # Define GNU standard installation directories

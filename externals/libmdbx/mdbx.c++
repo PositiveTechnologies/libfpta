@@ -12,10 +12,15 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 1552ef0dbc72acb788c83318edbb54cbec929a4e4731d51008a13ea33b213beb_v0_9_1_14_g77d18a31d
+#define MDBX_BUILD_SOURCERY b3aef667e77b9cfc3302e2ae109a9f06c2dce4d8c3f588b194be59ae2942fdd4_v0_9_2_8_gadcb0529
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
+
+#define LIBMDBX_INTERNALS
+#ifdef MDBX_TOOLS
+#define MDBX_DEPRECATED
+#endif /* MDBX_TOOLS */
 
 /* *INDENT-OFF* */
 /* clang-format off */
@@ -96,11 +101,6 @@
 #pragma warning(disable : 4204) /* nonstandard extension used: non-constant aggregate initializer */
 #pragma warning(disable : 4505) /* unreferenced local function has been removed */
 #endif                          /* _MSC_VER (warnings) */
-
-#if defined(MDBX_TOOLS)
-#undef MDBX_DEPRECATED
-#define MDBX_DEPRECATED
-#endif /* MDBX_TOOLS */
 
 #include "mdbx.h++"
 /*
@@ -680,6 +680,7 @@ __extern_C key_t ftok(const char *, int);
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <excpt.h>
 #include <tlhelp32.h>
 #include <windows.h>
 #include <winnt.h>
@@ -817,7 +818,7 @@ typedef pthread_mutex_t mdbx_fastmutex_t;
     defined(__amd64__) || defined(__amd64) || defined(_M_X64) ||               \
     defined(_M_AMD64) || defined(__IA32__) || defined(__INTEL__)
 #ifndef __ia32__
-/* LY: define neutral __ia32__ for x86 and x86-64 archs */
+/* LY: define neutral __ia32__ for x86 and x86-64 */
 #define __ia32__ 1
 #endif /* __ia32__ */
 #if !defined(__amd64__) && (defined(__x86_64) || defined(__x86_64__) ||        \
@@ -993,6 +994,35 @@ typedef union MDBX_srwlock {
 #ifdef __cplusplus
 extern void mdbx_osal_jitter(bool tiny);
 #else
+
+/*----------------------------------------------------------------------------*/
+/* Atomics */
+
+#if defined(__cplusplus) && !defined(__STDC_NO_ATOMICS__) && __has_include(<cstdatomic>)
+#include <cstdatomic>
+#elif !defined(__cplusplus) && (__STDC_VERSION__ >= 201112L) &&                \
+    !defined(__STDC_NO_ATOMICS__) &&                                           \
+    (__GNUC_PREREQ(4, 9) || __CLANG_PREREQ(3, 8) ||                            \
+     !(defined(__GNUC__) || defined(__clang__)))
+#include <stdatomic.h>
+#elif defined(__GNUC__) || defined(__clang__)
+/* LY: nothing required */
+#elif defined(_MSC_VER)
+#pragma warning(disable : 4163) /* 'xyz': not available as an intrinsic */
+#pragma warning(disable : 4133) /* 'function': incompatible types - from       \
+                                   'size_t' to 'LONGLONG' */
+#pragma warning(disable : 4244) /* 'return': conversion from 'LONGLONG' to     \
+                                   'std::size_t', possible loss of data */
+#pragma warning(disable : 4267) /* 'function': conversion from 'size_t' to     \
+                                   'long', possible loss of data */
+#pragma intrinsic(_InterlockedExchangeAdd, _InterlockedCompareExchange)
+#pragma intrinsic(_InterlockedExchangeAdd64, _InterlockedCompareExchange64)
+#elif defined(__APPLE__)
+#include <libkern/OSAtomic.h>
+#else
+#error FIXME atomic-ops
+#endif
+
 /*----------------------------------------------------------------------------*/
 /* Memory/Compiler barriers, cache coherence */
 
@@ -1034,8 +1064,8 @@ static __maybe_unused __inline void mdbx_compiler_barrier(void) {
 }
 
 static __maybe_unused __inline void mdbx_memory_barrier(void) {
-#if __has_extension(c_atomic) || __has_extension(cxx_atomic)
-  __c11_atomic_thread_fence(__ATOMIC_SEQ_CST);
+#if __has_extension(c_atomic) && !defined(__STDC_NO_ATOMICS__)
+  atomic_thread_fence(__ATOMIC_SEQ_CST);
 #elif defined(__ATOMIC_SEQ_CST)
   __atomic_thread_fence(__ATOMIC_SEQ_CST);
 #elif defined(__clang__) || defined(__GNUC__)
@@ -1088,8 +1118,7 @@ MDBX_INTERNAL_FUNC int mdbx_vasprintf(char **strp, const char *fmt, va_list ap);
 
 #if defined(__linux__) || defined(__gnu_linux__)
 MDBX_INTERNAL_VAR uint32_t mdbx_linux_kernel_version;
-MDBX_INTERNAL_VAR bool
-    mdbx_RunningOnWSL /* Windows Subsystem for Linux is mad and trouble-full */;
+MDBX_INTERNAL_VAR bool mdbx_RunningOnWSL1 /* Windows Subsystem 1 for Linux */;
 #endif /* Linux */
 
 #ifndef mdbx_strdup
@@ -1160,7 +1189,8 @@ enum mdbx_openfile_purpose {
   MDBX_OPEN_DXB_LAZY = 1,
   MDBX_OPEN_DXB_DSYNC = 2,
   MDBX_OPEN_LCK = 3,
-  MDBX_OPEN_COPY = 4
+  MDBX_OPEN_COPY = 4,
+  MDBX_OPEN_DELETE = 5
 };
 
 MDBX_INTERNAL_FUNC int mdbx_openfile(const enum mdbx_openfile_purpose purpose,
@@ -1169,7 +1199,9 @@ MDBX_INTERNAL_FUNC int mdbx_openfile(const enum mdbx_openfile_purpose purpose,
                                      mdbx_mode_t unix_mode_bits);
 MDBX_INTERNAL_FUNC int mdbx_closefile(mdbx_filehandle_t fd);
 MDBX_INTERNAL_FUNC int mdbx_removefile(const char *pathname);
+MDBX_INTERNAL_FUNC int mdbx_removedirectory(const char *pathname);
 MDBX_INTERNAL_FUNC int mdbx_is_pipe(mdbx_filehandle_t fd);
+MDBX_INTERNAL_FUNC int mdbx_lockfile(mdbx_filehandle_t fd, bool wait);
 
 #define MMAP_OPTION_TRUNCATE 1
 #define MMAP_OPTION_SEMAPHORE 2
@@ -1421,33 +1453,13 @@ static __inline bool mdbx_RunningUnderWine(void) {
   return !mdbx_NtExtendSection;
 }
 
+typedef LSTATUS(WINAPI *MDBX_RegGetValueA)(HKEY hkey, LPCSTR lpSubKey,
+                                           LPCSTR lpValue, DWORD dwFlags,
+                                           LPDWORD pdwType, PVOID pvData,
+                                           LPDWORD pcbData);
+MDBX_INTERNAL_VAR MDBX_RegGetValueA mdbx_RegGetValueA;
+
 #endif /* Windows */
-
-/*----------------------------------------------------------------------------*/
-/* Atomics */
-
-#if !defined(__cplusplus) && (__STDC_VERSION__ >= 201112L) &&                  \
-    !defined(__STDC_NO_ATOMICS__) &&                                           \
-    (__GNUC_PREREQ(4, 9) || __CLANG_PREREQ(3, 8) ||                            \
-     !(defined(__GNUC__) || defined(__clang__)))
-#include <stdatomic.h>
-#elif defined(__GNUC__) || defined(__clang__)
-/* LY: nothing required */
-#elif defined(_MSC_VER)
-#pragma warning(disable : 4163) /* 'xyz': not available as an intrinsic */
-#pragma warning(disable : 4133) /* 'function': incompatible types - from       \
-                                   'size_t' to 'LONGLONG' */
-#pragma warning(disable : 4244) /* 'return': conversion from 'LONGLONG' to     \
-                                   'std::size_t', possible loss of data */
-#pragma warning(disable : 4267) /* 'function': conversion from 'size_t' to     \
-                                   'long', possible loss of data */
-#pragma intrinsic(_InterlockedExchangeAdd, _InterlockedCompareExchange)
-#pragma intrinsic(_InterlockedExchangeAdd64, _InterlockedCompareExchange64)
-#elif defined(__APPLE__)
-#include <libkern/OSAtomic.h>
-#else
-#error FIXME atomic-ops
-#endif
 
 #endif /* !__cplusplus */
 
@@ -1884,7 +1896,7 @@ typedef struct MDBX_db {
   pgno_t md_overflow_pages; /* number of overflow pages */
   uint64_t md_seq;          /* table sequence counter */
   uint64_t md_entries;      /* number of data items */
-  uint64_t md_mod_txnid;    /* txnid of last commited modification */
+  uint64_t md_mod_txnid;    /* txnid of last committed modification */
 } MDBX_db;
 
 /* database size-related parameters */
@@ -1968,7 +1980,7 @@ typedef struct MDBX_meta {
 typedef struct MDBX_page {
   union {
     struct MDBX_page *mp_next; /* for in-memory list of freed pages */
-    uint64_t mp_txnid;         /* txnid during which the page has been COW-ed */
+    uint64_t mp_txnid;         /* txnid that committed this page */
   };
   uint16_t mp_leaf2_ksize; /* key size if this is a LEAF2 page */
 #define P_BRANCH 0x01      /* branch page */
@@ -2216,7 +2228,7 @@ typedef struct MDBX_lockinfo {
 #if defined(_WIN32) || defined(_WIN64)
 #define MAX_MAPSIZE32 UINT32_C(0x38000000)
 #else
-#define MAX_MAPSIZE32 UINT32_C(0x7ff80000)
+#define MAX_MAPSIZE32 UINT32_C(0x7f000000)
 #endif
 #define MAX_MAPSIZE64 (MAX_PAGENO * (uint64_t)MAX_PAGESIZE)
 
@@ -2375,8 +2387,6 @@ struct MDBX_txn {
   MDBX_db *mt_dbs;
   /* Array of sequence numbers for each DB handle */
   unsigned *mt_dbiseqs;
-  /* In write txns, array of cursors for each DB */
-  MDBX_cursor **mt_cursors;
 
   /* Transaction DBI Flags */
 #define DBI_DIRTY MDBX_DBI_DIRTY /* DB was written in this txn */
@@ -2403,6 +2413,8 @@ struct MDBX_txn {
       MDBX_reader *reader;
     } to;
     struct {
+      /* In write txns, array of cursors for each DB */
+      MDBX_cursor **cursors;
       pgno_t *reclaimed_pglist; /* Reclaimed GC pages */
       txnid_t last_reclaimed;   /* ID of last used record */
       pgno_t loose_refund_wl /* FIXME: describe */;
@@ -2540,7 +2552,7 @@ struct MDBX_env {
 #define me_lfd me_lck_mmap.fd
 #define me_lck me_lck_mmap.lck
 
-  unsigned me_psize;    /* DB page size, inited from me_os_psize */
+  unsigned me_psize;    /* DB page size, initialized from me_os_psize */
   uint8_t me_psize2log; /* log2 of DB page size */
   int8_t me_stuck_meta; /* recovery-only: target meta page or less that zero */
   unsigned me_os_psize; /* OS page size, from mdbx_syspagesize() */
@@ -2550,7 +2562,7 @@ struct MDBX_env {
   MDBX_dbi me_maxdbs;         /* size of the DB table */
   uint32_t me_pid;            /* process ID of this env */
   mdbx_thread_key_t me_txkey; /* thread-key for readers */
-  char *me_path;              /* path to the DB files */
+  char *me_pathname;          /* path to the DB files */
   void *me_pbuf;              /* scratch area for DUPSORT put() */
   MDBX_txn *me_txn;           /* current write transaction */
   MDBX_txn *me_txn0;          /* prealloc'd write transaction */
@@ -2826,7 +2838,7 @@ static __maybe_unused __inline void mdbx_jitter4testing(bool tiny) {
   ((rc) != MDBX_RESULT_TRUE && (rc) != MDBX_RESULT_FALSE)
 
 /* Internal error codes, not exposed outside libmdbx */
-#define MDBX_NO_ROOT (MDBX_LAST_LMDB_ERRCODE + 10)
+#define MDBX_NO_ROOT (MDBX_LAST_ADDED_ERRCODE + 10)
 
 /* Debugging output value of a cursor DBI: Negative in a sub-cursor. */
 #define DDBI(mc)                                                               \
@@ -3435,15 +3447,15 @@ __cold void error::throw_exception() const {
 
 bool slice::is_printable(bool disable_utf8) const noexcept {
   enum : byte {
-    LS = 5,                     // shift for UTF8 sequence length
-    P_ = 1 << (LS - 1),         // printable ASCII flag
+    LS = 4,                     // shift for UTF8 sequence length
+    P_ = 1 << LS,               // printable ASCII flag
     N_ = 0,                     // non-printable ASCII
     second_range_mask = P_ - 1, // mask for range flag
-    r80_BF = P_ | 0,            // flag for UTF8 2nd byte range
-    rA0_BF = P_ | 1,            // flag for UTF8 2nd byte range
-    r80_9F = P_ | 2,            // flag for UTF8 2nd byte range
-    r90_BF = P_ | 3,            // flag for UTF8 2nd byte range
-    r80_8F = P_ | 4,            // flag for UTF8 2nd byte range
+    r80_BF = 0,                 // flag for UTF8 2nd byte range
+    rA0_BF = 1,                 // flag for UTF8 2nd byte range
+    r80_9F = 2,                 // flag for UTF8 2nd byte range
+    r90_BF = 3,                 // flag for UTF8 2nd byte range
+    r80_8F = 4,                 // flag for UTF8 2nd byte range
 
     // valid utf-8 byte sequences
     // http://www.unicode.org/versions/Unicode6.0.0/ch03.pdf - page 94
@@ -4111,9 +4123,35 @@ bool env::is_pristine() const {
 
 bool env::is_empty() const { return get_stat().ms_branch_pages == 0; }
 
-env &env::copy(const path &destination, bool compactify,
+#ifdef MDBX_STD_FILESYSTEM_PATH
+env &env::copy(const ::std::filesystem::path &destination, bool compactify,
                bool force_dynamic_size) {
-  const path_to_pchar<path> utf8(destination);
+  const path_to_pchar<::std::filesystem::path> utf8(destination);
+  error::success_or_throw(
+      ::mdbx_env_copy(handle_, utf8,
+                      (compactify ? MDBX_CP_COMPACT : MDBX_CP_DEFAULTS) |
+                          (force_dynamic_size ? MDBX_CP_FORCE_DYNAMIC_SIZE
+                                              : MDBX_CP_DEFAULTS)));
+  return *this;
+}
+#endif /* MDBX_STD_FILESYSTEM_PATH */
+
+#if defined(_WIN32) || defined(_WIN64)
+env &env::copy(const ::std::wstring &destination, bool compactify,
+               bool force_dynamic_size) {
+  const path_to_pchar<::std::wstring> utf8(destination);
+  error::success_or_throw(
+      ::mdbx_env_copy(handle_, utf8,
+                      (compactify ? MDBX_CP_COMPACT : MDBX_CP_DEFAULTS) |
+                          (force_dynamic_size ? MDBX_CP_FORCE_DYNAMIC_SIZE
+                                              : MDBX_CP_DEFAULTS)));
+  return *this;
+}
+#endif /* Windows */
+
+env &env::copy(const ::std::string &destination, bool compactify,
+               bool force_dynamic_size) {
+  const path_to_pchar<::std::string> utf8(destination);
   error::success_or_throw(
       ::mdbx_env_copy(handle_, utf8,
                       (compactify ? MDBX_CP_COMPACT : MDBX_CP_DEFAULTS) |
@@ -4135,6 +4173,29 @@ path env::get_path() const {
   const char *c_str;
   error::success_or_throw(::mdbx_env_get_path(handle_, &c_str));
   return pchar_to_path<path>(c_str);
+}
+
+#ifdef MDBX_STD_FILESYSTEM_PATH
+bool env::remove(const ::std::filesystem::path &pathname,
+                 const remove_mode mode) {
+  const path_to_pchar<::std::filesystem::path> utf8(pathname);
+  return error::boolean_or_throw(
+      ::mdbx_env_delete(utf8, MDBX_env_delete_mode_t(mode)));
+}
+#endif /* MDBX_STD_FILESYSTEM_PATH */
+
+#if defined(_WIN32) || defined(_WIN64)
+bool env::remove(const ::std::wstring &pathname, const remove_mode mode) {
+  const path_to_pchar<::std::wstring> utf8(pathname);
+  return error::boolean_or_throw(
+      ::mdbx_env_delete(utf8, MDBX_env_delete_mode_t(mode)));
+}
+#endif /* Windows */
+
+bool env::remove(const ::std::string &pathname, const remove_mode mode) {
+  const path_to_pchar<::std::string> utf8(pathname);
+  return error::boolean_or_throw(
+      ::mdbx_env_delete(utf8, MDBX_env_delete_mode_t(mode)));
 }
 
 //------------------------------------------------------------------------------
@@ -4173,11 +4234,12 @@ __cold void env_managed::setup(unsigned max_maps, unsigned max_readers) {
     error::success_or_throw(::mdbx_env_set_maxdbs(handle_, max_maps));
 }
 
-__cold env_managed::env_managed(const path &pathname,
+#ifdef MDBX_STD_FILESYSTEM_PATH
+__cold env_managed::env_managed(const ::std::filesystem::path &pathname,
                                 const operate_parameters &op, bool accede)
     : env_managed(create_env()) {
   setup(op.max_maps, op.max_readers);
-  const path_to_pchar<path> utf8(pathname);
+  const path_to_pchar<::std::filesystem::path> utf8(pathname);
   error::success_or_throw(
       ::mdbx_env_open(handle_, utf8, op.make_flags(accede), 0));
 
@@ -4186,12 +4248,73 @@ __cold env_managed::env_managed(const path &pathname,
     error::throw_exception(MDBX_INCOMPATIBLE);
 }
 
-__cold env_managed::env_managed(const path &pathname,
+__cold env_managed::env_managed(const ::std::filesystem::path &pathname,
                                 const env_managed::create_parameters &cp,
                                 const env::operate_parameters &op, bool accede)
     : env_managed(create_env()) {
   setup(op.max_maps, op.max_readers);
-  const path_to_pchar<path> utf8(pathname);
+  const path_to_pchar<::std::filesystem::path> utf8(pathname);
+  set_geometry(cp.geometry);
+  error::success_or_throw(
+      ::mdbx_env_open(handle_, utf8, op.make_flags(accede, cp.use_subdirectory),
+                      cp.file_mode_bits));
+
+  if (op.options.nested_write_transactions &&
+      !get_options().nested_write_transactions)
+    error::throw_exception(MDBX_INCOMPATIBLE);
+}
+#endif /* MDBX_STD_FILESYSTEM_PATH */
+
+#if defined(_WIN32) || defined(_WIN64)
+__cold env_managed::env_managed(const ::std::wstring &pathname,
+                                const operate_parameters &op, bool accede)
+    : env_managed(create_env()) {
+  setup(op.max_maps, op.max_readers);
+  const path_to_pchar<::std::wstring> utf8(pathname);
+  error::success_or_throw(
+      ::mdbx_env_open(handle_, utf8, op.make_flags(accede), 0));
+
+  if (op.options.nested_write_transactions &&
+      !get_options().nested_write_transactions)
+    error::throw_exception(MDBX_INCOMPATIBLE);
+}
+
+__cold env_managed::env_managed(const ::std::wstring &pathname,
+                                const env_managed::create_parameters &cp,
+                                const env::operate_parameters &op, bool accede)
+    : env_managed(create_env()) {
+  setup(op.max_maps, op.max_readers);
+  const path_to_pchar<::std::wstring> utf8(pathname);
+  set_geometry(cp.geometry);
+  error::success_or_throw(
+      ::mdbx_env_open(handle_, utf8, op.make_flags(accede, cp.use_subdirectory),
+                      cp.file_mode_bits));
+
+  if (op.options.nested_write_transactions &&
+      !get_options().nested_write_transactions)
+    error::throw_exception(MDBX_INCOMPATIBLE);
+}
+#endif /* Windows */
+
+__cold env_managed::env_managed(const ::std::string &pathname,
+                                const operate_parameters &op, bool accede)
+    : env_managed(create_env()) {
+  setup(op.max_maps, op.max_readers);
+  const path_to_pchar<::std::string> utf8(pathname);
+  error::success_or_throw(
+      ::mdbx_env_open(handle_, utf8, op.make_flags(accede), 0));
+
+  if (op.options.nested_write_transactions &&
+      !get_options().nested_write_transactions)
+    error::throw_exception(MDBX_INCOMPATIBLE);
+}
+
+__cold env_managed::env_managed(const ::std::string &pathname,
+                                const env_managed::create_parameters &cp,
+                                const env::operate_parameters &op, bool accede)
+    : env_managed(create_env()) {
+  setup(op.max_maps, op.max_readers);
+  const path_to_pchar<::std::string> utf8(pathname);
   set_geometry(cp.geometry);
   error::success_or_throw(
       ::mdbx_env_open(handle_, utf8, op.make_flags(accede, cp.use_subdirectory),
@@ -4294,15 +4417,24 @@ __cold ::std::ostream &operator<<(::std::ostream &out, const slice &it) {
     out << "EMPTY->" << it.data();
   else {
     const slice root(it.head(std::min(it.length(), size_t(64))));
-    out << it.length() << "->"
-        << (root.is_printable() ? root.string() : root.base58_encode())
-        << ((root == it) ? "" : "...");
+    out << it.length() << ".";
+    if (root.is_printable())
+      (out << "\"").write(root.char_ptr(), root.length()) << "\"";
+    else
+      out << root.base58_encode();
+    if (root.length() < it.length())
+      out << "...";
   }
   return out << "}";
 }
 
 __cold ::std::ostream &operator<<(::std::ostream &out, const pair &it) {
   return out << "{" << it.key << " => " << it.value << "}";
+}
+
+__cold ::std::ostream &operator<<(::std::ostream &out, const pair_result &it) {
+  return out << "{" << (it.done ? "done: " : "non-done: ") << it.key << " => "
+             << it.value << "}";
 }
 
 __cold ::std::ostream &operator<<(::std::ostream &out,
