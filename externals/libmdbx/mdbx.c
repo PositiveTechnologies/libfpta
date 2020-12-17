@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY b3aef667e77b9cfc3302e2ae109a9f06c2dce4d8c3f588b194be59ae2942fdd4_v0_9_2_8_gadcb0529
+#define MDBX_BUILD_SOURCERY 9d5128c6596d4895cb007e40797d2877b9ce193e23dfbad7c389ba66e7f9ff70_v0_9_2_19_g1ebc1e7c
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -715,7 +715,8 @@ static inline void *mdbx_calloc(size_t nelem, size_t size) {
 
 #ifndef mdbx_realloc
 static inline void *mdbx_realloc(void *ptr, size_t bytes) {
-  return LocalReAlloc(ptr, bytes, LMEM_MOVEABLE);
+  return ptr ? LocalReAlloc(ptr, bytes, LMEM_MOVEABLE)
+             : LocalAlloc(LMEM_FIXED, bytes);
 }
 #endif /* mdbx_realloc */
 
@@ -9848,13 +9849,50 @@ int mdbx_txn_flags(const MDBX_txn *txn) {
   return txn->mt_flags;
 }
 
+/* Check for misused dbi handles */
+#define TXN_DBI_CHANGED(txn, dbi)                                              \
+  ((txn)->mt_dbiseqs[dbi] != (txn)->mt_env->me_dbiseqs[dbi])
+
+static void dbi_import_locked(MDBX_txn *txn) {
+  MDBX_env *const env = txn->mt_env;
+  const unsigned n = env->me_numdbs;
+  for (unsigned i = CORE_DBS; i < n; ++i) {
+    if (i >= txn->mt_numdbs) {
+      txn->mt_dbistate[i] = 0;
+      if (!(txn->mt_flags & MDBX_TXN_RDONLY))
+        txn->tw.cursors[i] = NULL;
+    }
+    if ((env->me_dbflags[i] & DB_VALID) &&
+        !(txn->mt_dbistate[i] & DBI_USRVALID)) {
+      txn->mt_dbiseqs[i] = env->me_dbiseqs[i];
+      txn->mt_dbs[i].md_flags = env->me_dbflags[i] & DB_PERSISTENT_FLAGS;
+      txn->mt_dbistate[i] = DBI_VALID | DBI_USRVALID | DBI_STALE;
+      mdbx_tassert(txn, txn->mt_dbxs[i].md_cmp != NULL);
+    }
+  }
+  txn->mt_numdbs = n;
+}
+
+/* Import DBI which opened after txn started into context */
+static __cold bool dbi_import(MDBX_txn *txn, MDBX_dbi dbi) {
+  if (dbi < CORE_DBS || dbi >= txn->mt_env->me_numdbs)
+    return false;
+
+  mdbx_ensure(txn->mt_env, mdbx_fastmutex_acquire(&txn->mt_env->me_dbi_lock) ==
+                               MDBX_SUCCESS);
+  dbi_import_locked(txn);
+  mdbx_ensure(txn->mt_env, mdbx_fastmutex_release(&txn->mt_env->me_dbi_lock) ==
+                               MDBX_SUCCESS);
+  return txn->mt_dbistate[dbi] & DBI_USRVALID;
+}
+
 /* Export or close DBI handles opened in this txn. */
-static void mdbx_dbis_update(MDBX_txn *txn, int keep) {
+static void dbi_update(MDBX_txn *txn, int keep) {
   mdbx_tassert(txn, !txn->mt_parent && txn == txn->mt_env->me_txn0);
   MDBX_dbi n = txn->mt_numdbs;
   if (n) {
     bool locked = false;
-    MDBX_env *env = txn->mt_env;
+    MDBX_env *const env = txn->mt_env;
 
     for (unsigned i = n; --i >= CORE_DBS;) {
       if (likely((txn->mt_dbistate[i] & DBI_CREAT) == 0))
@@ -9864,11 +9902,10 @@ static void mdbx_dbis_update(MDBX_txn *txn, int keep) {
                     mdbx_fastmutex_acquire(&env->me_dbi_lock) == MDBX_SUCCESS);
         locked = true;
       }
+      if (env->me_numdbs <= i || txn->mt_dbiseqs[i] != env->me_dbiseqs[i])
+        continue /* dbi explicitly closed and/or then re-opened by other txn */;
       if (keep) {
         env->me_dbflags[i] = txn->mt_dbs[i].md_flags | DB_VALID;
-        mdbx_compiler_barrier();
-        if (env->me_numdbs <= i)
-          env->me_numdbs = i + 1;
       } else {
         char *ptr = env->me_dbxs[i].md_name.iov_base;
         if (ptr) {
@@ -9880,6 +9917,20 @@ static void mdbx_dbis_update(MDBX_txn *txn, int keep) {
           mdbx_free(ptr);
         }
       }
+    }
+
+    n = env->me_numdbs;
+    if (n > CORE_DBS && unlikely(!(env->me_dbflags[n - 1] & DB_VALID))) {
+      if (!locked) {
+        mdbx_ensure(env,
+                    mdbx_fastmutex_acquire(&env->me_dbi_lock) == MDBX_SUCCESS);
+        locked = true;
+      }
+
+      n = env->me_numdbs;
+      while (n > CORE_DBS && !(env->me_dbflags[n - 1] & DB_VALID))
+        --n;
+      env->me_numdbs = n;
     }
 
     if (unlikely(locked))
@@ -9963,7 +10014,7 @@ static int mdbx_txn_end(MDBX_txn *txn, unsigned mode) {
     if (txn == env->me_txn0) {
       mdbx_assert(env, txn->mt_parent == NULL);
       /* Export or close DBI handles created in this txn */
-      mdbx_dbis_update(txn, mode & MDBX_END_UPDATE);
+      dbi_update(txn, mode & MDBX_END_UPDATE);
       mdbx_pnl_shrink(&txn->tw.retired_pages);
       mdbx_pnl_shrink(&txn->tw.reclaimed_pglist);
       /* The writer mutex was locked in mdbx_txn_begin. */
@@ -11064,42 +11115,13 @@ __hot static int mdbx_page_flush(MDBX_txn *txn, const unsigned keep) {
   return MDBX_SUCCESS;
 }
 
-/* Check for misused dbi handles */
-#define TXN_DBI_CHANGED(txn, dbi)                                              \
-  ((txn)->mt_dbiseqs[dbi] != (txn)->mt_env->me_dbiseqs[dbi])
-
-/* Import DBI which opened after txn started into context */
-static __cold bool mdbx_txn_import_dbi(MDBX_txn *txn, MDBX_dbi dbi) {
-  MDBX_env *env = txn->mt_env;
-  if (dbi < CORE_DBS || dbi >= env->me_numdbs)
-    return false;
-
-  mdbx_ensure(env, mdbx_fastmutex_acquire(&env->me_dbi_lock) == MDBX_SUCCESS);
-  const unsigned snap_numdbs = env->me_numdbs;
-  mdbx_compiler_barrier();
-  for (unsigned i = CORE_DBS; i < snap_numdbs; ++i) {
-    if (i >= txn->mt_numdbs)
-      txn->mt_dbistate[i] = 0;
-    if (!(txn->mt_dbistate[i] & DBI_USRVALID) &&
-        (env->me_dbflags[i] & DB_VALID)) {
-      txn->mt_dbs[i].md_flags = env->me_dbflags[i] & DB_PERSISTENT_FLAGS;
-      txn->mt_dbistate[i] = DBI_VALID | DBI_USRVALID | DBI_STALE;
-      mdbx_tassert(txn, txn->mt_dbxs[i].md_cmp != NULL);
-    }
-  }
-  txn->mt_numdbs = snap_numdbs;
-
-  mdbx_ensure(env, mdbx_fastmutex_release(&env->me_dbi_lock) == MDBX_SUCCESS);
-  return txn->mt_dbistate[dbi] & DBI_USRVALID;
-}
-
 /* Check txn and dbi arguments to a function */
 static __always_inline bool mdbx_txn_dbi_exists(MDBX_txn *txn, MDBX_dbi dbi,
                                                 unsigned validity) {
   if (likely(dbi < txn->mt_numdbs && (txn->mt_dbistate[dbi] & validity)))
     return true;
 
-  return mdbx_txn_import_dbi(txn, dbi);
+  return dbi_import(txn, dbi);
 }
 
 int mdbx_txn_commit(MDBX_txn *txn) { return __inline_mdbx_txn_commit(txn); }
@@ -15699,6 +15721,9 @@ int mdbx_cursor_put(MDBX_cursor *mc, const MDBX_val *key, MDBX_val *data,
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
 
+  if (unlikely(TXN_DBI_CHANGED(mc->mc_txn, mc->mc_dbi)))
+    return MDBX_BAD_DBI;
+
   mdbx_cassert(mc, cursor_is_tracked(mc));
   env = mc->mc_txn->mt_env;
 
@@ -16498,6 +16523,9 @@ int mdbx_cursor_del(MDBX_cursor *mc, MDBX_put_flags_t flags) {
   if (unlikely(rc != MDBX_SUCCESS))
     return rc;
 
+  if (unlikely(TXN_DBI_CHANGED(mc->mc_txn, mc->mc_dbi)))
+    return MDBX_BAD_DBI;
+
   if (unlikely(!(mc->mc_flags & C_INITIALIZED)))
     return MDBX_ENODATA;
 
@@ -17134,6 +17162,9 @@ static __inline int mdbx_couple_init(MDBX_cursor_couple *couple,
 /* Initialize a cursor for a given transaction and database. */
 static int mdbx_cursor_init(MDBX_cursor *mc, MDBX_txn *txn, MDBX_dbi dbi) {
   STATIC_ASSERT(offsetof(MDBX_cursor_couple, outer) == 0);
+  if (unlikely(TXN_DBI_CHANGED(txn, dbi)))
+    return MDBX_BAD_DBI;
+
   return mdbx_couple_init(container_of(mc, MDBX_cursor_couple, outer), dbi, txn,
                           &txn->mt_dbs[dbi], &txn->mt_dbxs[dbi],
                           &txn->mt_dbistate[dbi]);
@@ -17305,16 +17336,19 @@ again:
 }
 
 void mdbx_cursor_close(MDBX_cursor *mc) {
-  if (mc) {
+  if (likely(mc)) {
     mdbx_ensure(NULL, mc->mc_signature == MDBX_MC_LIVE ||
                           mc->mc_signature == MDBX_MC_READY4CLOSE);
+    MDBX_txn *const txn = mc->mc_txn;
+    MDBX_env *const env = txn ? txn->mt_env : NULL;
     if (!mc->mc_backup) {
+      mc->mc_txn = NULL;
       /* Remove from txn, if tracked.
        * A read-only txn (!C_UNTRACK) may have been freed already,
        * so do not peek inside it.  Only write txns track cursors. */
       if (mc->mc_flags & C_UNTRACK) {
-        mdbx_cassert(mc, !(mc->mc_txn->mt_flags & MDBX_TXN_RDONLY));
-        MDBX_cursor **prev = &mc->mc_txn->tw.cursors[mc->mc_dbi];
+        mdbx_ensure(env, check_txn_rw(txn, 0) == MDBX_SUCCESS);
+        MDBX_cursor **prev = &txn->tw.cursors[mc->mc_dbi];
         while (*prev && *prev != mc)
           prev = &(*prev)->mc_next;
         mdbx_cassert(mc, *prev == mc);
@@ -17326,6 +17360,7 @@ void mdbx_cursor_close(MDBX_cursor *mc) {
     } else {
       /* Cursor closed before nested txn ends */
       mdbx_cassert(mc, mc->mc_signature == MDBX_MC_LIVE);
+      mdbx_ensure(env, check_txn_rw(txn, 0) == MDBX_SUCCESS);
       mc->mc_signature = MDBX_MC_WAIT4EOT;
     }
   }
@@ -20561,18 +20596,8 @@ static int dbi_open(MDBX_txn *txn, const char *table_name, unsigned user_flags,
     goto early_bailout;
   }
 
-  if (txn->mt_numdbs < env->me_numdbs) {
-    /* Import handles from env */
-    for (unsigned i = txn->mt_numdbs; i < env->me_numdbs; ++i) {
-      txn->mt_dbistate[i] = 0;
-      if (env->me_dbflags[i] & DB_VALID) {
-        txn->mt_dbs[i].md_flags = env->me_dbflags[i] & DB_PERSISTENT_FLAGS;
-        txn->mt_dbistate[i] = DBI_VALID | DBI_USRVALID | DBI_STALE;
-        mdbx_tassert(txn, txn->mt_dbxs[i].md_cmp != NULL);
-      }
-    }
-    txn->mt_numdbs = env->me_numdbs;
-  }
+  /* Import handles from env */
+  dbi_import_locked(txn);
 
   /* Rescan after mutex acquisition & import handles */
   for (slot = scan = txn->mt_numdbs; --scan >= CORE_DBS;) {
@@ -20632,18 +20657,16 @@ static int dbi_open(MDBX_txn *txn, const char *table_name, unsigned user_flags,
     txn->mt_dbistate[slot] = (uint8_t)dbiflags;
     txn->mt_dbxs[slot].md_name.iov_base = namedup;
     txn->mt_dbxs[slot].md_name.iov_len = len;
-    if ((txn->mt_flags & MDBX_TXN_RDONLY) == 0)
-      txn->tw.cursors[slot] = NULL;
-    txn->mt_numdbs += (slot == txn->mt_numdbs);
-    if ((dbiflags & DBI_CREAT) == 0) {
+    txn->mt_dbiseqs[slot] = ++env->me_dbiseqs[slot];
+    if (!(dbiflags & DBI_CREAT))
       env->me_dbflags[slot] = txn->mt_dbs[slot].md_flags | DB_VALID;
+    if (txn->mt_numdbs == slot) {
       mdbx_compiler_barrier();
-      if (env->me_numdbs <= slot)
-        env->me_numdbs = slot + 1;
-    } else {
-      env->me_dbiseqs[slot]++;
+      txn->mt_numdbs = env->me_numdbs = slot + 1;
+      if (!(txn->mt_flags & MDBX_TXN_RDONLY))
+        txn->tw.cursors[slot] = NULL;
     }
-    txn->mt_dbiseqs[slot] = env->me_dbiseqs[slot];
+    mdbx_assert(env, env->me_numdbs > slot);
     *dbi = slot;
   }
 
@@ -20701,10 +20724,15 @@ static int mdbx_dbi_close_locked(MDBX_env *env, MDBX_dbi dbi) {
     return MDBX_BAD_DBI;
 
   env->me_dbflags[dbi] = 0;
+  env->me_dbiseqs[dbi]++;
   env->me_dbxs[dbi].md_name.iov_len = 0;
   mdbx_compiler_barrier();
   env->me_dbxs[dbi].md_name.iov_base = NULL;
   mdbx_free(ptr);
+
+  if (env->me_numdbs == dbi + 1)
+    env->me_numdbs = dbi;
+
   return MDBX_SUCCESS;
 }
 
@@ -20718,7 +20746,9 @@ int mdbx_dbi_close(MDBX_env *env, MDBX_dbi dbi) {
 
   rc = mdbx_fastmutex_acquire(&env->me_dbi_lock);
   if (likely(rc == MDBX_SUCCESS)) {
-    rc = mdbx_dbi_close_locked(env, dbi);
+    rc = (dbi < env->me_maxdbs && (env->me_dbflags[dbi] & DB_VALID))
+             ? mdbx_dbi_close_locked(env, dbi)
+             : MDBX_BAD_DBI;
     mdbx_ensure(env, mdbx_fastmutex_release(&env->me_dbi_lock) == MDBX_SUCCESS);
   }
   return rc;
@@ -20884,7 +20914,6 @@ int mdbx_drop(MDBX_txn *txn, MDBX_dbi dbi, bool del) {
         txn->mt_flags |= MDBX_TXN_ERROR;
         goto bailout;
       }
-      env->me_dbiseqs[dbi]++;
       mdbx_dbi_close_locked(env, dbi);
       mdbx_ensure(env,
                   mdbx_fastmutex_release(&env->me_dbi_lock) == MDBX_SUCCESS);
@@ -25422,9 +25451,9 @@ __dll_export
         0,
         9,
         2,
-        8,
-        {"2020-11-29T06:04:55+03:00", "3a726218356e60ed6a95a7b64b460010d5749977", "adcb052915b0216ce058121027490ed1467c37cf",
-         "v0.9.2-8-gadcb0529"},
+        19,
+        {"2020-12-17T17:42:35+03:00", "98aef429f220326d9cd75f4a6d7bcaa5eab77c91", "1ebc1e7c4998361be9490d9ad17dfe1d691de012",
+         "v0.9.2-19-g1ebc1e7c"},
         sourcery};
 
 __dll_export

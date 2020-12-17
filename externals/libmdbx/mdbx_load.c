@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY b3aef667e77b9cfc3302e2ae109a9f06c2dce4d8c3f588b194be59ae2942fdd4_v0_9_2_8_gadcb0529
+#define MDBX_BUILD_SOURCERY 9d5128c6596d4895cb007e40797d2877b9ce193e23dfbad7c389ba66e7f9ff70_v0_9_2_19_g1ebc1e7c
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -737,7 +737,8 @@ static inline void *mdbx_calloc(size_t nelem, size_t size) {
 
 #ifndef mdbx_realloc
 static inline void *mdbx_realloc(void *ptr, size_t bytes) {
-  return LocalReAlloc(ptr, bytes, LMEM_MOVEABLE);
+  return ptr ? LocalReAlloc(ptr, bytes, LMEM_MOVEABLE)
+             : LocalAlloc(LMEM_FIXED, bytes);
 }
 #endif /* mdbx_realloc */
 
