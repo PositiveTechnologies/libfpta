@@ -4071,7 +4071,12 @@ TEST(Smoke, FilterAndRange) {
 
 //----------------------------------------------------------------------------
 
+#if FPTA_PRESERVE_GEOMETRY
 TEST(Smoke, Migration) {
+#else
+/* Тест невозможен, так как при FPTA_PRESERVE_GEOMETRY=OFF возникает deadlock */
+TEST(Smoke, DISABLED_Migration) {
+#endif
   /* Smoke-проверка сценария миграции с уменьшением размера БД.
    *
    * Сценарий:
