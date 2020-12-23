@@ -757,7 +757,7 @@ static void executor_thread(fpta_db *db, const char *const read,
           fptu_clear(tuple);
           uint64_t seq = 0;
           err = fpta_table_sequence(txn, &w_table, &seq, 1);
-          if (err != FPTA_TARDY_DBI) {
+          if (err != FPTA_TARDY_DBI && err != FPTA_BAD_DBI) {
             EXPECT_EQ(FPTA_OK, err);
             EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk,
                                                   fpta_value_uint(seq % 100)));
