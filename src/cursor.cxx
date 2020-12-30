@@ -79,9 +79,17 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
     return rc;
 
   const fpta_index_type index = fpta_shove2index(column_id->shove);
-  if (fpta_index_is_unordered(index) &&
-      unlikely(fpta_cursor_is_ordered(options)))
-    return FPTA_NO_INDEX;
+  if (fpta_index_is_unordered(index) /* для unordered индексов */) {
+    if (unlikely(fpta_cursor_is_ordered(options)))
+      /* не разрешаем курсоры с ожидаемым порядком записей */
+      return FPTA_NO_INDEX;
+    if ((range_from.type <= fpta_shoved && range_to.type >= fpta_begin &&
+         unlikely(range_to.type != fpta_epsilon)) ||
+        (range_to.type <= fpta_shoved && range_from.type >= fpta_begin &&
+         unlikely(range_from.type != fpta_epsilon)))
+      /* не разрешает неоднозначные выборки value..end и begin..value */
+      return FPTA_NO_INDEX;
+  }
 
   rc = fpta_name_refresh_filter(txn, column_id->column.table, filter);
   if (unlikely(rc != FPTA_SUCCESS))
