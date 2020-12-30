@@ -352,15 +352,8 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
           /* нет смысла идти по дубликатам (без изменения значения ключа) */
           break;
         case MDBX_PREV:
-          step_op = MDBX_PREV_NODUP;
-        // fall through
         case MDBX_PREV_NODUP:
-          /* идти в сторону уменьшения ключа есть смысл только в случае
-           * unordered (хэшированного) индекса, при этом логично пропустить
-           * все дубликаты, так как они заведомо не попадают в диапазон курсора
-           */
-          if (fpta_index_is_unordered(cursor->index_shove()))
-            goto next;
+          /* нет смысла идти в сторону уменьшения ключа */
           break;
         case MDBX_NEXT:
           /* при движении в сторону увеличения ключа логично пропустить все
@@ -402,15 +395,8 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
         case MDBX_PREV_NODUP:
           goto next;
         case MDBX_NEXT:
-          step_op = MDBX_NEXT_NODUP;
-        // fall through
         case MDBX_NEXT_NODUP:
-          /* идти в сторону увеличения ключа есть смысл только в случае
-           * unordered (хэшированного) индекса, при этом логично пропустить
-           * все дубликаты, так как они заведомо не попадают в диапазон курсора
-           */
-          if (fpta_index_is_unordered(cursor->index_shove()))
-            goto next;
+          /* нет смысла идти в сторону увеличения ключа */
           break;
         }
         goto eof;
@@ -498,10 +484,8 @@ int fpta_cursor_move(fpta_cursor *cursor, fpta_seek_operations op) {
     return FPTA_EOOPS;
 
   case fpta_first:
-    if (cursor->range_from_key.mdbx.iov_base == nullptr ||
-        fpta_index_is_unordered(cursor->index_shove())) {
-      mdbx_seek_op = MDBX_FIRST;
-    } else {
+    mdbx_seek_op = MDBX_FIRST;
+    if (cursor->range_from_key.mdbx.iov_base) {
       mdbx_seek_key = &cursor->range_from_key.mdbx;
       mdbx_seek_op = MDBX_SET_RANGE;
     }
@@ -510,10 +494,8 @@ int fpta_cursor_move(fpta_cursor *cursor, fpta_seek_operations op) {
     break;
 
   case fpta_last:
-    if (cursor->range_to_key.mdbx.iov_base == nullptr ||
-        fpta_index_is_unordered(cursor->index_shove())) {
-      mdbx_seek_op = MDBX_LAST;
-    } else {
+    mdbx_seek_op = MDBX_LAST;
+    if (cursor->range_to_key.mdbx.iov_base) {
       mdbx_seek_key = &cursor->range_to_key.mdbx;
       mdbx_seek_op = MDBX_SET_RANGE;
     }
