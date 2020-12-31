@@ -189,10 +189,22 @@ TEST_P(Select, Range) {
                              fpta_value_end(), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
+  // проверяем кол-во записей
   size_t count;
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(42u, count);
+  // проверяем статистику операций
+  fpta_cursor_stat stat;
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  EXPECT_EQ(0u, stat.index_searches);
+  EXPECT_EQ(((ordering & fpta_dont_fetch) ? 0u : 1u /* open-first */) +
+                1u /* count-first */ + 42u /* count-next */,
+            stat.index_scans);
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                         : 2u /* open-first + count */,
+            stat.results);
+  // закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
   cursor = nullptr;
 
@@ -203,9 +215,33 @@ TEST_P(Select, Range) {
                            fpta_value_sint(43), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(42u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-end */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-end */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      }
+    } else {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      }
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
@@ -226,9 +262,30 @@ TEST_P(Select, Range) {
     // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(42u, count);
-    // проверяем кол-во записей и закрываем курсор
-    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-    EXPECT_EQ(42u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-end */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-end */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      }
+    } else {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(0u, stat.index_searches);
+        EXPECT_EQ(1u /* first */ + 42u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(0u * 2, stat.index_searches);
+        EXPECT_EQ(1u * 2 /* first */ + 42u /* next */, stat.index_scans);
+      }
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
@@ -249,9 +306,30 @@ TEST_P(Select, Range) {
     // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(42u, count);
-    // проверяем кол-во записей и закрываем курсор
-    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-    EXPECT_EQ(42u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(0u, stat.index_searches);
+        EXPECT_EQ(1u /* last */ + 42u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(0u * 2, stat.index_searches);
+        EXPECT_EQ(1u * 2 /* last */ + 42u /* next */, stat.index_scans);
+      }
+    } else {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+        EXPECT_EQ(42u /* next */, stat.index_scans);
+      }
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
@@ -268,9 +346,33 @@ TEST_P(Select, Range) {
                            fpta_value_sint(17), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+        EXPECT_EQ(2u /* next+back */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+        EXPECT_EQ(1u * 2 /* next */, stat.index_scans);
+      }
+    } else {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+        EXPECT_EQ(0u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+        EXPECT_EQ(0u * 2 /* next */, stat.index_scans);
+      }
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
     // повторяем с fpta_zeroed_range_is_point
@@ -282,6 +384,28 @@ TEST_P(Select, Range) {
     cursor_guard.reset(cursor);
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(1u, count);
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+        EXPECT_EQ(2u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+        EXPECT_EQ(2u * 2 /* next */, stat.index_scans);
+      }
+    } else {
+      if (ordering & fpta_dont_fetch) {
+        EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+        EXPECT_EQ(1u /* next */, stat.index_scans);
+      } else {
+        EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+        EXPECT_EQ(1u * 2 /* next */, stat.index_scans);
+      }
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
@@ -305,9 +429,21 @@ TEST_P(Select, Range) {
                                fpta_value_sint(0), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(2u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u /* next */, stat.index_scans);
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ(1u /* count */, stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
     // повторяем с fpta_zeroed_range_is_point
@@ -335,9 +471,21 @@ TEST_P(Select, Range) {
                            fpta_value_sint(100), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ(1u /* count */, stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
     // повторяем с fpta_zeroed_range_is_point
@@ -365,9 +513,33 @@ TEST_P(Select, Range) {
                              fpta_value_sint(1), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
+  // проверяем кол-во записей
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(1u, count);
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  if (ordering & fpta_descending) {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(2u /* first+back */ + 1 /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(2u * 2 /* first+back */ + 1 /* next */, stat.index_scans);
+    }
+  } else {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* next */, stat.index_scans);
+    }
+  }
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                         : 2u /* open-first + count */,
+            stat.results);
+  // закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
   cursor = nullptr;
   // повторяем с fpta_zeroed_range_is_point
@@ -388,9 +560,33 @@ TEST_P(Select, Range) {
                              fpta_value_sint(100), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
+  // проверяем кол-во записей
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(1u, count);
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  if (ordering & fpta_descending) {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* next */, stat.index_scans);
+    }
+  } else {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* next */, stat.index_scans);
+    }
+  }
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                         : 2u /* open-first + count */,
+            stat.results);
+  // закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
   cursor = nullptr;
   // повторяем с fpta_zeroed_range_is_point
@@ -411,9 +607,33 @@ TEST_P(Select, Range) {
                              fpta_value_sint(21), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
+  // проверяем кол-во записей
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(21u, count);
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  if (ordering & fpta_descending) {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(2u /* first+back */ + 21 /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(2u * 2 /* first+back */ + 21 /* next */, stat.index_scans);
+    }
+  } else {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    }
+  }
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                         : 2u /* open-first + count */,
+            stat.results);
+  // закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
   cursor = nullptr;
   // повторяем с fpta_zeroed_range_is_point
@@ -434,9 +654,33 @@ TEST_P(Select, Range) {
                              fpta_value_sint(100), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
+  // проверяем кол-во записей
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(21u, count);
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  if (ordering & fpta_descending) {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    }
+  } else {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    }
+  }
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                         : 2u /* open-first + count */,
+            stat.results);
+  // закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
   cursor = nullptr;
   // повторяем с fpta_zeroed_range_is_point
@@ -457,9 +701,33 @@ TEST_P(Select, Range) {
                              fpta_value_sint(31), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
+  // проверяем кол-во записей
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(21u, count);
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  if (ordering & fpta_descending) {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(2u /* first+back */ + 21 /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(2u * 2 /* first+back */ + 21 /* next */, stat.index_scans);
+    }
+  } else {
+    if (ordering & fpta_dont_fetch) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u * 2 /* range-begin */, stat.index_searches);
+      EXPECT_EQ(21u /* next */, stat.index_scans);
+    }
+  }
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                         : 2u /* open-first + count */,
+            stat.results);
+  // закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
   cursor = nullptr;
   // повторяем с fpta_zeroed_range_is_point
@@ -481,9 +749,23 @@ TEST_P(Select, Range) {
                            fpta_value_sint(10), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
     // повторяем с fpta_zeroed_range_is_point
@@ -532,6 +814,7 @@ TEST_P(Select, RangeEpsilon) {
   fpta_cursor *cursor;
   size_t count;
   fpta_value key_value;
+  fpta_cursor_stat stat;
 
   // begin, epsilon
   EXPECT_EQ(FPTA_OK,
@@ -539,10 +822,23 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_epsilon(), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(1u /* first to get epsilon base */, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 2u : 1u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 2u /* first & epsilon base */ : 1,
+              stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   if (ordering & fpta_descending) {
@@ -550,6 +846,10 @@ TEST_P(Select, RangeEpsilon) {
   } else {
     EXPECT_EQ(0, key_value.sint);
   }
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ(1u /* count */, stat.results);
   // проверяем кол-во записей и закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(1u, count);
@@ -574,10 +874,23 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_end(), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(1u /* first to get epsilon base */, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 2u : 1u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 2u /* first & epsilon base */ : 1,
+              stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   if (ordering & fpta_descending) {
@@ -585,6 +898,10 @@ TEST_P(Select, RangeEpsilon) {
   } else {
     EXPECT_EQ(41, key_value.sint);
   }
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+  EXPECT_EQ(0u, stat.pk_lookups);
+  EXPECT_EQ(1u /* count */, stat.results);
   // проверяем кол-во записей и закрываем курсор
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
   EXPECT_EQ(1u, count);
@@ -603,10 +920,22 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_epsilon(), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(0u, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   EXPECT_EQ(3, key_value.sint);
@@ -622,10 +951,22 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_sint(3), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(0u, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   EXPECT_EQ(3, key_value.sint);
@@ -641,10 +982,22 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_epsilon(), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(0u, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   EXPECT_EQ(0, key_value.sint);
@@ -660,10 +1013,22 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_sint(0), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(0u, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   EXPECT_EQ(0, key_value.sint);
@@ -679,10 +1044,22 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_epsilon(), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(0u, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   EXPECT_EQ(41, key_value.sint);
@@ -698,10 +1075,22 @@ TEST_P(Select, RangeEpsilon) {
                              fpta_value_sint(41), nullptr, ordering, &cursor));
   ASSERT_NE(nullptr, cursor);
   cursor_guard.reset(cursor);
-  // проверяем значение ключа
+  // проверяем статистику операций
+  ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
   if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(0u, stat.index_searches);
+    EXPECT_EQ(0u, stat.index_scans);
+    // явно устанавливаем курсор, если задана опция fpta_dont_fetch
     EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+    // перепроверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    EXPECT_EQ(1u /* seek to epsilon base */, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
+  } else {
+    EXPECT_EQ(1u, stat.index_searches);
+    EXPECT_EQ((ordering & fpta_descending) ? 1u : 0u, stat.index_scans);
   }
+  // проверяем значение ключа
   EXPECT_EQ(FPTA_OK, fpta_cursor_key(cursor, &key_value));
   EXPECT_EQ(fpta_signed_int, key_value.type);
   EXPECT_EQ(41, key_value.sint);
@@ -718,9 +1107,23 @@ TEST_P(Select, RangeEpsilon) {
                            fpta_value_epsilon(), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* prev */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
@@ -738,9 +1141,23 @@ TEST_P(Select, RangeEpsilon) {
                            fpta_value_sint(-1), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(1u /* prev */, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
@@ -758,9 +1175,23 @@ TEST_P(Select, RangeEpsilon) {
                            fpta_value_epsilon(), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
@@ -778,9 +1209,23 @@ TEST_P(Select, RangeEpsilon) {
                            fpta_value_sint(42), nullptr, ordering, &cursor));
     ASSERT_NE(nullptr, cursor);
     cursor_guard.reset(cursor);
-    // проверяем кол-во записей и закрываем курсор
+    // проверяем кол-во записей
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
     EXPECT_EQ(0u, count);
+    // проверяем статистику операций
+    ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+    if (ordering & fpta_descending) {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    } else {
+      EXPECT_EQ(1u /* range-begin */, stat.index_searches);
+      EXPECT_EQ(0u, stat.index_scans);
+    }
+    EXPECT_EQ(0u, stat.pk_lookups);
+    EXPECT_EQ((ordering & fpta_dont_fetch) ? 1u /* count */
+                                           : 2u /* open-first + count */,
+              stat.results);
+    // закрываем курсор
     EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
     cursor = nullptr;
   } else {
