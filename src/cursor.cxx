@@ -183,6 +183,7 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
                             nullptr, nullptr);
       if (unlikely(rc != MDBX_SUCCESS) && rc != FPTA_NODATA)
         goto bailout;
+      cursor->metrics.results = 0;
     }
   }
 
