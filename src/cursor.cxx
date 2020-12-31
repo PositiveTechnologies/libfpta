@@ -157,16 +157,14 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
     cursor->seek_range_flags = cursor->range_from_key.mdbx.iov_base
                                    ? fpta_cursor::need_cmp_range_both
                                    : fpta_cursor::need_key4epsilon;
-    if ((options & fpta_dont_fetch) != 0 &&
-        !cursor->range_from_key.mdbx.iov_base) {
+    if (unlikely(!cursor->range_from_key.mdbx.iov_base)) {
       assert(cursor->range_to_key.mdbx.iov_base == nullptr);
       assert(range_from.type == fpta_epsilon || range_from.type == fpta_begin);
       assert(range_to.type == fpta_epsilon || range_to.type == fpta_end);
-      /* Если была запрошена комбинация fpta_epsilon c fpta_begin/fpta_end,
-       * вместе с опцией fpta_dont_fetch, то всё равно требуется выполнить
-       * seek-операцию в начало или конец для защелкивания/переноса значения
-       * ключа в границы диапазона. Причем ВАЖНО сделать это до установки
-       * cursor->filter, чтобы не порождать неожиданных эффектов для
+      /* Если была запрошена комбинация fpta_epsilon c fpta_begin/fpta_end, то
+       * требуется выполнить seek-операцию в начало или конец для защелкивания
+       * значения ключа в границы диапазона. Причем ВАЖНО сделать это до
+       * установки cursor->filter, чтобы не порождать неожиданных эффектов для
        * пользователя. */
       rc = fpta_cursor_seek(cursor,
                             ((range_from.type == fpta_begin) !=
@@ -485,22 +483,22 @@ int fpta_cursor_move(fpta_cursor *cursor, fpta_seek_operations op) {
 
   case fpta_first:
     mdbx_seek_op = MDBX_FIRST;
+    mdbx_step_op = MDBX_NEXT;
+    cursor->seek_range_state = cursor->seek_range_flags;
     if (cursor->range_from_key.mdbx.iov_base) {
       mdbx_seek_key = &cursor->range_from_key.mdbx;
       mdbx_seek_op = MDBX_SET_RANGE;
     }
-    mdbx_step_op = MDBX_NEXT;
-    cursor->seek_range_state = cursor->seek_range_flags;
     break;
 
   case fpta_last:
     mdbx_seek_op = MDBX_LAST;
+    mdbx_step_op = MDBX_PREV;
+    cursor->seek_range_state = cursor->seek_range_flags;
     if (cursor->range_to_key.mdbx.iov_base) {
       mdbx_seek_key = &cursor->range_to_key.mdbx;
       mdbx_seek_op = MDBX_SET_RANGE;
     }
-    mdbx_step_op = MDBX_PREV;
-    cursor->seek_range_state = cursor->seek_range_flags;
     break;
 
   case fpta_next:
