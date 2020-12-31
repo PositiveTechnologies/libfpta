@@ -43,7 +43,6 @@ public:
     ordering = GTEST_TUPLE_NAMESPACE_::get<1>(GetParam());
     valid_ops =
         is_valid4primary(fptu_int32, index) && is_valid4cursor(index, ordering);
-    ordering = (fpta_cursor_options)(ordering | fpta_dont_fetch);
 
     SCOPED_TRACE("index " + std::to_string(index) + ", ordering " +
                  std::to_string(ordering) +
@@ -159,6 +158,8 @@ public:
   }
 };
 
+//----------------------------------------------------------------------------
+
 TEST_P(Select, Range) {
   /* Smoke-проверка жизнеспособности курсоров с ограничениями диапазона.
    *
@@ -244,27 +245,35 @@ TEST_P(Select, Range) {
   cursor = nullptr;
 
   // открываем c диапазоном (без пересечения, нулевой диапазон)
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(17),
-                             fpta_value_sint(17), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
-  // повторяем с fpta_zeroed_range_is_point
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(17),
-                             fpta_value_sint(17), nullptr,
-                             ordering | fpta_zeroed_range_is_point, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(1u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+  if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(
+                           txn_guard.get(), &col_1, fpta_value_sint(17),
+                           fpta_value_sint(17), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+    // повторяем с fpta_zeroed_range_is_point
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(17),
+                               fpta_value_sint(17), nullptr,
+                               ordering | fpta_zeroed_range_is_point, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(1u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+  } else {
+    EXPECT_EQ(FPTA_NODATA,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(17),
+                               fpta_value_sint(17), nullptr, ordering,
+                               &cursor));
+    ASSERT_EQ(nullptr, cursor);
+  }
 
   if (fpta_index_is_unordered(index)) {
     // для unordered индексов тесты ниже вернут FPTA_NO_INDEX
@@ -273,50 +282,65 @@ TEST_P(Select, Range) {
   }
 
   // открываем c диапазоном (нулевое пересечение, курсор "ниже")
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(-42),
-                             fpta_value_sint(0), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
-  // повторяем с fpta_zeroed_range_is_point
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(-42),
-                             fpta_value_sint(0), nullptr,
-                             ordering | fpta_zeroed_range_is_point, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+  if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(-42),
+                               fpta_value_sint(0), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+    // повторяем с fpta_zeroed_range_is_point
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(-42),
+                               fpta_value_sint(0), nullptr,
+                               ordering | fpta_zeroed_range_is_point, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+  } else {
+    EXPECT_EQ(FPTA_NODATA,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(-42),
+                               fpta_value_sint(0), nullptr, ordering, &cursor));
+    ASSERT_EQ(nullptr, cursor);
+  }
 
   // открываем c диапазоном (нулевое пересечение, курсор "выше")
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(42),
-                             fpta_value_sint(100), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
-  // повторяем с fpta_zeroed_range_is_point
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(42),
-                             fpta_value_sint(100), nullptr,
-                             ordering | fpta_zeroed_range_is_point, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+  if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(
+                           txn_guard.get(), &col_1, fpta_value_sint(42),
+                           fpta_value_sint(100), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+    // повторяем с fpta_zeroed_range_is_point
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(42),
+                               fpta_value_sint(100), nullptr,
+                               ordering | fpta_zeroed_range_is_point, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+  } else {
+    EXPECT_EQ(FPTA_NODATA,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(42),
+                               fpta_value_sint(100), nullptr, ordering,
+                               &cursor));
+    ASSERT_EQ(nullptr, cursor);
+  }
 
   // открываем c диапазоном (единичное пересечение, курсор "снизу")
   EXPECT_EQ(FPTA_OK,
@@ -434,27 +458,35 @@ TEST_P(Select, Range) {
   cursor = nullptr;
 
   // открываем c диапазоном (без пересечения, "отрицательный" диапазон)
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(31),
-                             fpta_value_sint(10), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
-  // повторяем с fpta_zeroed_range_is_point
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(31),
-                             fpta_value_sint(10), nullptr,
-                             ordering | fpta_zeroed_range_is_point, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+  if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(
+                           txn_guard.get(), &col_1, fpta_value_sint(31),
+                           fpta_value_sint(10), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+    // повторяем с fpta_zeroed_range_is_point
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(31),
+                               fpta_value_sint(10), nullptr,
+                               ordering | fpta_zeroed_range_is_point, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+  } else {
+    EXPECT_EQ(FPTA_NODATA,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(31),
+                               fpta_value_sint(10), nullptr, ordering,
+                               &cursor));
+    ASSERT_EQ(nullptr, cursor);
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -663,52 +695,68 @@ TEST_P(Select, RangeEpsilon) {
   cursor = nullptr;
 
   // before-first, epsilon
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(-1),
-                             fpta_value_epsilon(), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+  if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(
+                           txn_guard.get(), &col_1, fpta_value_sint(-1),
+                           fpta_value_epsilon(), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
 
-  // epsilon, before-first
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_epsilon(),
-                             fpta_value_sint(-1), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+    // epsilon, before-first
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(
+                           txn_guard.get(), &col_1, fpta_value_epsilon(),
+                           fpta_value_sint(-1), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+  } else {
+    EXPECT_EQ(FPTA_NODATA,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(-1),
+                               fpta_value_epsilon(), nullptr, ordering,
+                               &cursor));
+    ASSERT_EQ(nullptr, cursor);
+  }
 
   // after-last, epsilon
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(42),
-                             fpta_value_epsilon(), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+  if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(
+                           txn_guard.get(), &col_1, fpta_value_sint(42),
+                           fpta_value_epsilon(), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
 
-  // epsilon, after-last
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_epsilon(),
-                             fpta_value_sint(42), nullptr, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+    // epsilon, after-last
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(
+                           txn_guard.get(), &col_1, fpta_value_epsilon(),
+                           fpta_value_sint(42), nullptr, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+  } else {
+    EXPECT_EQ(FPTA_NODATA,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_sint(42),
+                               fpta_value_epsilon(), nullptr, ordering,
+                               &cursor));
+    ASSERT_EQ(nullptr, cursor);
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -780,32 +828,39 @@ TEST_P(Select, Filter) {
 
   // открываем простейщий курсор c псевдо-фильтром (нулевое покрытие)
   filter.node_fnrow.predicate = filter_row_predicate_false;
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_begin(),
-                             fpta_value_end(), &filter, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(0u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+  if (ordering & fpta_dont_fetch) {
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_begin(),
+                               fpta_value_end(), &filter, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(0u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
 
-  // открываем курсор c фильтром по нечетности значения колонки (покрытие 50%)
-  filter.type = fpta_node_fncol;
-  filter.node_fncol.column_id = &col_1;
-  filter.node_fncol.arg = nullptr /* unused */;
-  filter.node_fncol.predicate = filter_col_predicate_odd;
-  EXPECT_EQ(FPTA_OK,
-            fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_begin(),
-                             fpta_value_end(), &filter, ordering, &cursor));
-  ASSERT_NE(nullptr, cursor);
-  cursor_guard.reset(cursor);
-  // проверяем кол-во записей и закрываем курсор
-  EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
-  EXPECT_EQ(21u, count);
-  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
-  cursor = nullptr;
+    // открываем курсор c фильтром по нечетности значения колонки (покрытие 50%)
+    filter.type = fpta_node_fncol;
+    filter.node_fncol.column_id = &col_1;
+    filter.node_fncol.arg = nullptr /* unused */;
+    filter.node_fncol.predicate = filter_col_predicate_odd;
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_begin(),
+                               fpta_value_end(), &filter, ordering, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    cursor_guard.reset(cursor);
+    // проверяем кол-во записей и закрываем курсор
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
+    EXPECT_EQ(21u, count);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    cursor = nullptr;
+  } else {
+    EXPECT_EQ(FPTA_NODATA,
+              fpta_cursor_open(txn_guard.get(), &col_1, fpta_value_begin(),
+                               fpta_value_end(), &filter, ordering, &cursor));
+    ASSERT_EQ(nullptr, cursor);
+  }
 
   // открываем курсор c фильтром по значению колонки (равенство)
   filter.type = fpta_node_eq;
@@ -892,6 +947,8 @@ TEST_P(Select, Filter) {
   cursor = nullptr;
 }
 
+//----------------------------------------------------------------------------
+
 #ifdef INSTANTIATE_TEST_SUITE_P
 INSTANTIATE_TEST_SUITE_P(
     Combine, Select,
@@ -900,7 +957,10 @@ INSTANTIATE_TEST_SUITE_P(
                                          fpta_primary_unique_unordered,
                                          fpta_primary_withdups_unordered),
                        ::testing::Values(fpta_unsorted, fpta_ascending,
-                                         fpta_descending)));
+                                         fpta_descending,
+                                         fpta_unsorted_dont_fetch,
+                                         fpta_ascending_dont_fetch,
+                                         fpta_descending_dont_fetch)));
 #else
 INSTANTIATE_TEST_CASE_P(
     Combine, Select,
@@ -909,10 +969,11 @@ INSTANTIATE_TEST_CASE_P(
                                          fpta_primary_unique_unordered,
                                          fpta_primary_withdups_unordered),
                        ::testing::Values(fpta_unsorted, fpta_ascending,
-                                         fpta_descending)));
+                                         fpta_descending,
+                                         fpta_unsorted_dont_fetch,
+                                         fpta_ascending_dont_fetch,
+                                         fpta_descending_dont_fetch)));
 #endif
-
-//----------------------------------------------------------------------------
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
