@@ -814,8 +814,6 @@ int fpta_cursor_count(fpta_cursor *cursor, size_t *pcount, size_t limit) {
     *pcount = count;
     rc = FPTA_SUCCESS;
   }
-
-  cursor->set_poor();
   return rc;
 }
 
