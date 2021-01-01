@@ -300,23 +300,36 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
        *    при сортировке в обратном порядке.
        *  - Если искомый ключ найден, то перейти к "первой" равной строке
        *    в порядке курсора, что означает перейти к последнему дубликату,
-       *    либо к предыдущему дубликату.
-       */
+       *    либо к предыдущему дубликату. */
       if (rc == MDBX_SUCCESS) {
+        /* Здесь вместо cursor->bring() используется mdbx_cursor_get() и явно
+         * инкремируется metrics.scans чтобы поведение метрик курсора выглядело
+         * единообразно, вне зависимости от содержания БД. Это проще для машины,
+         * а также существенно упрощает проверку статистики по операциям курсора
+         * в юнит-тестах. */
+        cursor->metrics.scans += 1;
         const auto cmp = mdbx_cmp(cursor->txn->mdbx_txn, cursor->idx_handle,
                                   &cursor->current, mdbx_seek_key);
         if (cmp > 0) {
-          rc = cursor->bring(&cursor->current, &mdbx_data.sys, MDBX_PREV_NODUP);
+          rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                               &mdbx_data.sys, MDBX_PREV_NODUP);
           if (rc == MDBX_SUCCESS && mdbx_seek_op == MDBX_GET_BOTH_RANGE)
-            rc = cursor->bring(&cursor->current, &mdbx_data.sys, MDBX_LAST_DUP);
-        } else if (cmp == 0 && mdbx_seek_op == MDBX_GET_BOTH_RANGE &&
-                   mdbx_dcmp(cursor->txn->mdbx_txn, cursor->idx_handle,
-                             &mdbx_data.sys, mdbx_seek_data) > 0) {
-          rc = cursor->bring(&cursor->current, &mdbx_data.sys, MDBX_PREV);
+            rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                                 &mdbx_data.sys, MDBX_LAST_DUP);
+        } else if (cmp == 0) {
+          if (mdbx_seek_op == MDBX_SET_RANGE) {
+            if (!fpta_index_is_unique(cursor->index_shove()))
+              rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                                   &mdbx_data.sys, MDBX_LAST_DUP);
+          } else if (mdbx_dcmp(cursor->txn->mdbx_txn, cursor->idx_handle,
+                               &mdbx_data.sys, mdbx_seek_data) > 0)
+            rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                                 &mdbx_data.sys, MDBX_PREV);
         }
       } else if (rc == MDBX_NOTFOUND &&
                  mdbx_cursor_on_last(cursor->mdbx_cursor) == MDBX_RESULT_TRUE) {
-        rc = cursor->bring(&cursor->current, &mdbx_data.sys, MDBX_LAST);
+        rc = mdbx_cursor_get(cursor->mdbx_cursor, &cursor->current,
+                             &mdbx_data.sys, MDBX_LAST);
       }
     }
   }
