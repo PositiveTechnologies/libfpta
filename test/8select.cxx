@@ -1468,6 +1468,304 @@ INSTANTIATE_TEST_CASE_P(
                                          fpta_descending_dont_fetch)));
 #endif
 
+//==============================================================================
+
+class Metrics : public ::testing::TestWithParam<GTEST_TUPLE_NAMESPACE_::tuple<
+                    fpta_index_type, fpta_cursor_options, unsigned>> {
+public:
+  scoped_db_guard db_quard;
+  scoped_txn_guard txn_guard;
+  scoped_cursor_guard cursor_guard;
+
+  fpta_name table, col_1, col_2;
+  fpta_index_type index;
+  fpta_cursor_options ordering;
+  int reps_case, first, last;
+  bool valid_ops, skipped;
+
+  unsigned reps(const unsigned i) const {
+    return (i * 35059 + reps_case) * 56767 % 5;
+  }
+
+  virtual void SetUp() {
+    index = GTEST_TUPLE_NAMESPACE_::get<0>(GetParam());
+    ordering = GTEST_TUPLE_NAMESPACE_::get<1>(GetParam());
+    reps_case = GTEST_TUPLE_NAMESPACE_::get<2>(GetParam());
+    valid_ops =
+        is_valid4primary(fptu_int32, index) && is_valid4cursor(index, ordering);
+
+    SCOPED_TRACE("index " + std::to_string(index) + ", ordering " +
+                 std::to_string(ordering) +
+                 (valid_ops ? ", (valid case)" : ", (invalid case)"));
+
+    // инициализируем идентификаторы таблицы и её колонок
+    EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_1, "col_1"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_2, "col_2"));
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (!valid_ops || skipped)
+      return;
+
+    if (REMOVE_FILE(testdb_name) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+    if (REMOVE_FILE(testdb_name_lck) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+
+    // открываем/создаем базульку в 1 мегабайт
+    fpta_db *db = nullptr;
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
+                                    1, true, &db));
+    ASSERT_NE(nullptr, db);
+    db_quard.reset(db);
+
+    // описываем простейшую таблицу с двумя колонками
+    fpta_column_set def;
+    fpta_column_set_init(&def);
+    EXPECT_EQ(FPTA_OK, fpta_column_describe("col_1", fptu_int32, index, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "col_2", fptu_int32,
+                           fpta_index_is_primary(index)
+                               ? fpta_index_none
+                               : fpta_primary_unique_ordered_reverse_nullable,
+                           &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+    // запускам транзакцию и создаем таблицу с обозначенным набором колонок
+    fpta_txn *txn = (fpta_txn *)&txn;
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+    ASSERT_NE(nullptr, txn);
+    txn_guard.reset(txn);
+    EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
+    EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_guard.release(), false));
+    txn = nullptr;
+
+    // разрушаем описание таблицы
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+    EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+    // начинаем транзакцию для вставки данных
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+    ASSERT_NE(nullptr, txn);
+    txn_guard.reset(txn);
+
+    // создаем кортеж, который станет первой записью в таблице
+    fptu_rw *pt = fptu_alloc(2, 8);
+    ASSERT_NE(nullptr, pt);
+    ASSERT_STREQ(nullptr, fptu::check(pt));
+
+    // делаем привязку к схеме
+    fpta_name_refresh_couple(txn, &table, &col_1);
+    fpta_name_refresh(txn, &col_2);
+
+    // заполняем таблицу со стохастическим кол-вом дубликатов для каждого ключа
+    first = last = -1;
+    for (unsigned i = 0; i < 42; ++i) {
+      const unsigned n = reps(i);
+      if (n) {
+        if (first < 0)
+          first = int(i);
+        last = int(i);
+      }
+      for (unsigned k = 0; k < n; ++k) {
+        EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt, &col_1, fpta_value_sint(i)));
+        uint64_t seq;
+        EXPECT_EQ(FPTA_OK, fpta_db_sequence(txn, &seq, 1));
+        EXPECT_EQ(FPTA_OK,
+                  fpta_upsert_column(pt, &col_2, fpta_value_sint(seq)));
+        ASSERT_STREQ(nullptr, fptu::check(pt));
+        ASSERT_EQ(FPTA_OK,
+                  fpta_insert_row(txn, &table, fptu_take_noshrink(pt)));
+      }
+    }
+
+    free(pt);
+    pt = nullptr;
+
+    // фиксируем изменения
+    EXPECT_EQ(FPTA_OK, fpta_transaction_commit(txn_guard.release()));
+    txn = nullptr;
+
+    // начинаем следующую транзакцию
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+    ASSERT_NE(nullptr, txn);
+    txn_guard.reset(txn);
+  }
+
+  virtual void TearDown() {
+    if (skipped)
+      return;
+    SCOPED_TRACE("teardown");
+
+    // разрушаем привязанные идентификаторы
+    fpta_name_destroy(&table);
+    fpta_name_destroy(&col_1);
+    fpta_name_destroy(&col_2);
+
+    // закрываем курсор и завершаем транзакцию
+    if (cursor_guard) {
+      EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+    }
+    if (txn_guard) {
+      ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn_guard.release(), true));
+    }
+    if (db_quard) {
+      // закрываем и удаляем базу
+      ASSERT_EQ(FPTA_SUCCESS, fpta_db_close(db_quard.release()));
+      ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+      ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+    }
+  }
+
+  void Check(const fpta_value &from, const fpta_value &to,
+             const bool expect_bsearch, const unsigned n,
+             const int expect_value = -1) {
+    const fpta_cursor_options options =
+        (from.type < fpta_begin && to.type < fpta_begin)
+            ? ordering | fpta_zeroed_range_is_point
+            : ordering;
+    fpta_cursor_stat stat;
+    fpta_cursor *cursor;
+    // используем курсор БЕЗ фильтра
+    if (n == 0 && (ordering & fpta_dont_fetch) == 0) {
+      EXPECT_EQ(FPTA_NODATA, fpta_cursor_open(txn_guard.get(), &col_1, from, to,
+                                              nullptr, options, &cursor));
+      ASSERT_EQ(nullptr, cursor);
+      memset(&stat, 0, sizeof(stat));
+    } else {
+      EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn_guard.get(), &col_1, from, to,
+                                          nullptr, options, &cursor));
+      ASSERT_NE(nullptr, cursor);
+      cursor_guard.reset(cursor);
+
+      int err = (ordering & fpta_dont_fetch)
+                    ? fpta_cursor_move(cursor, fpta_first)
+                    : int(FPTA_SUCCESS);
+
+      uint64_t count = 0;
+      while (err == FPTA_SUCCESS) {
+        EXPECT_EQ(FPTA_OK, fpta_cursor_eof(cursor));
+        if (expect_value >= 0) {
+          fptu_ro row;
+          fpta_value value;
+          EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor, &row));
+          EXPECT_EQ(FPTA_OK, fpta_get_column(row, &col_1, &value));
+          EXPECT_EQ(fpta_signed_int, value.type);
+          EXPECT_EQ(expect_value, value.sint);
+        }
+        ++count;
+        err = fpta_cursor_move(cursor, fpta_next);
+      }
+      EXPECT_TRUE(err == FPTA_SUCCESS || err == FPTA_NODATA);
+      ASSERT_EQ(n, count);
+
+      // получаем статистику операций и закрываем курсор
+      ASSERT_EQ(FPTA_OK, fpta_cursor_info(cursor, &stat));
+      EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor_guard.release()));
+      cursor = nullptr;
+
+      EXPECT_EQ(expect_bsearch ? 1u : 0u, stat.index_searches);
+      EXPECT_GE(
+          n + 1 + ((expect_bsearch && (ordering & fpta_descending)) ? 1u : 0u),
+          stat.index_scans);
+    }
+
+    EXPECT_EQ(n, stat.results);
+    if (expect_value >= 0 && !fpta_index_is_primary(index)) {
+      EXPECT_EQ(n, stat.pk_lookups);
+    }
+    EXPECT_EQ(0u, stat.deletions);
+    EXPECT_EQ(0u, stat.uniq_checks);
+    EXPECT_EQ(0u, stat.upserts);
+  }
+};
+
+TEST_P(Metrics, Basic) {
+  /* Проверка количества операций в базовых сценариях поиска.
+   *
+   * Сценарий:
+   *  1. Создаем базу с одной таблицей, в которой две колонки
+   *     и требуемый индекс (primary, либо primary и целевой secondary).
+   *
+   *  2. Вставляем несколько строк со стохастическим кол-вом дубликатов
+   *     в целевом индексе.
+   *
+   *  3. Проверяем кол-во строк попадающих в выборку
+   *     и выполненное кол-во базовых операций (bsearch, scan, pklookup)
+   *     для всех основных случаев:
+   *      - begin..end
+   *      - begin..epsilon
+   *      - epsilon..end
+   *    Затем для каждого возможного значения ключа:
+   *      - value..epsilon и epsilon..value
+   *      - value..value для одинаковых значений
+   *
+   *  4. Завершаем операции и освобождаем ресурсы.
+   *
+   *  5. Сценарий повторяется для нескольких типов индексов, курсоров
+   *     и сменой смешения при стохастической генерации дубликатов (для разного
+   *     количества дубликатов для наименьшего и наибольшего значений ключа в
+   *     целевом индексе).
+   */
+  SCOPED_TRACE("index " + std::to_string(index) + ", ordering " +
+               std::to_string(ordering) +
+               (valid_ops ? ", (valid case)" : ", (invalid case)"));
+
+  if (!valid_ops || skipped)
+    return;
+
+  uint64_t n;
+  EXPECT_EQ(FPTA_OK, fpta_db_sequence(txn_guard.get(), &n, 0));
+  Check(fpta_value_begin(), fpta_value_end(), false, unsigned(n));
+
+  Check(fpta_value_begin(), fpta_value_epsilon(), true,
+        reps((ordering & fpta_descending) ? last : first));
+  Check(fpta_value_epsilon(), fpta_value_end(), true,
+        reps((ordering & fpta_descending) ? first : last));
+
+  for (unsigned i = 0; i < 42; ++i) {
+    Check(fpta_value_sint(i), fpta_value_epsilon(), true, reps(i));
+    Check(fpta_value_epsilon(), fpta_value_sint(i), true, reps(i));
+    Check(fpta_value_sint(i), fpta_value_sint(i), true, reps(i));
+  }
+}
+
+#ifdef INSTANTIATE_TEST_SUITE_P
+INSTANTIATE_TEST_SUITE_P(
+    Combine, Metrics,
+    ::testing::Combine(
+        ::testing::Values(fpta_primary_withdups_ordered_obverse,
+                          fpta_primary_withdups_unordered,
+                          fpta_secondary_withdups_ordered_obverse,
+                          fpta_secondary_withdups_ordered_obverse_nullable,
+                          fpta_secondary_withdups_ordered_reverse,
+                          fpta_secondary_withdups_unordered,
+                          fpta_secondary_withdups_unordered_nullable_reverse),
+        ::testing::Values(fpta_unsorted, fpta_ascending, fpta_descending,
+                          fpta_unsorted_dont_fetch, fpta_ascending_dont_fetch,
+                          fpta_descending_dont_fetch),
+        ::testing::Values(0, 1, 2, 3, 42)));
+#else
+INSTANTIATE_TEST_CASE_P(
+    Combine, Metrics,
+    ::testing::Combine(
+        ::testing::Values(fpta_primary_withdups_ordered_obverse,
+                          fpta_primary_withdups_unordered,
+                          fpta_secondary_withdups_ordered_obverse,
+                          fpta_secondary_withdups_ordered_obverse_nullable,
+                          fpta_secondary_withdups_ordered_reverse,
+                          fpta_secondary_withdups_unordered,
+                          fpta_secondary_withdups_unordered_nullable_reverse),
+        ::testing::Values(fpta_unsorted, fpta_ascending, fpta_descending,
+                          fpta_unsorted_dont_fetch, fpta_ascending_dont_fetch,
+                          fpta_descending_dont_fetch),
+        ::testing::Values(0, 1, 2, 3, 42)));
+#endif
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
