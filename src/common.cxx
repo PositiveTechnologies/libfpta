@@ -213,8 +213,21 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
     }
   }
 
-  *pdb = db;
-  return FPTA_SUCCESS;
+  /* Читаем схему для проверки совместимости fpta. */
+  fpta_txn *txn;
+  rc = fpta_transaction_begin(db, fpta_read, &txn);
+  if (likely(rc == MDBX_SUCCESS)) {
+    if (txn->db->schema_dbi /* если есть схема, то хендл будет ненулевым */) {
+      fpta_schema_info schema_info;
+      rc = fpta_schema_fetch(txn, &schema_info);
+      fpta_schema_destroy(&schema_info);
+    }
+    fpta_transaction_end(txn, false);
+  }
+  if (unlikely(rc == MDBX_SUCCESS)) {
+    *pdb = db;
+    return FPTA_SUCCESS;
+  }
 
 bailout:
   if (db->mdbx_env) {
