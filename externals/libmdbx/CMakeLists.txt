@@ -83,16 +83,11 @@ endif()
 if(DEFINED PROJECT_NAME)
   set(SUBPROJECT ON)
   set(NOT_SUBPROJECT OFF)
-  if(NOT MDBX_AMALGAMATED_SOURCE AND NOT DEFINED BUILD_TESTING)
-    set(BUILD_TESTING OFF)
-  endif()
+  enable_language(C)
 else()
   set(SUBPROJECT OFF)
   set(NOT_SUBPROJECT ON)
-  project(libmdbx C CXX)
-  if(NOT MDBX_AMALGAMATED_SOURCE AND NOT DEFINED BUILD_TESTING)
-    set(BUILD_TESTING ON)
-  endif()
+  project(libmdbx C)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -103,16 +98,6 @@ endif()
 
 if(NOT_SUBPROJECT AND (CMAKE_CROSSCOMPILING OR IOS))
   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-endif()
-
-if(IOS)
-  set(MDBX_BUILD_TOOLS_DEFAULT OFF)
-  if(NOT_SUBPROJECT)
-    cmake_policy(SET CMP0006 OLD)
-    set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
-  endif()
-else()
-  set(MDBX_BUILD_TOOLS_DEFAULT ON)
 endif()
 
 if(NOT "$ENV{TEAMCITY_PROCESS_FLOW_ID}" STREQUAL "")
@@ -161,9 +146,26 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+
 include(cmake/utils.cmake)
 include(cmake/compiler.cmake)
 include(cmake/profile.cmake)
+
+# Workaround for `-pthread` toolchain/cmake bug
+if(NOT APPLE AND NOT MSVC
+    AND CMAKE_USE_PTHREADS_INIT AND NOT CMAKE_THREAD_LIBS_INIT
+    AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG))
+  check_compiler_flag("-pthread" CC_HAS_PTHREAD)
+  if(CC_HAS_PTHREAD AND NOT CMAKE_EXE_LINKER_FLAGS MATCHES "-pthread")
+    message(STATUS "Force add -pthread for linker flags to avoid troubles")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pthread")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -pthread")
+  endif()
+endif()
 
 CHECK_FUNCTION_EXISTS(pow NOT_NEED_LIBM)
 if(NOT_NEED_LIBM)
@@ -178,18 +180,16 @@ else()
   endif()
 endif()
 
-find_package(Threads REQUIRED)
-
 if(SUBPROJECT)
   if(NOT DEFINED BUILD_SHARED_LIBS)
     option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)" OFF)
   endif()
   if(NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE)
-    option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)" ON)
+    option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independent (PIC)" ON)
   endif()
 else()
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)" ON)
-  option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)" ON)
+  option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independent (PIC)" ON)
   if (CC_HAS_ARCH_NATIVE)
     option(BUILD_FOR_NATIVE_CPU "Generate code for the compiling machine CPU" OFF)
   endif()
@@ -294,10 +294,14 @@ else()
 endif(SUBPROJECT)
 
 list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
-if(NOT HAS_C11 LESS 0)
-  set(MDBX_C_STANDARD 11)
-else()
-  set(MDBX_C_STANDARD 99)
+if(NOT DEFINED MDBX_C_STANDARD)
+  # MSVC >= 19.28 (Microsoft Visual Studio 16.8) is mad!
+  #               It unable process Windows SDK headers in the C11 mode!
+  if(HAS_C11 LESS 0 OR (MSVC AND MSVC_VERSION GREATER 1927))
+    set(MDBX_C_STANDARD 99)
+  else()
+    set(MDBX_C_STANDARD 11)
+  endif()
 endif()
 if(MDBX_C_STANDARD)
   message(STATUS "Use C${MDBX_C_STANDARD} for libmdbx")
@@ -354,15 +358,6 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND EXISTS "${MDBX_SOURCE_DIR}/ntdll.
   endif()
 endif()
 
-macro(add_mdbx_option NAME DESCRIPTION DEFAULT)
-  list(APPEND MDBX_BUILD_OPTIONS ${NAME})
-  if(NOT ${DEFAULT} STREQUAL "AUTO")
-    option(${NAME} "${DESCRIPTION}" ${DEFAULT})
-  elseif(NOT DEFINED ${NAME})
-    set(${NAME}_AUTO ON)
-  endif()
-endmacro()
-
 ################################################################################
 ################################################################################
 #
@@ -375,13 +370,33 @@ endmacro()
 #
 
 set(MDBX_BUILD_OPTIONS ENABLE_ASAN MDBX_USE_VALGRIND ENABLE_GPROF ENABLE_GCOV)
+macro(add_mdbx_option NAME DESCRIPTION DEFAULT)
+  list(APPEND MDBX_BUILD_OPTIONS ${NAME})
+  if(NOT ${DEFAULT} STREQUAL "AUTO")
+    option(${NAME} "${DESCRIPTION}" ${DEFAULT})
+  elseif(NOT DEFINED ${NAME})
+    set(${NAME}_AUTO ON)
+  endif()
+endmacro()
+
+if(IOS)
+  set(MDBX_BUILD_TOOLS_DEFAULT OFF)
+  if(NOT_SUBPROJECT)
+    cmake_policy(SET CMP0006 OLD)
+    set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+  endif()
+else()
+  set(MDBX_BUILD_TOOLS_DEFAULT ON)
+endif()
+
 add_mdbx_option(MDBX_INSTALL_STATIC "Build and install libmdbx for static linking" OFF)
 add_mdbx_option(MDBX_BUILD_SHARED_LIBRARY "Build libmdbx as shared library (DLL)" ${BUILD_SHARED_LIBS})
 add_mdbx_option(MDBX_BUILD_TOOLS "Build MDBX tools (mdbx_chk/stat/dump/load/copy)" ${MDBX_BUILD_TOOLS_DEFAULT})
+CMAKE_DEPENDENT_OPTION(MDBX_INSTALL_MANPAGES "Install man-pages for MDBX tools (mdbx_chk/stat/dump/load/copy)" ON MDBX_BUILD_TOOLS OFF)
 add_mdbx_option(MDBX_TXN_CHECKOWNER "Checking transaction matches the calling thread inside libmdbx's API" ON)
-add_mdbx_option(MDBX_TXN_CHECKPID "Paranoid checking PID inside libmdbx's API" AUTO)
+add_mdbx_option(MDBX_ENV_CHECKPID "Paranoid checking PID inside libmdbx's API" AUTO)
 add_mdbx_option(MDBX_HUGE_TRANSACTIONS "Support for huge write-transactions" OFF)
-mark_as_advanced(MDBX_TXN_CHECKPID)
+mark_as_advanced(MDBX_ENV_CHECKPID)
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   add_mdbx_option(MDBX_DISABLE_GNU_SOURCE "Don't use GNU/Linux libc extensions" OFF)
   mark_as_advanced(MDBX_DISABLE_GNU_SOURCE)
@@ -392,7 +407,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" OR IOS)
 endif()
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
   if(MDBX_NTDLL_EXTRA_IMPLIB)
-    add_mdbx_option(MDBX_AVOID_CRT "Avoid dependence from MSVC CRT and use ntdll.dll instead" ${NOT_SUBPROJECT})
+    add_mdbx_option(MDBX_AVOID_CRT "Avoid dependence from MSVC CRT and use ntdll.dll instead" OFF)
   endif()
   add_mdbx_option(MDBX_CONFIG_MANUAL_TLS_CALLBACK
     "Provide mdbx_dll_handler() for manual initialization" OFF)
@@ -409,10 +424,9 @@ option(MDBX_FORCE_ASSERTIONS "Force enable assertion checking" OFF)
 
 if(NOT MDBX_AMALGAMATED_SOURCE)
   add_mdbx_option(MDBX_ALLOY_BUILD "Build MDBX library through single/alloyed object file" ON)
-  option(MDBX_ENABLE_TESTS "Build MDBX tests" ${BUILD_TESTING})
-endif(NOT MDBX_AMALGAMATED_SOURCE)
+endif()
 
-if((MDBX_BUILD_TOOLS OR MDBX_ENABLE_TESTS) AND MDBX_BUILD_SHARED_LIBRARY)
+if(MDBX_BUILD_TOOLS AND MDBX_BUILD_SHARED_LIBRARY)
   add_mdbx_option(MDBX_LINK_TOOLS_NONSTATIC "Link MDBX tools with non-static libmdbx" OFF)
 else()
   unset(MDBX_LINK_TOOLS_NONSTATIC CACHE)
@@ -426,6 +440,7 @@ fetch_version(MDBX "${CMAKE_CURRENT_SOURCE_DIR}" FALSE)
 message(STATUS "libmdbx version is ${MDBX_VERSION}")
 
 # sources list
+set(LIBMDBX_PUBLIC_HEADERS mdbx.h)
 set(LIBMDBX_SOURCES mdbx.h "${CMAKE_CURRENT_BINARY_DIR}/config.h")
 if(MDBX_AMALGAMATED_SOURCE)
   list(APPEND LIBMDBX_SOURCES mdbx.c)
@@ -438,7 +453,7 @@ else()
   set(MDBX_BUILD_SOURCERY "${MDBX_SOURCERY_DIGEST}_${MDBX_SOURCERY_SUFFIX}")
 
   if(MDBX_ALLOY_BUILD)
-    list(APPEND LIBMDBX_SOURCES ${MDBX_SOURCE_DIR}/alloy.c)
+    list(APPEND LIBMDBX_SOURCES "${MDBX_SOURCE_DIR}/alloy.c")
     include_directories("${MDBX_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
   else()
     list(APPEND LIBMDBX_SOURCES
@@ -456,6 +471,8 @@ macro(target_setup_options TARGET)
     set_target_properties(${TARGET} PROPERTIES
       INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>)
   endif()
+  set_target_properties(${TARGET} PROPERTIES
+    C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
   if(CC_HAS_FASTMATH)
     target_compile_options(${TARGET} PRIVATE "-ffast-math")
   endif()
@@ -468,7 +485,7 @@ macro(target_setup_options TARGET)
 endmacro()
 
 macro(libmdbx_setup_libs TARGET MODE)
-  target_link_libraries(${TARGET} ${MODE} ${CMAKE_THREAD_LIBS_INIT})
+  target_link_libraries(${TARGET} ${MODE} Threads::Threads)
   if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     target_link_libraries(${TARGET} ${MODE} ntdll.lib)
     if(MDBX_NTDLL_EXTRA_IMPLIB AND MDBX_AVOID_CRT)
@@ -487,11 +504,11 @@ if(MDBX_INSTALL_STATIC)
 else()
   add_library(mdbx-static STATIC EXCLUDE_FROM_ALL ${LIBMDBX_SOURCES})
 endif()
-set_target_properties(mdbx-static PROPERTIES PUBLIC_HEADER mdbx.h)
 if(MDBX_C_STANDARD)
   set_target_properties(mdbx-static PROPERTIES
     C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
 endif()
+set_target_properties(mdbx-static PROPERTIES PUBLIC_HEADER "${LIBMDBX_PUBLIC_HEADERS}")
 target_compile_definitions(mdbx-static PRIVATE MDBX_BUILD_SHARED_LIBRARY=0)
 target_setup_options(mdbx-static)
 libmdbx_setup_libs(mdbx-static INTERFACE)
@@ -506,11 +523,11 @@ endif()
 # build shared library
 if(MDBX_BUILD_SHARED_LIBRARY)
   add_library(mdbx SHARED ${LIBMDBX_SOURCES})
-  set_target_properties(mdbx PROPERTIES PUBLIC_HEADER mdbx.h)
   if(MDBX_C_STANDARD)
     set_target_properties(mdbx PROPERTIES
       C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
   endif()
+  set_target_properties(mdbx PROPERTIES PUBLIC_HEADER "${LIBMDBX_PUBLIC_HEADERS}")
   target_compile_definitions(mdbx PRIVATE LIBMDBX_EXPORTS MDBX_BUILD_SHARED_LIBRARY=1 INTERFACE LIBMDBX_IMPORTS)
   target_setup_options(mdbx)
   libmdbx_setup_libs(mdbx PRIVATE)
@@ -579,19 +596,24 @@ endif()
 ################################################################################
 
 # mdbx-shared-lib installation
+if(NOT DEFINED MDBX_DLL_INSTALL_DESTINATION)
+  if(WIN32)
+    set(MDBX_DLL_INSTALL_DESTINATION bin)
+  else()
+    set(MDBX_DLL_INSTALL_DESTINATION lib)
+  endif()
+endif()
 if(MDBX_BUILD_SHARED_LIBRARY)
   if(CMAKE_VERSION VERSION_LESS 3.12)
     install(TARGETS mdbx EXPORT libmdbx
-      RUNTIME DESTINATION bin COMPONENT runtime
-      LIBRARY DESTINATION bin COMPONENT runtime
+      LIBRARY DESTINATION ${MDBX_DLL_INSTALL_DESTINATION} COMPONENT runtime
       OBJECTS DESTINATION lib COMPONENT devel
       ARCHIVE DESTINATION lib COMPONENT devel
       PUBLIC_HEADER DESTINATION include COMPONENT devel
       INCLUDES DESTINATION include COMPONENT devel)
   else()
     install(TARGETS mdbx EXPORT libmdbx
-      RUNTIME DESTINATION bin COMPONENT runtime
-      LIBRARY DESTINATION bin COMPONENT runtime
+      LIBRARY DESTINATION ${MDBX_DLL_INSTALL_DESTINATION} COMPONENT runtime
       NAMELINK_COMPONENT devel
       OBJECTS DESTINATION lib COMPONENT devel
       ARCHIVE DESTINATION lib COMPONENT devel
@@ -602,6 +624,9 @@ endif(MDBX_BUILD_SHARED_LIBRARY)
 
 # mdbx-tools installation
 if(MDBX_BUILD_TOOLS)
+  if(NOT DEFINED MDBX_TOOLS_INSTALL_DESTINATION)
+    set(MDBX_TOOLS_INSTALL_DESTINATION bin)
+  endif()
   install(
     TARGETS
     mdbx_chk
@@ -610,33 +635,36 @@ if(MDBX_BUILD_TOOLS)
     mdbx_dump
     mdbx_load
     RUNTIME
-    DESTINATION bin
+    DESTINATION ${MDBX_TOOLS_INSTALL_DESTINATION}
     COMPONENT runtime)
-  install(
-    FILES
-    "${MDBX_SOURCE_DIR}/man1/mdbx_chk.1"
-    "${MDBX_SOURCE_DIR}/man1/mdbx_stat.1"
-    "${MDBX_SOURCE_DIR}/man1/mdbx_copy.1"
-    "${MDBX_SOURCE_DIR}/man1/mdbx_dump.1"
-    "${MDBX_SOURCE_DIR}/man1/mdbx_load.1"
-    DESTINATION man/man1
-    COMPONENT doc)
+  if(MDBX_INSTALL_MANPAGES)
+    if(NOT DEFINED MDBX_MAN_INSTALL_DESTINATION)
+      set(MDBX_MAN_INSTALL_DESTINATION man/man1)
+    endif()
+    install(
+      FILES
+      "${MDBX_SOURCE_DIR}/man1/mdbx_chk.1"
+      "${MDBX_SOURCE_DIR}/man1/mdbx_stat.1"
+      "${MDBX_SOURCE_DIR}/man1/mdbx_copy.1"
+      "${MDBX_SOURCE_DIR}/man1/mdbx_dump.1"
+      "${MDBX_SOURCE_DIR}/man1/mdbx_load.1"
+      DESTINATION ${MDBX_MAN_INSTALL_DESTINATION}
+      COMPONENT doc)
+  endif()
 endif(MDBX_BUILD_TOOLS)
 
 # mdbx-static-lib installation
 if(MDBX_INSTALL_STATIC)
   if(CMAKE_VERSION VERSION_LESS 3.12)
     install(TARGETS mdbx-static EXPORT libmdbx
-      RUNTIME DESTINATION bin COMPONENT runtime
-      LIBRARY DESTINATION bin COMPONENT runtime
+      LIBRARY DESTINATION lib COMPONENT devel
       OBJECTS DESTINATION lib COMPONENT devel
       ARCHIVE DESTINATION lib COMPONENT devel
       PUBLIC_HEADER DESTINATION include COMPONENT devel
       INCLUDES DESTINATION include COMPONENT devel)
   else()
     install(TARGETS mdbx-static EXPORT libmdbx
-      RUNTIME DESTINATION bin COMPONENT runtime
-      LIBRARY DESTINATION bin COMPONENT runtime
+      LIBRARY DESTINATION lib COMPONENT devel
       NAMELINK_COMPONENT devel
       OBJECTS DESTINATION lib COMPONENT devel
       ARCHIVE DESTINATION lib COMPONENT devel
@@ -656,14 +684,21 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
   list(APPEND MDBX_BUILD_FLAGS ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE_UPPERCASE}})
 endif()
 
+# choice target to fetch definitions and options
+if(MDBX_BUILD_SHARED_LIBRARY)
+  set(target4fetch mdbx)
+else()
+  set(target4fetch mdbx-static)
+endif()
+
 # get definitions
-get_target_property(defs_list mdbx-static COMPILE_DEFINITIONS)
+get_target_property(defs_list ${target4fetch} COMPILE_DEFINITIONS)
 if(defs_list)
   list(APPEND MDBX_BUILD_FLAGS ${defs_list})
 endif()
 
 # get target compile options
-get_target_property(options_list mdbx-static COMPILE_OPTIONS)
+get_target_property(options_list ${target4fetch} COMPILE_OPTIONS)
 if(options_list)
   list(APPEND MDBX_BUILD_FLAGS ${options_list})
 endif()
@@ -705,13 +740,15 @@ endif()
 
 # provide build-type
 if(CMAKE_CONFIGURATION_TYPES)
+  # via per-configuration define
   add_definitions(-DMDBX_BUILD_TYPE="$<CONFIG>")
+  set(MDBX_BUILD_TYPE "<CONFIGURATION DEPENDENT>")
 else()
   set(MDBX_BUILD_TYPE ${CMAKE_BUILD_TYPE})
 endif()
 
 # options
-set(options VERSION C_COMPILER CXX_COMPILER)
+set(options VERSION C_COMPILER MDBX_BUILD_TARGET MDBX_BUILD_TYPE)
 foreach(item IN LISTS options)
   if(DEFINED ${item})
     set(value "${${item}}")
@@ -733,10 +770,6 @@ configure_file("${MDBX_SOURCE_DIR}/config.h.in"
 add_definitions(-DMDBX_CONFIG_H="${CMAKE_CURRENT_BINARY_DIR}/config.h")
 
 ################################################################################
-
-if(NOT MDBX_AMALGAMATED_SOURCE AND MDBX_ENABLE_TESTS)
-  add_subdirectory(test)
-endif()
 
 set(PACKAGE "libmdbx")
 set(CPACK_PACKAGE_VERSION_MAJOR ${MDBX_VERSION_MAJOR})
