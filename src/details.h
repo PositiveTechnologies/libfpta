@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -28,6 +28,8 @@
 #pragma warning(disable : 4820) /* bytes padding added after data member       \
                                    for aligment */
 #endif                          /* _MSC_VER (warnings) */
+
+using namespace fpta;
 
 struct fpta_db {
   fpta_db(const fpta_db &) = delete;

@@ -1,4 +1,4 @@
-﻿##
+##
 ##  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
 ##  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
 ##
@@ -54,7 +54,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(fpta9_huge_timeout 7200)
 else()
   set(fpta_small_timeout 3)
-  set(fpta3_smoke_timeout 15)
+  set(fpta3_smoke_timeout 600)
   set(fpta5_key_timeout 5)
   set(fpta6_index_primary_timeout 60)
   set(fpta6_index_secondary_timeout 500)

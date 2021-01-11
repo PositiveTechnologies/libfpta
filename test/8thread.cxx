@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -724,86 +724,95 @@ static void commander_thread(fpta_db *db, const volatile bool &done_flag) {
 
 static void executor_thread(fpta_db *db, const char *const read,
                             const char *const write, volatile bool &done_flag) {
+  struct done_guard {
+    volatile bool &done;
+    done_guard(volatile bool &done_flag) : done(done_flag) {}
+    ~done_guard() { done = true; }
+  };
+
   SCOPED_TRACE(
       fptu::format("executor-thread read(%s) write(%s) started", read, write));
-  fpta_name r_table, w_table, col_pk, col_x;
-  int err;
-  fptu_rw *tuple = fptu_alloc(2, 256);
-  ASSERT_NE(nullptr, tuple);
+  done_guard guard(done_flag);
+  {
+    fpta_name r_table, w_table, col_pk, col_x;
+    int err;
+    fptu_rw *tuple = fptu_alloc(2, 256);
+    ASSERT_NE(nullptr, tuple);
 
-  // инициализируем идентификаторы таблицы и её колонок
-  EXPECT_EQ(FPTA_OK, fpta_table_init(&r_table, read));
-  EXPECT_EQ(FPTA_OK, fpta_table_init(&w_table, write));
-  EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_pk, "pk"));
-  EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_x, "x"));
+    // инициализируем идентификаторы таблицы и её колонок
+    EXPECT_EQ(FPTA_OK, fpta_table_init(&r_table, read));
+    EXPECT_EQ(FPTA_OK, fpta_table_init(&w_table, write));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_pk, "pk"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_x, "x"));
 
-  for (int counter = 0; counter < 3; ++counter) {
-    for (int achieved = 0; achieved != 31;) {
-      fpta_txn *txn;
-      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
-      ASSERT_NE(nullptr, txn);
+    for (int counter = 0; counter < 3; ++counter) {
+      for (int achieved = 0; achieved != 31;) {
+        fpta_txn *txn;
+        EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+        ASSERT_NE(nullptr, txn);
 
-      err = fpta_name_refresh_couple(txn, &w_table, &col_pk);
-      if (err == FPTA_SUCCESS) {
-        EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_x));
-        fptu_clear(tuple);
-        uint64_t seq = 0;
-        err = fpta_table_sequence(txn, &w_table, &seq, 1);
-        if (err != FPTA_TARDY_DBI) {
-          EXPECT_EQ(FPTA_OK, err);
-          EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk,
-                                                fpta_value_uint(seq % 100)));
-          EXPECT_EQ(FPTA_OK,
-                    fpta_upsert_column(tuple, &col_x, fpta_value_cstr("x")));
-          EXPECT_EQ(FPTA_OK, fpta_upsert_row(txn, &w_table, fptu_take(tuple)));
-          achieved |= 1 << 0;
+        err = fpta_name_refresh_couple(txn, &w_table, &col_pk);
+        if (err == FPTA_SUCCESS) {
+          EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_x));
+          fptu_clear(tuple);
+          uint64_t seq = 0;
+          err = fpta_table_sequence(txn, &w_table, &seq, 1);
+          if (err != FPTA_TARDY_DBI && err != FPTA_BAD_DBI) {
+            EXPECT_EQ(FPTA_OK, err);
+            EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk,
+                                                  fpta_value_uint(seq % 100)));
+            EXPECT_EQ(FPTA_OK,
+                      fpta_upsert_column(tuple, &col_x, fpta_value_cstr("x")));
+            EXPECT_EQ(FPTA_OK,
+                      fpta_upsert_row(txn, &w_table, fptu_take(tuple)));
+            achieved |= 1 << 0;
+          }
+        } else {
+          ASSERT_EQ(FPTA_NOTFOUND, err);
+          achieved |= 1 << 1;
         }
-      } else {
-        ASSERT_EQ(FPTA_NOTFOUND, err);
-        achieved |= 1 << 1;
-      }
-      ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
-      txn = nullptr;
+        ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
+        txn = nullptr;
 
-      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
-      ASSERT_NE(nullptr, txn);
+        EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+        ASSERT_NE(nullptr, txn);
 
-      if (done_flag)
-        achieved |= 1 << 2;
-      unsigned lag = 42;
-      do {
-        std::this_thread::yield();
-        size_t row_count;
-        fpta_table_stat stat;
-        err = fpta_table_info(txn, &r_table, &row_count, &stat);
-        switch (err) {
-        case FPTA_SCHEMA_CHANGED:
+        if (guard.done)
           achieved |= 1 << 2;
-          break;
-        case FPTA_NOTFOUND:
-          achieved |= 1 << 3;
-          break;
-        default:
-          ASSERT_EQ(FPTA_SUCCESS, err);
-          achieved |= 1 << 4;
-          ASSERT_EQ(FPTA_OK, fpta_transaction_lag(txn, &lag, nullptr));
-          break;
-        }
-      } while (err == FPTA_SUCCESS && lag < 42 && !done_flag);
+        size_t lag = 42;
+        do {
+          std::this_thread::yield();
+          size_t row_count;
+          fpta_table_stat stat;
+          err = fpta_table_info(txn, &r_table, &row_count, &stat);
+          switch (err) {
+          case FPTA_SCHEMA_CHANGED:
+            achieved |= 1 << 2;
+            break;
+          case FPTA_NOTFOUND:
+            achieved |= 1 << 3;
+            break;
+          default:
+            ASSERT_EQ(FPTA_SUCCESS, err);
+            achieved |= 1 << 4;
+            ASSERT_EQ(FPTA_OK,
+                      fpta_transaction_lag_ex(txn, &lag, nullptr, nullptr));
+            break;
+          }
+        } while (err == FPTA_SUCCESS && lag < 42 && !guard.done);
 
-      ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
-      txn = nullptr;
+        ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
+        txn = nullptr;
+      }
     }
+
+    // разрушаем привязанные идентификаторы
+    fpta_name_destroy(&r_table);
+    fpta_name_destroy(&w_table);
+    fpta_name_destroy(&col_pk);
+    fpta_name_destroy(&col_x);
+    free(tuple);
   }
-
-  // разрушаем привязанные идентификаторы
-  fpta_name_destroy(&r_table);
-  fpta_name_destroy(&w_table);
-  fpta_name_destroy(&col_pk);
-  fpta_name_destroy(&col_x);
-
-  done_flag = true;
-  free(tuple);
   SCOPED_TRACE(
       fptu::format("executor-thread read(%s) write(%s) finished", read, write));
 }
@@ -814,7 +823,7 @@ TEST(Threaded, AsyncSchemaChange) {
    *    открываем её.
    *
    * 2. На стороне "коррелятора" и "обогатителя" запускаем по несколько
-   * потоков, которые пытаются читать и вставлять данные в разные таблицы:
+   *    потоков, которые пытаются читать и вставлять данные в разные таблицы:
    *      - ошибки отсутвия таблиц и FPTA_SCHEMA_CHANGED считаются
    *        допустимыми.
    *      - при отсутствии таблицы пропускаются соответствующие действия.

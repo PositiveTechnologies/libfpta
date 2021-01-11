@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -137,7 +137,7 @@ typedef unsigned short mode_t;
  *
  * Если опция ВЫКЛЮЧЕНА (определена как 0), то чистка не выполняется.
  * Соответственно, при подаче на вход fpta_field2value() поля с designated
- * empty значением внутри это значение будет преобразованно не в fpta_null,
+ * empty значением внутри это значение будет преобразовано не в fpta_null,
  * а в недопустимое значение соответствующего типа. При этом в отладочных
  * версиях библиотеки сработает assert-проверка.
  *
@@ -332,7 +332,7 @@ enum fpta_error {
   FPTA_ECURSOR
   /* Cursor is not positioned */,
   FPTA_TOOMANY
-  /* Too many columns or indexes (one of fpta's limits reached) */,
+  /* Too many tables, columns or indexes (one of fpta's limits reached) */,
   FPTA_WANNA_DIE
   /* Failure while transaction rollback */,
   FPTA_TXN_CANCELLED
@@ -343,6 +343,8 @@ enum fpta_error {
   /* Another thread still use handle(s) that should be reopened. */,
   FPTA_CLUMSY_INDEX
   /* Adding index which is too clumsy */,
+
+  FPTA_ERRROR_LAST = FPTA_CLUMSY_INDEX,
 
   FPTA_NODATA = -1 /* No data or EOF was reached */,
   FPTA_DEADBEEF = INT32_C(0xDeadBeef) /* Pseudo error for results by refs,
@@ -842,11 +844,13 @@ FPTA_API extern const fpta_fp64_t fpta_fp64_denil;
 
 #define FPTA_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
 
-#ifndef _MSC_VER /* MSVC provides invalid nan() */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTA_DENIL_FP64_MAS "0x000FffffFFFFffff"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
-#if __GNUC_PREREQ(3, 3) || __has_builtin(nan)
+#if (__GNUC_PREREQ(3, 3) || __has_builtin(nan)) && defined(FPTA_DENIL_FP64_MAS)
 #define FPTA_DENIL_FP (-__builtin_nan(FPTA_DENIL_FP64_MAS))
 #else
 #define FPTA_DENIL_FP (fpta_fp64_denil.__d)
@@ -905,7 +909,7 @@ typedef enum fpta_durability {
   fpta_weak /* Самый быстрый режим, но без гарантий сохранности всей базы
              * при аварии.
              *
-             * Cильные точки фиксации не формируются, а существующие стираются
+             * Сильные точки фиксации не формируются, а существующие стираются
              * в процессе сборки мусора.
              *
              * Ядро ОС, по своему усмотрению, асинхронно записывает измененные
@@ -926,10 +930,10 @@ typedef enum fpta_durability {
  * эффективность каждой из них из-за конфликта интересов. */
 typedef enum fpta_regime_flags {
   fpta_regime_default = 0 /* Режим по-умолчанию */,
-  fpta_frendly4writeback = 1, /* Для кеша обратной записи. Движок будет
+  fpta_frendly4writeback = 1, /* Для кэша обратной записи. Движок будет
                                * стремиться повторно использовать страницы в
                                * LIFO-порядке, что увеличивает эффективность
-                               * работы кеша обратной записи. */
+                               * работы кэша обратной записи. */
   fpta_frendly4hdd = 2 /* Для шпиндельных дисков. Движок будет стремиться
                         * выделять и повторно использовать
                         * страницы так, чтобы запись на диск была более
@@ -1045,14 +1049,15 @@ typedef struct fpta_db_stat {
     uint64_t grow;   /* шаг приращения файла БД */
     uint64_t mapsize; /* размер отображения в адресном пространстве процесса */
     uint64_t allocated; /* распределенное место в файле БД */
-    uint32_t pagesize;     /* размер старницы внутри БД */
+    uint32_t pagesize;     /* размер страницы внутри БД */
     uint32_t sys_pagesize; /* системный размер страницы */
   } geo;
 
-  uint64_t recent_txnid; /* последнея зафиксрованная транзакция */
+  uint64_t recent_txnid; /* последняя зафиксированная транзакция */
   uint64_t latter_reader_txnid; /* самая старая читаемая транзакция */
-  uint64_t self_latter_reader_txnid; /* самая стараы читаемая транзакция внутри
-                                        текущего процесса */
+  uint64_t self_latter_reader_txnid; /* самая старая читающая транзакция внутри
+                                        текущего процесса (самый старый
+                                        читаемый снимок MVCC) */
 
   uint32_t maxreaders; /* максимальное кол-во читателей */
   uint32_t numreaders; /* текущее кол-во читателей */
@@ -1075,7 +1080,7 @@ typedef struct fpta_db_stat {
   fpta_durability durability; /* актуальный уровень durability с учётом всех
                                  работающих БД процессов */
   fpta_regime_flags regime_flags; /* актуальный режим работы с учетом всех
-                                     работающих с БД проецссов */
+                                     работающих с БД процессов */
   bool alterable_schema /* возможность изменять схему БД в текущем процессе */;
 } fpta_db_stat_t;
 
@@ -1084,7 +1089,7 @@ typedef struct fpta_db_stat {
  * Должен быть задан (быть ненулевым) хотя-бы один из аргументов db или txn.
  * При ненулевом аргументе txn информация возвращается из MVCC-снимка
  * соответствующей транзакции, иначе по состоянию БД в последней зафиксированной
- * транзакции. Такми образом, следует учитывать, что если текущий процесс не
+ * транзакции. Таким образом, следует учитывать, что если текущий процесс не
  * выполняет транзакцию записи, то возвращаемая информация может измениться
  * асинхронно или уже не соответствовать последней версии БД.
  *
@@ -1145,9 +1150,8 @@ FPTA_API int fpta_db_close(fpta_db *db);
  * понимании нет рациональных сценариев его использования.
  *
  * Для доступа к соответствующим функциям libmdbx необходимо включить
- * заголовочный файл externals/libmdbx/mdbx.h, а сами функции
- * доступны/экспортируются из libfpta.
- * Описание соответствующих функций см. в файле externals/libmdbx/mdbx.h
+ * заголовочный файл externals/libmdbx/mdbx.h, а сами функции доступны в
+ * libfpta. Описание API libmdbx доступно на https://erthink.github.io/libmdbx
  *
  * Время жизни объектов внутри libmdbx совпадает с соответствующими в libpta,
  * с одним ВАЖНЫМ исключением: пишущая транзакций внутри libmdbx физически
@@ -1441,7 +1445,7 @@ FPTA_API int fpta_transaction_versions(fpta_txn *txn, uint64_t *db_version,
  *   сравниваются в обратном порядке байт. Не от первых к последним,
  *   а от последних к первым. Не следует пусть с обратным порядком сортировки.
  *
- *   Кроме этого, посредством признака reverse/obverse, для безнаковых типов
+ *   Кроме этого, посредством признака reverse/obverse, для беззнаковых типов
  *   и бинарных строк фиксированного размера, выбирается DENIL значение
  *   замещающее "пусто" при индексации nullable колонок, подробности далее.
  *
@@ -1727,7 +1731,7 @@ FPTA_API int fpta_table_create(fpta_txn *txn, const char *table_name,
  * видимыми из других транзакций и процессов только после успешной
  * фиксации транзакции.
  *
- * Функция быстро удяляет таблицу, не анализируя её записи, а сразу удаляя
+ * Функция быстро удаляет таблицу, не анализируя её записи, а сразу удаляя
  * все страницы. Тем не менее, для этого требуется прочитать все не-листовые
  * страницы всех связанных с таблицей деревьев, а также читать и анализировать
  * листовые страницы пока в структуре соответствующего дерева есть хотя-бы одна
@@ -2006,7 +2010,7 @@ typedef struct fpta_table_stat {
                            требует также поиска в первичном. */
       ;
   unsigned cost_uniq_MOlogN /* Амортизационная (по всем индексам) условная
-                               стоимость провеки уникальности вставляемых или
+                               стоимость проверки уникальности вставляемых или
                                обновляемых значений полей. */
       ;
   unsigned
@@ -2203,8 +2207,10 @@ FPTA_API int fpta_composite_column_get(const fpta_name *composite_id,
  * По завершению использования структура должна быть разрушена посредством
  * fpta_schema_destroy(), в противном случае будет утечка памяти. */
 typedef struct fpta_schema_info {
-  unsigned signature;
-  unsigned tables_count;
+  uint32_t signature;
+  uint32_t tables_count;  /* Кол-во таблиц */
+  uint32_t columns_count; /* Суммарное кол-во колонок */
+  uint32_t indexes_count; /* Суммарное кол-во вторичных индексов */
   struct {
     uint64_t tsn /* Transaction Sequence Number.
                   * Номер транзакции, в которой была изменена схема */
@@ -2214,7 +2220,7 @@ typedef struct fpta_schema_info {
         ;
     struct {
       uint64_t lo, hi;
-    } t1ha /* Digest. Дайджест нормализированной формы. */;
+    } t1ha /* Digest. Дайджест нормализованной формы. */;
   } version;
 #ifdef __cplusplus
   class dict;
@@ -2441,7 +2447,7 @@ FPT_ENUM_FLAG_OPERATORS(fpta_cursor_options)
  * только сравнение без установления порядка, а порядок следования (сортировки)
  * строк не определен. Соответственно, не возможна (лишена смысла) и выборка
  * диапазона между явными значениями ключа. Тем не менее, для неупорядоченных
- * индексов допускается выборка псевдодиапазона, когда хотя-бы одна из границ
+ * индексов допускается выборка псевдо-диапазона, когда хотя-бы одна из границ
  * задается как fpta_begin, fpta_end или fpta_epsilon. В частности, это
  * позволяет реализовать пролистывание таблицы через любой индекс,
  * включая неупорядоченный.
@@ -2666,7 +2672,7 @@ FPTA_API int fpta_cursor_reset_accounting(fpta_cursor *cursor);
  *
  * При возникновении ошибки возвращается её код. Либо FPTA_NODATA, если
  * в процессе итерирования будет достигнут конец данных. Либо ненулевой
- * результат полученый от функтора, если функтор прервал таким образом цикл
+ * результат полученный от функтора, если функтор прервал таким образом цикл
  * обработки.
  * Нулевое значение (FPTA_SUCCESS) возвращается только если цикл обработки
  * успешно завершился из-за достижения ограничения задаваемого параметром
@@ -3184,7 +3190,7 @@ static __inline int fpta_cursor_probe_and_update(fpta_cursor *cursor,
 FPTA_API int fpta_cursor_delete(fpta_cursor *cursor);
 
 /* Обновляет значение колонки в текущей позиции курсора, выполняя бинарную
- * операцию c аргументом и текущим значением.
+ * операцию с аргументом и текущим значением.
  *
  * Аргумент column_id идентифицирует целевую колонку, но не может совпадать
  * с ключевой колонкой курсора.
@@ -3234,7 +3240,7 @@ FPTA_API int fpta_upsert_column_ex(fptu_rw *pt, const fpta_name *column_id,
                                    fpta_value value, bool erase_on_denil);
 
 /* Получает значение указанной колонки из переданной строки таблицы (кортежа),
- * исключая составные колоноки.
+ * исключая составные колонки.
  *
  * Аргумент column_id идентифицирует колонку и должен быть
  * предварительно подготовлен посредством fpta_name_refresh().
@@ -3281,7 +3287,7 @@ static __inline int fpta_get_column4key(fptu_ro row, const fpta_name *column_id,
 }
 
 /* Обновляет значение колонки в переданном кортеже-строке, выполняя бинарную
- * операцию c аргументом и текущим значением колонки (поля кортежа).
+ * операцию с аргументом и текущим значением колонки (поля кортежа).
  *
  * Аргумент column_id идентифицирует целевую колонку и должен быть
  * предварительно подготовлен посредством fpta_name_refresh().
@@ -3311,11 +3317,13 @@ FPTA_API int fpta_column_inplace(fptu_rw *row, const fpta_name *column_id,
 
 FPTA_API int fpta_column_set_validate(fpta_column_set *column_set);
 FPTA_API void fpta_pollute(void *ptr, size_t bytes, uintptr_t xormask);
+#if FPTA_ENABLE_TESTS
 FPTA_API fptu_lge __fpta_filter_cmp(const fptu_field *pf,
                                     const fpta_value *right);
 FPTA_API int __fpta_index_value2key(fpta_shove_t shove, const fpta_value *value,
                                     void *key);
-FPTA_API void *__fpta_index_shove2comparator(fpta_shove_t shove);
+FPTA_API const void *__fpta_index_shove2comparator(fpta_shove_t shove);
+#endif /* FPTA_ENABLE_TESTS */
 
 static __inline bool fpta_is_under_valgrind(void) {
   return fptu_is_under_valgrind();
@@ -3351,68 +3359,42 @@ extern FPTA_API const fpta_build_info fpta_build;
 }
 
 //----------------------------------------------------------------------------
-/* Сервисные функции и классы для C++ (будет пополняться, существенно). */
+/* Сервисные функции и классы для C++. */
 
 #include <ostream>
 
-namespace std {
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_error);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_value_type);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_value *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_durability);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_level);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_index_type);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_filter_bits);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_cursor_options);
+FPTA_API std::ostream &operator<<(std::ostream &out,
+                                  const fpta_seek_operations);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_put_options);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_name *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_filter *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_column_set *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_db *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_txn *);
+FPTA_API std::ostream &operator<<(std::ostream &out, const fpta_cursor *);
+FPTA_API std::ostream &operator<<(std::ostream &out,
+                                  const struct fpta_table_schema *);
 
-FPTA_API ostream &operator<<(ostream &out, const fpta_error);
-FPTA_API ostream &operator<<(ostream &out, const fpta_value_type);
-FPTA_API ostream &operator<<(ostream &out, const fpta_value *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_durability);
-FPTA_API ostream &operator<<(ostream &out, const fpta_level);
-FPTA_API ostream &operator<<(ostream &out, const fpta_index_type);
-FPTA_API ostream &operator<<(ostream &out, const fpta_filter_bits);
-FPTA_API ostream &operator<<(ostream &out, const fpta_cursor_options);
-FPTA_API ostream &operator<<(ostream &out, const fpta_seek_operations);
-FPTA_API ostream &operator<<(ostream &out, const fpta_put_options);
-FPTA_API ostream &operator<<(ostream &out, const fpta_name *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_filter *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_column_set *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_db *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_txn *);
-FPTA_API ostream &operator<<(ostream &out, const fpta_cursor *);
-FPTA_API ostream &operator<<(ostream &out, const struct fpta_table_schema *);
-
-inline ostream &operator<<(ostream &out, const fpta_column_set &def) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_column_set &def) {
   return out << &def;
 }
-inline ostream &operator<<(ostream &out, const fpta_value &value) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_value &value) {
   return out << &value;
 }
-inline ostream &operator<<(ostream &out, const fpta_name &id) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_name &id) {
   return out << &id;
 }
-inline ostream &operator<<(ostream &out, const fpta_filter &filter) {
+inline std::ostream &operator<<(std::ostream &out, const fpta_filter &filter) {
   return out << &filter;
 }
-
-FPTA_API string to_string(const fpta_error);
-FPTA_API string to_string(const fpta_value_type);
-FPTA_API string to_string(const fpta_value *);
-FPTA_API string to_string(const fpta_durability);
-FPTA_API string to_string(const fpta_level);
-FPTA_API string to_string(const fpta_index_type);
-FPTA_API string to_string(const fpta_filter_bits);
-FPTA_API string to_string(const fpta_cursor_options);
-FPTA_API string to_string(const fpta_seek_operations);
-FPTA_API string to_string(const fpta_put_options);
-FPTA_API string to_string(const fpta_name *);
-FPTA_API string to_string(const fpta_filter *);
-FPTA_API string to_string(const fpta_column_set *);
-FPTA_API string to_string(const fpta_db *);
-FPTA_API string to_string(const fpta_txn *);
-FPTA_API string to_string(const fpta_cursor *);
-FPTA_API string to_string(const struct fpta_table_schema *);
-
-inline string to_string(const fpta_column_set &def) { return to_string(&def); }
-inline string to_string(const fpta_value &value) { return to_string(&value); }
-inline string to_string(const fpta_name &id) { return to_string(&id); }
-inline string to_string(const fpta_filter &filter) {
-  return to_string(&filter);
-}
-} // namespace std
 
 inline fpta_value fpta_value::negative() const {
   if (type == fpta_signed_int)
@@ -3474,6 +3456,124 @@ schema2json(const fpta_schema_info *info,
             const fptu_json_options options = fptu_json_sort_Tags);
 
 } // namespace fpta
+
+//------------------------------------------------------------------------------
+
+#include <sstream>
+
+namespace std {
+
+inline string to_string(const fpta_error value) {
+  return string(fpta_strerror(value));
+}
+
+inline string to_string(const fpta_value_type value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_value *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_durability value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_level value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_index_type value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_filter_bits value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_cursor_options value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_seek_operations value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_put_options value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_name *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_filter *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_column_set *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_db *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_txn *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_cursor *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const struct fpta_table_schema *value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fpta_column_set &def) { return to_string(&def); }
+
+inline string to_string(const fpta_value &value) { return to_string(&value); }
+
+inline string to_string(const fpta_name &id) { return to_string(&id); }
+
+inline string to_string(const fpta_filter &filter) {
+  return to_string(&filter);
+}
+
+} // namespace std
 
 #endif /* __cplusplus */
 

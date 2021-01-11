@@ -1,4 +1,4 @@
-﻿##
+##
 ##  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
 ##  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
 ##
@@ -78,14 +78,18 @@ set_target_properties(fpta PROPERTIES
   VERSION "${FPTA_VERSION}"
   PUBLIC_HEADER "../fast_positive/tables.h;${FAST_POSITIVE_CONFIG_H};../externals/libfptu/fast_positive/defs.h;../externals/libfptu/fast_positive/tuples.h"
   PRIVATE_HEADER "../fast_positive/tables_internal.h;../externals/libfptu/fast_positive/tuples_internal.h;../externals/libmdbx/mdbx.h;../externals/t1ha/t1ha.h"
-  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
-  CXX_STANDARD ${FPTA_CXX_STANDARD}
-  CXX_STANDARD_REQUIRED ON
-  C_STANDARD 11
-  C_STANDARD_REQUIRED OFF
-  )
+  INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>)
 
-target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
+if(FPTA_CXX_STANDARD)
+  set_target_properties(fpta PROPERTIES
+    CXX_STANDARD ${FPTA_CXX_STANDARD} CXX_STANDARD_REQUIRED ON)
+  target_compile_features(fpta INTERFACE "cxx_std_${FPTA_CXX_STANDARD}")
+endif()
+if(FPTA_C_STANDARD)
+  set_target_properties(fpta PROPERTIES
+    C_STANDARD ${FPTA_C_STANDARD} C_STANDARD_REQUIRED ON)
+endif()
+
 add_dependencies(fpta t1ha)
 target_link_libraries(fpta
   PRIVATE fptu mdbx-static t1ha
@@ -116,7 +120,7 @@ if(CMAKE_VERSION VERSION_LESS 3.12)
     OBJECTS DESTINATION lib COMPONENT devel
     ARCHIVE DESTINATION lib COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-  #  PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+    PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
     INCLUDES DESTINATION include/fast_positive/ COMPONENT devel)
 else()
   install(TARGETS fpta EXPORT fpta
@@ -126,7 +130,7 @@ else()
     OBJECTS DESTINATION lib COMPONENT devel
     ARCHIVE DESTINATION lib COMPONENT devel
     PUBLIC_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
-  #  PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
+    PRIVATE_HEADER DESTINATION include/fast_positive INCLUDES DESTINATION include COMPONENT devel
     INCLUDES DESTINATION include/fast_positive/ COMPONENT devel)
 endif()
 
@@ -189,12 +193,27 @@ else()
 endif()
 
 # make a build-target triplet
+if(CMAKE_C_COMPILER_TARGET)
+  set(FPTA_BUILD_TARGET "${CMAKE_C_COMPILER_TARGET}")
+elseif(CMAKE_C_PLATFORM_ID AND NOT CMAKE_C_PLATFORM_ID STREQUAL CMAKE_SYSTEM_NAME)
+  string(STRIP "${CMAKE_C_PLATFORM_ID}-${CMAKE_SYSTEM_NAME}" FPTA_BUILD_TARGET)
+elseif(CMAKE_LIBRARY_ARCHITECTURE)
+  string(STRIP "${CMAKE_LIBRARY_ARCHITECTURE}-${CMAKE_SYSTEM_NAME}" FPTA_BUILD_TARGET)
+elseif(CMAKE_GENERATOR_PLATFORM AND NOT CMAKE_C_PLATFORM_ID STREQUAL CMAKE_SYSTEM_NAME)
+  string(STRIP "${CMAKE_GENERATOR_PLATFORM}-${CMAKE_SYSTEM_NAME}" FPTA_BUILD_TARGET)
+elseif(CMAKE_SYSTEM_ARCH)
+  string(STRIP "${CMAKE_SYSTEM_ARCH}-${CMAKE_SYSTEM_NAME}" FPTA_BUILD_TARGET)
+else()
+  string(STRIP "${CMAKE_SYSTEM_PROCESSOR}-${CMAKE_SYSTEM_NAME}" FPTA_BUILD_TARGET)
+endif()
+
+# provide build-type
 if(CMAKE_CONFIGURATION_TYPES)
   # via per-configuration define
-  add_definitions(-DFPTA_BUILD_TARGET="${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-$<CONFIG>")
-  set(FPTA_BUILD_TARGET FPTA_BUILD_TARGET)
+  add_definitions(-DFPTA_BUILD_TYPE="$<CONFIG>")
+  set(FPTA_BUILD_TYPE "<CONFIGURATION DEPENDENT>")
 else()
-  string(STRIP "\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-${CMAKE_BUILD_TYPE}\"" FPTA_BUILD_TARGET)
+  set(FPTA_BUILD_TYPE ${CMAKE_BUILD_TYPE})
 endif()
 
 # generate version file
@@ -219,8 +238,8 @@ string(REPLACE "  " " " FPTA_CMAKE_OPTIONS "-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTA
 string(STRIP "${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}" FPTA_BUILD_COMPILER)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.cxx.in ${CMAKE_CURRENT_BINARY_DIR}/version.cxx)
 
-set(options VERSION C_COMPILER CXX_COMPILER DEFINITIONS
-  ENABLE_GCOV ENABLE_GPROF ENABLE_VALGRIND ENABLE_BACKTRACE BUILD_TARGET
+set(options VERSION C_COMPILER CXX_COMPILER DEFINITIONS BUILD_TARGET BUILD_TYPE
+  ENABLE_GCOV ENABLE_GPROF ENABLE_VALGRIND ENABLE_BACKTRACE
   HAVE_BFD ENABLE_ASAN)
 foreach(option IN LISTS options)
   if(DEFINED "FPTA_${option}")

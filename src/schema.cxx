@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -65,9 +65,14 @@ namespace {
 
 static cxx11_constexpr_var fpta_shove_t dict_key = 0;
 
-/* Простейший словарь.
+/* Простейший cловарь схемы.
+ *
  * Реализован как вектор из пар <хеш, имя>, которые отсортированы по значению
- * хеша. Имена должны храниться снаружи, внутри вектора только ссылки. */
+ * хеша. Имена должны храниться снаружи, внутри вектора только ссылки.
+ *
+ * Также реализует методы чтения и записи словаря схемы в key-value БД,
+ * при этом в начало данных добавляется информация о версии fpta-формата и
+ * версии приложения создавшего БД. */
 class trivial_dict {
   typedef std::pair<fpta_shove_t, const char *> item;
   static cxx11_constexpr_var size_t mask_length =
@@ -121,14 +126,14 @@ class trivial_dict {
                                     const fpta_shove_t &b) const {
       return a.first > b;
     }
-    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+    /* bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const item &b) const {
       return a > b.first;
     }
     bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const fpta_shove_t &b) const {
       return a > b;
-    }
+    } */
   };
 
   struct eq {
@@ -139,10 +144,10 @@ class trivial_dict {
                                     const fpta_shove_t &b) const {
       return fpta_shove_eq(a.first, b);
     }
-    bool cxx11_constexpr operator()(const fpta_shove_t &a,
+    /* bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const item &b) const {
       return fpta_shove_eq(a, b.first);
-    }
+    } */
     bool cxx11_constexpr operator()(const fpta_shove_t &a,
                                     const fpta_shove_t &b) const {
       return fpta_shove_eq(a, b);
@@ -413,7 +418,7 @@ bool fpta_index_is_valid(const fpta_index_type index_type) {
   case fpta_primary_withdups_unordered:
   case fpta_primary_withdups_unordered_nullable_obverse:
     /* fpta_primary_withdups_unordered_nullable_reverse = НЕДОСТУПЕН,
-     * так как битовая коминация совпадает с fpta_noindex_nullable */
+     * так как битовая комбинация совпадает с fpta_noindex_nullable */
 
   case fpta_secondary_withdups_ordered_obverse:
   case fpta_secondary_withdups_ordered_obverse_nullable:
@@ -945,6 +950,12 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
                    data.iov_len - offsetof(fpta_table_stored_schema, columns));
 
       info->tables_count += 1;
+      info->columns_count += unsigned(id->table_schema->column_count());
+      for (size_t i = 1; i < id->table_schema->column_count(); ++i) {
+        if (!fpta_is_indexed(id->table_schema->column_shove(i)))
+          break;
+        info->indexes_count += 1;
+      }
     }
     rc = mdbx_cursor_get(mdbx_cursor, &key, &data, MDBX_NEXT);
   }

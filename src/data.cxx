@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -649,8 +649,8 @@ int fpta_put(fpta_txn *txn, fpta_name *table_id, fptu_ro row,
     return mdbx_put(txn->mdbx_txn, handle, &pk_key.mdbx, &row.sys, flags);
 
   fptu_ro old_row;
-#if defined(NDEBUG) && __cplusplus >= 201103L
-  cxx11_constexpr size_t likely_enough = 64u * 42u;
+#if defined(NDEBUG)
+  cxx11_constexpr_var size_t likely_enough = 64u * 42u;
 #else
   const size_t likely_enough = (time(nullptr) & 1) ? 11u : 64u * 42u;
 #endif /* NDEBUG */

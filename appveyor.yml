@@ -17,7 +17,11 @@ branches:
 
 configuration:
 - Debug
-- Release
+# MSVC-2019 hangs during code generation/optimization due to its own internal errors.
+# I have found out that the problem occurs because of the /Ob2 option (see https://github.com/erthink/libmdbx/issues/116).
+# So the simplest workaround is to using RelWithDebiInfo configuration for testing (cmake will uses /Ob1 option), instead of Release.
+# - Release
+- RelWithDebInfo
 
 platform:
 - Win32
@@ -51,9 +55,9 @@ build_script:
         if ($env:PLATFORM -eq "x64") {
             $generator = "$generator Win64"
         }
-        & cmake -G "$generator" -DCMAKE_CONFIGURATION_TYPES="Debug;Release" ..
+        & cmake -G "$generator" -DCMAKE_CONFIGURATION_TYPES="Debug;Release;RelWithDebInfo" ..
     } else {
-        & cmake -G "$generator" -A $env:PLATFORM -DCMAKE_CONFIGURATION_TYPES="Debug;Release" ..
+        & cmake -G "$generator" -A $env:PLATFORM -DCMAKE_CONFIGURATION_TYPES="Debug;Release;RelWithDebInfo" ..
     }
     if ($LastExitCode -ne 0) {
         throw "Exec: $ErrorMessage"

@@ -1,4 +1,10 @@
-﻿set(FPTU_CXX_STANDARD ${FPTA_CXX_STANDARD})
+if(FPTA_CXX_STANDARD)
+  set(FPTU_CXX_STANDARD ${FPTA_CXX_STANDARD})
+endif()
+if(FPTA_C_STANDARD)
+  set(FPTU_C_STANDARD ${FPTA_C_STANDARD})
+  set(MDBX_C_STANDARD ${FPTA_C_STANDARD})
+endif()
 
 if(CMAKE_VERSION VERSION_LESS 3.12)
   set(LIBFPTU_TYPE PILE)
@@ -33,6 +39,11 @@ set_target_properties(${t1ha_target} PROPERTIES
   PUBLIC_HEADER "t1ha/t1ha.h"
   INTERPROCEDURAL_OPTIMIZATION $<BOOL:${INTERPROCEDURAL_OPTIMIZATION}>
   )
+
+if(FPTA_C_STANDARD)
+  set_target_properties(${t1ha_target} PROPERTIES
+    C_STANDARD ${FPTA_C_STANDARD} C_STANDARD_REQUIRED ON)
+endif()
 
 ###############################################################################
 

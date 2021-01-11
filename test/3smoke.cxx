@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -3187,7 +3187,12 @@ TEST(Smoke, FilterAndRange) {
 
 //----------------------------------------------------------------------------
 
+#if FPTA_PRESERVE_GEOMETRY
 TEST(Smoke, Migration) {
+#else
+/* Тест невозможен, так как при FPTA_PRESERVE_GEOMETRY=OFF возникает deadlock */
+TEST(Smoke, DISABLED_Migration) {
+#endif
   /* Smoke-проверка сценария миграции с уменьшением размера БД.
    *
    * Сценарий:
@@ -4017,8 +4022,8 @@ TEST(Smoke, TransacionRestart) {
   EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
 
   // в запущенной читающей транзакции таблицы еще не должно быть
-  unsigned lag = ~42u;
-  EXPECT_EQ(FPTA_OK, fpta_transaction_lag(ro_txn, &lag, nullptr));
+  size_t lag = ~42u;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
   EXPECT_EQ(1u, lag);
   EXPECT_EQ(FPTA_NOTFOUND,
             fpta_table_info(ro_txn, &ro_table, nullptr, nullptr));
@@ -4064,12 +4069,12 @@ TEST(Smoke, TransacionRestart) {
   EXPECT_EQ(0u, stat.leaf_pages);
   EXPECT_EQ(0u, stat.total_bytes);
   lag = ~42u;
-  EXPECT_EQ(FPTA_OK, fpta_transaction_lag(ro_txn, &lag, nullptr));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
   EXPECT_EQ(1u, lag);
 
   // перезапускаем транзакцию чтения
   ASSERT_EQ(FPTA_OK, fpta_transaction_restart(ro_txn));
-  EXPECT_EQ(FPTA_OK, fpta_transaction_lag(ro_txn, &lag, nullptr));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
   EXPECT_EQ(0u, lag);
   // теперь в таблице должны появиться данные
   EXPECT_EQ(FPTA_OK, fpta_table_info(ro_txn, &ro_table, &row_count, &stat));
@@ -4629,8 +4634,8 @@ TEST(Smoke, CursorRERERE_drop_table) {
   EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
 
   // в запущенной читающей транзакции таблицы еще не должно быть
-  unsigned lag = ~42u;
-  EXPECT_EQ(FPTA_OK, fpta_transaction_lag(ro_txn, &lag, nullptr));
+  size_t lag = ~42u;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
   EXPECT_EQ(1u, lag);
   scoped_cursor_guard cursor_guard;
   fpta_cursor *cursor = (fpta_cursor *)&cursor;
@@ -4675,7 +4680,7 @@ TEST(Smoke, CursorRERERE_drop_table) {
   // из-за отсутствия данных
   EXPECT_EQ(FPTA_ECURSOR, fpta_cursor_rerere(cursor));
   EXPECT_NE(nullptr, cursor->mdbx_cursor);
-  EXPECT_EQ(FPTA_OK, fpta_transaction_lag(ro_txn, &lag, nullptr));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
   EXPECT_EQ(0u, lag);
   size_t row_count;
   ASSERT_EQ(FPTA_OK, fpta_cursor_count(cursor, &row_count, INT_MAX));
@@ -4977,7 +4982,7 @@ TEST(Smoke, DISABLED_IndexCosts) {
     }
   };
 
-  for (int n = 42, count = 0; !err && n <= 9'999'999; n = (n * 177) >> 7) {
+  for (int n = 42, count = 0; !err && n <= 9999999; n = (n * 177) >> 7) {
     //-------------------------------------------------------------------------
     // наполняем до следующей границы
     while (count < n) {
@@ -5021,9 +5026,11 @@ TEST(Smoke, DISABLED_IndexCosts) {
       y.cost_search_OlogN = snap.stat.cost_search_OlogN;
       y.cost_uniq_MOlogN = snap.stat.cost_uniq_MOlogN;
       y.cost_alter_MOlogN = snap.stat.cost_alter_MOlogN;
-      y.index_costs[0] = snap.stat.index_costs[0];
-      y.index_costs[1] = snap.stat.index_costs[1];
-      y.index_costs[2] = snap.stat.index_costs[2];
+
+      /* avoid warning out of bounds array access */
+      static_assert(
+          sizeof(y.index_costs[0]) == sizeof(snap.stat.index_costs[0]), "WTF?");
+      memcpy(y.index_costs, &snap.stat.index_costs, sizeof(y.index_costs));
 
       const auto i_minmax =
           std::minmax({y.cost_scan_O1N, y.cost_search_OlogN, y.cost_uniq_MOlogN,

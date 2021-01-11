@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -198,10 +198,6 @@ __hot MDBX_cmp_func *fpta_index_shove2comparator(fpta_shove_t shove) {
   case fptu_datetime:
     return fpta_idxcmp_type<uint64_t>;
   }
-}
-
-void *__fpta_index_shove2comparator(fpta_shove_t shove) {
-  return (void *)fpta_index_shove2comparator(shove);
 }
 
 static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
@@ -609,6 +605,8 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
       return FPTA_ETYPE;
 
     if (value.type == fpta_shoved) {
+      // значение уже преобразовано в формат ключа
+
       if (unlikely(value.binary_length > sizeof(key.place)))
         return FPTA_DATALEN_MISMATCH;
       if (unlikely(value.binary_data == nullptr))
@@ -628,6 +626,8 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
       return FPTA_ETYPE;
 
     if (value.type == fpta_shoved) {
+      // значение уже преобразовано в формат ключа
+
       if (unlikely(value.binary_length != sizeof(key.place.u64)))
         return FPTA_DATALEN_MISMATCH;
       if (unlikely(value.binary_data == nullptr))
@@ -669,7 +669,7 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_ETYPE;
 
   case fptu_uint16:
-    key.place.u32 = (uint16_t)value.sint;
+    key.place.u32 = uint16_t(value.sint);
     if (unlikely(value.sint != key.place.u32))
       return FPTA_EVALUE;
     key.mdbx.iov_len = sizeof(key.place.u32);
@@ -677,7 +677,7 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_SUCCESS;
 
   case fptu_uint32:
-    key.place.u32 = (uint32_t)value.sint;
+    key.place.u32 = uint32_t(value.sint);
     if (unlikely(value.sint != key.place.u32))
       return FPTA_EVALUE;
     key.mdbx.iov_len = sizeof(key.place.u32);
@@ -802,11 +802,6 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
   return fpta_normalize_key(index, key, copy);
 }
 
-int __fpta_index_value2key(fpta_shove_t shove, const fpta_value *value,
-                           void *key) {
-  return fpta_index_value2key(shove, *value, *(fpta_key *)key, true);
-}
-
 //----------------------------------------------------------------------------
 
 int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
@@ -891,14 +886,14 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_uint16: {
     if (unlikely(mdbx.iov_len != sizeof(uint32_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast16_t denil = numeric_traits<fptu_uint16>::denil(index);
-      if (unlikely(*(uint32_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.uint = *(uint32_t *)mdbx.iov_base;
-    if (unlikely(value.uint > UINT16_MAX))
+    uint32_t u32;
+    memcpy(&u32, mdbx.iov_base, 4);
+    if (unlikely(u32 > UINT16_MAX))
       goto return_corrupted;
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(u32 == numeric_traits<fptu_uint16>::denil(index)))
+      goto return_null;
+    value.uint = u32;
     value.type = fpta_unsigned_int;
     value.binary_length = sizeof(uint32_t);
     return FPTA_SUCCESS;
@@ -907,12 +902,12 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_uint32: {
     if (unlikely(mdbx.iov_len != sizeof(uint32_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast32_t denil = numeric_traits<fptu_uint32>::denil(index);
-      if (unlikely(*(uint32_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.uint = *(uint32_t *)mdbx.iov_base;
+    uint32_t u32;
+    memcpy(&u32, mdbx.iov_base, 4);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(u32 == numeric_traits<fptu_uint32>::denil(index)))
+      goto return_null;
+    value.uint = u32;
     value.type = fpta_unsigned_int;
     value.binary_length = sizeof(uint32_t);
     return FPTA_SUCCESS;
@@ -963,12 +958,10 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_uint64: {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast64_t denil = numeric_traits<fptu_uint64>::denil(index);
-      if (unlikely(*(uint64_t *)mdbx.iov_base == denil))
-        goto return_null;
-    }
-    value.uint = *(uint64_t *)mdbx.iov_base;
+    memcpy(&value.uint, mdbx.iov_base, 8);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(value.uint == numeric_traits<fptu_uint64>::denil(index)))
+      goto return_null;
     value.type = fpta_unsigned_int;
     value.binary_length = sizeof(uint64_t);
     return FPTA_SUCCESS;
@@ -991,12 +984,10 @@ int fpta_index_key2value(fpta_shove_t shove, MDBX_val mdbx, fpta_value &value) {
   case fptu_datetime: {
     if (unlikely(mdbx.iov_len != sizeof(uint64_t)))
       goto return_corrupted;
-    value.datetime.fixedpoint = *(uint64_t *)mdbx.iov_base;
-    if (fpta_is_indexed_and_nullable(index)) {
-      const uint_fast64_t denil = FPTA_DENIL_DATETIME_BIN;
-      if (unlikely(value.datetime.fixedpoint == denil))
-        goto return_null;
-    }
+    memcpy(&value.datetime.fixedpoint, mdbx.iov_base, 8);
+    if (fpta_is_indexed_and_nullable(index) &&
+        unlikely(value.datetime.fixedpoint == FPTA_DENIL_DATETIME_BIN))
+      goto return_null;
     value.type = fpta_datetime;
     value.binary_length = sizeof(uint64_t);
     return FPTA_SUCCESS;
@@ -1108,6 +1099,10 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
     key.mdbx.iov_base = &key.place.u32;
     return FPTA_SUCCESS;
 
+  case fptu_datetime:
+    static_assert(sizeof(payload->dt) == sizeof(payload->u64), "WTF?");
+    assert(payload->dt.fixedpoint == payload->u64);
+    __fallthrough;
   case fptu_uint64:
     key.place.u64 = payload->u64;
     key.mdbx.iov_len = sizeof(key.place.u64);
@@ -1125,7 +1120,6 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
     key.mdbx.iov_base = &key.place.u32;
     return FPTA_SUCCESS;
 
-  case fptu_datetime:
   case fptu_int64:
   case fptu_fp64:
     static_assert(sizeof(key.place.f64) == sizeof(key.place.i64),
@@ -1165,3 +1159,18 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
 
   return fpta_normalize_key(index, key, copy);
 }
+
+//----------------------------------------------------------------------------
+
+#if FPTA_ENABLE_TESTS
+
+const void *__fpta_index_shove2comparator(fpta_shove_t shove) {
+  return (const void *)fpta_index_shove2comparator(shove);
+}
+
+int __fpta_index_value2key(fpta_shove_t shove, const fpta_value *value,
+                           void *key) {
+  return fpta_index_value2key(shove, *value, *(fpta_key *)key, true);
+}
+
+#endif /* FPTA_ENABLE_TESTS */

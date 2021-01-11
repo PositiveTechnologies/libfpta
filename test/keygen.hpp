@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tables (libfpta), aka Позитивные Таблицы.
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -116,27 +116,47 @@ template <fptu_type data_type> struct probe_triplet {
   void operator()(const fpta_value &key, int order, bool duplicate = false) {
     if (!duplicate)
       ++n;
-    obverse.emplace(std::piecewise_construct, std::forward_as_tuple(key),
-                    std::forward_as_tuple(order));
-    unordered.emplace(std::piecewise_construct, std::forward_as_tuple(key),
-                      std::forward_as_tuple(order));
+    EXPECT_EQ(!duplicate,
+              obverse
+                  .emplace(std::piecewise_construct, std::forward_as_tuple(key),
+                           std::forward_as_tuple(order))
+                  .second);
+
+    EXPECT_EQ(!duplicate,
+              unordered
+                  .emplace(std::piecewise_construct, std::forward_as_tuple(key),
+                           std::forward_as_tuple(order))
+                  .second);
+
     // повторяем для проверки сравнения (эти вставки не должны произойти)
-    obverse.emplace(std::piecewise_construct, std::forward_as_tuple(key),
-                    std::forward_as_tuple(INT_MIN));
-    unordered.emplace(std::piecewise_construct, std::forward_as_tuple(key),
-                      std::forward_as_tuple(INT_MIN));
+    EXPECT_FALSE(obverse
+                     .emplace(std::piecewise_construct,
+                              std::forward_as_tuple(key),
+                              std::forward_as_tuple(INT_MIN))
+                     .second);
+    EXPECT_FALSE(unordered
+                     .emplace(std::piecewise_construct,
+                              std::forward_as_tuple(key),
+                              std::forward_as_tuple(INT_MIN))
+                     .second);
 
     if (has_reverse()) {
       assert(key.type == fpta_binary || key.type == fpta_string);
       uint8_t *begin = (uint8_t *)key.binary_data;
       uint8_t *end = begin + key.binary_length;
       std::reverse(begin, end);
-      reverse.emplace(std::piecewise_construct, std::forward_as_tuple(key),
-                      std::forward_as_tuple(order));
-      // повторяем для проверки сравнения (эта вставка не должна
-      // произойти)
-      reverse.emplace(std::piecewise_construct, std::forward_as_tuple(key),
-                      std::forward_as_tuple(INT_MIN));
+      EXPECT_EQ(!duplicate, reverse
+                                .emplace(std::piecewise_construct,
+                                         std::forward_as_tuple(key),
+                                         std::forward_as_tuple(order))
+                                .second);
+
+      // повторяем для проверки сравнения (эта вставка не должна произойти)
+      EXPECT_FALSE(reverse
+                       .emplace(std::piecewise_construct,
+                                std::forward_as_tuple(key),
+                                std::forward_as_tuple(INT_MIN))
+                       .second);
     }
   }
 
