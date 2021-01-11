@@ -988,6 +988,12 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
                    data.iov_len - offsetof(fpta_table_stored_schema, columns));
 
       info->tables_count += 1;
+      info->columns_count += unsigned(id->table_schema->column_count());
+      for (size_t i = 1; i < id->table_schema->column_count(); ++i) {
+        if (!fpta_is_indexed(id->table_schema->column_shove(i)))
+          break;
+        info->indexes_count += 1;
+      }
     }
     rc = mdbx_cursor_get(mdbx_cursor, &key, &data, MDBX_NEXT);
   }
