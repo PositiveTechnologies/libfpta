@@ -61,17 +61,6 @@
 
 /*****************************************************************************/
 
-/* Workaround for Coverity Scan */
-#if defined(__COVERITY__) && __GNUC_PREREQ(7, 0) && !defined(__cplusplus)
-typedef float _Float32;
-typedef double _Float32x;
-typedef double _Float64;
-typedef long double _Float64x;
-typedef float _Float128 __attribute__((__mode__(__TF__)));
-typedef __complex__ float __cfloat128 __attribute__((__mode__(__TC__)));
-typedef _Complex float __cfloat128 __attribute__((__mode__(__TC__)));
-#endif /* Workaround for Coverity Scan */
-
 #include <assert.h>  /* for assert() */
 #include <stdbool.h> /* for bool */
 #include <string.h>  /* for memcpy() */
@@ -1048,8 +1037,9 @@ add64carry_last(unsigned carry, uint64_t base, uint64_t addend, uint64_t *sum) {
 static __maybe_unused __always_inline uint64_t mul_64x64_128(uint64_t a,
                                                              uint64_t b,
                                                              uint64_t *h) {
-#if defined(__SIZEOF_INT128__) ||                                              \
-    (defined(_INTEGRAL_MAX_BITS) && _INTEGRAL_MAX_BITS >= 128)
+#if (defined(__SIZEOF_INT128__) ||                                             \
+     (defined(_INTEGRAL_MAX_BITS) && _INTEGRAL_MAX_BITS >= 128)) &&            \
+    (!defined(__LCC__) || __LCC__ != 124)
   __uint128_t r = (__uint128_t)a * (__uint128_t)b;
   /* modern GCC could nicely optimize this */
   *h = (uint64_t)(r >> 64);
