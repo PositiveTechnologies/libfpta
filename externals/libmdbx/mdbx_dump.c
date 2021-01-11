@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY be35a31257f96b3492ef130735dc0354ef80645eb3fea78d345d12e6476e5414_v0_8_1_1_g35313d18
+#define MDBX_BUILD_SOURCERY b6ac92151264083ace5c02ce97c13b1266a6206a25514f04d3b09951a599f8ea_v0_8_2_8_g19e4fc14
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -113,6 +113,11 @@
 #pragma warning(disable : 4200) /* nonstandard extension used: zero-sized array in struct/union */
 #endif                          /* _MSC_VER (warnings) */
 
+#if defined(MDBX_TOOLS)
+#undef MDBX_DEPRECATED
+#define MDBX_DEPRECATED
+#endif /* MDBX_TOOLS */
+
 #include "mdbx.h"
 /*
  * Copyright 2015-2020 Leonid Yuriev <leo@yuriev.ru>
@@ -180,6 +185,10 @@
 
 #ifndef __has_include
 #   define __has_include(x) (0)
+#endif
+
+#ifndef __has_cpp_attribute
+#   define __has_cpp_attribute(x) (0)
 #endif
 
 #if __has_feature(thread_sanitizer)
@@ -259,11 +268,20 @@
 #endif /* __noop */
 
 #ifndef __fallthrough
-#   if __GNUC_PREREQ(7, 0) || __has_attribute(__fallthrough__)
-#       define __fallthrough __attribute__((__fallthrough__))
-#   else
-#       define __fallthrough __noop()
-#   endif
+#  if defined(__cplusplus) && __has_cpp_attribute(fallthrough)
+#    define __fallthrough [[fallthrough]]
+#  elif __GNUC_PREREQ(8, 0) && defined(__cplusplus) && __cplusplus >= 201103L
+#    define __fallthrough [[fallthrough]]
+#  elif __GNUC_PREREQ(7, 0) &&                                                 \
+    (!defined(__LCC__) || (__LCC__ == 124 && __LCC_MINOR__ >= 12) ||           \
+     (__LCC__ == 125 && __LCC_MINOR__ >= 5) || (__LCC__ >= 126))
+#    define __fallthrough __attribute__((__fallthrough__))
+#  elif defined(__clang__) && defined(__cplusplus) && __cplusplus >= 201103L &&\
+    __has_feature(cxx_attributes) && __has_warning("-Wimplicit-fallthrough")
+#    define __fallthrough [[clang::fallthrough]]
+#  else
+#    define __fallthrough
+#  endif
 #endif /* __fallthrough */
 
 #ifndef __unreachable
@@ -316,7 +334,9 @@
      * Such a function can be subject to common subexpression elimination
      * and loop optimization just as an arithmetic operator would be.
      * These functions should be declared with the attribute pure. */
-#   if defined(__GNUC__) || __has_attribute(__pure__)
+#   if (defined(__GNUC__) || __has_attribute(__pure__)) &&                     \
+        (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ \
+         || !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #       define __pure_function __attribute__((__pure__))
 #   else
 #       define __pure_function
@@ -333,7 +353,9 @@
      * data pointed to must not be declared const. Likewise, a function
      * that calls a non-const function usually must not be const.
      * It does not make sense for a const function to return void. */
-#   if defined(__GNUC__) || __has_attribute(__const__)
+#   if (defined(__GNUC__) || __has_attribute(__pure__)) &&                     \
+        (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ \
+         || !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #       define __const_function __attribute__((__const__))
 #   else
 #       define __const_function
@@ -1219,7 +1241,7 @@ MDBX_INTERNAL_FUNC int mdbx_mmap(const int flags, mdbx_mmap_t *map,
                                  const unsigned options);
 MDBX_INTERNAL_FUNC int mdbx_munmap(mdbx_mmap_t *map);
 MDBX_INTERNAL_FUNC int mdbx_mresize(int flags, mdbx_mmap_t *map, size_t current,
-                                    size_t wanna);
+                                    size_t wanna, const bool may_move);
 #if defined(_WIN32) || defined(_WIN64)
 typedef struct {
   unsigned limit, count;
@@ -1788,10 +1810,6 @@ extern LIBMDBX_API const char *const mdbx_sourcery_anchor;
 #define MAIN_DBI 1
 /* Number of DBs in metapage (free and main) - also hardcoded elsewhere */
 #define CORE_DBS 2
-#define MAX_DBI (INT16_MAX - CORE_DBS)
-#if MAX_DBI != MDBX_MAX_DBI
-#error "Opps, MAX_DBI != MDBX_MAX_DBI"
-#endif
 
 /* Number of meta pages - also hardcoded elsewhere */
 #define NUM_METAS 3
@@ -2314,6 +2332,9 @@ struct MDBX_txn {
 #define MDBX_TXN_BEGIN_FLAGS                                                   \
   (MDBX_NOMETASYNC | MDBX_SAFE_NOSYNC | MDBX_MAPASYNC | MDBX_RDONLY |          \
    MDBX_TRYTXN)
+  /* Additional flag for mdbx_sync_locked() */
+#define MDBX_SHRINK_ALLOWED UINT32_C(0x40000000)
+
   /* internal txn flags */
 #define MDBX_TXN_FINISHED 0x01  /* txn is finished or never began */
 #define MDBX_TXN_ERROR 0x02     /* txn is unusable after an error */
@@ -2323,6 +2344,16 @@ struct MDBX_txn {
   /* most operations on the txn are currently illegal */
 #define MDBX_TXN_BLOCKED                                                       \
   (MDBX_TXN_FINISHED | MDBX_TXN_ERROR | MDBX_TXN_HAS_CHILD)
+
+#define TXN_FLAGS                                                              \
+  (MDBX_TXN_FINISHED | MDBX_TXN_ERROR | MDBX_TXN_DIRTY | MDBX_TXN_SPILLS |     \
+   MDBX_TXN_HAS_CHILD)
+
+#if (TXN_FLAGS & MDBX_TXN_BEGIN_FLAGS) ||                                      \
+    ((MDBX_TXN_BEGIN_FLAGS | TXN_FLAGS) & MDBX_SHRINK_ALLOWED)
+#error "Oops, some flags overlapped or wrong"
+#endif
+
   unsigned mt_flags;
   /* The ID of this transaction. IDs are integers incrementing from 1.
    * Only committed write transactions increment the ID. If a transaction
@@ -2338,17 +2369,17 @@ struct MDBX_txn {
   /* In write txns, array of cursors for each DB */
   MDBX_cursor **mt_cursors;
 
-  /* Transaction DB Flags */
-#define DB_DIRTY MDBX_TBL_DIRTY /* DB was written in this txn */
-#define DB_STALE MDBX_TBL_STALE /* Named-DB record is older than txnID */
-#define DB_FRESH MDBX_TBL_FRESH /* Named-DB handle opened in this txn */
-#define DB_CREAT MDBX_TBL_CREAT /* Named-DB handle created in this txn */
-#define DB_VALID 0x10           /* DB handle is valid, see also MDBX_VALID */
-#define DB_USRVALID 0x20        /* As DB_VALID, but not set for FREE_DBI */
-#define DB_DUPDATA 0x40         /* DB is MDBX_DUPSORT data */
-#define DB_AUDITED 0x80         /* Internal flag for accounting during audit */
+  /* Transaction DBI Flags */
+#define DBI_DIRTY MDBX_DBI_DIRTY /* DB was written in this txn */
+#define DBI_STALE MDBX_DBI_STALE /* Named-DB record is older than txnID */
+#define DBI_FRESH MDBX_DBI_FRESH /* Named-DB handle opened in this txn */
+#define DBI_CREAT MDBX_DBI_CREAT /* Named-DB handle created in this txn */
+#define DBI_VALID 0x10           /* DB handle is valid, see also DB_VALID */
+#define DBI_USRVALID 0x20        /* As DB_VALID, but not set for FREE_DBI */
+#define DBI_DUPDATA 0x40         /* DB is MDBX_DUPSORT data */
+#define DBI_AUDITED 0x80         /* Internal flag for accounting during audit */
   /* Array of flags for each DB */
-  uint8_t *mt_dbstate;
+  uint8_t *mt_dbistate;
   /* Number of DB records in use, or 0 when the txn is finished.
    * This number only ever increments until the txn finishes; we
    * don't decrement it when individual DB handles are closed. */
@@ -2431,8 +2462,8 @@ struct MDBX_cursor {
   MDBX_db *mc_db;
   /* The database auxiliary record for this cursor */
   MDBX_dbx *mc_dbx;
-  /* The mt_dbstate for this database */
-  uint8_t *mc_dbstate;
+  /* The mt_dbistate for this database */
+  uint8_t *mc_dbistate;
   unsigned mc_snum; /* number of pushed pages */
   unsigned mc_top;  /* index of top page, normally mc_snum-1 */
 
@@ -2467,8 +2498,8 @@ typedef struct MDBX_xcursor {
   MDBX_db mx_db;
   /* The auxiliary DB record for this Dup DB */
   MDBX_dbx mx_dbx;
-  /* The mt_dbstate for this Dup DB */
-  uint8_t mx_dbstate;
+  /* The mt_dbistate for this Dup DB */
+  uint8_t mx_dbistate;
 } MDBX_xcursor;
 
 typedef struct MDBX_cursor_couple {
@@ -2482,12 +2513,11 @@ struct MDBX_env {
   uint32_t me_signature;
   /* Failed to update the meta page. Probably an I/O error. */
 #define MDBX_FATAL_ERROR UINT32_C(0x80000000)
-  /* Additional flag for mdbx_sync_locked() */
-#define MDBX_SHRINK_ALLOWED UINT32_C(0x40000000)
   /* Some fields are initialized. */
 #define MDBX_ENV_ACTIVE UINT32_C(0x20000000)
   /* me_txkey is set */
 #define MDBX_ENV_TXKEY UINT32_C(0x10000000)
+#define ENV_INTERNAL_FLAGS (MDBX_FATAL_ERROR | MDBX_ENV_ACTIVE | MDBX_ENV_TXKEY)
   uint32_t me_flags;
   mdbx_mmap_t me_dxb_mmap; /*  The main data file */
 #define me_map me_dxb_mmap.dxb
@@ -2885,12 +2915,22 @@ typedef struct MDBX_node {
   uint8_t mn_data[/* C99 */]; /* key and data are appended here */
 } MDBX_node;
 
-#define MDBX_VALID 0x8000 /* DB handle is valid, for me_dbflags */
-#define PERSISTENT_FLAGS (0xffff & ~(MDBX_VALID | MDBX_NOSUBDIR))
-/* mdbx_dbi_open() flags */
-#define VALID_FLAGS                                                            \
+#define DB_PERSISTENT_FLAGS                                                    \
   (MDBX_REVERSEKEY | MDBX_DUPSORT | MDBX_INTEGERKEY | MDBX_DUPFIXED |          \
-   MDBX_INTEGERDUP | MDBX_REVERSEDUP | MDBX_CREATE | MDBX_ACCEDE)
+   MDBX_INTEGERDUP | MDBX_REVERSEDUP)
+
+/* mdbx_dbi_open() flags */
+#define DB_USABLE_FLAGS (DB_PERSISTENT_FLAGS | MDBX_CREATE | MDBX_ACCEDE)
+
+#define DB_VALID 0x8000 /* DB handle is valid, for me_dbflags */
+#define DB_INTERNAL_FLAGS DB_VALID
+
+#if DB_INTERNAL_FLAGS & DB_USABLE_FLAGS
+#error "Oops, some flags overlapped or wrong"
+#endif
+#if DB_PERSISTENT_FLAGS & ~DB_USABLE_FLAGS
+#error "Oops, some flags overlapped or wrong"
+#endif
 
 /* max number of pages to commit in one writev() call */
 #define MDBX_COMMIT_PAGES 64
@@ -2949,6 +2989,28 @@ floor_powerof2(size_t value, size_t granularity) {
 static __pure_function __always_inline __maybe_unused size_t
 ceil_powerof2(size_t value, size_t granularity) {
   return floor_powerof2(value + granularity - 1, granularity);
+}
+
+/* Only a subset of the mdbx_env flags can be changed
+ * at runtime. Changing other flags requires closing the
+ * environment and re-opening it with the new flags. */
+#define ENV_CHANGEABLE_FLAGS                                                   \
+  (MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC | MDBX_MAPASYNC | MDBX_NOMEMINIT |       \
+   MDBX_COALESCE | MDBX_PAGEPERTURB | MDBX_ACCEDE)
+#define ENV_CHANGELESS_FLAGS                                                   \
+  (MDBX_NOSUBDIR | MDBX_RDONLY | MDBX_WRITEMAP | MDBX_NOTLS | MDBX_NORDAHEAD | \
+   MDBX_LIFORECLAIM | MDBX_EXCLUSIVE)
+#define ENV_USABLE_FLAGS (ENV_CHANGEABLE_FLAGS | ENV_CHANGELESS_FLAGS)
+
+static __maybe_unused void static_checks(void) {
+  STATIC_ASSERT_MSG(INT16_MAX - CORE_DBS == MDBX_MAX_DBI,
+                    "Oops, MDBX_MAX_DBI or CORE_DBS?");
+  STATIC_ASSERT_MSG((MDBX_ACCEDE | MDBX_CREATE) ==
+                        ((DB_USABLE_FLAGS | DB_INTERNAL_FLAGS) &
+                         (ENV_USABLE_FLAGS | ENV_INTERNAL_FLAGS)),
+                    "Oops, some flags overlapped or wrong");
+  STATIC_ASSERT_MSG((ENV_INTERNAL_FLAGS & ENV_USABLE_FLAGS) == 0,
+                    "Oops, some flags overlapped or wrong");
 }
 
 #include <ctype.h>
