@@ -62,7 +62,8 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND
     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in" AND
     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" AND
     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/man1" AND
-    EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/mdbx_chk.c")
+    EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/mdbx_chk.c" AND
+    EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/mdbx.c++")
   set(MDBX_AMALGAMATED_SOURCE FALSE)
   find_program(GIT git)
   if(NOT GIT)
@@ -71,6 +72,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND
   set(MDBX_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" AND
     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mdbx.c" AND
+    EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mdbx.c++" AND
     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.h.in" AND
     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/man1" AND
     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mdbx_chk.c")
@@ -83,11 +85,36 @@ endif()
 if(DEFINED PROJECT_NAME)
   set(SUBPROJECT ON)
   set(NOT_SUBPROJECT OFF)
+  if(NOT MDBX_AMALGAMATED_SOURCE AND NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING OFF)
+  endif()
   enable_language(C)
 else()
   set(SUBPROJECT OFF)
   set(NOT_SUBPROJECT ON)
   project(libmdbx C)
+  if(NOT MDBX_AMALGAMATED_SOURCE AND NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING ON)
+  endif()
+endif()
+
+if(MDBX_AMALGAMATED_SOURCE AND DEFINED MDBX_ENABLE_TESTS AND MDBX_ENABLE_TESTS)
+  message(WARNING "MDBX_ENABLE_TESTS=${MDBX_ENABLE_TESTS}: But amalgamated source code don't includes tests.")
+  set(MDBX_ENABLE_TESTS OFF)
+endif()
+
+# Try to find a C++ compiler unless sure that this is unnecessary.
+if (NOT CMAKE_CXX_COMPILER_LOADED)
+  include(CheckLanguage)
+  if(NOT DEFINED MDBX_BUILD_CXX OR MDBX_BUILD_CXX
+      OR (NOT MDBX_AMALGAMATED_SOURCE AND (NOT DEFINED MDBX_ENABLE_TESTS OR MDBX_ENABLE_TESTS)))
+    check_language(CXX)
+    if(CMAKE_CXX_COMPILER)
+      enable_language(CXX)
+    endif()
+  endif()
+else()
+  enable_language(CXX)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -294,6 +321,25 @@ else()
 endif(SUBPROJECT)
 
 list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 HAS_CXX11)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_20 HAS_CXX20)
+if(NOT DEFINED MDBX_CXX_STANDARD)
+  if(DEFINED CMAKE_CXX_STANDARD)
+    set(MDBX_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+  elseif(NOT HAS_CXX20 LESS 0)
+    set(MDBX_CXX_STANDARD 20)
+  elseif(NOT HAS_CXX17 LESS 0)
+    set(MDBX_CXX_STANDARD 17)
+  elseif(NOT HAS_CXX14 LESS 0)
+    set(MDBX_CXX_STANDARD 14)
+  elseif(NOT HAS_CXX11 LESS 0)
+    set(MDBX_CXX_STANDARD 11)
+  else()
+    set(MDBX_CXX_STANDARD 98)
+  endif()
+endif()
 if(NOT DEFINED MDBX_C_STANDARD)
   # MSVC >= 19.28 (Microsoft Visual Studio 16.8) is mad!
   #               It unable process Windows SDK headers in the C11 mode!
@@ -302,9 +348,6 @@ if(NOT DEFINED MDBX_C_STANDARD)
   else()
     set(MDBX_C_STANDARD 11)
   endif()
-endif()
-if(MDBX_C_STANDARD)
-  message(STATUS "Use C${MDBX_C_STANDARD} for libmdbx")
 endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND EXISTS "${MDBX_SOURCE_DIR}/ntdll.def")
@@ -426,14 +469,35 @@ if(NOT MDBX_AMALGAMATED_SOURCE)
   add_mdbx_option(MDBX_ALLOY_BUILD "Build MDBX library through single/alloyed object file" ON)
 endif()
 
-if(MDBX_BUILD_TOOLS AND MDBX_BUILD_SHARED_LIBRARY)
+if((MDBX_BUILD_TOOLS OR MDBX_ENABLE_TESTS) AND MDBX_BUILD_SHARED_LIBRARY)
   add_mdbx_option(MDBX_LINK_TOOLS_NONSTATIC "Link MDBX tools with non-static libmdbx" OFF)
 else()
   unset(MDBX_LINK_TOOLS_NONSTATIC CACHE)
 endif()
 
+if(CMAKE_CXX_COMPILER_LOADED AND MDBX_CXX_STANDARD GREATER_EQUAL 11 AND MDBX_CXX_STANDARD LESS 83)
+  if(NOT MDBX_AMALGAMATED_SOURCE)
+    option(MDBX_ENABLE_TESTS "Build MDBX tests" ${BUILD_TESTING})
+  endif()
+  if(NOT MDBX_AVOID_CRT
+      AND NOT (CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.8)
+      AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4)
+      AND NOT (MSVC AND MSVC_VERSION LESS 1900))
+    option(MDBX_BUILD_CXX "Build C++ portion" ON)
+  else()
+    set(MDBX_BUILD_CXX FALSE)
+  endif()
+else()
+  set(MDBX_BUILD_CXX FALSE)
+  set(MDBX_ENABLE_TESTS FALSE)
+endif()
+
 ################################################################################
 ################################################################################
+
+if(MDBX_BUILD_CXX AND NOT CMAKE_CXX_COMPILER_LOADED)
+  message(FATAL_ERROR "MDBX_BUILD_CXX=${MDBX_BUILD_CXX}: The C++ compiler is required to build the C++API.")
+endif()
 
 # Get version
 fetch_version(MDBX "${CMAKE_CURRENT_SOURCE_DIR}" FALSE)
@@ -465,6 +529,13 @@ else()
     include_directories("${MDBX_SOURCE_DIR}")
   endif()
 endif(MDBX_AMALGAMATED_SOURCE)
+if(MDBX_BUILD_CXX)
+  message(STATUS "Use C${MDBX_C_STANDARD} and C++${MDBX_CXX_STANDARD} for libmdbx")
+  list(APPEND LIBMDBX_PUBLIC_HEADERS mdbx.h++)
+  list(APPEND LIBMDBX_SOURCES "${MDBX_SOURCE_DIR}/mdbx.c++" mdbx.h++)
+else()
+  message(STATUS "Use C${MDBX_C_STANDARD} for libmdbx but C++ portion is disabled")
+endif()
 
 macro(target_setup_options TARGET)
   if(DEFINED INTERPROCEDURAL_OPTIMIZATION)
@@ -473,6 +544,10 @@ macro(target_setup_options TARGET)
   endif()
   set_target_properties(${TARGET} PROPERTIES
     C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
+  if(MDBX_BUILD_CXX)
+    set_target_properties(${TARGET} PROPERTIES
+      CXX_STANDARD ${MDBX_CXX_STANDARD} CXX_STANDARD_REQUIRED ON)
+  endif()
   if(CC_HAS_FASTMATH)
     target_compile_options(${TARGET} PRIVATE "-ffast-math")
   endif()
@@ -496,6 +571,9 @@ macro(libmdbx_setup_libs TARGET MODE)
   elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
     target_link_libraries(${TARGET} ${MODE} log)
   endif()
+  if(LIBCXX_FILESYSTEM AND MDBX_BUILD_CXX)
+    target_link_libraries(${TARGET} ${MODE} ${LIBCXX_FILESYSTEM})
+  endif()
 endmacro()
 
 # build static library
@@ -503,10 +581,6 @@ if(MDBX_INSTALL_STATIC)
   add_library(mdbx-static STATIC ${LIBMDBX_SOURCES})
 else()
   add_library(mdbx-static STATIC EXCLUDE_FROM_ALL ${LIBMDBX_SOURCES})
-endif()
-if(MDBX_C_STANDARD)
-  set_target_properties(mdbx-static PROPERTIES
-    C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
 endif()
 set_target_properties(mdbx-static PROPERTIES PUBLIC_HEADER "${LIBMDBX_PUBLIC_HEADERS}")
 target_compile_definitions(mdbx-static PRIVATE MDBX_BUILD_SHARED_LIBRARY=0)
@@ -523,10 +597,6 @@ endif()
 # build shared library
 if(MDBX_BUILD_SHARED_LIBRARY)
   add_library(mdbx SHARED ${LIBMDBX_SOURCES})
-  if(MDBX_C_STANDARD)
-    set_target_properties(mdbx PROPERTIES
-      C_STANDARD ${MDBX_C_STANDARD} C_STANDARD_REQUIRED ON)
-  endif()
   set_target_properties(mdbx PROPERTIES PUBLIC_HEADER "${LIBMDBX_PUBLIC_HEADERS}")
   target_compile_definitions(mdbx PRIVATE LIBMDBX_EXPORTS MDBX_BUILD_SHARED_LIBRARY=1 INTERFACE LIBMDBX_IMPORTS)
   target_setup_options(mdbx)
@@ -678,10 +748,16 @@ endif(MDBX_INSTALL_STATIC)
 # collect options & build info
 string(TIMESTAMP MDBX_BUILD_TIMESTAMP UTC)
 set(MDBX_BUILD_FLAGS ${CMAKE_C_FLAGS})
+if(MDBX_BUILD_CXX)
+  set(MDBX_BUILD_FLAGS ${CMAKE_CXX_FLAGS})
+endif()
 
 # append cmake's build-type flags and defines
 if(NOT CMAKE_CONFIGURATION_TYPES)
   list(APPEND MDBX_BUILD_FLAGS ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE_UPPERCASE}})
+  if(MDBX_BUILD_CXX)
+    list(APPEND MDBX_BUILD_FLAGS ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE_UPPERCASE}})
+  endif()
 endif()
 
 # choice target to fetch definitions and options
@@ -748,7 +824,7 @@ else()
 endif()
 
 # options
-set(options VERSION C_COMPILER MDBX_BUILD_TARGET MDBX_BUILD_TYPE)
+set(options VERSION C_COMPILER CXX_COMPILER MDBX_BUILD_TARGET MDBX_BUILD_TYPE)
 foreach(item IN LISTS options)
   if(DEFINED ${item})
     set(value "${${item}}")
@@ -768,6 +844,15 @@ endforeach(item)
 configure_file("${MDBX_SOURCE_DIR}/config.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/config.h" ESCAPE_QUOTES)
 add_definitions(-DMDBX_CONFIG_H="${CMAKE_CURRENT_BINARY_DIR}/config.h")
+
+################################################################################
+
+if(NOT MDBX_AMALGAMATED_SOURCE AND MDBX_ENABLE_TESTS)
+  if(NOT CMAKE_CXX_COMPILER_LOADED)
+    message(FATAL_ERROR "MDBX_ENABLE_TESTS=${MDBX_ENABLE_TESTS}: The C++ compiler is required to build the tests.")
+  endif()
+  add_subdirectory(test)
+endif()
 
 ################################################################################
 
