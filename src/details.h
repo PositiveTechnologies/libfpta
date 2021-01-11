@@ -187,10 +187,6 @@ inline fpta_shove_t fpta_shove_name(const char *name,
   return (shove && type == fpta_table) ? shove | fpta_flag_table : shove;
 }
 
-static __inline bool fpta_dbi_shove_is_pk(const fpta_shove_t dbi_shove) {
-  return 0 == (dbi_shove & (fpta_column_typeid_mask | fpta_column_index_mask));
-}
-
 static __inline fpta_shove_t fpta_dbi_shove(const fpta_shove_t table_shove,
                                             const size_t index_id) {
   assert(table_shove > fpta_flag_table);
@@ -201,7 +197,6 @@ static __inline fpta_shove_t fpta_dbi_shove(const fpta_shove_t table_shove,
   dbi_shove += index_id;
 
   assert(fpta_shove_eq(table_shove, dbi_shove));
-  assert(fpta_dbi_shove_is_pk(dbi_shove) == (index_id == 0));
   return dbi_shove;
 }
 
@@ -224,10 +219,13 @@ static __inline fpta_shove_t fpta_data_shove(const fpta_shove_t *shoves_defs,
 }
 
 int fpta_dbi_open(fpta_txn *txn, const fpta_shove_t dbi_shove,
-                  MDBX_dbi &__restrict handle, const MDBX_db_flags_t dbi_flags);
+                  MDBX_dbi &__restrict handle, const MDBX_db_flags_t dbi_flags,
+                  const fpta_shove_t key_shove, const fpta_shove_t data_shove);
 
 int fpta_dbicache_open(fpta_txn *txn, const fpta_shove_t shove,
                        MDBX_dbi &handle, const MDBX_db_flags_t dbi_flags,
+                       const fpta_shove_t key_shove,
+                       const fpta_shove_t data_shove,
                        unsigned *const cache_hint);
 
 MDBX_dbi fpta_dbicache_remove(fpta_db *db, const fpta_shove_t shove,

@@ -1216,8 +1216,9 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     assert(i < fpta_max_indexes);
 
     const MDBX_db_flags_t dbi_flags = fpta_dbi_flags(column_set->shoves, i);
-    int err =
-        fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags);
+    const fpta_shove_t data_shove = fpta_data_shove(column_set->shoves, i);
+    int err = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i],
+                            dbi_flags, shove, data_shove);
     if (err != MDBX_NOTFOUND)
       return (err == MDBX_SUCCESS) ? (int)FPTA_EEXIST : err;
   }
@@ -1262,7 +1263,9 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
 
     const MDBX_db_flags_t dbi_flags =
         MDBX_CREATE | fpta_dbi_flags(column_set->shoves, i);
-    rc = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags);
+    const fpta_shove_t data_shove = fpta_data_shove(column_set->shoves, i);
+    rc = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags,
+                       shove, data_shove);
     if (rc != MDBX_SUCCESS)
       goto bailout;
   }
@@ -1384,7 +1387,9 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
     assert(i < fpta_max_indexes);
 
     const MDBX_db_flags_t dbi_flags = fpta_dbi_flags(table_schema->columns, i);
-    rc = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags);
+    const fpta_shove_t data_shove = fpta_data_shove(table_schema->columns, i);
+    rc = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags,
+                       shove, data_shove);
     if (unlikely(rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND))
       return rc;
   }
