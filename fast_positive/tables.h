@@ -2226,14 +2226,8 @@ FPTA_API int fpta_composite_column_get(const fpta_name *composite_id,
  * По завершению использования структура должна быть разрушена посредством
  * fpta_schema_destroy(), в противном случае будет утечка памяти. */
 typedef struct fpta_schema_info {
-  uint32_t signature;
-  uint32_t tables_count;  /* Кол-во таблиц */
-  uint32_t columns_count; /* Суммарное кол-во колонок */
-  uint32_t indexes_count; /* Суммарное кол-во вторичных индексов */
-  uint32_t appcontent_oldest; /* Номер старейшей версии, с которой совместимо
-                      приложение или содержимое БД */
-  uint32_t appcontent_newest; /* Номер новейшей версии, с которой совместимо
-                      приложение или содержимое БД */
+  unsigned signature;
+  unsigned tables_count;
   struct {
     uint64_t tsn /* Transaction Sequence Number.
                   * Номер транзакции, в которой была изменена схема */

@@ -287,11 +287,8 @@ public:
     return result;
   }
 
-  int fetch(fpta_db *db, MDBX_val data,
-            fpta_db::version_info *version = nullptr) {
+  int fetch(fpta_db *db, MDBX_val data) {
     const fpta_db::version_info db_version = fpta_db::version_info::fetch(data);
-    if (version)
-      *version = db_version;
     int rc = db->is_compatible(db_version);
     if (unlikely(rc != FPTA_OK)) {
       clear();
@@ -957,13 +954,9 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
         rc = FPTA_ENOMEM;
         break;
       }
-
-      fpta_db::version_info db_version;
-      rc = info->dict_ptr->fetch(txn->db, data, &db_version);
+      rc = info->dict_ptr->fetch(txn->db, data);
       if (unlikely(rc != FPTA_SUCCESS))
         break;
-      info->appcontent_newest = db_version.app.newest;
-      info->appcontent_oldest = db_version.app.oldest;
     } else {
       if (unlikely(!info->dict_ptr)) {
         rc = FPTA_SCHEMA_CORRUPTED;
@@ -995,12 +988,6 @@ int fpta_schema_fetch(fpta_txn *txn, fpta_schema_info *info) {
                    data.iov_len - offsetof(fpta_table_stored_schema, columns));
 
       info->tables_count += 1;
-      info->columns_count += unsigned(id->table_schema->column_count());
-      for (size_t i = 1; i < id->table_schema->column_count(); ++i) {
-        if (!fpta_is_indexed(id->table_schema->column_shove(i)))
-          break;
-        info->indexes_count += 1;
-      }
     }
     rc = mdbx_cursor_get(mdbx_cursor, &key, &data, MDBX_NEXT);
   }
