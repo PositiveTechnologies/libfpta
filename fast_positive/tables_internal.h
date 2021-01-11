@@ -387,7 +387,7 @@ struct fpta_cursor {
   } metrics;
   int bring(MDBX_val *key, MDBX_val *data, const MDBX_cursor_op op);
 
-  static cxx11_constexpr_var void *poor = nullptr;
+  static constexpr void *poor = nullptr;
   bool is_poor() const { return current.iov_base == poor; }
   void set_poor() { current.iov_base = poor; }
 

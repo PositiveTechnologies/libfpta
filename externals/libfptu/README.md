@@ -17,7 +17,7 @@ for (de)serialization, messaging and placement in shared memory.
 
 *The Future will (be) [Positive](https://www.ptsecurity.com). Всё будет хорошо.*
 
-[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Build Status](https://travis-ci.org/erthink/libfptu.svg?branch=master)](https://travis-ci.org/erthink/libfptu)
 [![Build status](https://ci.appveyor.com/api/projects/status/8617mtix9paivmkx/branch/master?svg=true)](https://ci.appveyor.com/project/leo-yuriev/libfptu/branch/master)
 [![CircleCI](https://circleci.com/gh/erthink/libfptu/tree/master.svg?style=svg)](https://circleci.com/gh/erthink/libfptu/tree/master)
