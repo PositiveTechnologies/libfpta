@@ -57,7 +57,7 @@ TEST(Trivia, Denil) {
   EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
 #ifdef HAVE_nan
   denil64 = {-nan("0x000FffffFFFFffff")};
-#ifdef FPTU_DENIL_FP64_MAS
+#if defined(FPTU_DENIL_FP64_MAS) || defined(__LCC__)
   EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
 #else
   EXPECT_NE(FPTU_DENIL_FP64_BIN, denil64.u);
@@ -76,7 +76,7 @@ TEST(Trivia, Denil) {
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
 #ifdef HAVE_nanf
   denil32 = {-nanf("0x007FFFFF")};
-#ifdef FPTU_DENIL_FP32_MAS
+#if defined(FPTU_DENIL_FP32_MAS) || defined(__LCC__)
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
 #else
   EXPECT_NE(FPTU_DENIL_FP32_BIN, denil32.u);
@@ -265,12 +265,12 @@ TEST(Trivia, time_ns2fractional) {
     for (int offset_42 = -42; offset_42 <= 42; ++offset_42) {
       SCOPED_TRACE("base_2log " + std::to_string(base_2log) + ", offset_42 " +
                    std::to_string(offset_42));
-      uint32_t ns = (1 << base_2log) + offset_42;
-      if (ns >= 1e9)
+      const uint64_t ns = (1 << base_2log) + offset_42;
+      if (ns >= 1000000000)
         continue;
       SCOPED_TRACE("ns " + std::to_string(ns) + ", factional " +
                    std::to_string(ns * scale));
-      uint32_t probe = floor(ns * scale);
+      const uint64_t probe = floor(ns * scale);
       ASSERT_EQ(probe, fptu_time::ns2fractional(ns));
     }
   }
@@ -282,10 +282,10 @@ TEST(Trivia, time_fractional2ns) {
     for (int offset_42 = -42; offset_42 <= 42; ++offset_42) {
       SCOPED_TRACE("base_2log " + std::to_string(base_2log) + ", offset_42 " +
                    std::to_string(offset_42));
-      uint32_t fractional = (1 << base_2log) + offset_42;
+      const uint64_t fractional = uint32_t((1 << base_2log) + offset_42);
       SCOPED_TRACE("fractional " + std::to_string(fractional) + ", ns " +
                    std::to_string(fractional * scale));
-      uint32_t probe = floor(fractional * scale);
+      const uint64_t probe = floor(fractional * scale);
       ASSERT_EQ(probe, fptu_time::fractional2ns(fractional));
     }
   }
@@ -297,12 +297,12 @@ TEST(Trivia, time_us2fractional) {
     for (int offset_42 = -42; offset_42 <= 42; ++offset_42) {
       SCOPED_TRACE("base_2log " + std::to_string(base_2log) + ", offset_42 " +
                    std::to_string(offset_42));
-      uint32_t us = (1 << base_2log) + offset_42;
-      if (us >= 1e6)
+      const uint64_t us = (1 << base_2log) + offset_42;
+      if (us >= 1000000)
         continue;
       SCOPED_TRACE("us " + std::to_string(us) + ", factional " +
                    std::to_string(us * scale));
-      uint32_t probe = floor(us * scale);
+      const uint64_t probe = floor(us * scale);
       ASSERT_EQ(probe, fptu_time::us2fractional(us));
     }
   }
@@ -314,10 +314,10 @@ TEST(Trivia, time_fractional2us) {
     for (int offset_42 = -42; offset_42 <= 42; ++offset_42) {
       SCOPED_TRACE("base_2log " + std::to_string(base_2log) + ", offset_42 " +
                    std::to_string(offset_42));
-      uint32_t fractional = (1 << base_2log) + offset_42;
+      const uint64_t fractional = uint32_t((1 << base_2log) + offset_42);
       SCOPED_TRACE("fractional " + std::to_string(fractional) + ", us " +
                    std::to_string(fractional * scale));
-      uint32_t probe = floor(fractional * scale);
+      const uint64_t probe = floor(fractional * scale);
       ASSERT_EQ(probe, fptu_time::fractional2us(fractional));
     }
   }
@@ -329,12 +329,12 @@ TEST(Trivia, time_ms2fractional) {
     for (int offset_42 = -42; offset_42 <= 42; ++offset_42) {
       SCOPED_TRACE("base_2log " + std::to_string(base_2log) + ", offset_42 " +
                    std::to_string(offset_42));
-      uint32_t ms = (1 << base_2log) + offset_42;
-      if (ms >= 1e3)
+      const uint64_t ms = (1 << base_2log) + offset_42;
+      if (ms >= 1000)
         continue;
       SCOPED_TRACE("ms " + std::to_string(ms) + ", factional " +
                    std::to_string(ms * scale));
-      uint32_t probe = floor(ms * scale);
+      const uint64_t probe = floor(ms * scale);
       ASSERT_EQ(probe, fptu_time::ms2fractional(ms));
     }
   }
@@ -346,10 +346,10 @@ TEST(Trivia, time_fractional2ms) {
     for (int offset_42 = -42; offset_42 <= 42; ++offset_42) {
       SCOPED_TRACE("base_2log " + std::to_string(base_2log) + ", offset_42 " +
                    std::to_string(offset_42));
-      uint32_t fractional = (1 << base_2log) + offset_42;
+      const uint64_t fractional = uint32_t((1 << base_2log) + offset_42);
       SCOPED_TRACE("fractional " + std::to_string(fractional) + ", ms " +
                    std::to_string(fractional * scale));
-      uint32_t probe = floor(fractional * scale);
+      const uint64_t probe = floor(fractional * scale);
       ASSERT_EQ(probe, fptu_time::fractional2ms(fractional));
     }
   }

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/erthink/erthink
  *
@@ -164,7 +164,9 @@
 #define __fallthrough [[fallthrough]]
 #elif __GNUC_PREREQ(8, 0) && defined(__cplusplus) && __cplusplus >= 201103L
 #define __fallthrough [[fallthrough]]
-#elif __GNUC_PREREQ(7, 0)
+#elif __GNUC_PREREQ(7, 0) &&                                                   \
+    (!defined(__LCC__) || (__LCC__ == 124 && __LCC_MINOR__ >= 12) ||           \
+     (__LCC__ == 125 && __LCC_MINOR__ >= 5) || (__LCC__ >= 126))
 #define __fallthrough __attribute__((__fallthrough__))
 #elif defined(__clang__) && defined(__cplusplus) && __cplusplus >= 201103L &&  \
     __has_feature(cxx_attributes) && __has_warning("-Wimplicit-fallthrough")
@@ -179,7 +181,7 @@
 #endif /* nullptr */
 
 #if !defined(cxx11_noexcept)
-#if defined(__cplusplus) && __cplusplus >= 201103L
+#if defined(DOXYGEN) || (defined(__cplusplus) && __cplusplus >= 201103L)
 #define cxx11_noexcept noexcept
 #else
 #define cxx11_noexcept
@@ -187,19 +189,45 @@
 #endif /* cxx11_noexcept */
 
 #if !defined(cxx17_noexcept)
-#if !defined(__cpp_noexcept_function_type) ||                                  \
-    __cpp_noexcept_function_type < 201510L
+#if !defined(DOXYGEN) && (!defined(__cpp_noexcept_function_type) ||            \
+                          __cpp_noexcept_function_type < 201510L)
 #define cxx17_noexcept
 #else
 #define cxx17_noexcept noexcept
 #endif
 #endif /* cxx17_noexcept */
 
+/* Workaround for old compilers without properly support for constexpr. */
+#if !defined(cxx01_constexpr)
+#if !defined(__cplusplus)
+#define cxx01_constexpr __inline
+#define cxx01_constexpr_var const
+#elif !defined(DOXYGEN) &&                                                     \
+    (!defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                 \
+     (defined(__LCC__) && __LCC__ < 124) ||                                    \
+     (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ < 407) &&          \
+      !defined(__clang__) && !defined(__LCC__)) ||                             \
+     (defined(_MSC_VER) && _MSC_VER < 1910) ||                                 \
+     (defined(__clang__) && __clang_major__ < 4))
+#define cxx01_constexpr inline
+#define cxx01_constexpr_var const
+#else
+#define cxx01_constexpr constexpr
+#define cxx01_constexpr_var constexpr
+#endif
+#endif /* cxx01_constexpr */
+
 #if !defined(cxx11_constexpr)
 #if !defined(__cplusplus)
 #define cxx11_constexpr __inline
 #define cxx11_constexpr_var const
-#elif __cplusplus < 201103L
+#elif !defined(DOXYGEN) &&                                                     \
+    (!defined(__cpp_constexpr) || __cpp_constexpr < 201304 ||                  \
+     (defined(__LCC__) && __LCC__ < 124) ||                                    \
+     (defined(__GNUC__) && __GNUC__ < 6 && !defined(__clang__) &&              \
+      !defined(__LCC__)) ||                                                    \
+     (defined(_MSC_VER) && _MSC_VER < 1910) ||                                 \
+     (defined(__clang__) && __clang_major__ < 5))
 #define cxx11_constexpr inline
 #define cxx11_constexpr_var const
 #else
@@ -212,11 +240,12 @@
 #if !defined(__cplusplus)
 #define cxx14_constexpr __inline
 #define cxx14_constexpr_var const
-#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                \
-    ((defined(_MSC_VER) && _MSC_VER >= 1910) ||                                \
-     (defined(__clang__) && __clang_major__ > 4) ||                            \
-     (defined(__GNUC__) && __GNUC__ > 6) ||                                    \
-     (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
+#elif defined(DOXYGEN) ||                                                      \
+    (defined(__cpp_constexpr) && __cpp_constexpr >= 201304L &&                 \
+     ((defined(_MSC_VER) && _MSC_VER >= 1910) ||                               \
+      (defined(__clang__) && __clang_major__ > 4) ||                           \
+      (defined(__GNUC__) && __GNUC__ > 6) ||                                   \
+      (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER))))
 #define cxx14_constexpr constexpr
 #define cxx14_constexpr_var constexpr
 #else
@@ -229,11 +258,12 @@
 #if !defined(__cplusplus)
 #define cxx17_constexpr __inline
 #define cxx17_constexpr_var const
-#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                \
-    ((defined(_MSC_VER) && _MSC_VER >= 1915) ||                                \
-     (defined(__clang__) && __clang_major__ > 5) ||                            \
-     (defined(__GNUC__) && __GNUC__ > 7) ||                                    \
-     (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
+#elif defined(DOXYGEN) ||                                                      \
+    (defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                 \
+     ((defined(_MSC_VER) && _MSC_VER >= 1915) ||                               \
+      (defined(__clang__) && __clang_major__ > 5) ||                           \
+      (defined(__GNUC__) && __GNUC__ > 7) ||                                   \
+      (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER))))
 #define cxx17_constexpr constexpr
 #define cxx17_constexpr_var constexpr
 #else
@@ -246,7 +276,8 @@
 #if !defined(__cplusplus)
 #define cxx20_constexpr __inline
 #define cxx20_constexpr_var const
-#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201907L
+#elif defined(DOXYGEN) ||                                                      \
+    (defined(__cpp_constexpr) && __cpp_constexpr >= 201907L)
 #define cxx20_constexpr constexpr
 #define cxx20_constexpr_var constexpr
 #else
@@ -264,13 +295,10 @@
 #endif /* if_constexpr */
 
 #if !defined(constexpr_assert)
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 201304L
+#if !defined(__cpp_constexpr) || __cpp_constexpr >= 201304L
 #define constexpr_assert(cond) assert(cond)
 #else
-#define constexpr_assert(cond)                                                 \
-  do {                                                                         \
-    (void)(cond);                                                              \
-  } while (0)
+#define constexpr_assert(cond)
 #endif
 #endif /* constexpr_assert */
 
@@ -278,12 +306,12 @@
 #ifdef NDEBUG
 #define NDEBUG_CONSTEXPR cxx11_constexpr
 #else
-#define NDEBUG_CONSTEXPR
+#define NDEBUG_CONSTEXPR inline
 #endif
 #endif /* NDEBUG_CONSTEXPR */
 
 #ifndef constexpr_intrin
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(DOXYGEN) || defined(__GNUC__) || defined(__clang__)
 #define constexpr_intrin cxx11_constexpr
 #elif defined(__cplusplus)
 #define constexpr_intrin inline
@@ -385,12 +413,44 @@
  * Such a function can be subject to common subexpression elimination
  * and loop optimization just as an arithmetic operator would be.
  * These functions should be declared with the attribute pure. */
-#if defined(__GNUC__) || __has_attribute(__pure__)
+#if (defined(__GNUC__) || __has_attribute(__pure__)) &&                        \
+    (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ ||  \
+     !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #define __pure_function __attribute__((__pure__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#define __pure_function
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::pure) &&                \
+    (!defined(__clang__) || !__has_feature(cxx_exceptions))
+#define __pure_function [[gnu::pure]]
 #else
 #define __pure_function
 #endif
 #endif /* __pure_function */
+
+#ifndef __nothrow_pure_function
+/** Like \ref __pure_function with addition `noexcept` restriction
+ * that is compatible to CLANG and proposed [[pure]]. */
+#if defined(__GNUC__) ||                                                       \
+    (__has_attribute(__pure__) && __has_attribute(__nothrow__))
+#define __nothrow_pure_function __attribute__((__pure__, __nothrow__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#if __has_cpp_attribute(pure)
+#define __nothrow_pure_function [[pure]]
+#else
+#define __nothrow_pure_function
+#endif
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::pure)
+#if __has_cpp_attribute(gnu::nothrow)
+#define __nothrow_pure_function [[gnu::pure, gnu::nothrow]]
+#else
+#define __nothrow_pure_function [[gnu::pure]]
+#endif
+#elif defined(__cplusplus) && __has_cpp_attribute(pure)
+#define __nothrow_pure_function [[pure]]
+#else
+#define __nothrow_pure_function
+#endif
+#endif /* __nothrow_pure_function */
 
 #ifndef __const_function
 /* Many functions do not examine any values except their arguments,
@@ -402,12 +462,40 @@
  * data pointed to must not be declared const. Likewise, a function
  * that calls a non-const function usually must not be const.
  * It does not make sense for a const function to return void. */
-#if defined(__GNUC__) || __has_attribute(__const__)
+#if (defined(__GNUC__) || __has_attribute(__const__)) &&                       \
+    (!defined(__clang__) /* https://bugs.llvm.org/show_bug.cgi?id=43275 */ ||  \
+     !defined(__cplusplus) || !__has_feature(cxx_exceptions))
 #define __const_function __attribute__((__const__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#define __const_function __pure_function
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::const) &&               \
+    (!defined(__clang__) || !__has_feature(cxx_exceptions))
+#define __const_function [[gnu::const]]
 #else
-#define __const_function
+#define __const_function __pure_function
 #endif
 #endif /* __const_function */
+
+#ifndef __nothrow_const_function
+/** Like \ref __const_function with addition `noexcept` restriction
+ * that is compatible to CLANG and future [[const]]. */
+#if defined(__GNUC__) ||                                                       \
+    (__has_attribute(__const__) && __has_attribute(__nothrow__))
+#define __nothrow_const_function __attribute__((__const__, __nothrow__))
+#elif defined(_MSC_VER) && !defined(__clang__) && _MSC_VER >= 1920
+#define __nothrow_const_function __nothrow_pure_function
+#elif defined(__cplusplus) && __has_cpp_attribute(gnu::const)
+#if __has_cpp_attribute(gnu::nothrow)
+#define __nothrow_const_function [[gnu::const, gnu::nothrow]]
+#else
+#define __nothrow_const_function [[gnu::const]]
+#endif
+#elif defined(__cplusplus) && __has_cpp_attribute(const)
+#define __nothrow_const_function [[const]]
+#else
+#define __nothrow_const_function __nothrow_pure_function
+#endif
+#endif /* __nothrow_const_function */
 
 #ifndef __optimize
 #if defined(__OPTIMIZE__)
@@ -588,6 +676,15 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #endif
 #endif /* unlikely */
 
+#if defined(__cplusplus) && __cplusplus >= 201103L && defined(__LCC__) &&      \
+    __LCC__ < 125
+#define constexpr_likely(cond) (cond)
+#define constexpr_unlikely(cond) (cond)
+#else
+#define constexpr_likely(cond) likely(cond)
+#define constexpr_unlikely(cond) unlikely(cond)
+#endif
+
 #if !defined(alignas) && (!defined(__cplusplus) || __cplusplus < 201103L)
 #if defined(__GNUC__) || defined(__clang__) || __has_attribute(__aligned__)
 #define alignas(N) __attribute__((__aligned__(N)))
@@ -627,27 +724,66 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 
 //------------------------------------------------------------------------------
 
+/* Oh, below are some songs and dances since:
+ *  - C++ requires explicit definition of the necessary operators.
+ *  - the proper implementation of DEFINE_ENUM_FLAG_OPERATORS for C++ required
+ *    the constexpr feature which is broken in most old compilers;
+ *  - DEFINE_ENUM_FLAG_OPERATORS may be defined broken as in the Windows SDK. */
 #ifndef DEFINE_ENUM_FLAG_OPERATORS
-#if defined(__cplusplus)
-// Define operator overloads to enable bit operations on enum values that are
-// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
+
+#ifdef __cplusplus
+#if !defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                  \
+    (defined(__LCC__) && __LCC__ < 124) ||                                     \
+    (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ < 407) &&           \
+     !defined(__clang__) && !defined(__LCC__)) ||                              \
+    (defined(_MSC_VER) && _MSC_VER < 1910) ||                                  \
+    (defined(__clang__) && __clang_major__ < 4)
+/* The constexpr feature is not available or (may be) broken */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 0
+#else
+/* C always allows these operators for enums */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 1
+#endif /* __cpp_constexpr */
+
+/// Define operator overloads to enable bit operations on enum values that are
+/// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM)                                       \
   extern "C++" {                                                               \
-  cxx11_constexpr ENUM operator|(ENUM a, ENUM b) {                             \
-    return ENUM(std::size_t(a) | std::size_t(b));                              \
+  cxx01_constexpr ENUM operator|(ENUM a, ENUM b) {                             \
+    return ENUM(unsigned(a) | unsigned(b));                                    \
   }                                                                            \
   cxx14_constexpr ENUM &operator|=(ENUM &a, ENUM b) { return a = a | b; }      \
-  cxx11_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
-    return ENUM(std::size_t(a) & std::size_t(b));                              \
+  cxx01_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
+    return ENUM(unsigned(a) & unsigned(b));                                    \
+  }                                                                            \
+  cxx01_constexpr ENUM operator&(ENUM a, unsigned b) {                         \
+    return ENUM(unsigned(a) & b);                                              \
+  }                                                                            \
+  cxx01_constexpr ENUM operator&(unsigned a, ENUM b) {                         \
+    return ENUM(a & unsigned(b));                                              \
   }                                                                            \
   cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) { return a = a & b; }      \
-  cxx11_constexpr ENUM operator~(ENUM a) { return ENUM(~std::size_t(a)); }     \
-  cxx11_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
-    return ENUM(std::size_t(a) ^ std::size_t(b));                              \
+  cxx14_constexpr ENUM &operator&=(ENUM &a, unsigned b) { return a = a & b; }  \
+  cxx01_constexpr unsigned operator~(ENUM a) { return ~unsigned(a); }          \
+  cxx01_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
+    return ENUM(unsigned(a) ^ unsigned(b));                                    \
   }                                                                            \
   cxx14_constexpr ENUM &operator^=(ENUM &a, ENUM b) { return a = a ^ b; }      \
   }
-#else                                    /* __cplusplus */
-#define DEFINE_ENUM_FLAG_OPERATORS(ENUM) /* nope, C allows these operators */
-#endif                                   /* !__cplusplus */
-#endif                                   /* DEFINE_ENUM_FLAG_OPERATORS */
+#else /* __cplusplus */
+/* nope for C since it always allows these operators for enums */
+#define DEFINE_ENUM_FLAG_OPERATORS(ENUM)
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 1
+#endif /* !__cplusplus */
+
+#elif !defined(CONSTEXPR_ENUM_FLAGS_OPERATIONS)
+
+#ifdef __cplusplus
+/* DEFINE_ENUM_FLAG_OPERATORS may be defined broken as in the Windows SDK */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 0
+#else
+/* C always allows these operators for enums */
+#define CONSTEXPR_ENUM_FLAGS_OPERATIONS 1
+#endif
+
+#endif /* DEFINE_ENUM_FLAG_OPERATORS */

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tuples (libfptu), aka Позитивные Кортежи
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -17,14 +17,6 @@
 
 #include "fast_positive/tuples_internal.h"
 
-#if defined(_MSC_VER) && defined(FPTU_BUILD_TARGET)
-#pragma message("Configuration-depended FPTU_BUILD_TARGET: " FPTU_BUILD_TARGET)
-#endif
-#if defined(_MSC_VER) && defined(FPTU_COMPILE_FLAGS)
-#pragma message(                                                               \
-    "Configuration-depended FPTU_COMPILE_FLAGS: " FPTU_COMPILE_FLAGS)
-#endif
-
 #if HAVE_FPTU_VERSIONINFO
 
 #if FPTU_VERSION_MAJOR != ${FPTU_VERSION_MAJOR} ||                             \
@@ -32,7 +24,7 @@
 #error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
-/*FPTU_API*/ const fptu_version_info fptu_version = {
+/* FPTU_API */ const fptu_version_info fptu_version = {
     ${FPTU_VERSION_MAJOR},
     ${FPTU_VERSION_MINOR},
     ${FPTU_VERSION_RELEASE},
@@ -41,6 +33,24 @@
      "@FPTU_GIT_DESCRIBE@"}};
 #endif /* HAVE_FPTU_VERSIONINFO */
 
-/*FPTU_API*/ const fptu_build_info fptu_build = {
-    "@FPTU_BUILD_TIMESTAMP@", ${FPTU_BUILD_TARGET}, "@FPTU_CMAKE_OPTIONS@",
-    "@FPTU_BUILD_COMPILER@", ${FPTU_COMPILE_FLAGS}};
+/* FPTU_API */ const fptu_build_info fptu_build = {"@FPTU_BUILD_TIMESTAMP@",
+                                                   "@FPTU_BUILD_TARGET@"
+#ifdef FPTU_BUILD_TYPE
+#if defined(_MSC_VER)
+#pragma message("Configuration-depended FPTU_BUILD_TYPE: " FPTU_BUILD_TYPE)
+#endif
+                                                   "-" FPTU_BUILD_TYPE
+#endif /* FPTU_BUILD_TYPE */
+                                                   ,
+                                                   "@FPTU_CMAKE_OPTIONS@",
+                                                   "@FPTU_BUILD_COMPILER@",
+#ifdef FPTU_COMPILE_FLAGS
+#ifdef _MSC_VER
+#pragma message(                                                               \
+    "Configuration-depended FPTU_COMPILE_FLAGS: " FPTU_COMPILE_FLAGS)
+#endif
+                                                   FPTU_COMPILE_FLAGS
+#else
+                                                   ${FPTU_COMPILE_FLAGS}
+#endif /* FPTU_COMPILE_FLAGS */
+};

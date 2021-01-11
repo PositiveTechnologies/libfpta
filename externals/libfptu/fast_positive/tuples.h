@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Fast Positive Tuples (libfptu), aka Позитивные Кортежи
  *  Copyright 2016-2020 Leonid Yuriev <leo@yuriev.ru>
  *
@@ -130,18 +130,9 @@ extern "C" {
 #endif
 
 //----------------------------------------------------------------------------
-/* Опции конфигурации управляющие внутренним поведением libfptu, т.е
- * их изменение требует пересборки библиотеки.
- *
- * Чуть позже эти определения передедут в fptu_config.h */
-
-// TBD
-
-//----------------------------------------------------------------------------
 /* Общие перечисления и структуры */
 
-/* Коды ошибок.
- * Список будет пополнен, а описания уточнены. */
+/* Коды ошибок. */
 enum fptu_error {
   FPTU_SUCCESS = 0,
   FPTU_OK = FPTU_SUCCESS,
@@ -318,7 +309,7 @@ union fptu_payload {
   } other;
 #ifdef __cplusplus
   const void *inner_begin() const { return other.data; }
-  const void *inner_end() const { return other.data - 1 + other.varlen.brutto; }
+  const void *inner_end() const { return other.data + other.varlen.brutto - 1; }
   size_t array_length() const { return other.varlen.array_length; }
 #endif
 };
@@ -620,9 +611,11 @@ FPTU_API fptu_time fptu_now_coarse(void);
 //----------------------------------------------------------------------------
 
 #define FPTU_DENIL_FP32_BIN UINT32_C(0xFFFFffff)
-#ifndef _MSC_VER /* MSVC provides invalid nanf(), leave it undefined */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTU_DENIL_FP32_MAS "0x007FFFFF"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
 #if defined(__cplusplus) && HAVE_std_bit_cast
 static cxx11_constexpr float fptu_fp32_denil(void) {
@@ -643,9 +636,11 @@ static __inline float fptu_fp32_denil(void) {
 #define FPTU_DENIL_FP32 fptu_fp32_denil()
 
 #define FPTU_DENIL_FP64_BIN UINT64_C(0xFFFFffffFFFFffff)
-#ifndef _MSC_VER /* MSVC provides invalid nan(), leave it undefined */
+#if !defined(_MSC_VER) /* MSVC provides invalid nanf(), leave it undefined */  \
+    &&                                                                         \
+    !defined(__LCC__) /* https://bugs.mcst.ru/bugzilla/show_bug.cgi?id=5094 */
 #define FPTU_DENIL_FP64_MAS "0x000FffffFFFFffff"
-#endif /* ! _MSC_VER */
+#endif /* !MSVC && !LCC */
 
 #if defined(__cplusplus) && HAVE_std_bit_cast
 static cxx11_constexpr double fptu_fp64_denil(void) {
@@ -1223,7 +1218,7 @@ static __inline const void *fptu_inner_begin(fptu_field *pf) {
 static __inline const void *fptu_inner_end(fptu_field *pf) {
   assert((fptu_field_type(pf) & fptu_farray) != 0);
   const fptu_payload *payload = fptu_get_payload(pf);
-  return payload->other.data - 1 + payload->other.varlen.brutto;
+  return payload->other.data + payload->other.varlen.brutto - 1;
 }
 
 static __inline size_t fptu_array_length(fptu_field *pf) {
@@ -2048,38 +2043,22 @@ size_t fptu_field::array_length() const {
   return payload()->array_length();
 }
 
-namespace std {
-
-template <> struct hash<fptu::string_view> {
-  cxx14_constexpr std::size_t operator()(fptu::string_view const &v) const {
-    return v.hash_value();
-  }
-};
-
-inline ostream &operator<<(ostream &out, fptu::string_view &sv) {
+inline std::ostream &operator<<(std::ostream &out, fptu::string_view &sv) {
   return out.write(sv.data(), sv.size());
 }
 
-inline ostream &operator<<(ostream &out, const fptu::output_hexadecimal ones) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const fptu::output_hexadecimal ones) {
   return fptu::hexadecimal_dump(out, ones.data, ones.length);
 }
 
-FPTU_API ostream &operator<<(ostream &out, const fptu_error);
-FPTU_API ostream &operator<<(ostream &out, const fptu_type);
-FPTU_API ostream &operator<<(ostream &out, const fptu_field &);
-FPTU_API ostream &operator<<(ostream &out, const fptu_rw &);
-FPTU_API ostream &operator<<(ostream &out, const fptu_ro &);
-FPTU_API ostream &operator<<(ostream &out, const fptu_lge);
-FPTU_API ostream &operator<<(ostream &out, const fptu_time &);
-
-FPTU_API string to_string(const fptu_error);
-FPTU_API string to_string(const fptu_type);
-FPTU_API string to_string(const fptu_field &);
-FPTU_API string to_string(const fptu_rw &);
-FPTU_API string to_string(const fptu_ro &);
-FPTU_API string to_string(const fptu_lge);
-FPTU_API string to_string(const fptu_time &);
-} /* namespace std */
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_error);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_type);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_field &);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_rw &);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_ro &);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_lge);
+FPTU_API std::ostream &operator<<(std::ostream &out, const fptu_time &);
 
 inline bool operator>(const fptu::string_view &a, const std::string &b) {
   return fptu::string_view::compare(a, b) > 0;
@@ -2124,6 +2103,61 @@ bool operator>(const fptu_lge &, const fptu_lge &) = delete;
 bool operator>=(const fptu_lge &, const fptu_lge &) = delete;
 bool operator<(const fptu_lge &, const fptu_lge &) = delete;
 bool operator<=(const fptu_lge &, const fptu_lge &) = delete;
+
+//------------------------------------------------------------------------------
+
+#include <sstream>
+
+namespace std {
+
+template <> struct hash<fptu::string_view> {
+  cxx14_constexpr size_t operator()(fptu::string_view const &v) const noexcept {
+    return v.hash_value();
+  }
+};
+
+inline string to_string(const fptu_error value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_field &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_ro &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_rw &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_lge value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_time &value) {
+  ostringstream out;
+  out << value;
+  return out.str();
+}
+
+inline string to_string(const fptu_type value) {
+  return string(fptu_type_name(value));
+}
+
+} // namespace std
+
 #endif /* __cplusplus */
 
 #ifdef _MSC_VER

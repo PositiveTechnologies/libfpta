@@ -1,4 +1,4 @@
-﻿include_directories(${UT_INCLUDE_DIRECTORIES})
+include_directories(${UT_INCLUDE_DIRECTORIES})
 
 if(BUILD_SHARED_LIBS)
   add_definitions("-DGTEST_LINKED_AS_SHARED_LIBRARY=1")
