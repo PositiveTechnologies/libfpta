@@ -74,9 +74,7 @@ static __cold const char *error2cp(int32_t errcode) {
       "existing",
       "FPTA_TARDY_DBI: Another thread still use handle(s) that should be "
       "reopened",
-      "FPTA_CLUMSY_INDEX: Adding index which is too clumsy",
-      "FPTA_FORMAT_MISMATCH: Database format mismatch the libfpta version",
-      "FPTA_APP_MISMATCH: Applicaton version mismatch the database content"};
+      "FPTA_CLUMSY_INDEX: Adding index which is too clumsy"};
 
   static_assert(erthink::array_length(msgs) ==
                     FPTA_ERRROR_LAST - FPTA_ERRROR_BASE,

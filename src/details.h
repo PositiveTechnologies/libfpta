@@ -29,8 +29,6 @@
                                    for aligment */
 #endif                          /* _MSC_VER (warnings) */
 
-using namespace fpta;
-
 struct fpta_db {
   fpta_db(const fpta_db &) = delete;
   MDBX_env *mdbx_env;
@@ -39,99 +37,6 @@ struct fpta_db {
   fpta_rwl_t schema_rwlock;
   uint64_t schema_tsn;
   fpta_regime_flags regime_flags;
-
-  struct app_version_info {
-    uint64_t hash;
-    uint32_t oldest, newest;
-
-    app_version_info(const fpta_appcontent_info *appcontent = nullptr)
-        : hash((appcontent && appcontent->signature)
-                   ? t1ha2_atonce(appcontent->signature,
-                                  strlen(appcontent->signature) + 1,
-                                  UINT64_C(20200804151731))
-                   : 0),
-          oldest(appcontent ? appcontent->oldest : 0),
-          newest(appcontent ? appcontent->newest : 0) {
-      assert(oldest <= newest);
-    }
-  };
-  app_version_info app_version;
-
-  struct version_info {
-    uint32_t signature;
-    uint32_t format;
-    app_version_info app;
-
-    static version_info legacy_default() {
-      version_info r;
-      r.signature = fpta_db_version_signature;
-      r.format = 3 /* 0.3 stub value for prior to app-version */;
-      r.app = app_version_info(nullptr);
-      return r;
-    }
-
-    static version_info current(const app_version_info &running) {
-      version_info r;
-      r.signature = fpta_db_version_signature;
-      r.format = fpta_db_format_version;
-      r.app = running;
-      return r;
-    }
-
-    static version_info fetch(MDBX_val &dict_record) {
-      /* Информация о версии формата и версии приложении опционально хранится
-       * в начале dict-записи. Если данных достаточно и сигнатура совпадает, то:
-       *  - используем эти данные для проверки версии формата fpta-базы
-       *    и версии приложения;
-       *  - пропускаем их при загрузке словаря;
-       *  - при этом значение сигнатуры таково, что её невозможно спутать
-       *    с началом словаря схемы.
-       * Иначе для версии формата и приложения подставляем значения
-       * по-умолчанию, которые соответствуют ситуации до добавления
-       * fpta_appcontent_info. */
-      if (dict_record.iov_len >= sizeof(version_info)) {
-        uint32_t check;
-        memcpy(&check, dict_record.iov_base, sizeof(check));
-        if (check == fpta_db_version_signature) {
-          version_info r;
-          memcpy(&r, dict_record.iov_base, sizeof(version_info));
-          dict_record.iov_len -= sizeof(version_info);
-          dict_record.iov_base =
-              (char *)dict_record.iov_base + sizeof(version_info);
-          return r;
-        }
-      }
-      return legacy_default();
-    }
-
-    static version_info merge(MDBX_val db_dict_record,
-                              const app_version_info &running) {
-      const version_info db = fetch(db_dict_record);
-      version_info r;
-      r.signature = fpta_db_version_signature;
-      /* При изменении схемы в существующей БД информация о версии приложении и
-       * формате базы перезаписывается. При этом (в логике текущей реализации)
-       * версия формата сохраняется, а маркеры совместимости двигаются вперед
-       * к версии приложения. */
-      r.format = db.format;
-      r.app.hash = running.hash;
-      r.app.newest = std::max(db.app.newest, running.newest);
-      r.app.oldest = std::max(db.app.oldest, running.oldest);
-      return r;
-    }
-  };
-
-  fpta_error is_compatible(const version_info &db) const {
-    if (unlikely(db.format != fpta_db_format_version))
-      return FPTA_FORMAT_MISMATCH;
-
-    if (unlikely(db.app.hash != app_version.hash ||
-                 db.app.oldest > app_version.newest ||
-                 db.app.newest < app_version.oldest))
-      return FPTA_APP_MISMATCH;
-
-    return FPTA_OK;
-  }
 
   fpta_mutex_t dbi_mutex /* TODO: убрать мьютекс и перевести на atomic */;
   fpta_shove_t dbi_shoves[fpta_dbi_cache_size];

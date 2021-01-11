@@ -129,8 +129,8 @@ TEST(Threaded, SimpleConcurence) {
 
   fpta_db *db = nullptr;
   ASSERT_EQ(FPTA_OK,
-            fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
-                                   fpta_saferam, true, &db, &creation_params));
+            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_saferam, true,
+                                   &db, &creation_params));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database opened");
 
@@ -160,8 +160,8 @@ TEST(Threaded, SimpleConcurence) {
   db = nullptr;
   SCOPED_TRACE("Database closed");
 
-  ASSERT_EQ(FPTA_OK, fpta_db_open_existing(nullptr, testdb_name, fpta_weak,
-                                           fpta_saferam, false, &db));
+  ASSERT_EQ(FPTA_OK, fpta_db_open_existing(testdb_name, fpta_weak, fpta_saferam,
+                                           false, &db));
   ASSERT_NE(nullptr, db);
   SCOPED_TRACE("Database reopened");
 

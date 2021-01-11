@@ -123,8 +123,8 @@ TEST(Open, SingleProcess_ChangeDbSize) {
   creation_params.shrink_threshold = 0;
   creation_params.pagesize = -1;
   ASSERT_EQ(FPTA_OK,
-            fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
-                                   fpta_saferam, true, &db, &creation_params));
+            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_saferam, true,
+                                   &db, &creation_params));
   ASSERT_NE(nullptr, db);
   ASSERT_EQ(FPTA_OK, fpta_db_info(db, nullptr, &stat));
   EXPECT_EQ(stat.geo.current, 8u * 1024 * 1024);
@@ -153,9 +153,9 @@ TEST(Open, MultipleProcesses_ChangeGeometry) {
 
   fpta_db_stat_t stat;
   fpta_db *db_commander = nullptr;
-  ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
-                                            fpta_regime_default, true,
-                                            &db_commander, &creation_params));
+  ASSERT_EQ(FPTA_OK,
+            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_regime_default,
+                                   true, &db_commander, &creation_params));
   ASSERT_EQ(FPTA_OK, fpta_db_info(db_commander, nullptr, &stat));
   EXPECT_EQ(stat.geo.lower, 1u * 1024 * 1024);
   EXPECT_EQ(stat.geo.current, 1u * 1024 * 1024);
@@ -174,9 +174,9 @@ TEST(Open, MultipleProcesses_ChangeGeometry) {
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_commander));
 
   creation_params.pagesize = -1 /* default */;
-  ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
-                                            fpta_regime_default, true,
-                                            &db_commander, &creation_params));
+  ASSERT_EQ(FPTA_OK,
+            fpta_db_create_or_open(testdb_name, fpta_weak, fpta_regime_default,
+                                   true, &db_commander, &creation_params));
   ASSERT_NE(nullptr, db_commander);
   ASSERT_EQ(FPTA_OK, fpta_db_info(db_commander, nullptr, &stat));
   EXPECT_EQ(stat.geo.lower, 1u * 1024 * 1024);
@@ -200,7 +200,7 @@ TEST(Open, MultipleProcesses_ChangeGeometry) {
      * after open database and MDBX (for historical reasons) should preserve
      * existing geometry for database which used/open by another process. */
     creation_params.pagesize = 4096;
-    ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
+    ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(testdb_name, fpta_weak,
                                               fpta_regime_default, true,
                                               &db_commander, &creation_params));
     ASSERT_NE(nullptr, db_commander);
@@ -215,7 +215,7 @@ TEST(Open, MultipleProcesses_ChangeGeometry) {
     EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db_executor));
     // снова открываем в "коммандере", теперь размер должен измениться,
     // но размер страници должен остаться прежним
-    ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
+    ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(testdb_name, fpta_weak,
                                               fpta_regime_default, true,
                                               &db_commander, &creation_params));
     ASSERT_NE(nullptr, db_commander);
@@ -230,7 +230,7 @@ TEST(Open, MultipleProcesses_ChangeGeometry) {
     /* Without FPTA_PRESERVE_GEOMETRY libpfta will re-apply provided geometry
      * after open database, so MDBX apply new geometry for database even it
      * used/open by another process. */
-    ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
+    ASSERT_EQ(FPTA_OK, fpta_db_create_or_open(testdb_name, fpta_weak,
                                               fpta_regime_default, true,
                                               &db_commander, &creation_params));
     ASSERT_NE(nullptr, db_commander);
@@ -251,10 +251,9 @@ TEST(Open, MultipleProcesses_ChangeGeometry) {
 
     // проверяем невозможность изменить размер страницы
     creation_params.pagesize = 4096;
-    ASSERT_EQ(FPTA_DB_INCOMPAT,
-              fpta_db_create_or_open(nullptr, testdb_name, fpta_weak,
-                                     fpta_regime_default, true, &db_executor,
-                                     &creation_params));
+    ASSERT_EQ(FPTA_DB_INCOMPAT, fpta_db_create_or_open(
+                                    testdb_name, fpta_weak, fpta_regime_default,
+                                    true, &db_executor, &creation_params));
     ASSERT_EQ(nullptr, db_executor);
   }
 }

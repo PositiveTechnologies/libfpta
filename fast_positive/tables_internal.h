@@ -323,9 +323,7 @@ enum fpta_internals {
   FTPA_SCHEMA_CHECKSEED = 67413473,
   fpta_shoved_keylen = fpta_max_keylen + 8,
   fpta_notnil_prefix_byte = 42,
-  fpta_notnil_prefix_length = 1,
-  fpta_db_version_signature = 0x00EE1200,
-  fpta_db_format_version = FPTA_VERSION_MAJOR << 16 | FPTA_VERSION_MINOR
+  fpta_notnil_prefix_length = 1
 };
 
 //----------------------------------------------------------------------------
