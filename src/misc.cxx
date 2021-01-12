@@ -38,8 +38,6 @@
 #pragma GCC diagnostic ignored "-Wattributes"
 #endif /* GCC 8.x */
 
-using fptu::string_view;
-
 static __cold const char *error2cp(int32_t errcode) {
 #if defined(_WIN32) || defined(_WIN64)
   static_assert(FPTA_ENOMEM == ERROR_OUTOFMEMORY, "error code mismatch");
@@ -117,20 +115,19 @@ __cold std::ostream &operator<<(std::ostream &out, const fpta_error value) {
   return out << fpta_strerror(value);
 }
 
-static __cold fptu::string_view value_type2sv(const fpta_value_type value) {
+static __cold fptu::string_view value_type2sv(const fpta_value_type type) {
   static const char *const names[] = {"null",     "signed_int",  "unsigned_int",
                                       "datetime", "float_point", "string",
                                       "binary",   "shoved",      "<begin>",
                                       "<end>",    "<epsilon>"};
 
   static_assert(erthink::array_length(names) == size_t(fpta_invalid), "WTF?");
-  return (value >= fpta_null && value < fpta_invalid)
-             ? fptu::string_view(names[size_t(value) - fpta_null])
+  return (type >= fpta_null && type < fpta_invalid)
+             ? fptu::string_view(names[size_t(type) - fpta_null])
              : fptu::string_view("invalid");
 }
-__cold std::ostream &operator<<(std::ostream &out,
-                                const fpta_value_type value) {
-  return out << value_type2sv(value);
+__cold std::ostream &operator<<(std::ostream &out, const fpta_value_type type) {
+  return out << value_type2sv(type);
 }
 
 __cold std::ostream &operator<<(std::ostream &out, const fpta_value *value) {
@@ -163,8 +160,8 @@ __cold std::ostream &operator<<(std::ostream &out, const fpta_value *value) {
 
   case fpta_string:
     return out << "\""
-               << string_view((const char *)value->binary_data,
-                              value->binary_length)
+               << fptu::string_view((const char *)value->binary_data,
+                                    value->binary_length)
                << "\"";
 
   case fpta_binary:

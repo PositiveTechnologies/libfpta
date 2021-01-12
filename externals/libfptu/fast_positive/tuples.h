@@ -1359,7 +1359,7 @@ typedef std::unique_ptr<fptu_rw> tuple_ptr;
  *  - более быстрое СРАВНЕНИЕ С ДРУГОЙ СЕМАНТИКОЙ, сначала учитывается длина!
  *  - отсутствуют сервисные методы: remove_prefix, remove_suffix, substr, copy,
  *    starts_with, ends_with, find, rfind, find_first_of, find_last_of,
- *    find_first_not_of, find_last_not_of, operator<<(std::ostream). */
+ *    find_first_not_of, find_last_not_of. */
 class string_view {
 protected:
   const char *str;
@@ -1569,9 +1569,9 @@ struct output_hexadecimal {
   cxx11_constexpr output_hexadecimal(const void *data, size_t length)
       : data(data), length(length) {}
   cxx11_constexpr output_hexadecimal() : output_hexadecimal(nullptr, 0) {}
-  cxx11_constexpr output_hexadecimal(const string_view &v)
+  explicit cxx11_constexpr output_hexadecimal(const string_view &v)
       : output_hexadecimal(v.data(), v.size()) {}
-  output_hexadecimal(const std::string &s)
+  explicit output_hexadecimal(const std::string &s)
       : output_hexadecimal(s.data(), s.size()) {}
 };
 
@@ -2043,7 +2043,8 @@ size_t fptu_field::array_length() const {
   return payload()->array_length();
 }
 
-inline std::ostream &operator<<(std::ostream &out, fptu::string_view &sv) {
+inline std::ostream &operator<<(std::ostream &out,
+                                const fptu::string_view &sv) {
   return out.write(sv.data(), sv.size());
 }
 
