@@ -153,11 +153,7 @@
 #ifndef char8_t
 #define char8_t char
 #endif
-#endif
-
-#if !defined(char8_t) && !defined(__cpp_lib_char8_t)
-#define char8_t char
-#endif
+#endif /* __cplusplus */
 
 #ifndef __fallthrough
 #if __has_cpp_attribute(fallthrough)
