@@ -148,10 +148,6 @@
 #endif
 #endif
 
-#if !defined(char8_t) && !defined(__cpp_lib_char8_t)
-#define char8_t char
-#endif
-
 #ifndef __fallthrough
 #if __has_cpp_attribute(fallthrough)
 #define __fallthrough [[fallthrough]]
