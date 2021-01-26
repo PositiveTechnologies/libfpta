@@ -1,0 +1,32 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, ubuntu-16.04]
+    steps:
+    - uses: actions/checkout@v2
+    - name: fetch tags
+      run: git fetch --unshallow --tags --prune
+    - name: info
+      run: cmake --version && cc --version && c++ --version
+    - name: configure
+      run: cmake .
+    - name: build
+      run: make --keep-going all
+    - name: test
+      env:
+        GTEST_SHUFFLE: 1
+        GTEST_RUNTIME_LIMIT: 99
+        MALLOC_CHECK_: 7
+        MALLOC_PERTURB_: 42
+      run: make --keep-going test
+    - name: c-mode
+      env:
+        MALLOC_CHECK_: 7
+        MALLOC_PERTURB_: 42
+      run: externals/libfptu/test/fptu_c_mode && test/fpta_c_mode
