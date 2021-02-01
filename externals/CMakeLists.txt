@@ -12,7 +12,7 @@ else()
   set(LIBFPTU_TYPE OBJECT)
 endif()
 
-add_definitions(-Dfptu_EXPORTS)
+add_definitions(-Dfptu_EXPORTS -DLIBMDBX_NO_EXPORTS_LEGACY_API)
 add_subdirectory(libfptu/src)
 add_subdirectory(libfptu/test)
 
