@@ -7,7 +7,7 @@ jobs:
       - GTEST_SHUFFLE: 1
       - GTEST_RUNTIME_LIMIT: 199
     docker:
-      - image: circleci/buildpack-deps:18.04-browsers
+      - image: circleci/buildpack-deps:20.04-browsers
     steps:
       - run: sudo apt update -q && sudo apt install cmake libgtest-dev clang-format valgrind
       - checkout
