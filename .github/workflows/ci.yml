@@ -11,7 +11,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: fetch tags
-      run: git fetch --unshallow --tags --prune
+      run: git fetch --unshallow --tags --prune --force
     - name: info
       run: cmake --version && cc --version && c++ --version
     - name: configure
