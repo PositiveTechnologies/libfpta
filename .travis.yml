@@ -34,10 +34,11 @@ matrix:
       dist: focal
       compiler: clang
       env: CC=clang CXX=clang++
-    - os: linux
-      dist: bionic
-      compiler: gcc
-      env: CC=cc CXX=c++
+# Disabled at 2021-02-27 since Bionic's GCC 7.5 has a bug with the __attribute__((cold))
+#    - os: linux
+#      dist: bionic
+#      compiler: gcc
+#      env: CC=cc CXX=c++
     - os: linux
       dist: bionic
       compiler: clang
