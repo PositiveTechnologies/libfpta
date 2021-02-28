@@ -267,8 +267,9 @@ enum fpta_bits {
       fpta_id_bits - fpta_column_typeid_bits - fpta_column_index_bits,
   fpta_name_hash_shift = fpta_column_index_shift + fpta_column_index_bits,
 
-  /* Предельное кол-во индексов для одной таблице (порядка 1000) */
-  fpta_max_indexes = (1 << (fpta_id_bits - fpta_name_hash_bits)),
+  /* Предельное кол-во вторичных индексов для одной таблице (порядка 1000) */
+  fpta_max_indexes = (1 << (fpta_id_bits - fpta_name_hash_bits)) -
+                     /* НЗ и для работы юнит-тестов */ 42,
 
   /* Максимальное суммарное кол-во таблиц и всех вторичных индексов,
    * включая составные индексы/колонки */

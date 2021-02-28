@@ -400,7 +400,7 @@ tail_recursion:
 FPTA_API int fpta_estimate(fpta_txn *txn, unsigned items_count,
                            fpta_estimate_item *items_vector,
                            fpta_cursor_options options) {
-  if (unlikely(items_count < 1 || items_count > fpta_max_indexes ||
+  if (unlikely(items_count < 1 || items_count > fpta_max_cols ||
                items_vector == nullptr))
     return FPTA_EINVAL;
 

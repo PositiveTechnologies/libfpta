@@ -289,7 +289,7 @@ static __inline bool fpta_dbi_shove_is_pk(const fpta_shove_t dbi_shove) {
 static __inline fpta_shove_t fpta_dbi_shove(const fpta_shove_t table_shove,
                                             const size_t index_id) {
   assert(table_shove > fpta_flag_table);
-  assert(index_id < fpta_max_indexes);
+  assert(index_id < fpta_max_indexes + /* поправка на primary */ 1);
 
   fpta_shove_t dbi_shove = table_shove - fpta_flag_table;
   assert(0 == (dbi_shove & (fpta_column_typeid_mask | fpta_column_index_mask)));
