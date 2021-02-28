@@ -459,7 +459,7 @@ static int fpta_columns_description_validate(
                                    composites_begin, composites_detent)))
     return FPTA_SCHEMA_CORRUPTED;
 
-  size_t index_count = 0;
+  size_t secondary_count = 0;
   auto composites = composites_begin;
   for (size_t i = 0; i < shoves_count; ++i) {
     const fpta_shove_t shove = shoves[i];
@@ -476,7 +476,8 @@ static int fpta_columns_description_validate(
       /* для вторичных индексов первичный ключ должен быть уникальным */
       return FPTA_EFLAG;
 
-    if (fpta_is_indexed(index_type) && ++index_count > fpta_max_indexes)
+    if (fpta_index_is_secondary(index_type) &&
+        ++secondary_count > fpta_max_indexes)
       return FPTA_TOOMANY;
     assert((index_type & fpta_column_index_mask) == index_type);
     assert(index_type != (fpta_index_type)fpta_flag_table);
@@ -612,9 +613,13 @@ int fpta_column_set_add(fpta_column_set *column_set, const char *id_name,
   const fpta_shove_t shove =
       fpta_column_shove(name_shove, data_type, index_type);
   assert(fpta_shove2index(shove) != (fpta_index_type)fpta_flag_table);
+  size_t secondary_count = fpta_index_is_secondary(index_type);
   for (size_t i = 0; i < column_set->count; ++i) {
     if (fpta_shove_eq(column_set->shoves[i], shove))
       return FPTA_EEXIST;
+    if (fpta_index_is_secondary(column_set->shoves[i]) &&
+        ++secondary_count > fpta_max_indexes)
+      return FPTA_TOOMANY;
   }
 
   if (fpta_is_indexed(index_type) && fpta_index_is_primary(index_type)) {
@@ -1206,19 +1211,19 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     }
   }
   fpta_schema_destroy(&schema_info);
-  if (dbi_count >= fpta_max_indexes)
+  if (dbi_count >= fpta_max_dbi)
     return FPTA_TOOMANY;
 
-  MDBX_dbi dbi[fpta_max_indexes];
+  MDBX_dbi dbi[fpta_max_indexes + /* поправка на primary */ 1];
   memset(dbi, 0, sizeof(dbi));
 
   for (size_t i = 0; i < column_set->count; ++i) {
     const auto shove = column_set->shoves[i];
     if (!fpta_is_indexed(shove))
       break;
-    if (++dbi_count >= fpta_max_indexes)
+    if (++dbi_count > fpta_max_dbi ||
+        i > fpta_max_indexes + /* поправка на primary */ 1)
       return FPTA_TOOMANY;
-    assert(i < fpta_max_indexes);
 
     const MDBX_db_flags_t dbi_flags = fpta_dbi_flags(column_set->shoves, i);
     const fpta_shove_t data_shove = fpta_data_shove(column_set->shoves, i);
@@ -1264,7 +1269,7 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
     const auto shove = column_set->shoves[i];
     if (!fpta_is_indexed(shove))
       break;
-    assert(i < fpta_max_indexes);
+    assert(i < fpta_max_indexes + /* поправка на primary */ 1);
 
     const MDBX_db_flags_t dbi_flags =
         MDBX_CREATE | fpta_dbi_flags(column_set->shoves, i);
@@ -1328,7 +1333,7 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
   fpta_db *db = txn->db;
   assert(db->schema_dbi > 1);
 
-  MDBX_dbi dbi[fpta_max_indexes];
+  MDBX_dbi dbi[fpta_max_indexes + /* поправка на primary */ 1];
   memset(dbi, 0, sizeof(dbi));
 
   MDBX_val data, key;
@@ -1389,7 +1394,7 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
     const auto shove = table_schema->columns[i];
     if (!fpta_is_indexed(shove))
       break;
-    assert(i < fpta_max_indexes);
+    assert(i < fpta_max_indexes + /* поправка на primary */ 1);
 
     const MDBX_db_flags_t dbi_flags = fpta_dbi_flags(table_schema->columns, i);
     const fpta_shove_t data_shove = fpta_data_shove(table_schema->columns, i);
@@ -1455,7 +1460,7 @@ int fpta_table_column_count_ex(const fpta_name *table_id,
     unsigned count = 0;
     for (size_t i = 0; i < schema->column_count(); ++i) {
       const auto shove = schema->column_shove(i);
-      assert(i < fpta_max_indexes);
+      assert(i < fpta_max_cols);
       if (fpta_index_is_secondary(shove))
         break;
       if (fpta_is_composite(shove))

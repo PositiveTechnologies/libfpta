@@ -181,8 +181,8 @@ int fpta_db_create_or_open(const char *path, fpta_durability durability,
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;
 
-  static_assert(unsigned(MDBX_MAX_DBI) > fpta_max_dbi, "WTF?");
-  rc = mdbx_env_set_maxdbs(db->mdbx_env, fpta_max_dbi + 1);
+  static_assert(unsigned(MDBX_MAX_DBI) >= fpta_max_dbi, "WTF?");
+  rc = mdbx_env_set_maxdbs(db->mdbx_env, fpta_max_dbi + /* schema DBI */ 1);
   if (unlikely(rc != MDBX_SUCCESS))
     goto bailout;
 

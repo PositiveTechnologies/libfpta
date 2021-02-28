@@ -69,7 +69,7 @@ __hot int fpta_check_secondary_uniq(fpta_txn *txn, fpta_table_schema *table_def,
                                     const fptu_ro &old_row,
                                     const fptu_ro &new_row,
                                     const unsigned stepover) {
-  MDBX_dbi dbi[fpta_max_indexes];
+  MDBX_dbi dbi[fpta_max_indexes + /* поправка на primary */ 1];
   int rc = fpta_open_secondaries(txn, table_def, dbi);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
@@ -77,9 +77,9 @@ __hot int fpta_check_secondary_uniq(fpta_txn *txn, fpta_table_schema *table_def,
   for (size_t i = 1; i < table_def->column_count(); ++i) {
     const auto shove = table_def->column_shove(i);
     const auto index = fpta_shove2index(shove);
-    assert(i < fpta_max_indexes);
     if (!fpta_index_is_secondary(index))
       break;
+    assert(i < fpta_max_indexes + /* поправка на primary */ 1);
     if (i == stepover || !fpta_index_is_unique(index))
       continue;
 
@@ -110,7 +110,7 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
                           MDBX_val old_pk_key, const fptu_ro &old_row,
                           MDBX_val new_pk_key, const fptu_ro &new_row,
                           const unsigned stepover) {
-  MDBX_dbi dbi[fpta_max_indexes];
+  MDBX_dbi dbi[fpta_max_indexes + /* поправка на primary */ 1];
   int rc = fpta_open_secondaries(txn, table_def, dbi);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
@@ -118,9 +118,9 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
   for (size_t i = 1; i < table_def->column_count(); ++i) {
     const auto shove = table_def->column_shove(i);
     const auto index = fpta_shove2index(shove);
-    assert(i < fpta_max_indexes);
     if (!fpta_index_is_secondary(index))
       break;
+    assert(i < fpta_max_indexes + /* поправка на primary */ 1);
     if (i == stepover)
       continue;
 
@@ -190,7 +190,7 @@ int fpta_secondary_upsert(fpta_txn *txn, fpta_table_schema *table_def,
 int fpta_secondary_remove(fpta_txn *txn, fpta_table_schema *table_def,
                           MDBX_val &pk_key, const fptu_ro &row,
                           const unsigned stepover) {
-  MDBX_dbi dbi[fpta_max_indexes];
+  MDBX_dbi dbi[fpta_max_indexes + /* поправка на primary */ 1];
   int rc = fpta_open_secondaries(txn, table_def, dbi);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
@@ -198,9 +198,9 @@ int fpta_secondary_remove(fpta_txn *txn, fpta_table_schema *table_def,
   for (size_t i = 1; i < table_def->column_count(); ++i) {
     const auto shove = table_def->column_shove(i);
     const auto index = fpta_shove2index(shove);
-    assert(i < fpta_max_indexes);
     if (!fpta_index_is_secondary(index))
       break;
+    assert(i < fpta_max_indexes + /* поправка на primary */ 1);
     if (i == stepover)
       continue;
 
@@ -333,7 +333,7 @@ int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
     unsigned overall_branch_height = stat->btree_depth - 1;
     unsigned overall_trees = 1;
     if (table_id->table_schema->has_secondary()) {
-      MDBX_dbi dbi[fpta_max_indexes];
+      MDBX_dbi dbi[fpta_max_indexes + /* поправка на primary */ 1];
       rc = fpta_open_secondaries(txn, table_id->table_schema, dbi);
       if (unlikely(rc != FPTA_SUCCESS))
         return rc;
@@ -449,7 +449,7 @@ int fpta_table_clear(fpta_txn *txn, fpta_name *table_id, bool reset_sequence) {
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  MDBX_dbi dbi[fpta_max_indexes];
+  MDBX_dbi dbi[fpta_max_indexes + /* поправка на primary */ 1];
   if (table_def->has_secondary()) {
     rc = fpta_open_secondaries(txn, table_def, dbi);
     if (unlikely(rc != FPTA_SUCCESS))
