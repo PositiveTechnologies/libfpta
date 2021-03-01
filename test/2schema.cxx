@@ -1239,6 +1239,132 @@ TEST(Schema, SameNames) {
 
 //----------------------------------------------------------------------------
 
+TEST(Schema, Overkill) {
+  /* Сценарий:
+   *  1. Открываем базу в режиме изменяемой схемы.
+   *  2. Создаем fpta_tables_max таблиц, в каждой из которых
+   *     от 2 до fpta_max_cols.
+   *  3. Создавая таблицы также создаем индексы для её колонок,
+   *     но не превышая:
+   *       - fpta_max_indexes для одной таблице;
+   *       - fpta_max_dbi суммарно для всех таблиц и колонок;
+   *  4. Создавая таблицы начинаем с минимального числа колонок и индексов,
+   *     чтобы при большой схеме (~1000 таблиц от 2 до ~1000 колонок и индексов)
+   *     выполнять минимум итераций теста, т.е. уйти от O((T*C)^3).
+   *  5. Коммитим транзакцию, для проверки переоткрываем БД и читаем схему. */
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db *db = nullptr;
+  /* открываем базу с возможностью изменять схему */
+  ASSERT_EQ(FPTA_SUCCESS, test_db_open(testdb_name, fpta_weak,
+                                       fpta_regime_default, 1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  //------------------------------------------------------------------------
+  // создаем таблицы в транзакции
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  fpta_column_set def;
+  unsigned whole_dbi = 0;
+  for (unsigned table_count = 0;
+       table_count < fpta_tables_max && whole_dbi < fpta_max_dbi;
+       ++table_count) {
+    const unsigned left_tbl = fpta_tables_max - table_count;
+    const unsigned left_dbi = fpta_max_dbi - whole_dbi;
+    const unsigned target_column =
+        ((left_tbl - 1) * (std::min(fpta_max_indexes, fpta_max_cols) - 3) >
+         left_dbi)
+            ? 2u
+            : unsigned(fpta_max_cols);
+
+    std::cout << "left_dbi " << left_dbi << ", left_tbl " << left_tbl
+              << ", target_column " << target_column << "\n";
+
+    SCOPED_TRACE("table #" + std::to_string(table_count) + ", whole DBI #" +
+                 std::to_string(whole_dbi));
+    fpta_column_set_init(&def);
+    std::string table_name = fptu::format("tbl_%04u", table_count);
+    ASSERT_EQ(FPTA_OK,
+              fpta_column_describe("pk", fptu_uint32,
+                                   fpta_primary_unique_ordered_obverse, &def));
+    ++whole_dbi;
+
+    unsigned index_count = 0;
+    for (unsigned column_count = 1; column_count < target_column;
+         ++column_count) {
+      ASSERT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+      std::string colunm_name = fptu::format("col_%04u", column_count);
+      if (whole_dbi < fpta_max_dbi && index_count < fpta_max_indexes) {
+        SCOPED_TRACE("column #" + std::to_string(column_count) + " of " +
+                     std::to_string(target_column) + ", whole DBI #" +
+                     std::to_string(whole_dbi));
+        EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                               colunm_name.c_str(), fptu_cstr,
+                               fpta_secondary_withdups_ordered_obverse, &def));
+        ++whole_dbi;
+        ++index_count;
+      } else {
+        if (index_count >= fpta_max_indexes) {
+          // пробуем добавить лишний индекс
+          EXPECT_EQ(FPTA_TOOMANY,
+                    fpta_column_describe(
+                        "overkill", fptu_cstr,
+                        fpta_secondary_withdups_ordered_obverse, &def));
+        }
+        EXPECT_EQ(FPTA_OK, fpta_column_describe(colunm_name.c_str(), fptu_cstr,
+                                                fpta_index_none, &def));
+      }
+    }
+
+    if (target_column >= fpta_max_cols) {
+      // пробуем добавить лишнюю колонку
+      EXPECT_EQ(FPTA_TOOMANY, fpta_column_describe("overkill", fptu_cstr,
+                                                   fpta_index_none, &def));
+    }
+    ASSERT_EQ(FPTA_OK, fpta_table_create(txn, table_name.c_str(), &def));
+    ASSERT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  }
+  ASSERT_EQ(unsigned(fpta_max_dbi), whole_dbi);
+
+  // пробуем создать лишнюю таблицу
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("pk", fptu_uint32,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                         "se", fptu_cstr,
+                         fpta_secondary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_TOOMANY, fpta_table_create(txn, "overkill", &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+  //------------------------------------------------------------------------
+
+  fpta_schema_info schema_info;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+  EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
+  EXPECT_EQ(unsigned(fpta_tables_max), schema_info.tables_count);
+  EXPECT_EQ(unsigned(fpta_max_dbi),
+            schema_info.indexes_count + schema_info.tables_count);
+  EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+  //------------------------------------------------------------------------
+
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
