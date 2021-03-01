@@ -162,8 +162,13 @@ fpta_dbicache_validate_locked(fpta_txn *txn, const fpta_shove_t dbi_shove,
 
     if (likely(db->dbi_tsns[*cache_hint] == txn->schema_tsn()))
       return FPTA_SUCCESS;
-    if (db->dbi_tsns[*cache_hint] > txn->schema_tsn())
-      return FPTA_SCHEMA_CHANGED;
+    if (db->dbi_tsns[*cache_hint] > txn->schema_tsn()) {
+      if (db->dbi_tsns[*cache_hint] < db->schema_tsn ||
+          txn->schema_tsn() != db->schema_tsn)
+        return FPTA_SCHEMA_CHANGED;
+      db->dbi_tsns[*cache_hint] = txn->schema_tsn();
+      return MDBX_SUCCESS;
+    }
 
     MDBX_dbi handle;
     int rc = fpta_dbi_open(txn, dbi_shove, handle, dbi_flags);
