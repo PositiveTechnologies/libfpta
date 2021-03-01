@@ -143,8 +143,13 @@ static __cold int fpta_dbicache_validate_locked(
 
     if (likely(db->dbi_tsns[*cache_hint] == txn->schema_tsn()))
       return FPTA_SUCCESS;
-    if (db->dbi_tsns[*cache_hint] > txn->schema_tsn())
-      return FPTA_SCHEMA_CHANGED;
+    if (db->dbi_tsns[*cache_hint] > txn->schema_tsn()) {
+      if (db->dbi_tsns[*cache_hint] < db->schema_tsn ||
+          txn->schema_tsn() != db->schema_tsn)
+        return FPTA_SCHEMA_CHANGED;
+      db->dbi_tsns[*cache_hint] = txn->schema_tsn();
+      return MDBX_SUCCESS;
+    }
 
     MDBX_dbi handle;
     int rc =

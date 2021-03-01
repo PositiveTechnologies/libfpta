@@ -1084,8 +1084,16 @@ int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
     return rc;
 
   if (unlikely(table_id->version_tsn != txn->schema_tsn())) {
-    if (table_id->version_tsn > txn->schema_tsn())
-      return FPTA_SCHEMA_CHANGED;
+    if (table_id->version_tsn > txn->schema_tsn()) {
+      fpta_lock_guard guard;
+      if (txn->level < fpta_schema) {
+        rc = guard.lock(&txn->db->dbi_mutex);
+        if (unlikely(rc != 0))
+          return rc;
+      }
+      if (txn->schema_tsn() != txn->db->schema_tsn)
+        return FPTA_SCHEMA_CHANGED;
+    }
 
     rc = fpta_schema_read(txn, table_id->shove, &table_id->table_schema);
     if (unlikely(rc != FPTA_SUCCESS)) {
