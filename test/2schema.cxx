@@ -1284,8 +1284,8 @@ TEST(Schema, Overkill) {
             ? 2u
             : unsigned(fpta_max_cols);
 
-    std::cout << "left_dbi " << left_dbi << ", left_tbl " << left_tbl
-              << ", target_column " << target_column << "\n";
+    // std::cout << "left_dbi " << left_dbi << ", left_tbl " << left_tbl
+    //           << ", target_column " << target_column << "\n";
 
     SCOPED_TRACE("table #" + std::to_string(table_count) + ", whole DBI #" +
                  std::to_string(whole_dbi));
