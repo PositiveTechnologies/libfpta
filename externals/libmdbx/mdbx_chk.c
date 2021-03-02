@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY c28f4f8639430c26ee6745bff5a95c11b991330980f283efba4afe6c3d07f335_v0_9_3_11_g34dcb410
+#define MDBX_BUILD_SOURCERY f76da2467d7caf76e7c35f786522b2ae26ffc6fbb4b1e3db58568ddfb7e06405_v0_9_3_19_g46dcd6e7
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -4636,8 +4636,8 @@ int main(int argc, char *argv[]) {
           if (all_leaf) {
             print(", leaf %" PRIu64, all_leaf);
             if (verbose > 2 &&
-                (dbi->pages.leaf_dupfixed | dbi->pages.subleaf_dupsort |
-                 dbi->pages.subleaf_dupsort))
+                (dbi->pages.subleaf_dupsort | dbi->pages.leaf_dupfixed |
+                 dbi->pages.subleaf_dupfixed))
               print(" (usual %" PRIu64 ", sub-dupsort %" PRIu64
                     ", dupfixed %" PRIu64 ", sub-dupfixed %" PRIu64 ")",
                     dbi->pages.leaf, dbi->pages.subleaf_dupsort,

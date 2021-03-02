@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY c28f4f8639430c26ee6745bff5a95c11b991330980f283efba4afe6c3d07f335_v0_9_3_11_g34dcb410
+#define MDBX_BUILD_SOURCERY f76da2467d7caf76e7c35f786522b2ae26ffc6fbb4b1e3db58568ddfb7e06405_v0_9_3_19_g46dcd6e7
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -6329,8 +6329,6 @@ static void mdbx_dpl_free(MDBX_txn *txn) {
 }
 
 static MDBX_dpl *mdbx_dpl_reserve(MDBX_txn *txn, size_t size) {
-  mdbx_tassert(txn,
-               txn->tw.dirtylist == NULL || txn->tw.dirtylist->length <= size);
   size_t bytes = dpl2bytes((size < MDBX_PGL_LIMIT) ? size : MDBX_PGL_LIMIT);
   MDBX_dpl *const dl = mdbx_realloc(txn->tw.dirtylist, bytes);
   if (likely(dl)) {
@@ -6345,13 +6343,18 @@ static MDBX_dpl *mdbx_dpl_reserve(MDBX_txn *txn, size_t size) {
 }
 
 static int mdbx_dpl_alloc(MDBX_txn *txn) {
-  mdbx_tassert(txn,
-               (txn->mt_flags & MDBX_TXN_RDONLY) == 0 && !txn->tw.dirtylist);
-  MDBX_dpl *const dl =
-      mdbx_dpl_reserve(txn, txn->mt_env->me_options.dp_initial);
-  if (unlikely(!dl))
-    return MDBX_ENOMEM;
-  mdbx_dpl_clear(dl);
+  mdbx_tassert(txn, (txn->mt_flags & MDBX_TXN_RDONLY) == 0);
+  const int wanna = (txn->mt_env->me_options.dp_initial < txn->mt_geo.upper)
+                        ? txn->mt_env->me_options.dp_initial
+                        : txn->mt_geo.upper;
+  const int realloc_threshold = 64;
+  if (!txn->tw.dirtylist ||
+      (int)txn->tw.dirtylist->detent - wanna > realloc_threshold ||
+      (int)txn->tw.dirtylist->detent - wanna < -realloc_threshold) {
+    if (unlikely(!mdbx_dpl_reserve(txn, wanna)))
+      return MDBX_ENOMEM;
+  }
+  mdbx_dpl_clear(txn->tw.dirtylist);
   return MDBX_SUCCESS;
 }
 
@@ -10092,8 +10095,6 @@ static int mdbx_txn_renew0(MDBX_txn *txn, const unsigned flags) {
 #if MDBX_ENABLE_REFUND
     txn->tw.loose_refund_wl = 0;
 #endif /* MDBX_ENABLE_REFUND */
-    txn->tw.dirtyroom = txn->mt_env->me_options.dp_limit;
-    mdbx_dpl_clear(txn->tw.dirtylist);
     MDBX_PNL_SIZE(txn->tw.retired_pages) = 0;
     txn->tw.spill_pages = NULL;
     txn->tw.spill_least_removed = 0;
@@ -10107,6 +10108,11 @@ static int mdbx_txn_renew0(MDBX_txn *txn, const unsigned flags) {
     memcpy(txn->mt_dbs, meta->mm_dbs, CORE_DBS * sizeof(MDBX_db));
     /* Moved to here to avoid a data race in read TXNs */
     txn->mt_geo = meta->mm_geo;
+
+    rc = mdbx_dpl_alloc(txn);
+    if (unlikely(rc != MDBX_SUCCESS))
+      goto bailout;
+    txn->tw.dirtyroom = txn->mt_env->me_options.dp_limit;
   }
 
   /* Setup db info */
@@ -10337,6 +10343,7 @@ int mdbx_txn_begin_ex(MDBX_env *env, MDBX_txn *parent, MDBX_txn_flags_t flags,
     mdbx_tassert(parent, mdbx_dirtylist_check(parent));
     txn->tw.cursors = (MDBX_cursor **)(txn->mt_dbs + env->me_maxdbs);
     txn->mt_dbiseqs = parent->mt_dbiseqs;
+    txn->mt_geo = parent->mt_geo;
     rc = mdbx_dpl_alloc(txn);
     if (likely(rc == MDBX_SUCCESS)) {
       const unsigned len =
@@ -10404,7 +10411,6 @@ int mdbx_txn_begin_ex(MDBX_env *env, MDBX_txn *parent, MDBX_txn_flags_t flags,
         (void *)(intptr_t)MDBX_PNL_SIZE(parent->tw.retired_pages);
 
     txn->mt_txnid = parent->mt_txnid;
-    txn->mt_geo = parent->mt_geo;
 #if MDBX_ENABLE_REFUND
     txn->tw.loose_refund_wl = 0;
 #endif /* MDBX_ENABLE_REFUND */
@@ -15077,13 +15083,10 @@ __cold int mdbx_env_open(MDBX_env *env, const char *pathname,
         txn->mt_dbxs = env->me_dbxs;
         txn->mt_flags = MDBX_TXN_FINISHED;
         env->me_txn0 = txn;
-        rc = mdbx_dpl_alloc(txn);
-        if (likely(rc == MDBX_SUCCESS)) {
-          txn->tw.retired_pages = mdbx_pnl_alloc(MDBX_PNL_INITIAL);
-          txn->tw.reclaimed_pglist = mdbx_pnl_alloc(MDBX_PNL_INITIAL);
-          if (unlikely(!txn->tw.retired_pages || !txn->tw.reclaimed_pglist))
-            rc = MDBX_ENOMEM;
-        }
+        txn->tw.retired_pages = mdbx_pnl_alloc(MDBX_PNL_INITIAL);
+        txn->tw.reclaimed_pglist = mdbx_pnl_alloc(MDBX_PNL_INITIAL);
+        if (unlikely(!txn->tw.retired_pages || !txn->tw.reclaimed_pglist))
+          rc = MDBX_ENOMEM;
       } else
         rc = MDBX_ENOMEM;
     }
@@ -17662,8 +17665,8 @@ int mdbx_cursor_del(MDBX_cursor *mc, MDBX_put_flags_t flags) {
   if (unlikely(mc->mc_ki[mc->mc_top] >= page_numkeys(mc->mc_pg[mc->mc_top])))
     return MDBX_NOTFOUND;
 
-  if (unlikely(!(flags & MDBX_NOSPILL) &&
-               (rc = mdbx_cursor_spill(mc, NULL, NULL))))
+  if (likely((flags & MDBX_NOSPILL) == 0) &&
+      unlikely(rc = mdbx_cursor_spill(mc, NULL, NULL)))
     return rc;
 
   rc = mdbx_cursor_touch(mc);
@@ -23956,8 +23959,7 @@ __cold int mdbx_env_set_option(MDBX_env *env, const MDBX_option_t option,
 
   case MDBX_opt_txn_dp_limit:
   case MDBX_opt_txn_dp_initial:
-    if (unlikely(value > MDBX_PGL_LIMIT || value < CURSOR_STACK * 4 ||
-                 value > bytes2pgno(env, env->me_dbgeo.upper) - NUM_METAS))
+    if (unlikely(value > MDBX_PGL_LIMIT || value < CURSOR_STACK * 4))
       return MDBX_EINVAL;
     if (unlikely(env->me_txn0 == NULL))
       return MDBX_EACCESS;
@@ -26884,9 +26886,9 @@ __dll_export
         0,
         9,
         3,
-        11,
-        {"2021-02-07T14:32:27+03:00", "8fc5fdc505635b97574ba3f834e6395984a0aadf", "34dcb410a927a15a21d945b0ffef0536106b5277",
-         "v0.9.3-11-g34dcb410"},
+        19,
+        {"2021-03-02T03:58:27+03:00", "76df61b48ffa77e33cb922d8148779653408af16", "46dcd6e7ca7a96053735bd9d182b64ab5e5bdf90",
+         "v0.9.3-19-g46dcd6e7"},
         sourcery};
 
 __dll_export
