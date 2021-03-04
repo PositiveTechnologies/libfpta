@@ -112,6 +112,7 @@ __cold MDBX_dbi fpta_dbicache_remove(fpta_db *db, const fpta_shove_t shove,
       *cache_hint = ~0u;
       if (db->dbi_shoves[i] == shove) {
         MDBX_dbi dbi = db->dbi_handles[i];
+        db->dbi_handles[i] = 0;
         db->dbi_shoves[i] = 0;
         return dbi;
       }
@@ -124,6 +125,7 @@ __cold MDBX_dbi fpta_dbicache_remove(fpta_db *db, const fpta_shove_t shove,
   do {
     if (db->dbi_shoves[i] == shove) {
       MDBX_dbi dbi = db->dbi_handles[i];
+      db->dbi_handles[i] = 0;
       db->dbi_shoves[i] = 0;
       return dbi;
     }
