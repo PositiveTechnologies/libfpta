@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define MDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY b4c07ca8fe5bd13dfbe3bbbc07f31f70662b13445b569e11a6732faed8b939e8_v0_9_3_21_gdec11e63
+#define MDBX_BUILD_SOURCERY e1a7d81e4b476baa987453aa05286b9f5bd33dd86c7f03bab6b9d4096655c138_v0_9_3_26_gec95a50b_dirty
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -16811,22 +16811,22 @@ int mdbx_cursor_get(MDBX_cursor *mc, MDBX_val *key, MDBX_val *data,
  * [in] mc The cursor to operate on. */
 static int mdbx_cursor_touch(MDBX_cursor *mc) {
   int rc = MDBX_SUCCESS;
-
-  if (mc->mc_dbi >= CORE_DBS &&
-      (*mc->mc_dbistate & (DBI_DIRTY | DBI_DUPDATA)) == 0) {
-    mdbx_cassert(mc, (mc->mc_flags & C_RECLAIMING) == 0);
-    /* Touch DB record of named DB */
-    MDBX_cursor_couple cx;
-    if (TXN_DBI_CHANGED(mc->mc_txn, mc->mc_dbi))
-      return MDBX_BAD_DBI;
-    rc = mdbx_cursor_init(&cx.outer, mc->mc_txn, MAIN_DBI);
-    if (unlikely(rc != MDBX_SUCCESS))
-      return rc;
+  if (unlikely((*mc->mc_dbistate & (DBI_DIRTY | DBI_DUPDATA)) == 0)) {
     *mc->mc_dbistate |= DBI_DIRTY;
     mc->mc_txn->mt_flags |= MDBX_TXN_DIRTY;
-    rc = mdbx_page_search(&cx.outer, &mc->mc_dbx->md_name, MDBX_PS_MODIFY);
-    if (unlikely(rc))
-      return rc;
+    if (mc->mc_dbi >= CORE_DBS) {
+      mdbx_cassert(mc, (mc->mc_flags & C_RECLAIMING) == 0);
+      /* Touch DB record of named DB */
+      MDBX_cursor_couple cx;
+      if (TXN_DBI_CHANGED(mc->mc_txn, mc->mc_dbi))
+        return MDBX_BAD_DBI;
+      rc = mdbx_cursor_init(&cx.outer, mc->mc_txn, MAIN_DBI);
+      if (unlikely(rc != MDBX_SUCCESS))
+        return rc;
+      rc = mdbx_page_search(&cx.outer, &mc->mc_dbx->md_name, MDBX_PS_MODIFY);
+      if (unlikely(rc))
+        return rc;
+    }
   }
   mc->mc_top = 0;
   if (mc->mc_snum) {
@@ -21863,8 +21863,13 @@ static int mdbx_dbi_close_locked(MDBX_env *env, MDBX_dbi dbi) {
   env->me_dbxs[dbi].md_name.iov_base = NULL;
   mdbx_free(ptr);
 
-  if (env->me_numdbs == dbi + 1)
-    env->me_numdbs = dbi;
+  if (env->me_numdbs == dbi + 1) {
+    unsigned i = env->me_numdbs;
+    do
+      --i;
+    while (i > CORE_DBS && !env->me_dbxs[i - 1].md_name.iov_base);
+    env->me_numdbs = i;
+  }
 
   return MDBX_SUCCESS;
 }
@@ -22042,6 +22047,8 @@ int mdbx_drop(MDBX_txn *txn, MDBX_dbi dbi, bool del) {
   if (del && dbi >= CORE_DBS) {
     rc = mdbx_del0(txn, MAIN_DBI, &mc->mc_dbx->md_name, NULL, F_SUBDATA);
     if (likely(rc == MDBX_SUCCESS)) {
+      mdbx_tassert(txn, txn->mt_dbistate[MAIN_DBI] & DBI_DIRTY);
+      mdbx_tassert(txn, txn->mt_flags & MDBX_TXN_DIRTY);
       txn->mt_dbistate[dbi] = DBI_STALE;
       MDBX_env *env = txn->mt_env;
       rc = mdbx_fastmutex_acquire(&env->me_dbi_lock);
@@ -24297,7 +24304,7 @@ __dll_export
     "ARM"
   #elif defined(__mips64) || defined(__mips64__) || (defined(__mips) && (__mips >= 64))
     "MIPS64"
-  #elif if defined(__mips__) || defined(__mips) || defined(_R4000) || defined(__MIPS__)
+  #elif defined(__mips__) || defined(__mips) || defined(_R4000) || defined(__MIPS__)
     "MIPS"
   #elif defined(__hppa64__) || defined(__HPPA64__) || defined(__hppa64)
     "PARISC64"
@@ -26869,9 +26876,9 @@ __dll_export
         0,
         9,
         3,
-        21,
-        {"2021-03-03T16:24:32+03:00", "bf13933b0bc72e2b7e178fa90efa7fbcd36415dd", "dec11e639a1a7adfec3e361ae279052d8f740c51",
-         "v0.9.3-21-gdec11e63"},
+        26,
+        {"2021-03-06T20:40:15+03:00", "76851e80e9f2985f2b451c3ad18ec0f0e4793675", "ec95a50bb609963589005b3d7bc786f560c887b9",
+         "v0.9.3-26-gec95a50b-dirty"},
         sourcery};
 
 __dll_export
