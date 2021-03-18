@@ -1511,6 +1511,120 @@ TEST(Schema, Overkill) {
 
 //----------------------------------------------------------------------------
 
+TEST(Schema, PreviousDbiReuseBig) {
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_SUCCESS, test_db_open(testdb_name, fpta_weak,
+                                       fpta_regime_default, 1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("a", fptu_cstr, fpta_index_none, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("b", fptu_int64,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  int idx = 0;
+  for (idx = 0; idx < 783; idx++) {
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           ("c_" + std::to_string(idx)).c_str(), fptu_cstr,
+                           fpta_secondary_withdups_ordered_obverse, &def));
+  }
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+
+  fpta_txn *txn = (fpta_txn *)&txn;
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  // создаём первые 3 таблицы
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_first", &def));
+  fpta_name table_first;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_first, "table_first"));
+  EXPECT_EQ(FPTA_OK, fpta_table_clear(txn, &table_first, true));
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_second", &def));
+  fpta_name table_second;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_second, "table_second"));
+  EXPECT_EQ(FPTA_OK, fpta_table_clear(txn, &table_second, true));
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_third", &def));
+  fpta_name table_third;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_third, "table_third"));
+  EXPECT_EQ(FPTA_OK, fpta_table_clear(txn, &table_third, true));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  //------------------------------------------------------------------------
+  // удаляем их, создаём вторые три
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table_third"));
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table_second"));
+  EXPECT_EQ(FPTA_OK, fpta_table_drop(txn, "table_first"));
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_first_new", &def));
+  fpta_name table_first_new;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_first_new, "table_first_new"));
+  EXPECT_EQ(FPTA_OK, fpta_table_clear(txn, &table_first_new, true));
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_second_new", &def));
+  fpta_name table_second_new;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_second_new, "table_second_new"));
+  EXPECT_EQ(FPTA_OK, fpta_table_clear(txn, &table_second_new, true));
+
+  EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table_third_new", &def));
+  fpta_name table_third_new;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table_third_new, "table_third_new"));
+  EXPECT_EQ(FPTA_OK, fpta_table_clear(txn, &table_third_new, true));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+
+  size_t row_count;
+  fpta_table_stat table_stat;
+
+  //------------------------------------------------------------------------
+  // опрашиваем информацию о новых трёх таблицах
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  EXPECT_EQ(FPTA_OK,
+            fpta_table_info(txn, &table_first_new, &row_count, &table_stat));
+
+  EXPECT_EQ(FPTA_OK,
+            fpta_table_info(txn, &table_second_new, &row_count, &table_stat));
+
+  EXPECT_EQ(FPTA_OK,
+            fpta_table_info(txn, &table_third_new, &row_count, &table_stat));
+
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  //------------------------------------------------------------------------
+
+  fpta_name_destroy(&table_first);
+  fpta_name_destroy(&table_second);
+  fpta_name_destroy(&table_third);
+  fpta_name_destroy(&table_first_new);
+  fpta_name_destroy(&table_second_new);
+  fpta_name_destroy(&table_third_new);
+
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
