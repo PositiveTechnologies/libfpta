@@ -316,8 +316,12 @@ enum fpta_internals {
   /* используем некорретный для индекса набор флагов, чтобы в fpta_name
    * отличать таблицу от колонки, у таблицы в internal будет fpta_ftable. */
   fpta_flag_table = fpta_index_fsecondary,
-  fpta_dbi_cache_size = 6619 /* простое число ближайшее
-                              * к golten_ratio * fpta_max_dbi = 6627.467 */
+#ifdef NDEBUG
+  fpta_dbi_cache_size = 53017 /* простое число ближайшее
+                               * к golten_ratio * fpta_max_dbi = 53019,738 */
+#else
+  fpta_dbi_cache_size = 6619 /* недостаточный размер для отладки коллизий */
+#endif
   ,
   FTPA_SCHEMA_SIGNATURE = 1636722823,
   FTPA_SCHEMA_CHECKSEED = 67413473,
