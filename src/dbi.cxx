@@ -130,7 +130,7 @@ __cold MDBX_dbi fpta_dbicache_remove(fpta_db *db, const fpta_shove_t shove,
       return dbi;
     }
     i = (i + 1) % fpta_dbi_cache_size;
-  } while (i != n && db->dbi_shoves[i]);
+  } while (i != n);
 
   return 0;
 }

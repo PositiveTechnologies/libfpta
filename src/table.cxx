@@ -463,7 +463,7 @@ int fpta_table_clear(fpta_txn *txn, fpta_name *table_id, bool reset_sequence) {
       return rc;
   }
 
-  rc = mdbx_drop(txn->mdbx_txn, handle, 0);
+  rc = mdbx_drop(txn->mdbx_txn, handle, false);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
@@ -472,7 +472,7 @@ int fpta_table_clear(fpta_txn *txn, fpta_name *table_id, bool reset_sequence) {
       const fpta_shove_t shove = table_def->column_shove(i);
       if (!fpta_is_indexed(shove))
         break;
-      rc = mdbx_drop(txn->mdbx_txn, dbi[i], 0);
+      rc = mdbx_drop(txn->mdbx_txn, dbi[i], false);
       if (unlikely(rc != MDBX_SUCCESS))
         return fpta_internal_abort(txn, rc);
     }

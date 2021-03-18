@@ -1425,11 +1425,15 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
     if (!fpta_is_indexed(shove))
       break;
     assert(i < fpta_max_indexes + /* поправка на primary */ 1);
-
-    const MDBX_db_flags_t dbi_flags = fpta_dbi_flags(table_schema->columns, i);
-    rc = fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags);
-    if (unlikely(rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND))
-      return rc;
+    dbi[i] = fpta_dbicache_remove(db, fpta_dbi_shove(table_shove, i));
+    if (dbi[i] == 0) {
+      const MDBX_db_flags_t dbi_flags =
+          fpta_dbi_flags(table_schema->columns, i);
+      rc =
+          fpta_dbi_open(txn, fpta_dbi_shove(table_shove, i), dbi[i], dbi_flags);
+      if (unlikely(rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND))
+        return rc;
+    }
   }
 
   // обновляем словарь схемы
@@ -1447,7 +1451,6 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
   // удаляем все связаныне таблицы, включая вторичные индексы
   for (size_t i = 0; i < table_schema->count; ++i) {
     if (dbi[i] > 0) {
-      fpta_dbicache_remove(db, fpta_dbi_shove(table_shove, i));
       rc = mdbx_drop(txn->mdbx_txn, dbi[i], true);
       if (unlikely(rc != MDBX_SUCCESS))
         goto bailout;
