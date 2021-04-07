@@ -183,9 +183,14 @@ TEST(Threaded, SimpleConcurence) {
 
   SCOPED_TRACE("All threads are stopped");
   EXPECT_EQ(FPTA_OK, fpta_db_close(db));
-  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
-  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+  //  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  //  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
+
+//На всякий - извини что не пишу лично:
+// - помню (с твоих слов) что против политоты;
+// - не люблю "домогаться";
+// - де-факто (видим) не было повода что-то сказать/спросить по-делу.
 
 //------------------------------------------------------------------------------
 
