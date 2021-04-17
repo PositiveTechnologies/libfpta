@@ -1083,7 +1083,9 @@ int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  if (unlikely(table_id->version_tsn != txn->schema_tsn())) {
+  if (unlikely(table_id->version_tsn != txn->schema_tsn() ||
+               (!table_id->table_schema &&
+                table_id->version_tsn == txn->db_version))) {
     if (table_id->version_tsn > txn->schema_tsn()) {
       fpta_lock_guard guard;
       if (txn->level < fpta_schema) {
