@@ -4762,7 +4762,7 @@ TEST(SmokeCrud, TableVersion) {
   ASSERT_NE(0u, txnid_creation);
   fpta_table_stat stat;
   ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
-  EXPECT_EQ(0u, stat.mod_txnid);
+  EXPECT_EQ(txnid_creation, stat.mod_txnid);
 
   // фиксируем транзакцию создания таблицы
   ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
