@@ -71,7 +71,7 @@ endif()
 
 add_executable(fpta_c_mode c_mode.c)
 target_link_libraries(fpta_c_mode fpta)
-if(LIBFPTA_TYPE STREQUAL "PILE")
+if(LIBFPTA_TYPE STREQUAL "PILE" OR ENABLE_UBSAN)
   set_target_properties(fpta_c_mode PROPERTIES LINKER_LANGUAGE CXX)
 endif()
 
