@@ -22,20 +22,6 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
   cmake_policy(PUSH)
-  if(NOT DEFINED BUILD_GTEST)
-    set(BUILD_GTEST ON CACHE BOOL "Builds the googletest subproject")
-  endif()
-  if(NOT DEFINED BUILD_GMOCK)
-    set(BUILD_GMOCK OFF CACHE BOOL "Builds the googlemock subproject")
-  endif()
-  if(NOT DEFINED INSTALL_GTEST)
-    set(INSTALL_GTEST OFF CACHE BOOL "Enable installation of googletest")
-  endif()
-
-  if(NOT DEFINED GTEST_USE_VERSION)
-    set(GTEST_USE_VERSION "LAST_RELEASE")
-  endif()
-
   cmake_policy(SET CMP0042 NEW)
   cmake_policy(SET CMP0054 NEW)
   if(NOT CMAKE_VERSION VERSION_LESS 3.9)
@@ -46,12 +32,24 @@ if(BUILD_TESTING)
     cmake_policy(SET CMP0075 NEW)
   endif()
 
-  # Expected GTest was already found and/or pointed via ${gtest_root},
-  # otherwise will search at ${gtest_paths} locations, if defined or default ones.
-  find_package(GTest)
+  if(NOT GTEST_FOUND AND NOT (DEFINED BUILD_GTEST AND BUILD_GTEST))
+    # Expected GTest was already found and/or pointed via ${gtest_root},
+    # otherwise will search at ${gtest_paths} locations, if defined or default ones.
+    find_package(GTest)
+  endif()
 
   if(NOT GTEST_FOUND)
     message(STATUS "Lookup GoogleTest sources...")
+    if(NOT DEFINED BUILD_GTEST)
+      set(BUILD_GTEST ON CACHE BOOL "Builds the googletest subproject")
+    endif()
+    if(NOT DEFINED BUILD_GMOCK)
+      set(BUILD_GMOCK OFF CACHE BOOL "Builds the googlemock subproject")
+    endif()
+    if(NOT DEFINED INSTALL_GTEST)
+      set(INSTALL_GTEST OFF CACHE BOOL "Enable installation of googletest")
+    endif()
+
     if(NOT gtest_paths)
       if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
         set(gtest_paths
