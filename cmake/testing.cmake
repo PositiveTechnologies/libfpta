@@ -13,7 +13,12 @@
 ##  limitations under the License.
 ##
 
-cmake_minimum_required(VERSION 3.8.2)
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  cmake_minimum_required(VERSION 3.8.2)
+else()
+  cmake_minimum_required(VERSION 3.12)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
   cmake_policy(PUSH)
