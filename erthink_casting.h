@@ -84,18 +84,16 @@ template <typename TO, typename FROM>
 #else
 template <typename TO, typename FROM,
           typename erthink::enable_if_t<sizeof(TO) == sizeof(FROM), int> = 0,
-          typename erthink::enable_if_t<std::is_trivially_copyable<FROM>::value,
-                                        int> = 0,
-          typename erthink::enable_if_t<std::is_trivially_copyable<TO>::value,
-                                        int> = 0>
+          typename erthink::enable_if_t<std::is_trivial<FROM>::value, int> = 0,
+          typename erthink::enable_if_t<std::is_trivial<TO>::value, int> = 0>
 #endif
     cxx14_constexpr TO bit_cast(const FROM &src) cxx11_noexcept {
   static_assert(sizeof(TO) == sizeof(FROM),
                 "bit_cast requires source and destination to be the same size");
-  static_assert(std::is_trivially_copyable<FROM>::value,
+  static_assert(std::is_trivial<FROM>::value,
                 "bit_cast requires the source type to be trivially copyable");
   static_assert(
-      std::is_trivially_copyable<TO>::value,
+      std::is_trivial<TO>::value,
       "bit_cast requires the destination type to be trivially copyable");
 #if __has_builtin(__builtin_bit_cast)
   return __builtin_bit_cast(TO, src);
