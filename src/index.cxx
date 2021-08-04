@@ -69,7 +69,7 @@ static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
       return FPTA_SUCCESS;
     }
 
-    const size_t chunk = fpta_max_keylen - fpta_notnil_prefix_length;
+    const size_t chunk = fpta_max_keylen - unsigned(fpta_notnil_prefix_length);
     if (fpta_index_is_obverse(index)) {
       /* ключ сравнивается от головы к хвосту (как memcpy),
        * копируем начало и хэшируем хвост. */

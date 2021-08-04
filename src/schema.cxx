@@ -538,7 +538,7 @@ static int fpta_columns_description_validate(
     if (fpta_index_is_secondary(index_type) &&
         ++secondary_count > fpta_max_indexes)
       return FPTA_TOOMANY;
-    assert((index_type & fpta_column_index_mask) == index_type);
+    assert((index_type & unsigned(fpta_column_index_mask)) == index_type);
     assert(index_type != (fpta_index_type)fpta_flag_table);
 
     const fptu_type data_type = fpta_shove2type(shove);
@@ -663,7 +663,7 @@ int fpta_column_set_add(fpta_column_set *column_set, const char *id_name,
   if (!fpta_index_is_valid(index_type))
     return FPTA_EFLAG;
 
-  assert((index_type & fpta_column_index_mask) == index_type);
+  assert((index_type & unsigned(fpta_column_index_mask)) == index_type);
   assert(index_type != (fpta_index_type)fpta_flag_table);
 
   if (unlikely(column_set == nullptr || column_set->count > fpta_max_cols))
