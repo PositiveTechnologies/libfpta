@@ -62,7 +62,8 @@ template <typename T> struct d2a : public ::testing::Test {
   static cxx11_constexpr_var bool accurate = T::value;
 
   static __hot __noinline char *convert(const double value, char *ptr) {
-    return erthink::d2a<accurate>(value, ptr);
+    return erthink::d2a<erthink::grisu::ieee754_default_printer<accurate>>(
+        value, ptr);
   }
 
   static std::string mantissa_str_map(const char *str,

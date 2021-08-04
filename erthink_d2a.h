@@ -724,7 +724,7 @@ struct fractional_printer : public ieee754_default_printer<true> {
 
 enum { d2a_max_chars = grisu::ieee754_default_printer<false>::max_chars };
 
-template <bool accurate>
+template <class PRINTER = grisu::ieee754_default_printer<false>>
 /* The "accurate" controls the trade-off between conversion speed and accuracy:
  *
  *  - True: accurately conversion to impeccable string representation,
@@ -738,8 +738,7 @@ char *
 d2a(const double &value,
     char *const
         buffer /* upto erthink::d2a_max_chars for -22250738585072014e-324 */) {
-  grisu::ieee754_default_printer<accurate> printer(
-      buffer, buffer + grisu::ieee754_default_printer<accurate>::max_chars);
+  PRINTER printer(buffer, buffer + PRINTER::max_chars);
   grisu::convert(printer, value);
   return printer.finalize_and_get().second;
 }
@@ -747,13 +746,13 @@ d2a(const double &value,
 static inline __maybe_unused char *d2a_accurate(
     const double &value,
     char *const buffer /* upto d2a_max_chars for -22250738585072014e-324 */) {
-  return d2a<true>(value, buffer);
+  return d2a<grisu::ieee754_default_printer<true>>(value, buffer);
 }
 
 static inline __maybe_unused char *d2a_fast(
     const double &value,
     char *const buffer /* upto d2a_max_chars for -22250738585072014e-324 */) {
-  return d2a<false>(value, buffer);
+  return d2a<grisu::ieee754_default_printer<false>>(value, buffer);
 }
 
 template <bool accurate = true> struct output_double {
