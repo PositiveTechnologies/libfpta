@@ -790,4 +790,99 @@ inline std::ostream &operator<<(std::ostream &out,
   return out.write(buf, end - buf);
 }
 
+template <typename T> class fpclassify;
+
+template <> class fpclassify<float> {
+  using type = uint32_t;
+  static type read(const float *src) noexcept {
+    static_assert(sizeof(type) == sizeof(*src), "WTF?");
+    type r;
+    std::memcpy(&r, src, sizeof(type));
+    return r;
+  }
+  const type value;
+
+public:
+  fpclassify(const float &src) noexcept : value(read(&src)) {}
+  constexpr fpclassify(const type value) noexcept : value(value) {}
+  constexpr bool is_negative() const noexcept {
+    return value > UINT32_C(0x7fffFFFF);
+  }
+  constexpr bool is_zero() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) == 0;
+  }
+  constexpr bool is_finite() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) < UINT32_C(0x7f800000);
+  }
+  constexpr bool is_nan() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) > UINT32_C(0x7f800000);
+  }
+  constexpr bool is_infinity() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) == UINT32_C(0x7f800000);
+  }
+  constexpr bool is_normal() const noexcept {
+    return is_finite() && (value & UINT32_C(0x7fffFFFF)) > UINT32_C(0x007fFFFF);
+  }
+  constexpr bool is_subnormal() const noexcept {
+    return is_finite() && (value & UINT32_C(0x7fffFFFF)) < UINT32_C(0x00800000);
+  }
+  cxx11_constexpr operator int() const noexcept {
+    if (likely(is_finite())) {
+      if (likely(is_normal()))
+        return FP_NORMAL;
+      return is_zero() ? FP_ZERO : FP_SUBNORMAL;
+    }
+    return is_infinity() ? FP_INFINITE : FP_NAN;
+  }
+};
+
+template <> class fpclassify<double> {
+  using type = uint64_t;
+  static type read(const double *src) noexcept {
+    static_assert(sizeof(type) == sizeof(*src), "WTF?");
+    type r;
+    std::memcpy(&r, src, sizeof(type));
+    return r;
+  }
+  const type value;
+
+public:
+  fpclassify(const double &src) noexcept : value(read(&src)) {}
+  constexpr fpclassify(const type value) noexcept : value(value) {}
+  constexpr bool is_negative() const noexcept {
+    return value > UINT64_C(0x7fffFFFFffffFFFF);
+  }
+  constexpr bool is_zero() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) == 0;
+  }
+  constexpr bool is_finite() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) <
+           UINT64_C(0x7ff0000000000000);
+  }
+  constexpr bool is_nan() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) >
+           UINT64_C(0x7ff0000000000000);
+  }
+  constexpr bool is_infinity() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) ==
+           UINT64_C(0x7ff0000000000000);
+  }
+  constexpr bool is_normal() const noexcept {
+    return is_finite() && (value & UINT64_C(0x7fffFFFFffffFFFF)) >
+                              UINT64_C(0x000fFFFFffffFFFF);
+  }
+  constexpr bool is_subnormal() const noexcept {
+    return is_finite() && (value & UINT64_C(0x7fffFFFFffffFFFF)) <
+                              UINT64_C(0x0010000000000000);
+  }
+  cxx11_constexpr operator int() const noexcept {
+    if (likely(is_finite())) {
+      if (likely(is_normal()))
+        return FP_NORMAL;
+      return is_zero() ? FP_ZERO : FP_SUBNORMAL;
+    }
+    return is_infinity() ? FP_INFINITE : FP_NAN;
+  }
+};
+
 } // namespace erthink
