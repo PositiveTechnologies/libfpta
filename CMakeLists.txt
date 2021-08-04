@@ -30,13 +30,31 @@
 ##  до 1.000.000 запросов в секунду на каждое ядро процессора.
 ##
 
-cmake_minimum_required(VERSION 3.8.2)
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  cmake_minimum_required(VERSION 3.8.2)
+else()
+  cmake_minimum_required(VERSION 3.12)
+endif()
+
+cmake_policy(PUSH)
+cmake_policy(VERSION ${CMAKE_MINIMUM_REQUIRED_VERSION})
+
 cmake_policy(SET CMP0054 NEW)
 if(NOT CMAKE_VERSION VERSION_LESS 3.12)
   cmake_policy(SET CMP0075 NEW)
 endif()
+if(NOT CMAKE_VERSION VERSION_LESS 3.9)
+  cmake_policy(SET CMP0069 NEW)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
+else()
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE FALSE)
+endif()
 
 project(libfpta C CXX)
+
+# only for compatibility testing
+# set(CMAKE_CXX_STANDARD 14)
 
 if(NOT "$ENV{TEAMCITY_PROCESS_FLOW_ID}" STREQUAL "")
   set(CI TEAMCITY)
@@ -355,3 +373,5 @@ if(HAVE_FPTA_VERSIONINFO)
 else()
   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/VERSION.txt" "Unknown (no version information)")
 endif()
+
+cmake_policy(POP)
