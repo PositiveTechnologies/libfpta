@@ -111,14 +111,23 @@ string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
 set(CMAKE_MACOSX_RPATH ON)
 
+include(externals/libfptu/src/erthink/cmake/utils.cmake)
+include(externals/libfptu/src/erthink/cmake/profile.cmake)
+include(externals/libfptu/src/erthink/cmake/compiler.cmake)
+
 list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
-list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
-list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 HAS_CXX11)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_20 HAS_CXX20)
 if(NOT DEFINED FPTA_CXX_STANDARD)
   if(SUBPROJECT AND DEFINED CMAKE_CXX_STANDARD)
     set(FPTA_CXX_STANDARD ${CMAKE_CXX_STANDARD})
-  elseif(NOT HAS_CXX17 LESS 0)
+  elseif(NOT HAS_CXX20 LESS 0
+      AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9))
+    set(FPTA_CXX_STANDARD 20)
+  elseif(NOT HAS_CXX17 LESS 0
+      AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5))
     set(FPTA_CXX_STANDARD 17)
   elseif(NOT HAS_CXX14 LESS 0)
     set(FPTA_CXX_STANDARD 14)
@@ -141,11 +150,6 @@ endif()
 
 # Define GNU standard installation directories
 include(GNUInstallDirs)
-
-include(externals/libfptu/src/erthink/cmake/utils.cmake)
-# the order is significant: we need to know os and compiler to configure libs
-include(externals/libfptu/src/erthink/cmake/profile.cmake)
-include(externals/libfptu/src/erthink/cmake/compiler.cmake)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
   message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTA."

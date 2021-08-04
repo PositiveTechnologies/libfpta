@@ -125,7 +125,8 @@ else()
     C_STANDARD 99 C_STANDARD_REQUIRED ON)
 endif()
 
-if(CC_HAS_FASTMATH)
+if(CC_HAS_FASTMATH
+    AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9))
   target_compile_options(${fptu_target} PRIVATE "-ffast-math")
 endif()
 

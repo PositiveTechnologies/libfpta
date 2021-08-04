@@ -107,13 +107,22 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPERCASE)
 
-list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+include(src/erthink/cmake/utils.cmake)
+include(src/erthink/cmake/profile.cmake)
+include(src/erthink/cmake/compiler.cmake)
+
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 HAS_CXX11)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
-list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX11)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_17 HAS_CXX17)
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_20 HAS_CXX20)
 if(NOT DEFINED FPTU_CXX_STANDARD)
-  if(SUBPROJECT AND DEFINED CMAKE_CXX_STANDARD)
+  if(DEFINED CMAKE_CXX_STANDARD)
     set(FPTU_CXX_STANDARD ${CMAKE_CXX_STANDARD})
-  elseif(NOT HAS_CXX17 LESS 0)
+  elseif(NOT HAS_CXX20 LESS 0
+      AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9))
+    set(FPTU_CXX_STANDARD 20)
+  elseif(NOT HAS_CXX17 LESS 0
+      AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5))
     set(FPTU_CXX_STANDARD 17)
   elseif(NOT HAS_CXX14 LESS 0)
     set(FPTU_CXX_STANDARD 14)
@@ -127,11 +136,6 @@ if(FPTU_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD ${FPTU_CXX_STANDARD})
   endif()
 endif()
-
-# the order is significant: we need to know os and compiler to configure libs
-include(src/erthink/cmake/utils.cmake)
-include(src/erthink/cmake/profile.cmake)
-include(src/erthink/cmake/compiler.cmake)
 
 option(PROVIDE_VERSIONINFO "Provide library's version information." ON)
 find_program(GIT git)
