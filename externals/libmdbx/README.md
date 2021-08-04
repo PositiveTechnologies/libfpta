@@ -385,6 +385,12 @@ target platform. Obviously you need building tools itself, i.e. `git`,
 and `make options` are also available for listing existing targets
 and build options respectively.
 
+The only significant specificity is that git' tags are required
+to build from complete (not amalgamated) source codes.
+Executing **`git fetch --tags --force --prune`** is enough to get ones,
+or `git fetch --unshallow --tags --prune --force` after the Github's
+[`actions/checkout@v2`](https://github.com/actions/checkout) either set **`fetch-depth: 0`** for it.
+
 So just using CMake or GNU Make in your habitual manner and feel free to
 fill an issue or make pull request in the case something will be
 unexpected or broken down.
@@ -558,6 +564,7 @@ Bindings
 
 | Runtime |  Repo  | Author |
 | ------- | ------ | ------ |
+| Haskell | [libmdbx-hs](https://hackage.haskell.org/package/libmdbx) | [Francisco Vallarino](https://github.com/fjvallarino) |
 | Python (draft) | [python-bindings](https://github.com/erthink/libmdbx/commits/python-bindings) branch | [Noel Kuntze](https://github.com/Thermi)
 | NodeJS  | [lmdbx-store](https://github.com/kriszyp/lmdbx-store) | [Kris Zyp](https://github.com/kriszyp/)
 | NodeJS  | [node-mdbx](https://www.npmjs.com/package/node-mdbx/) | [Сергей Федотов](mailto:sergey.fedotov@corp.mail.ru) |
