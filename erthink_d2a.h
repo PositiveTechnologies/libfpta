@@ -715,6 +715,26 @@ struct fractional_printer : public ieee754_default_printer<true, 32> {
   }
 };
 
+template <bool accurate = false>
+struct json5_printer : public ieee754_default_printer<accurate> {
+  using inherited = ieee754_default_printer<accurate>;
+
+  json5_printer(char *buffer_begin, char *buffer_end) cxx11_noexcept
+      : inherited(buffer_begin, buffer_end) {}
+
+  void nan() cxx11_noexcept {
+    // assumes compiler optimize-out memcpy() with small fixed length
+    std::memcpy(inherited::end, "NaN", 4);
+    inherited::end += 3;
+  }
+
+  void inf() cxx11_noexcept {
+    // assumes compiler optimize-out memcpy() with small fixed length
+    std::memcpy(inherited::end, "Infinity", 8);
+    inherited::end += 8;
+  }
+};
+
 } // namespace grisu
 
 enum { d2a_max_chars = grisu::ieee754_default_printer<false>::max_chars };
