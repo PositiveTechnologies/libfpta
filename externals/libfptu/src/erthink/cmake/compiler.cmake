@@ -1,4 +1,4 @@
-##  Copyright (c) 2012-2020 Leonid Yuriev <leo@yuriev.ru>.
+##  Copyright (c) 2012-2021 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ##  Licensed under the Apache License, Version 2.0 (the "License");
 ##  you may not use this file except in compliance with the License.
@@ -13,9 +13,14 @@
 ##  limitations under the License.
 ##
 
-cmake_minimum_required(VERSION 3.8.2)
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  cmake_minimum_required(VERSION 3.8.2)
+else()
+  cmake_minimum_required(VERSION 3.12)
+endif()
+
 cmake_policy(PUSH)
-cmake_policy(VERSION 3.8.2)
+cmake_policy(VERSION ${CMAKE_MINIMUM_REQUIRED_VERSION})
 
 if(CMAKE_VERSION MATCHES ".*MSVC.*" AND CMAKE_VERSION VERSION_LESS 3.16)
   message(FATAL_ERROR "CMake from MSVC kit is unfit! "
@@ -533,7 +538,7 @@ macro(setup_compile_flags)
     add_compile_flags("C;CXX" "-fexceptions")
   endif()
   if(CC_HAS_FCXX_EXCEPTIONS)
-    add_compile_flags("CXX" "-fcxx-exceptions -frtti")
+    add_compile_flags("CXX" "-fcxx-exceptions" "-frtti")
   endif()
   if(MSVC)
     # checks for /EHa or /clr options exists,
@@ -583,13 +588,13 @@ macro(setup_compile_flags)
   endif()
 
   if(CC_HAS_WNO_UNKNOWN_PRAGMAS AND NOT HAVE_OPENMP)
-    add_compile_flags("C;CXX" -Wno-unknown-pragmas)
+    add_compile_flags("C;CXX" "-Wno-unknown-pragmas")
   endif()
 
   if(CC_HAS_SECTIONS)
-    add_compile_flags("C;CXX" -ffunction-sections -fdata-sections)
+    add_compile_flags("C;CXX" "-ffunction-sections" "-fdata-sections")
   elseif(MSVC)
-    add_compile_flags("C;CXX" /Gy)
+    add_compile_flags("C;CXX" "/Gy")
   endif()
 
   # We must set -fno-omit-frame-pointer here, since we rely
@@ -618,12 +623,6 @@ macro(setup_compile_flags)
     endif()
   endif()
 
-  if(CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG}
-      AND CMAKE_${CMAKE_PRIMARY_LANG}_COMPILER_VERSION VERSION_LESS 5)
-    # G++ bug. http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31488
-    add_compile_flags("CXX" "-Wno-invalid-offsetof")
-  endif()
-
   add_definitions("-D__STDC_FORMAT_MACROS=1")
   add_definitions("-D__STDC_LIMIT_MACROS=1")
   add_definitions("-D__STDC_CONSTANT_MACROS=1")
@@ -647,12 +646,25 @@ macro(setup_compile_flags)
     endif()
   endif()
 
+
+  if(CMAKE_COMPILER_IS_GNU${CMAKE_PRIMARY_LANG}
+      AND CMAKE_${CMAKE_PRIMARY_LANG}_COMPILER_VERSION VERSION_LESS 5)
+    # G++ bug. http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31488
+    add_compile_flags("CXX" "-Wno-invalid-offsetof")
+  endif()
+  if(MINGW)
+    # Disable junk MINGW's warnings that issued due to incompatibilities
+    # and shortcomings of MINGW,
+    # since the code is checked by builds with GCC, CLANG and MSVC.
+    add_compile_flags("C;CXX" "-Wno-format-extra-args" "-Wno-format" "-Wno-cast-function-type" "-Wno-implicit-fallthrough")
+  endif()
+
   if(ENABLE_ASAN)
-    add_compile_flags("C;CXX" -fsanitize=address)
+    add_compile_flags("C;CXX" "-fsanitize=address")
   endif()
 
   if(ENABLE_UBSAN)
-    add_compile_flags("C;CXX" -fsanitize=undefined)
+    add_compile_flags("C;CXX" "-fsanitize=undefined" "-fsanitize-undefined-trap-on-error")
   endif()
 
   if(ENABLE_GCOV)
@@ -777,7 +789,7 @@ if(CMAKE_CXX_COMPILER_LOADED)
     elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
       set(LIBCXX_FILESYSTEM "stdc++fs")
     endif()
-  elseif(CMAKE_COMPILER_IS_GNUCXX)
+  elseif(CMAKE_COMPILER_IS_GNUCXX AND NOT MINGW)
     if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.3 AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
       set(LIBCXX_FILESYSTEM "stdc++fs")
     endif()

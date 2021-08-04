@@ -45,7 +45,13 @@ struct P {
   friend std::ostream &operator<<(std::ostream &out, const P &v) {
     const auto save_fmtfl = out.flags();
     const auto safe_precision = out.precision(19);
-    out << v.v << '(' << std::hexfloat << v.v << ')';
+    out << v.v << '(' <<
+#if !defined(__GNUC__) || __GNUC__ >= 5
+        std::hexfloat
+#else
+        std::fixed << std::scientific
+#endif /* __GNUC__ < 5 */
+        << v.v << ')';
     out.precision(safe_precision);
     out.flags(save_fmtfl);
     return out;

@@ -58,6 +58,12 @@
 
 namespace erthink {
 
+#if !defined(__GNUC__) || __GNUC__ >= 5
+using max_align_t = ::std::max_align_t;
+#else
+using max_align_t = ::max_align_t;
+#endif /* __GNUC__ < 5 */
+
 class allocation_arena_exhausted : public std::bad_alloc {
 public:
   allocation_arena_exhausted() = default;
@@ -68,7 +74,7 @@ public:
 };
 
 template <bool ALLOW_OUTLIVE, std::size_t N_BYTES,
-          std::size_t ALIGN = alignof(std::max_align_t)>
+          std::size_t ALIGN = alignof(max_align_t)>
 class allocation_arena {
 public:
   static cxx11_constexpr_var auto allow_outlive = ALLOW_OUTLIVE;
@@ -99,7 +105,7 @@ private:
 #ifndef NDEBUG
   std::size_t checkpoint_A_;
 #endif
-  alignas(alignment) char buf_[size];
+  alignas(ALIGN) char buf_[size];
 #ifndef NDEBUG
   std::size_t checkpoint_B_;
 #endif
@@ -136,7 +142,7 @@ public:
   NDEBUG_CONSTEXPR allocation_arena() cxx11_noexcept : ptr_(buf_) {
     static_assert(size > 1, "Oops, ALLOW_OUTLIVE is messed with N_BYTES?");
 #if !ERTHINK_PROVIDE_ALIGNED_NEW
-    static_assert(!allow_outlive || alignment <= alignof(std::max_align_t),
+    static_assert(!allow_outlive || alignment <= alignof(max_align_t),
                   "you've chosen an alignment that is larger than "
                   "alignof(std::max_align_t), and cannot be guaranteed by "
                   "normal operator new");
