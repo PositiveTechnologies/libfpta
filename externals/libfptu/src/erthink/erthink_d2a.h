@@ -528,8 +528,9 @@ inline void convert(PRINTER &printer, const double &value) cxx11_noexcept {
   return convert(printer, diy_fp(i64));
 }
 
-template <bool accurate> struct ieee754_default_printer {
-  enum { max_chars = 23 };
+template <bool accurate, unsigned DERIVED_PRINTERS__MAX_CHARS = 23>
+struct ieee754_default_printer {
+  enum { max_chars = DERIVED_PRINTERS__MAX_CHARS };
   char *end;
   char *begin;
 
@@ -683,9 +684,8 @@ struct shodan_printer : public ieee754_default_printer<accurate> {
 };
 
 // designed to printing fractional part of a fixed-point value
-struct fractional_printer : public ieee754_default_printer<true> {
+struct fractional_printer : public ieee754_default_printer<true, 32> {
   using inherited = ieee754_default_printer;
-  enum { max_chars = 32 };
 
   fractional_printer(char *buffer_begin, char *buffer_end) cxx11_noexcept
       : inherited(buffer_begin, buffer_end) {
@@ -713,10 +713,25 @@ struct fractional_printer : public ieee754_default_printer<true> {
         --end;
     }
   }
+};
 
-  std::pair<char *, char *> finalize_and_get() cxx11_noexcept {
-    assert(end > begin && begin + max_chars >= end);
-    return std::make_pair(begin, end);
+template <bool accurate = false>
+struct json5_printer : public ieee754_default_printer<accurate> {
+  using inherited = ieee754_default_printer<accurate>;
+
+  json5_printer(char *buffer_begin, char *buffer_end) cxx11_noexcept
+      : inherited(buffer_begin, buffer_end) {}
+
+  void nan() cxx11_noexcept {
+    // assumes compiler optimize-out memcpy() with small fixed length
+    std::memcpy(inherited::end, "NaN", 4);
+    inherited::end += 3;
+  }
+
+  void inf() cxx11_noexcept {
+    // assumes compiler optimize-out memcpy() with small fixed length
+    std::memcpy(inherited::end, "Infinity", 8);
+    inherited::end += 8;
   }
 };
 
@@ -724,7 +739,7 @@ struct fractional_printer : public ieee754_default_printer<true> {
 
 enum { d2a_max_chars = grisu::ieee754_default_printer<false>::max_chars };
 
-template <bool accurate>
+template <class PRINTER = grisu::ieee754_default_printer<false>>
 /* The "accurate" controls the trade-off between conversion speed and accuracy:
  *
  *  - True: accurately conversion to impeccable string representation,
@@ -738,8 +753,7 @@ char *
 d2a(const double &value,
     char *const
         buffer /* upto erthink::d2a_max_chars for -22250738585072014e-324 */) {
-  grisu::ieee754_default_printer<accurate> printer(
-      buffer, buffer + grisu::ieee754_default_printer<accurate>::max_chars);
+  PRINTER printer(buffer, buffer + PRINTER::max_chars);
   grisu::convert(printer, value);
   return printer.finalize_and_get().second;
 }
@@ -747,13 +761,13 @@ d2a(const double &value,
 static inline __maybe_unused char *d2a_accurate(
     const double &value,
     char *const buffer /* upto d2a_max_chars for -22250738585072014e-324 */) {
-  return d2a<true>(value, buffer);
+  return d2a<grisu::ieee754_default_printer<true>>(value, buffer);
 }
 
 static inline __maybe_unused char *d2a_fast(
     const double &value,
     char *const buffer /* upto d2a_max_chars for -22250738585072014e-324 */) {
-  return d2a<false>(value, buffer);
+  return d2a<grisu::ieee754_default_printer<false>>(value, buffer);
 }
 
 template <bool accurate = true> struct output_double {
@@ -775,5 +789,100 @@ inline std::ostream &operator<<(std::ostream &out,
   char *end = erthink::d2a_accurate(it.value, buf);
   return out.write(buf, end - buf);
 }
+
+template <typename T> class fpclassify;
+
+template <> class fpclassify<float> {
+  using type = uint32_t;
+  static type read(const float *src) noexcept {
+    static_assert(sizeof(type) == sizeof(*src), "WTF?");
+    type r;
+    std::memcpy(&r, src, sizeof(type));
+    return r;
+  }
+  const type value;
+
+public:
+  fpclassify(const float &src) noexcept : value(read(&src)) {}
+  constexpr fpclassify(const type value) noexcept : value(value) {}
+  constexpr bool is_negative() const noexcept {
+    return value > UINT32_C(0x7fffFFFF);
+  }
+  constexpr bool is_zero() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) == 0;
+  }
+  constexpr bool is_finite() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) < UINT32_C(0x7f800000);
+  }
+  constexpr bool is_nan() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) > UINT32_C(0x7f800000);
+  }
+  constexpr bool is_infinity() const noexcept {
+    return (value & UINT32_C(0x7fffFFFF)) == UINT32_C(0x7f800000);
+  }
+  constexpr bool is_normal() const noexcept {
+    return is_finite() && (value & UINT32_C(0x7fffFFFF)) > UINT32_C(0x007fFFFF);
+  }
+  constexpr bool is_subnormal() const noexcept {
+    return is_finite() && (value & UINT32_C(0x7fffFFFF)) < UINT32_C(0x00800000);
+  }
+  cxx11_constexpr operator int() const noexcept {
+    if (likely(is_finite())) {
+      if (likely(is_normal()))
+        return FP_NORMAL;
+      return is_zero() ? FP_ZERO : FP_SUBNORMAL;
+    }
+    return is_infinity() ? FP_INFINITE : FP_NAN;
+  }
+};
+
+template <> class fpclassify<double> {
+  using type = uint64_t;
+  static type read(const double *src) noexcept {
+    static_assert(sizeof(type) == sizeof(*src), "WTF?");
+    type r;
+    std::memcpy(&r, src, sizeof(type));
+    return r;
+  }
+  const type value;
+
+public:
+  fpclassify(const double &src) noexcept : value(read(&src)) {}
+  constexpr fpclassify(const type value) noexcept : value(value) {}
+  constexpr bool is_negative() const noexcept {
+    return value > UINT64_C(0x7fffFFFFffffFFFF);
+  }
+  constexpr bool is_zero() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) == 0;
+  }
+  constexpr bool is_finite() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) <
+           UINT64_C(0x7ff0000000000000);
+  }
+  constexpr bool is_nan() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) >
+           UINT64_C(0x7ff0000000000000);
+  }
+  constexpr bool is_infinity() const noexcept {
+    return (value & UINT64_C(0x7fffFFFFffffFFFF)) ==
+           UINT64_C(0x7ff0000000000000);
+  }
+  constexpr bool is_normal() const noexcept {
+    return is_finite() && (value & UINT64_C(0x7fffFFFFffffFFFF)) >
+                              UINT64_C(0x000fFFFFffffFFFF);
+  }
+  constexpr bool is_subnormal() const noexcept {
+    return is_finite() && (value & UINT64_C(0x7fffFFFFffffFFFF)) <
+                              UINT64_C(0x0010000000000000);
+  }
+  cxx11_constexpr operator int() const noexcept {
+    if (likely(is_finite())) {
+      if (likely(is_normal()))
+        return FP_NORMAL;
+      return is_zero() ? FP_ZERO : FP_SUBNORMAL;
+    }
+    return is_infinity() ? FP_INFINITE : FP_NAN;
+  }
+};
 
 } // namespace erthink
