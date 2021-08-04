@@ -528,8 +528,9 @@ inline void convert(PRINTER &printer, const double &value) cxx11_noexcept {
   return convert(printer, diy_fp(i64));
 }
 
-template <bool accurate> struct ieee754_default_printer {
-  enum { max_chars = 23 };
+template <bool accurate, unsigned DERIVED_PRINTERS__MAX_CHARS = 23>
+struct ieee754_default_printer {
+  enum { max_chars = DERIVED_PRINTERS__MAX_CHARS };
   char *end;
   char *begin;
 
@@ -683,9 +684,8 @@ struct shodan_printer : public ieee754_default_printer<accurate> {
 };
 
 // designed to printing fractional part of a fixed-point value
-struct fractional_printer : public ieee754_default_printer<true> {
+struct fractional_printer : public ieee754_default_printer<true, 32> {
   using inherited = ieee754_default_printer;
-  enum { max_chars = 32 };
 
   fractional_printer(char *buffer_begin, char *buffer_end) cxx11_noexcept
       : inherited(buffer_begin, buffer_end) {
@@ -712,11 +712,6 @@ struct fractional_printer : public ieee754_default_printer<true> {
       while (end[-1] == '0')
         --end;
     }
-  }
-
-  std::pair<char *, char *> finalize_and_get() cxx11_noexcept {
-    assert(end > begin && begin + max_chars >= end);
-    return std::make_pair(begin, end);
   }
 };
 
