@@ -92,10 +92,13 @@ include(CheckFunctionExists)
 include(FindPackageMessage)
 include(CheckStructHasMember)
 include(CMakeDependentOption)
+include(GNUInstallDirs)
 
-option(PROVIDE_VERSIONINFO "Provide library's version information." ON)
+if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
+  message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTU."
+    "At least 'Microsoft Visual Studio 2015' is required.")
+endif()
 
-#
 # Set default build type to Release. This is to ease a User's life.
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING
@@ -120,29 +123,17 @@ if(NOT DEFINED FPTU_CXX_STANDARD)
 endif()
 if(FPTU_CXX_STANDARD)
   message(STATUS "Use C++${FPTU_CXX_STANDARD} for libfptu")
+  if(NOT SUBPROJECT OR NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD ${FPTU_CXX_STANDARD})
+  endif()
 endif()
-
-if(NOT CMAKE_VERSION VERSION_LESS 3.9)
-  cmake_policy(SET CMP0069 NEW)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE)
-else()
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_AVAILABLE FALSE)
-endif()
-
-# Define GNU standard installation directories
-include(GNUInstallDirs)
 
 # the order is significant: we need to know os and compiler to configure libs
 include(src/erthink/cmake/utils.cmake)
 include(src/erthink/cmake/profile.cmake)
 include(src/erthink/cmake/compiler.cmake)
 
-if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1900)
-  message(SEND_ERROR "MSVC compiler ${MSVC_VERSION} is too old for building FPTU."
-    "At least 'Microsoft Visual Studio 2015' is required.")
-endif()
-
+option(PROVIDE_VERSIONINFO "Provide library's version information." ON)
 find_program(GIT git)
 
 check_function_exists(memmem HAVE_MEMMEM)
@@ -156,6 +147,8 @@ if(NOT HAVE_SYSTIME_H_TIMEVAL_TV_USEC)
   CHECK_STRUCT_HAS_MEMBER("struct timeval" tv_usec sys/select.h HAVE_SYSSELECT_H_TIMEVAL_TV_USEC)
 endif()
 CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_nsec time.h HAVE_TIMESPEC_TV_NSEC)
+
+find_package(Threads REQUIRED)
 
 CHECK_FUNCTION_EXISTS(pow NOT_NEED_LIBM)
 if(NOT_NEED_LIBM)
@@ -177,6 +170,9 @@ if(NOT SUBPROJECT)
   set(CMAKE_MACOSX_RPATH ON)
   option(CMAKE_POSITION_INDEPENDENT_CODE "Generate position independed (PIC)." ON)
   option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)." ON)
+  if (CC_HAS_ARCH_NATIVE)
+    option(BUILD_FOR_NATIVE_CPU "Generate code for the compiling machine CPU." OFF)
+  endif()
 
   if(CMAKE_CONFIGURATION_TYPES OR NOT CMAKE_BUILD_TYPE_UPPERCASE STREQUAL "DEBUG")
     set(INTERPROCEDURAL_OPTIMIZATION_DEFAULT ON)
@@ -234,11 +230,6 @@ if(NOT SUBPROJECT)
     set(VALGRIND_COMMAND_OPTIONS "${MEMORYCHECK_COMMAND_OPTIONS}" CACHE STRING "Valgrind options" FORCE)
   endif()
 
-  if(NOT DEFINED CMAKE_CXX_STANDARD AND FPTU_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD ${FPTU_CXX_STANDARD})
-  endif()
-  include(src/erthink/cmake/testing.cmake)
-
   #
   # Enable 'make tags' target.
   find_program(CTAGS ctags)
@@ -282,11 +273,12 @@ if(NOT SUBPROJECT)
   endif()
 
   setup_compile_flags()
+  include(fast_positive/erthink/cmake/testing.cmake)
 endif(NOT SUBPROJECT)
 
-#######################################################################
+option(FPTU_ENABLE_TESTS "Build FPTU tests." ${BUILD_TESTING})
 
-find_package(Threads REQUIRED)
+################################################################################
 
 if(PROVIDE_VERSIONINFO)
   set(HAVE_FPTU_VERSIONINFO TRUE)
@@ -299,9 +291,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/fast_positive/config.h.in ${FAST_POSI
 
 include_directories("${PROJECT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
 add_subdirectory(src)
-
-option(FPTU_ENABLE_TESTS "Build FPTU tests" ${BUILD_TESTING})
-if(FPTU_ENABLE_TESTS AND BUILD_TESTING)
+if(FPTU_ENABLE_TESTS)
   add_subdirectory(test)
 endif()
 

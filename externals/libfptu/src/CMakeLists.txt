@@ -116,9 +116,21 @@ if(FPTU_CXX_STANDARD)
     CXX_STANDARD ${FPTU_CXX_STANDARD} CXX_STANDARD_REQUIRED ON)
   target_compile_features(fptu INTERFACE "cxx_std_${FPTU_CXX_STANDARD}")
 endif()
-if(FPTU_C_STANDARD)
+list(FIND CMAKE_C_COMPILE_FEATURES c_std_11 HAS_C11)
+if(HAS_C11)
   set_target_properties(${fptu_target} PROPERTIES
-    C_STANDARD ${FPTU_C_STANDARD} C_STANDARD_REQUIRED ON)
+    C_STANDARD 11 C_STANDARD_REQUIRED OFF)
+else()
+  set_target_properties(${fptu_target} PROPERTIES
+    C_STANDARD 99 C_STANDARD_REQUIRED ON)
+endif()
+
+if(CC_HAS_FASTMATH)
+  target_compile_options(${fptu_target} PRIVATE "-ffast-math")
+endif()
+
+if(BUILD_FOR_NATIVE_CPU AND CC_HAS_ARCH_NATIVE)
+  target_compile_options(${fptu_target} PUBLIC "-march=native")
 endif()
 
 if(CC_HAS_VISIBILITY)
@@ -177,8 +189,8 @@ get_target_property(fptu_compile_options ${fptu_target} COMPILE_OPTIONS)
 if(NOT fptu_compile_options)
   set(fptu_compile_options "")
 endif()
-# append cmake's common cxx flags and defines
 
+# append cmake's common cxx flags and defines
 string(REPLACE " " ";" cmake_cxx_options "${CMAKE_CXX_FLAGS}" "${CMAKE_CXX_DEFINES}")
 list(INSERT fptu_compile_options 0 "${cmake_cxx_options}")
 unset(cmake_cxx_options)
@@ -264,5 +276,5 @@ foreach(option IN LISTS options)
   else()
     set(value "${CMAKE_${option}}")
   endif()
-  find_package_message("FPTU_${option}" "FPTU_${option}: ${value}" "${value}")
+  message(STATUS "FPTU_${option}: ${value}")
 endforeach(option)
