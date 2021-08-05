@@ -211,7 +211,7 @@ static cxx11_constexpr bool fpta_index_is_ordinal(fpta_shove_t shove) {
 
 static cxx11_constexpr bool
 fpta_is_indexed_and_nullable(const fpta_index_type index) {
-  constexpr_assert(index == (index & unsigned(fpta_column_index_mask)));
+  constexpr_assert(size_t(index) == (index & size_t(fpta_column_index_mask)));
   return index > fpta_index_fnullable;
 }
 
