@@ -19,6 +19,8 @@
 #include "fast_positive/tables_internal.h"
 #include "osal.h"
 
+#include "externals/libfptu/src/erthink/erthink_d2a.h"
+
 #include <algorithm>
 #include <atomic>
 #include <functional>

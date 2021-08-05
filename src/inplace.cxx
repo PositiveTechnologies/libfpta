@@ -341,7 +341,8 @@ FPTA_API int fpta_confine_number(fpta_value *value, fpta_name *column_id) {
   default:
     return FPTA_EVALUE;
   case fpta_float_point:
-    if (unlikely(std::isnan(value->fp))) {
+    if (unlikely(
+            erthink::fpclassify<decltype(value->fp)>(value->uint).is_nan())) {
       if ((fptu_any_fp & (INT32_C(1) << coltype)) == 0 ||
           FPTA_PROHIBIT_UPSERT_NAN)
         return FPTA_EVALUE;
@@ -398,7 +399,7 @@ FPTA_API int fpta_column_inplace(fptu_rw *row, const fpta_name *column_id,
   default:
     return FPTA_ETYPE;
   case fpta_float_point:
-    if (likely(!std::isnan(value.fp)))
+    if (likely(!erthink::fpclassify<decltype(value.fp)>(value.uint).is_nan()))
       break;
     if (FPTA_PROHIBIT_UPSERT_NAN)
       return FPTA_EVALUE;
@@ -463,7 +464,7 @@ FPTA_API int fpta_cursor_inplace(fpta_cursor *cursor, fpta_name *column_id,
   default:
     return FPTA_ETYPE;
   case fpta_float_point:
-    if (likely(!std::isnan(value.fp)))
+    if (likely(!erthink::fpclassify<decltype(value.fp)>(value.uint).is_nan()))
       break;
     if (FPTA_PROHIBIT_UPSERT_NAN)
       return FPTA_EVALUE;

@@ -506,23 +506,16 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_SUCCESS;
 
   case fptu_fp32: {
-    float fp = float(value.fp);
-    switch (std::fpclassify(fp)) {
-    case FP_INFINITE:
-      if (std::isinf(value.fp))
-        break;
-      __fallthrough;
-    case FP_NAN:
-    default:
+    const erthink::fpclassify<decltype(value.fp)> fpc(value.uint);
+    if (unlikely(fpc.is_nan()))
       return FPTA_EVALUE;
-    case FP_ZERO:
-      /* -0.0 => 0 */
-      fp = 0.0;
-    case FP_SUBNORMAL:
-    case FP_NORMAL:
-      break;
-    }
-    if (FPTA_PROHIBIT_LOSS_PRECISION && sizeof(value.fp) != sizeof(fp) &&
+    if (unlikely(std::abs(value.fp) > FLT_MAX) && !fpc.is_infinity())
+      return FPTA_EVALUE;
+    const float fp = unlikely(std::abs(value.fp) < FLT_MIN)
+                         ? /* -0.0 => 0 */ float(0)
+                         : float(value.fp);
+    if (FPTA_PROHIBIT_LOSS_PRECISION &&
+        !std::is_same<decltype(value.fp), float>::value &&
         unlikely(value.fp != fp))
       return FPTA_EVALUE;
     key.place.u32 = mdbx_key_from_ptrfloat(&fp);
@@ -550,20 +543,16 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_SUCCESS;
 
   case fptu_fp64: {
-    double fp = double(value.fp);
-    switch (std::fpclassify(fp)) {
-    case FP_NAN:
-    default:
+    const erthink::fpclassify<decltype(value.fp)> fpc(value.uint);
+    if (unlikely(fpc.is_nan()))
       return FPTA_EVALUE;
-    case FP_ZERO:
-      /* -0.0 => 0 */
-      fp = 0.0;
-    case FP_SUBNORMAL:
-    case FP_INFINITE:
-    case FP_NORMAL:
-      break;
-    }
-    if (FPTA_PROHIBIT_LOSS_PRECISION && sizeof(value.fp) != sizeof(fp) &&
+    if (unlikely(std::abs(value.fp) > DBL_MAX) && !fpc.is_infinity())
+      return FPTA_EVALUE;
+    const double fp = unlikely(std::abs(value.fp) < DBL_MIN)
+                          ? /* -0.0 => 0 */ double(0)
+                          : double(value.fp);
+    if (FPTA_PROHIBIT_LOSS_PRECISION &&
+        !std::is_same<decltype(value.fp), double>::value &&
         unlikely(value.fp != fp))
       return FPTA_EVALUE;
     key.place.u64 = mdbx_key_from_ptrdouble(&fp);
