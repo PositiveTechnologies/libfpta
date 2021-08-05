@@ -403,22 +403,18 @@ void json::value_uint64(const uint64_t &value) {
 
 void json::value_fp32(const fptu_payload *payload) {
   if (likely(payload->u32 != FPTU_DENIL_FP32_BIN)) {
-    switch (std::fpclassify(payload->fp32)) {
-    case FP_NAN:
-      if (is_json5()) {
-        push("NaN");
-        return;
-      }
-      break;
-    case FP_INFINITE:
-      if (is_json5()) {
-        push(std::signbit(payload->fp32) ? '-' : '+');
+    erthink::fpclassify<decltype(payload->fp32)> fpc(payload->u32);
+    if (likely(fpc.is_finite())) {
+      number(payload->fp32);
+      return;
+    }
+    if (is_json5()) {
+      if (fpc.is_infinity()) {
+        push(fpc.is_negative() ? '-' : '+');
         push("Infinity");
         return;
       }
-      break;
-    default:
-      number(payload->fp32);
+      push("NaN");
       return;
     }
   }
@@ -427,22 +423,18 @@ void json::value_fp32(const fptu_payload *payload) {
 
 void json::value_fp64(const fptu_payload *payload) {
   if (likely(payload->u64 != FPTU_DENIL_FP64_BIN)) {
-    switch (std::fpclassify(payload->fp64)) {
-    case FP_NAN:
-      if (is_json5()) {
-        push("NaN");
-        return;
-      }
-      break;
-    case FP_INFINITE:
-      if (is_json5()) {
-        push(std::signbit(payload->fp64) ? '-' : '+');
+    erthink::fpclassify<decltype(payload->fp64)> fpc(payload->u64);
+    if (likely(fpc.is_finite())) {
+      number(payload->fp64);
+      return;
+    }
+    if (is_json5()) {
+      if (fpc.is_infinity()) {
+        push(fpc.is_negative() ? '-' : '+');
         push("Infinity");
         return;
       }
-      break;
-    default:
-      number(payload->fp64);
+      push("NaN");
       return;
     }
   }
