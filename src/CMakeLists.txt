@@ -98,6 +98,15 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(fpta LINK_PUBLIC rt)
 endif()
 
+if(CC_HAS_FASTMATH
+    AND NOT (CMAKE_COMPILER_IS_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10))
+  target_compile_options(fpta PRIVATE "-ffast-math")
+endif()
+
+if(BUILD_FOR_NATIVE_CPU AND CC_HAS_ARCH_NATIVE)
+  target_compile_options(fpta PUBLIC "-march=native")
+endif()
+
 if(CC_HAS_VISIBILITY)
   target_compile_options(fpta PRIVATE "-fvisibility=hidden")
   if(LTO_ENABLED OR INTERPROCEDURAL_OPTIMIZATION)

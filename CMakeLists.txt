@@ -168,6 +168,10 @@ if((NOT CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6
   option(INTERPROCEDURAL_OPTIMIZATION "Enable interprocedural/LTO optimization." ${INTERPROCEDURAL_OPTIMIZATION_DEFAULT})
 endif()
 
+if (CC_HAS_ARCH_NATIVE)
+  option(BUILD_FOR_NATIVE_CPU "Generate code for the compiling machine CPU." OFF)
+endif()
+
 option(PROVIDE_VERSIONINFO "Provide library's version information." ON)
 
 if(INTERPROCEDURAL_OPTIMIZATION)
