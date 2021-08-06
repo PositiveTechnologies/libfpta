@@ -402,10 +402,11 @@ void json::value_uint64(const uint64_t &value) {
 }
 
 void json::value_fp32(const fptu_payload *payload) {
-  if (likely(payload->u32 != FPTU_DENIL_FP32_BIN)) {
-    erthink::fpclassify<decltype(payload->fp32)> fpc(payload->u32);
+  if (likely(payload->peek_u32() != FPTU_DENIL_FP32_BIN)) {
+    erthink::fpclassify<decltype(payload->unaligned_fp32)> fpc(
+        payload->peek_u32());
     if (likely(fpc.is_finite())) {
-      number(payload->fp32);
+      number(payload->peek_fp32());
       return;
     }
     if (is_json5()) {
@@ -422,10 +423,11 @@ void json::value_fp32(const fptu_payload *payload) {
 }
 
 void json::value_fp64(const fptu_payload *payload) {
-  if (likely(payload->u64 != FPTU_DENIL_FP64_BIN)) {
-    erthink::fpclassify<decltype(payload->fp64)> fpc(payload->u64);
+  if (likely(payload->peek_u64() != FPTU_DENIL_FP64_BIN)) {
+    erthink::fpclassify<decltype(payload->unaligned_fp64)> fpc(
+        payload->peek_u64());
     if (likely(fpc.is_finite())) {
-      number(payload->fp64);
+      number(payload->peek_fp64());
       return;
     }
     if (is_json5()) {
@@ -508,17 +510,17 @@ void json::field_value(const fptu_field *field) {
     break;
 
   case fptu_int32:
-    value_sint32(payload->i32);
+    value_sint32(payload->peek_i32());
     break;
   case fptu_uint32:
-    value_uint32(payload->u32);
+    value_uint32(payload->peek_u32());
     break;
 
   case fptu_int64:
-    value_sint64(payload->i64);
+    value_sint64(payload->peek_i64());
     break;
   case fptu_uint64:
-    value_uint64(payload->u64);
+    value_uint64(payload->peek_u64());
     break;
 
   case fptu_fp32:
@@ -529,7 +531,7 @@ void json::field_value(const fptu_field *field) {
     break;
 
   case fptu_datetime:
-    value_dateime(payload->dt);
+    value_dateime(payload->peek_dt());
     break;
   case fptu_96:
     value_hexadecimal(payload->fixbin, 96 / 8);
@@ -547,8 +549,8 @@ void json::field_value(const fptu_field *field) {
     string(string_view(payload->cstr));
     break;
   case fptu_opaque:
-    value_hexadecimal((uint8_t *)payload->other.data,
-                      payload->other.varlen.opaque_bytes);
+    value_hexadecimal(static_cast<const uint8_t *>(payload->inner_begin()),
+                      payload->varlen_opaque_bytes());
     break;
   case fptu_nested:
     tuple(fptu_field_nested(field));
@@ -646,14 +648,14 @@ void json::field_value(const fptu_field *field) {
         continue;
       case fptu_opaque | fptu_farray:
         payload = (const fptu_payload *)ptr;
-        value_hexadecimal((uint8_t *)payload->other.data,
-                          payload->other.varlen.opaque_bytes);
+        value_hexadecimal(static_cast<const uint8_t *>(payload->inner_begin()),
+                          payload->varlen_opaque_bytes());
         ptr = (const uint8_t *)payload->inner_end();
         continue;
       case fptu_nested | fptu_farray:
         payload = (const fptu_payload *)ptr;
-        const fptu_ro ro = {{(const fptu_unit *)ptr,
-                             units2bytes(payload->other.varlen.brutto)}};
+        const fptu_ro ro = {
+            {(const fptu_unit *)ptr, payload->varlen_brutto_size()}};
         tuple(ro);
         ptr = (const uint8_t *)payload->inner_end();
         continue;

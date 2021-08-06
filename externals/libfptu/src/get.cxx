@@ -49,50 +49,49 @@ int_fast32_t fptu_field_int32(const fptu_field *pf) {
   if (unlikely(fptu_field_type(pf) != fptu_int32))
     return FPTU_DENIL_SINT32;
 
-  return pf->payload()->i32;
+  return pf->payload()->peek_i32();
 }
 
 uint_fast32_t fptu_field_uint32(const fptu_field *pf) {
   if (unlikely(fptu_field_type(pf) != fptu_uint32))
     return FPTU_DENIL_UINT32;
 
-  return pf->payload()->u32;
+  return pf->payload()->peek_u32();
 }
 
 int_fast64_t fptu_field_int64(const fptu_field *pf) {
   if (unlikely(fptu_field_type(pf) != fptu_int64))
     return FPTU_DENIL_SINT64;
 
-  return pf->payload()->i64;
+  return pf->payload()->peek_i64();
 }
 
 uint_fast64_t fptu_field_uint64(const fptu_field *pf) {
   if (unlikely(fptu_field_type(pf) != fptu_uint64))
     return FPTU_DENIL_UINT64;
 
-  return pf->payload()->u64;
+  return pf->payload()->peek_u64();
 }
 
 double_t fptu_field_fp64(const fptu_field *pf) {
   if (unlikely(fptu_field_type(pf) != fptu_fp64))
     return FPTU_DENIL_FP64;
 
-  return pf->payload()->fp64;
+  return pf->payload()->peek_fp64();
 }
 
 float_t fptu_field_fp32(const fptu_field *pf) {
   if (unlikely(fptu_field_type(pf) != fptu_fp32))
     return FPTU_DENIL_FP32;
 
-  return pf->payload()->fp32;
+  return pf->payload()->peek_fp32();
 }
 
 fptu_time fptu_field_datetime(const fptu_field *pf) {
   if (unlikely(fptu_field_type(pf) != fptu_datetime))
     return FPTU_DENIL_TIME;
 
-  fptu_time result = {pf->payload()->u64};
-  return result;
+  return pf->payload()->peek_dt();
 }
 
 const char *fptu_field_cstr(const fptu_field *pf) {
@@ -136,8 +135,8 @@ struct iovec fptu_field_opaque(const fptu_field *pf) {
     io.iov_len = 0;
   } else {
     const fptu_payload *payload = pf->payload();
-    io.iov_len = payload->other.varlen.opaque_bytes;
-    io.iov_base = (void *)payload->other.data;
+    io.iov_len = payload->varlen_opaque_bytes();
+    io.iov_base = const_cast<void *>(payload->inner_begin());
   }
   return io;
 }
@@ -157,8 +156,8 @@ struct iovec fptu_field_as_iovec(const fptu_field *pf) {
     }
     // TODO: array support
     payload = pf->payload();
-    opaque.iov_base = (void *)payload->other.data;
-    opaque.iov_len = units2bytes(payload->other.varlen.brutto);
+    opaque.iov_base = const_cast<void *>(payload->inner_begin());
+    opaque.iov_len = payload->varlen_netto_size();
     break;
   case fptu_null:
     opaque.iov_base = nullptr;
@@ -170,8 +169,8 @@ struct iovec fptu_field_as_iovec(const fptu_field *pf) {
     break;
   case fptu_opaque:
     payload = pf->payload();
-    opaque.iov_len = payload->other.varlen.opaque_bytes;
-    opaque.iov_base = (void *)payload->other.data;
+    opaque.iov_len = payload->varlen_opaque_bytes();
+    opaque.iov_base = const_cast<void *>(payload->inner_begin());
     break;
   case fptu_cstr:
     payload = pf->payload();
@@ -180,7 +179,7 @@ struct iovec fptu_field_as_iovec(const fptu_field *pf) {
     break;
   case fptu_nested:
     payload = pf->payload();
-    opaque.iov_len = units2bytes(payload->other.varlen.brutto);
+    opaque.iov_len = payload->varlen_netto_size();
     opaque.iov_base = (void *)payload;
     break;
   }
@@ -198,7 +197,7 @@ fptu_ro fptu_field_nested(const fptu_field *pf) {
   }
 
   const fptu_payload *payload = pf->payload();
-  tuple.total_bytes = units2bytes(payload->other.varlen.brutto + (size_t)1);
+  tuple.total_bytes = payload->varlen_brutto_size();
   tuple.units = (const fptu_unit *)payload;
   return tuple;
 }
@@ -265,9 +264,9 @@ int_fast64_t fptu_get_sint(fptu_ro ro, unsigned column, int *error) {
   default:
     return FPTU_DENIL_SINT64;
   case fptu_int32:
-    return pf->payload()->i32;
+    return pf->payload()->peek_i32();
   case fptu_int64:
-    return pf->payload()->i64;
+    return pf->payload()->peek_i64();
   }
 }
 
@@ -282,9 +281,9 @@ uint_fast64_t fptu_get_uint(fptu_ro ro, unsigned column, int *error) {
   case fptu_uint16:
     return pf->get_payload_uint16();
   case fptu_uint32:
-    return pf->payload()->u32;
+    return pf->payload()->peek_u32();
   case fptu_uint64:
-    return pf->payload()->u64;
+    return pf->payload()->peek_u64();
   }
 }
 
@@ -297,9 +296,9 @@ double_t fptu_get_fp(fptu_ro ro, unsigned column, int *error) {
   default:
     return FPTU_DENIL_FP64;
   case fptu_fp32:
-    return pf->payload()->fp32;
+    return pf->payload()->peek_fp32();
   case fptu_fp64:
-    return pf->payload()->fp64;
+    return pf->payload()->peek_fp64();
   }
 }
 

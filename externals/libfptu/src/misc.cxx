@@ -341,14 +341,13 @@ static inline void output_array_native(std::ostream &out,
                                        const fptu_payload *const payload,
                                        const char *const tuple_end) {
   const char *const array_begin =
-      erthink::constexpr_pointer_cast<const char *>(&payload->other.data[1]);
-  const char *const array_end = erthink::constexpr_pointer_cast<const char *>(
-      &payload->other.data[units2bytes(payload->other.varlen.brutto)]);
+      static_cast<const char *>(payload->inner_begin());
+  const char *const array_end = static_cast<const char *>(payload->inner_end());
   const char *const detent =
       (tuple_end && array_end > tuple_end) ? tuple_end : array_end;
   const native *item =
       erthink::constexpr_pointer_cast<const native *>(array_begin);
-  for (unsigned i = 0; i < payload->other.varlen.array_length; ++i, ++item) {
+  for (unsigned i = 0; i < payload->array_length(); ++i, ++item) {
     if (i)
       out << ",";
     if (unlikely(erthink::constexpr_pointer_cast<const char *>(item) >=
@@ -359,7 +358,7 @@ static inline void output_array_native(std::ostream &out,
                   : "<broken-array>");
       break;
     }
-    out << *item;
+    out << fptu::peek_unaligned(item);
   }
 }
 
@@ -368,14 +367,12 @@ __cold static void output_array_fixbin(std::ostream &out,
                                        const unsigned itemsize,
                                        const char *const tuple_end) {
   const char *const array_begin =
-      erthink::constexpr_pointer_cast<const char *>(&payload->other.data[1]);
-  const char *const array_end = erthink::constexpr_pointer_cast<const char *>(
-      &payload->other.data[units2bytes(payload->other.varlen.brutto)]);
+      static_cast<const char *>(payload->inner_begin());
+  const char *const array_end = static_cast<const char *>(payload->inner_end());
   const char *const detent =
       (tuple_end && array_end > tuple_end) ? tuple_end : array_end;
   const char *item = array_begin;
-  for (unsigned i = 0; i < payload->other.varlen.array_length;
-       ++i, item += itemsize) {
+  for (unsigned i = 0; i < payload->array_length(); ++i, item += itemsize) {
     if (i)
       out << ",";
     if (unlikely(item >= detent)) {
@@ -397,8 +394,8 @@ __cold std::ostream &operator<<(std::ostream &out, const fptu_field &field) {
       << ((type_complete != fptu_farray) ? fptu_type_name(type_base)
                                          : "invalid-null");
   if (type_complete & fptu_farray)
-    out << "[" << payload->other.varlen.array_length << "("
-        << units2bytes(payload->other.varlen.brutto) << ")]";
+    out << "[" << payload->array_length() << "("
+        << payload->varlen_brutto_size() << ")]";
 
   if (type_base != fptu_null) {
     out << "=";
@@ -408,26 +405,26 @@ __cold std::ostream &operator<<(std::ostream &out, const fptu_field &field) {
       out << field.get_payload_uint16();
       break;
     case fptu_int32:
-      out << payload->i32;
+      out << payload->peek_i32();
       break;
     case fptu_uint32:
-      out << payload->u32;
+      out << payload->peek_u32();
       break;
     case fptu_fp32:
-      out << payload->fp32;
+      out << payload->peek_fp32();
       break;
     case fptu_int64:
-      out << payload->i64;
+      out << payload->peek_i64();
       break;
     case fptu_uint64:
-      out << payload->u64;
+      out << payload->peek_u64();
       break;
     case fptu_fp64:
-      out << payload->fp64;
+      out << payload->peek_fp64();
       break;
 
     case fptu_datetime:
-      out << payload->dt;
+      out << payload->peek_dt();
       break;
 
     case fptu_96:
@@ -447,8 +444,8 @@ __cold std::ostream &operator<<(std::ostream &out, const fptu_field &field) {
       out << payload->cstr;
       break;
     case fptu_opaque:
-      out << fptu::output_hexadecimal(payload->other.data,
-                                      payload->other.varlen.opaque_bytes);
+      out << fptu::output_hexadecimal(payload->other.unaligned_data,
+                                      payload->varlen_opaque_bytes());
       break;
 
     case fptu_nested:
@@ -495,15 +492,13 @@ __cold std::ostream &operator<<(std::ostream &out, const fptu_field &field) {
 
     case fptu_array_cstr: {
       const char *const array_begin =
-          erthink::constexpr_pointer_cast<const char *>(
-              &payload->other.data[1]);
+          static_cast<const char *>(payload->inner_begin());
       const char *const array_end =
-          erthink::constexpr_pointer_cast<const char *>(
-              &payload->other.data[units2bytes(payload->other.varlen.brutto)]);
+          static_cast<const char *>(payload->inner_end());
       const char *const detent =
           (tuple_end && array_end > tuple_end) ? tuple_end : array_end;
       const char *item = array_begin;
-      for (unsigned i = 0; i < payload->other.varlen.array_length; ++i) {
+      for (unsigned i = 0; i < payload->array_length(); ++i) {
         if (i)
           out << ",";
         if (unlikely(item >= detent)) {
@@ -519,17 +514,15 @@ __cold std::ostream &operator<<(std::ostream &out, const fptu_field &field) {
     case fptu_array_opaque:
     case fptu_array_nested: {
       const char *const array_begin =
-          erthink::constexpr_pointer_cast<const char *>(
-              &payload->other.data[1]);
+          static_cast<const char *>(payload->inner_begin());
       const char *const array_end =
-          erthink::constexpr_pointer_cast<const char *>(
-              &payload->other.data[units2bytes(payload->other.varlen.brutto)]);
+          static_cast<const char *>(payload->inner_end());
       const fptu_unit *const detent =
           erthink::constexpr_pointer_cast<const fptu_unit *>(
               (tuple_end && array_end > tuple_end) ? tuple_end : array_end);
       const fptu_unit *item =
           erthink::constexpr_pointer_cast<const fptu_unit *>(array_begin);
-      for (unsigned i = 0; i < payload->other.varlen.array_length; ++i) {
+      for (unsigned i = 0; i < payload->array_length(); ++i) {
         if (i)
           out << ",";
         if (unlikely(item >= detent)) {
@@ -543,8 +536,8 @@ __cold std::ostream &operator<<(std::ostream &out, const fptu_field &field) {
           out << fptu_field_nested(&item->field);
         else
           out << fptu::output_hexadecimal(item->field.body,
-                                          item->varlen.opaque_bytes);
-        item += item->varlen.brutto;
+                                          item->varlen.opaque_bytes());
+        item += item->varlen.brutto_units();
       }
     } break;
 

@@ -72,11 +72,11 @@ static __hot const char *fptu_field_check(const fptu_field *pf,
 
   if (type == fptu_cstr) {
     // length is'nt stored, but zero terminated
-    len = strnlen((const char *)payload, (size_t)left) + 1;
+    len = strnlen((const char *)payload, size_t(left)) + 1;
     payload_units = bytes2units(len);
   } else {
     // length is stored
-    payload_units += payload->other.varlen.brutto;
+    payload_units = payload->varlen_brutto_units();
     len = units2bytes(payload_units);
   }
 
@@ -92,7 +92,7 @@ static __hot const char *fptu_field_check(const fptu_field *pf,
     // TODO
     return "arrays NOT yet supported";
   } else if (type == fptu_opaque) {
-    len = payload->other.varlen.opaque_bytes;
+    len = payload->varlen_opaque_bytes();
     if (unlikely(payload_units != bytes2units(len) + 1))
       return "field.opaque_bytes != field.brutto";
   } else if (pf->tag == fptu_nested) {
@@ -117,21 +117,21 @@ const char *fptu_check_ro(fptu_ro ro) {
   if (unlikely(ro.total_bytes > fptu_max_tuple_bytes))
     return "tuple.length_bytes < max_bytes";
 
-  if (unlikely(ro.total_bytes !=
-               units2bytes(1 + (size_t)ro.units[0].varlen.brutto)))
+  if (unlikely(ro.total_bytes != ro.units[0].varlen.brutto_size()))
     return "tuple.length_bytes != tuple.brutto";
 
   const char *detent = (const char *)ro.units + ro.total_bytes;
-  size_t items = (size_t)ro.units[0].varlen.tuple_items & fptu_lt_mask;
-  if (unlikely(items > fptu_max_fields))
+  const size_t items = ro.units[0].varlen.tuple_items();
+  if (unlikely((items & size_t(fptu_lt_mask)) > fptu_max_fields))
     return "tuple.items > fptu_max_fields";
 
   const fptu_field *begin = &ro.units[1].field;
-  const char *pivot = (const char *)begin + units2bytes(items);
+  const char *pivot =
+      (const char *)begin + units2bytes(items & size_t(fptu_lt_mask));
   if (unlikely(pivot > detent))
     return "tuple.pivot > tuple.end";
 
-  if (fptu_lx_mask & ro.units[0].varlen.tuple_items) {
+  if (fptu_lx_mask & items) {
     // TODO: support for ordered tuples
   }
 

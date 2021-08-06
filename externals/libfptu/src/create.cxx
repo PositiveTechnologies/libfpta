@@ -81,11 +81,10 @@ fptu_rw *fptu_fetch(fptu_ro ro, void *space, size_t buffer_bytes,
     return nullptr;
   if (unlikely(ro.total_bytes > fptu_max_tuple_bytes))
     return nullptr;
-  if (unlikely(ro.total_bytes !=
-               units2bytes(1 + (size_t)ro.units[0].varlen.brutto)))
+  if (unlikely(ro.total_bytes != ro.units[0].varlen.brutto_size()))
     return nullptr;
 
-  size_t items = (size_t)ro.units[0].varlen.tuple_items & fptu_lt_mask;
+  size_t items = ro.units[0].varlen.tuple_items() & size_t(fptu_lt_mask);
   if (unlikely(items > fptu_max_fields))
     return nullptr;
   if (unlikely(space == nullptr || more_items > fptu_max_fields))
@@ -121,7 +120,7 @@ fptu_rw *fptu_fetch(fptu_ro ro, void *space, size_t buffer_bytes,
 
 static size_t more_buffer_size(const fptu_ro &ro, unsigned more_items,
                                unsigned more_payload) {
-  size_t items = (size_t)ro.units[0].varlen.tuple_items & fptu_lt_mask;
+  size_t items = ro.units[0].varlen.tuple_items() & size_t(fptu_lt_mask);
   size_t payload_bytes = ro.total_bytes - units2bytes(items + 1);
   return fptu_space(items + more_items, payload_bytes + more_payload);
 }

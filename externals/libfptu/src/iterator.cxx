@@ -68,18 +68,16 @@ __hot const fptu_field *fptu_next_ex(const fptu_field *from,
 __hot bool fptu_is_empty_ro(fptu_ro ro) {
   if (unlikely(ro.total_bytes < fptu_unit_size))
     return true;
-  if (unlikely(ro.total_bytes !=
-               fptu_unit_size + units2bytes(ro.units[0].varlen.brutto)))
+  if (unlikely(ro.total_bytes != ro.units[0].varlen.brutto_size()))
     return true;
 
-  return (ro.units[0].varlen.tuple_items & fptu_lt_mask) == 0;
+  return (ro.units[0].varlen.tuple_items() & fptu_lt_mask) == 0;
 }
 
 __hot const fptu_field *fptu_begin_ro(fptu_ro ro) {
   if (unlikely(ro.total_bytes < fptu_unit_size))
     return nullptr;
-  if (unlikely(ro.total_bytes !=
-               fptu_unit_size + units2bytes(ro.units[0].varlen.brutto)))
+  if (unlikely(ro.total_bytes != ro.units[0].varlen.brutto_size()))
     return nullptr;
 
   return &ro.units[1].field;
@@ -88,11 +86,10 @@ __hot const fptu_field *fptu_begin_ro(fptu_ro ro) {
 __hot const fptu_field *fptu_end_ro(fptu_ro ro) {
   if (unlikely(ro.total_bytes < fptu_unit_size))
     return nullptr;
-  if (unlikely(ro.total_bytes !=
-               fptu_unit_size + units2bytes(ro.units[0].varlen.brutto)))
+  if (unlikely(ro.total_bytes != ro.units[0].varlen.brutto_size()))
     return nullptr;
 
-  size_t items = (size_t)ro.units[0].varlen.tuple_items & fptu_lt_mask;
+  size_t items = ro.units[0].varlen.tuple_items() & fptu_lt_mask;
   return &ro.units[1 + items].field;
 }
 

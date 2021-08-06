@@ -154,9 +154,52 @@ enum fptu_error {
 
 #pragma pack(push, 1)
 
+#ifndef FPTU_UNALIGNED_OK
+#if defined(ENABLE_UBSAN)
+#define FPTU_UNALIGNED_OK 0
+#elif defined(_MSC_VER)
+#define FPTU_UNALIGNED_OK 1 /* avoid MSVC misoptimization */
+#elif __CLANG_PREREQ(5, 0) || __GNUC_PREREQ(5, 0)
+#define FPTU_UNALIGNED_OK 0 /* expecting optimization is well done */
+#elif (defined(__ia32__) || defined(__ARM_FEATURE_UNALIGNED)) &&               \
+    !defined(__ALIGNED__)
+#define FPTU_UNALIGNED_OK 1
+#else
+#define FPTU_UNALIGNED_OK 0
+#endif
+#endif /* FPTU_UNALIGNED_OK */
+
 #ifdef __cplusplus
 enum fptu_type : uint32_t;
 union fptu_payload;
+
+extern "C++" {
+namespace fptu {
+
+template <typename T, unsigned EXPECTED_ALIGNMENT = 1>
+static T inline peek_unaligned(const T *source) {
+  if (FPTU_UNALIGNED_OK || sizeof(T) <= EXPECTED_ALIGNMENT)
+    return *source;
+  else {
+    T result;
+    memcpy(&result, source, sizeof(T));
+    return result;
+  }
+}
+
+template <typename T, unsigned EXPECTED_ALIGNMENT = 4>
+static T inline poke_unaligned(T *target, const T &source) {
+  if (FPTU_UNALIGNED_OK || sizeof(T) <= EXPECTED_ALIGNMENT)
+    return *target = source;
+  else {
+    memcpy(target, &source, sizeof(T));
+    return source;
+  }
+}
+
+} // namespace fptu
+} // extern C++
+
 #else
 typedef enum fptu_error fptu_error;
 typedef union fptu_varlen fptu_varlen;
@@ -171,15 +214,36 @@ typedef struct fptu_rw fptu_rw;
 /* Внутренний тип для хранения размера полей переменной длины. */
 union fptu_varlen {
   struct {
-    uint16_t brutto; /* брутто-размер в 4-байтовых юнитах,
-                      * всегда больше или равен 1. */
+    uint16_t unaligned_netto_units; /* размер данных в 4-байтовых юнитах не
+                        включая varlen-заголовок (чтобы избежать кодирование
+                        переполнения для максимального размера payload). */
     union {
-      uint16_t opaque_bytes;
-      uint16_t array_length;
-      uint16_t tuple_items;
+      uint16_t unaligned_opaque_bytes;
+      uint16_t unaligned_array_length;
+      uint16_t unaligned_tuple_items;
     };
   };
-  uint32_t flat;
+  uint32_t unaligned_flat;
+
+#ifdef __cplusplus
+  const void *begin() const { return &unaligned_flat + 1; }
+  const void *end() const { return &unaligned_flat + brutto_units(); }
+  size_t netto_units() const {
+    return size_t(fptu::peek_unaligned(&unaligned_netto_units));
+  }
+  size_t netto_size() const { return netto_units() << 2; }
+  size_t brutto_units() const { return netto_units() + 1u; }
+  size_t brutto_size() const { return brutto_units() << 2; }
+  size_t opaque_bytes() const {
+    return size_t(fptu::peek_unaligned(&unaligned_opaque_bytes));
+  }
+  size_t array_length() const {
+    return size_t(fptu::peek_unaligned(&unaligned_array_length));
+  }
+  size_t tuple_items() const {
+    return size_t(fptu::peek_unaligned(&unaligned_tuple_items));
+  }
+#endif /* __cplusplus */
 };
 
 /* Поле кортежа.
@@ -292,26 +356,62 @@ union
 };
 
 union fptu_payload {
-  uint32_t u32;
-  int32_t i32;
-  uint64_t u64;
-  int64_t i64;
-  fptu_time dt;
-  float fp32;
-  double fp64;
+  uint32_t unaligned_u32;
+  int32_t unaligned_i32;
+  uint64_t unaligned_u64;
+  int64_t unaligned_i64;
+  fptu_time unaligned_dt;
+  float unaligned_fp32;
+  double unaligned_fp64;
   char cstr[4];
   uint8_t fixbin[8];
-  uint32_t fixbin_by32[2];
-  uint64_t fixbin_by64[1];
   struct {
     fptu_varlen varlen;
-    uint32_t data[1];
+    uint32_t unaligned_data[1];
   } other;
+
 #ifdef __cplusplus
-  const void *inner_begin() const { return other.data; }
-  const void *inner_end() const { return other.data + other.varlen.brutto - 1; }
-  size_t array_length() const { return other.varlen.array_length; }
-#endif
+  const void *inner_begin() const { return other.unaligned_data; }
+  const void *inner_end() const {
+    return other.unaligned_data + varlen_brutto_units();
+  }
+  size_t varlen_opaque_bytes() const { return other.varlen.opaque_bytes(); }
+  size_t array_length() const { return other.varlen.array_length(); }
+  size_t varlen_brutto_units() const { return other.varlen.brutto_units(); }
+  size_t varlen_brutto_size() const { return other.varlen.brutto_size(); }
+  size_t varlen_netto_units() const { return other.varlen.netto_units(); }
+  size_t varlen_netto_size() const { return other.varlen.netto_size(); }
+
+  uint32_t peek_u32() const { return fptu::peek_unaligned(&unaligned_u32); }
+  int32_t peek_i32() const { return fptu::peek_unaligned(&unaligned_i32); }
+  float peek_fp32() const { return fptu::peek_unaligned(&unaligned_fp32); }
+  uint64_t peek_u64() const { return fptu::peek_unaligned(&unaligned_u64); }
+  int64_t peek_i64() const { return fptu::peek_unaligned(&unaligned_i64); }
+  fptu_time peek_dt() const { return fptu::peek_unaligned(&unaligned_dt); }
+  double peek_fp64() const { return fptu::peek_unaligned(&unaligned_fp64); }
+
+  uint32_t poke_u32(const uint32_t u32) {
+    return fptu::poke_unaligned(&unaligned_u32, u32);
+  }
+  int32_t poke_i32(const int32_t i32) {
+    return fptu::poke_unaligned(&unaligned_i32, i32);
+  }
+  double poke_fp32(const float fp32) {
+    return fptu::poke_unaligned(&unaligned_fp32, fp32);
+  }
+  uint64_t poke_u64(const uint64_t u64) {
+    return fptu::poke_unaligned(&unaligned_u64, u64);
+  }
+  int64_t poke_i64(const int64_t i64) {
+    return fptu::poke_unaligned(&unaligned_i64, i64);
+  }
+  fptu_time poke_dt(const fptu_time dt) {
+    return fptu::poke_unaligned(&unaligned_dt, dt);
+  }
+  double poke_fp64(const double fp64) {
+    return fptu::poke_unaligned(&unaligned_fp64, fp64);
+  }
+#endif /* __cplusplus */
 };
 
 #pragma pack(pop)
@@ -1207,24 +1307,6 @@ extern FPTU_API const fptu_version_info fptu_version;
 extern FPTU_API const fptu_build_info fptu_build;
 
 //----------------------------------------------------------------------------
-/* Сервисные функции (будет пополнятся). */
-
-static __inline const void *fptu_inner_begin(fptu_field *pf) {
-  assert((fptu_field_type(pf) & fptu_farray) != 0);
-  const fptu_payload *payload = fptu_get_payload(pf);
-  return payload->other.data;
-}
-
-static __inline const void *fptu_inner_end(fptu_field *pf) {
-  assert((fptu_field_type(pf) & fptu_farray) != 0);
-  const fptu_payload *payload = fptu_get_payload(pf);
-  return payload->other.data + payload->other.varlen.brutto - 1;
-}
-
-static __inline size_t fptu_array_length(fptu_field *pf) {
-  assert((fptu_field_type(pf) & fptu_farray) != 0);
-  return fptu_get_payload(pf)->other.varlen.array_length;
-}
 
 /* Функция обратного вызова, используемая для трансляции идентификаторов/тегов
  * полей в символические имена. Функция будет вызываться многократно, при
@@ -1828,35 +1910,35 @@ static RESULT_TYPE get_number(const fptu_field *field) {
                      std::numeric_limits<RESULT_TYPE>::max()));
     return (RESULT_TYPE)field->get_payload_uint16();
   case fptu_uint32:
-    assert(is_within(field->payload()->u32,
+    assert(is_within(field->payload()->peek_u32(),
                      std::numeric_limits<RESULT_TYPE>::lowest(),
                      std::numeric_limits<RESULT_TYPE>::max()));
-    return (RESULT_TYPE)field->payload()->u32;
+    return (RESULT_TYPE)field->payload()->peek_u32();
   case fptu_uint64:
-    assert(is_within(field->payload()->u64,
+    assert(is_within(field->payload()->peek_u64(),
                      std::numeric_limits<RESULT_TYPE>::lowest(),
                      std::numeric_limits<RESULT_TYPE>::max()));
-    return (RESULT_TYPE)field->payload()->u64;
+    return (RESULT_TYPE)field->payload()->peek_u64();
   case fptu_int32:
-    assert(is_within(field->payload()->i32,
+    assert(is_within(field->payload()->peek_i32(),
                      std::numeric_limits<RESULT_TYPE>::lowest(),
                      std::numeric_limits<RESULT_TYPE>::max()));
-    return (RESULT_TYPE)field->payload()->i32;
+    return (RESULT_TYPE)field->payload()->peek_i32();
   case fptu_int64:
-    assert(is_within(field->payload()->i64,
+    assert(is_within(field->payload()->peek_i64(),
                      std::numeric_limits<RESULT_TYPE>::lowest(),
                      std::numeric_limits<RESULT_TYPE>::max()));
-    return (RESULT_TYPE)field->payload()->i64;
+    return (RESULT_TYPE)field->payload()->peek_i64();
   case fptu_fp32:
-    assert(is_within(field->payload()->fp32,
+    assert(is_within(field->payload()->peek_fp32(),
                      std::numeric_limits<RESULT_TYPE>::lowest(),
                      std::numeric_limits<RESULT_TYPE>::max()));
-    return (RESULT_TYPE)field->payload()->fp32;
+    return (RESULT_TYPE)field->payload()->peek_fp32();
   case fptu_fp64:
-    assert(is_within(field->payload()->fp32,
+    assert(is_within(field->payload()->peek_fp64(),
                      std::numeric_limits<RESULT_TYPE>::lowest(),
                      std::numeric_limits<RESULT_TYPE>::max()));
-    return (RESULT_TYPE)field->payload()->fp64;
+    return (RESULT_TYPE)field->payload()->peek_fp64();
   }
 }
 
@@ -1871,31 +1953,31 @@ static void set_number(fptu_field *field, const VALUE_TYPE &value) {
     break;
   case fptu_uint16:
     assert(is_within(value, 0, INT16_MAX));
-    field->offset = (uint16_t)value;
+    field->offset = uint16_t(value);
     break;
   case fptu_uint32:
     assert(is_within(value, 0u, UINT32_MAX));
-    field->payload()->u32 = (uint32_t)value;
+    field->payload()->poke_u32(uint32_t(value));
     break;
   case fptu_uint64:
     assert(is_within(value, 0u, UINT64_MAX));
-    field->payload()->u64 = (uint64_t)value;
+    field->payload()->poke_u64(uint64_t(value));
     break;
   case fptu_int32:
     assert(is_within(value, INT32_MIN, INT32_MAX));
-    field->payload()->i32 = (int32_t)value;
+    field->payload()->poke_i32(int32_t(value));
     break;
   case fptu_int64:
     assert(is_within(value, INT64_MIN, INT64_MAX));
-    field->payload()->i64 = (int64_t)value;
+    field->payload()->poke_i64(int64_t(value));
     break;
   case fptu_fp32:
     assert(value >= FLT_MIN && value <= FLT_MAX);
-    field->payload()->fp32 = (float)value;
+    field->payload()->poke_fp32(float(value));
     break;
   case fptu_fp64:
     assert(value >= DBL_MIN && value <= DBL_MAX);
-    field->payload()->fp64 = (double)value;
+    field->payload()->poke_fp64(double(value));
     break;
   }
 }

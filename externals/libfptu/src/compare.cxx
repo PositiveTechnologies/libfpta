@@ -242,19 +242,19 @@ __hot static fptu_lge fptu_cmp_fields_same_type(const fptu_field *left,
     return fptu_cmp2lge(left->get_payload_uint16(),
                         right->get_payload_uint16());
   case fptu_int32:
-    return fptu_cmp2lge(payload_left->i32, payload_right->i32);
+    return fptu_cmp2lge(payload_left->peek_i32(), payload_right->peek_i32());
   case fptu_uint32:
-    return fptu_cmp2lge(payload_left->u32, payload_right->u32);
+    return fptu_cmp2lge(payload_left->peek_u32(), payload_right->peek_u32());
   case fptu_fp32:
-    return fptu_cmp2lge(payload_left->fp32, payload_right->fp32);
+    return fptu_cmp2lge(payload_left->peek_fp32(), payload_right->peek_fp32());
 
   case fptu_int64:
-    return fptu_cmp2lge(payload_left->i64, payload_right->i64);
+    return fptu_cmp2lge(payload_left->peek_i64(), payload_right->peek_i64());
   case fptu_uint64:
   case fptu_datetime:
-    return fptu_cmp2lge(payload_left->u64, payload_right->u64);
+    return fptu_cmp2lge(payload_left->peek_u64(), payload_right->peek_u64());
   case fptu_fp64:
-    return fptu_cmp2lge(payload_left->fp64, payload_right->fp64);
+    return fptu_cmp2lge(payload_left->peek_fp64(), payload_right->peek_fp64());
 
   case fptu_96:
     return cmpbin(payload_left->fixbin, payload_right->fixbin, 12);
@@ -270,8 +270,8 @@ __hot static fptu_lge fptu_cmp_fields_same_type(const fptu_field *left,
 
   case fptu_opaque:
     return fptu_cmp_binary(
-        payload_left->other.data, payload_left->other.varlen.opaque_bytes,
-        payload_right->other.data, payload_right->other.varlen.opaque_bytes);
+        payload_left->inner_begin(), payload_left->varlen_opaque_bytes(),
+        payload_right->inner_begin(), payload_right->varlen_opaque_bytes());
 
   case fptu_nested:
     return fptu_cmp_tuples(fptu_field_nested(left), fptu_field_nested(right));
