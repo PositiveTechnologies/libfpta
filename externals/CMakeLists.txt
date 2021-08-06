@@ -12,6 +12,10 @@ else()
   set(LIBFPTU_TYPE OBJECT)
 endif()
 
+if(ENABLE_UBSAN)
+  add_definitions(-DFPTU_UNALIGNED_OK=0 -DMDBX_UNALIGNED_OK=0 -DT1HA_SYS_UNALIGNED_ACCESS=0)
+endif()
+
 add_definitions(-Dfptu_EXPORTS -DLIBMDBX_NO_EXPORTS_LEGACY_API)
 add_subdirectory(libfptu/src)
 add_subdirectory(libfptu/test)

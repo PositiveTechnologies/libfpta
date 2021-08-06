@@ -40,6 +40,7 @@
 #cmakedefine ENABLE_GPROF
 #cmakedefine ENABLE_GCOV
 #cmakedefine ENABLE_ASAN
+#cmakedefine ENABLE_UBSAN
 #ifndef FPTA_BUILD_TYPE
 #cmakedefine FPTA_BUILD_TYPE "@FPTA_BUILD_TYPE@"
 #endif
