@@ -267,7 +267,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   }
 
   case fptu_datetime: {
-    fptu_time value = field->payload()->dt;
+    fptu_time value = field->payload()->peek_dt();
     /* convert byte order for proper comparison result in a index kind. */
     value.fixedpoint = obverse ? erthink::h2be(value.fixedpoint)
                                : erthink::h2le(value.fixedpoint);
@@ -284,7 +284,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   }
 
   case fptu_uint32: {
-    uint32_t value = field->payload()->u32;
+    uint32_t value = field->payload()->peek_u32();
     /* convert byte order for proper comparison result in a index kind. */
     value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
@@ -292,7 +292,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   }
 
   case fptu_uint64: {
-    uint64_t value = field->payload()->u64;
+    uint64_t value = field->payload()->peek_u64();
     /* convert byte order for proper comparison result in a index kind. */
     value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
@@ -300,8 +300,9 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   }
 
   case fptu_int32: {
-    int32_t value = field->payload()->i32;
-    value -= INT32_MIN /* rebase signed min-value to binary all-zeros */;
+    /* rebase signed min-value to binary all-zeros */
+    int32_t value = field->payload()->peek_i32();
+    value -= INT32_MIN;
     /* convert byte order for proper comparison result in a index kind. */
     value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
@@ -309,8 +310,9 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
   }
 
   case fptu_int64: {
-    int64_t value = field->payload()->i64;
-    value -= INT64_MIN /* rebase signed min-value to binary all-zeros */;
+    /* rebase signed min-value to binary all-zeros */
+    int64_t value = field->payload()->peek_i64();
+    value -= INT64_MIN;
     /* convert byte order for proper comparison result in a index kind. */
     value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
@@ -323,7 +325,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
       uint32_t u32;
       int32_t i32;
     } value;
-    value.u32 = field->payload()->u32 /* copy fp32 as-is */;
+    value.u32 = field->payload()->peek_u32() /* copy fp32 as-is */;
     /* convert to binary-comparable value in the range 0..UINT32_MAX */
     value.u32 = (value.i32 < 0) ? UINT32_C(0xffffFFFF) - value.u32
                                 : value.u32 + UINT32_C(0x80000000);
@@ -339,7 +341,7 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
       uint64_t u64;
       int64_t i64;
     } value;
-    value.u64 = field->payload()->u64 /* copy fp64 as-is */;
+    value.i64 = field->payload()->peek_i64() /* copy fp64 as-is */;
     /* convert to binary-comparable value in the range 0..UINT64_MAX */
     value.u64 = (value.i64 < 0) ? UINT64_C(0xffffFFFFffffFFFF) - value.u64
                                 : value.u64 + UINT64_C(0x8000000000000000);
@@ -506,7 +508,8 @@ int __cold fpta_composite_index_validate(
       return FPTA_EEXIST;
 #endif
 
-    const fpta_shove_t column_shove = columns_shoves[column_number];
+    const fpta_shove_t column_shove =
+        peek_unaligned(&columns_shoves[column_number]);
     if (unlikely(fpta_is_composite(column_shove)))
       /* reject composite indexes/columns */
       return FPTA_ETYPE;
@@ -544,7 +547,7 @@ int __cold fpta_composite_index_validate(
   /* scan other composites */
   auto composites = composites_begin;
   for (size_t i = 0; i < column_count; ++i) {
-    const fpta_shove_t column_shove = columns_shoves[i];
+    const fpta_shove_t column_shove = peek_unaligned(&columns_shoves[i]);
     if (column_shove == 0) {
       /* zero slot is empty while PK undefined,
        * skip it in such case */

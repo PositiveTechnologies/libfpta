@@ -31,6 +31,7 @@
                                    for aligment */
 #endif                          /* _MSC_VER (warnings) */
 
+using namespace fptu;
 using namespace fpta;
 
 struct fpta_db {
@@ -306,15 +307,17 @@ static __inline MDBX_db_flags_t fpta_dbi_flags(const fpta_shove_t *shoves_defs,
                                                const size_t n) {
   const MDBX_db_flags_t dbi_flags =
       (n == 0)
-          ? fpta_index_shove2primary_dbiflags(shoves_defs[0])
-          : fpta_index_shove2secondary_dbiflags(shoves_defs[0], shoves_defs[n]);
+          ? fpta_index_shove2primary_dbiflags(peek_unaligned(&shoves_defs[0]))
+          : fpta_index_shove2secondary_dbiflags(
+                peek_unaligned(&shoves_defs[0]),
+                peek_unaligned(&shoves_defs[n]));
   return dbi_flags;
 }
 
 static __inline fpta_shove_t fpta_data_shove(const fpta_shove_t *shoves_defs,
                                              const size_t n) {
   const fpta_shove_t data_shove =
-      n ? shoves_defs[0]
+      n ? peek_unaligned(&shoves_defs[0])
         : fpta_column_shove(0, fptu_nested,
                             fpta_primary_unique_ordered_obverse);
   return data_shove;

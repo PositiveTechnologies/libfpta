@@ -525,7 +525,7 @@ static int fpta_columns_description_validate(
   size_t secondary_count = 0;
   auto composites = composites_begin;
   for (size_t i = 0; i < shoves_count; ++i) {
-    const fpta_shove_t shove = shoves[i];
+    const fpta_shove_t shove = peek_unaligned(&shoves[i]);
     const fpta_index_type index_type = fpta_shove2index(shove);
     if (!fpta_index_is_valid(index_type))
       return FPTA_EFLAG;
@@ -535,7 +535,8 @@ static int fpta_columns_description_validate(
       /* первичный индекс обязан быть, только один и только в самом начале */
       return FPTA_EFLAG;
 
-    if (fpta_index_is_secondary(index_type) && !fpta_index_is_unique(shoves[0]))
+    if (fpta_index_is_secondary(index_type) &&
+        !fpta_index_is_unique(peek_unaligned(&shoves[0])))
       /* для вторичных индексов первичный ключ должен быть уникальным */
       return FPTA_EFLAG;
 
@@ -582,7 +583,7 @@ static int fpta_columns_description_validate(
     }
 
     for (size_t j = 0; j < i; ++j)
-      if (fpta_shove_eq(shove, shoves[j]))
+      if (fpta_shove_eq(shove, peek_unaligned(&shoves[j])))
         return FPTA_EEXIST;
   }
 
@@ -754,24 +755,25 @@ fpta_schema_image_validate(const fpta_shove_t schema_key,
   uint64_t checksum =
       t1ha2_atonce(&schema->signature, schema_data.iov_len - sizeof(checksum),
                    FTPA_SCHEMA_CHECKSEED);
-  if (unlikely(checksum != schema->checksum))
+  if (unlikely(checksum != peek_unaligned(&schema->checksum)))
     return nullptr;
 
-  const void *const composites_begin = schema->columns + schema->count;
+  const void *const composites_begin =
+      schema->columns + peek_unaligned(&schema->count);
   const void *const composites_end =
       (uint8_t *)schema_data.iov_base + schema_data.iov_len;
   if (FPTA_SUCCESS !=
       fpta_columns_description_validate(
-          schema->columns, schema->count,
+          schema->columns, peek_unaligned(&schema->count),
           (const fpta_table_schema::composite_item_t *)composites_begin,
           (const fpta_table_schema::composite_item_t *)composites_end))
     return nullptr;
 
-  if (!std::is_sorted(schema->columns, schema->columns + schema->count,
-                      [](const fpta_shove_t &left, const fpta_shove_t &right) {
-                        return shove_index_compare(left, right);
-                      }))
-    return nullptr;
+  for (size_t i = 1; i < peek_unaligned(&schema->count); ++i) {
+    if (!shove_index_compare(peek_unaligned(&schema->columns[i - 1]),
+                             peek_unaligned(&schema->columns[i])))
+      return nullptr;
+  }
 
   return schema;
 }
@@ -784,8 +786,8 @@ fpta_schema_image_validate(const fpta_shove_t schema_key,
   const fpta_table_stored_schema *const schema =
       fpta_schema_image_validate(schema_key, schema_data);
   if (likely(schema)) {
-    for (size_t i = 0; i < schema->count; ++i)
-      if (unlikely(!dict.exists(schema->columns[i])))
+    for (size_t i = 0; i < peek_unaligned(&schema->count); ++i)
+      if (unlikely(!dict.exists(peek_unaligned(&schema->columns[i]))))
         return nullptr;
   }
   return schema;
@@ -1327,22 +1329,27 @@ int fpta_table_create(fpta_txn *txn, const char *table_name,
   if (rc == MDBX_SUCCESS) {
     fpta_table_stored_schema *const record =
         (fpta_table_stored_schema *)data.iov_base;
-    record->signature = FTPA_SCHEMA_SIGNATURE;
-    record->count = column_set->count;
-    record->version_tsn = txn->db_version;
-    memcpy(record->columns, column_set->shoves,
-           sizeof(fpta_shove_t) * record->count);
+    poke_unaligned<decltype(record->signature), 2>(&record->signature,
+                                                   FTPA_SCHEMA_SIGNATURE);
+    poke_unaligned<decltype(record->count), 2>(&record->count,
+                                               column_set->count);
+    poke_unaligned<decltype(record->version_tsn), 2>(&record->version_tsn,
+                                                     txn->db_version);
+    memcpy(&record->columns, column_set->shoves,
+           sizeof(fpta_shove_t) * column_set->count);
 
     fpta_table_schema::composite_item_t *ptr =
-        (fpta_table_schema::composite_item_t *)&record->columns[record->count];
+        (fpta_table_schema::composite_item_t *)&record
+            ->columns[column_set->count];
     const size_t composites_bytes =
         (uintptr_t)composites_eof - (uintptr_t)&column_set->composites[0];
     memcpy(ptr, column_set->composites, composites_bytes);
     assert((uint8_t *)ptr + composites_bytes == (uint8_t *)record + bytes);
 
-    record->checksum =
+    poke_unaligned<decltype(record->checksum), 2>(
+        &record->checksum,
         t1ha2_atonce(&record->signature, bytes - sizeof(record->checksum),
-                     FTPA_SCHEMA_CHECKSEED);
+                     FTPA_SCHEMA_CHECKSEED));
 #ifndef NDEBUG
     assert(fpta_schema_image_validate(table_shove, data, dict));
 #endif
@@ -1415,8 +1422,8 @@ int fpta_table_drop(fpta_txn *txn, const char *table_name) {
         }
       } else {
         new_dict.pickup(old_dict, shove);
-        for (size_t i = 0; i < schema->count; ++i)
-          new_dict.pickup(old_dict, schema->columns[i]);
+        for (size_t i = 0; i < peek_unaligned(&schema->count); ++i)
+          new_dict.pickup(old_dict, peek_unaligned(&schema->columns[i]));
       }
     }
     rc = mdbx_cursor_get(mdbx_cursor, &key, &data, MDBX_NEXT);

@@ -885,13 +885,13 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
 
   default:
     /* TODO: проверить корректность размера для fptu_farray */
-    key.mdbx.iov_len = units2bytes(payload->other.varlen.brutto);
-    key.mdbx.iov_base = (void *)payload->other.data;
+    key.mdbx.iov_len = payload->varlen_netto_size();
+    key.mdbx.iov_base = const_cast<void *>(payload->inner_begin());
     break;
 
   case fptu_opaque:
-    key.mdbx.iov_len = payload->other.varlen.opaque_bytes;
-    key.mdbx.iov_base = (void *)payload->other.data;
+    key.mdbx.iov_len = payload->varlen_opaque_bytes();
+    key.mdbx.iov_base = const_cast<void *>(payload->inner_begin());
     break;
 
   case fptu_uint16:
@@ -901,47 +901,48 @@ __hot int fpta_index_row2key(const fpta_table_schema *const schema,
     return FPTA_SUCCESS;
 
   case fptu_uint32:
-    key.place.u32 = payload->u32;
+    key.place.u32 = payload->peek_u32();
     key.mdbx.iov_len = sizeof(key.place.u32);
     key.mdbx.iov_base = &key.place.u32;
     return FPTA_SUCCESS;
 
   case fptu_datetime:
-    static_assert(sizeof(payload->dt) == sizeof(payload->u64), "WTF?");
-    assert(payload->dt.fixedpoint == payload->u64);
+    static_assert(sizeof(payload->unaligned_dt) ==
+                      sizeof(payload->unaligned_u64),
+                  "WTF?");
     __fallthrough;
   case fptu_uint64:
-    key.place.u64 = payload->u64;
+    key.place.u64 = payload->peek_u64();
     key.mdbx.iov_len = sizeof(key.place.u64);
     key.mdbx.iov_base = &key.place.u64;
     return FPTA_SUCCESS;
 
   case fptu_int32:
-    key.place.u32 = mdbx_key_from_int32(payload->i32);
+    key.place.u32 = mdbx_key_from_int32(payload->peek_i32());
     key.mdbx.iov_len = sizeof(key.place.u32);
     key.mdbx.iov_base = &key.place.u32;
-    assert(mdbx_int32_from_key(key.mdbx) == payload->i32);
+    assert(mdbx_int32_from_key(key.mdbx) == payload->peek_i32());
     return FPTA_SUCCESS;
 
   case fptu_fp32:
-    key.place.u32 = mdbx_key_from_ptrfloat(&payload->fp32);
+    key.place.u32 = mdbx_key_from_float(payload->peek_fp32());
     key.mdbx.iov_len = sizeof(key.place.u32);
     key.mdbx.iov_base = &key.place.u32;
-    assert(mdbx_float_from_key(key.mdbx) == payload->fp32);
+    assert(mdbx_float_from_key(key.mdbx) == payload->peek_fp32());
     return FPTA_SUCCESS;
 
   case fptu_int64:
-    key.place.u64 = mdbx_key_from_int64(payload->i64);
+    key.place.u64 = mdbx_key_from_int64(payload->peek_i64());
     key.mdbx.iov_len = sizeof(key.place.u64);
     key.mdbx.iov_base = &key.place.u64;
-    assert(mdbx_int64_from_key(key.mdbx) == payload->i64);
+    assert(mdbx_int64_from_key(key.mdbx) == payload->peek_i64());
     return FPTA_SUCCESS;
 
   case fptu_fp64:
-    key.place.u64 = mdbx_key_from_ptrdouble(&payload->fp64);
+    key.place.u64 = mdbx_key_from_double(payload->peek_fp64());
     key.mdbx.iov_len = sizeof(key.place.u64);
     key.mdbx.iov_base = &key.place.u64;
-    assert(mdbx_double_from_key(key.mdbx) == payload->fp64);
+    assert(mdbx_double_from_key(key.mdbx) == payload->peek_fp64());
     return FPTA_SUCCESS;
 
   case fptu_cstr:

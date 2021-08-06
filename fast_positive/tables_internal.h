@@ -233,6 +233,8 @@ static inline bool fpta_cursor_is_ascending(const fpta_cursor_options op) {
 
 //----------------------------------------------------------------------------
 
+#pragma pack(push, 1)
+
 struct fpta_table_stored_schema {
   uint64_t checksum;
   uint32_t signature;
@@ -240,6 +242,8 @@ struct fpta_table_stored_schema {
   uint64_t version_tsn;
   fpta_shove_t columns[1];
 };
+
+#pragma pack(pop)
 
 static cxx11_constexpr bool fpta_is_intersected(const void *left_begin,
                                                 const void *left_end,
