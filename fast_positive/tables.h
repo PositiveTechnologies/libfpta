@@ -667,7 +667,7 @@ static __inline fpta_value fpta_value_cstr(const char *value) {
 /* Конструктор value со строковым значением
  * строка не копируется и не хранится внутри. */
 static __inline fpta_value fpta_value_string(const char *text, size_t length) {
-  assert(strnlen(text, length) == length);
+  assert(length == 0 || strnlen(text, length) == length);
   assert(length < INT_MAX);
   fpta_value r;
   r.type = fpta_string;
