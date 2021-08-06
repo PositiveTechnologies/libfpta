@@ -154,7 +154,8 @@ static __inline fptu_lge cmpbin(const void *a, const void *b, size_t bytes) {
 
 fptu_lge __hot fptu_cmp_binary(const void *left_data, size_t left_len,
                                const void *right_data, size_t right_len) {
-  int diff = memcmp(left_data, right_data, std::min(left_len, right_len));
+  size_t shorten = std::min(left_len, right_len);
+  int diff = shorten ? memcmp(left_data, right_data, shorten) : 0;
   if (diff == 0)
     diff = fptu_cmp2int(left_len, right_len);
   return fptu_diff2lge(diff);
@@ -470,7 +471,8 @@ __hot fptu_lge fptu_cmp_tuples(fptu_ro left, fptu_ro right) {
 #ifdef NDEBUG /* только при выключенной отладке, ради тестирования */
   // fastpath если кортежи полностью равны "как есть"
   if (left.sys.iov_len == right.sys.iov_len &&
-      memcmp(left.sys.iov_base, right.sys.iov_base, left.sys.iov_len) == 0)
+      (left.sys.iov_len == 0 ||
+       memcmp(left.sys.iov_base, right.sys.iov_base, left.sys.iov_len) == 0))
     return fptu_eq;
 #endif /* NDEBUG */
 

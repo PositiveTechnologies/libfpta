@@ -129,11 +129,12 @@ static __hot fptu_takeover_result fptu_takeover(fptu_rw *pt, uint_fast16_t ct,
 static __inline void fptu_cstrcpy(fptu_field *pf, size_t units,
                                   const char *text, size_t length) {
   assert(units > 0);
-  assert(strnlen(text, length) == length);
+  assert(length == 0 || strnlen(text, length) == length);
   assert(bytes2units(length + 1) == units);
   uint32_t *payload = (uint32_t *)fptu_field_payload(pf);
   payload[units - 1] = 0; // clean last unit
-  memcpy(payload, text, length);
+  if (likely(length))
+    memcpy(payload, text, length);
 }
 
 //============================================================================
@@ -338,12 +339,13 @@ fptu_error fptu_upsert_opaque(fptu_rw *pt, unsigned col, const void *value,
     return FPTU_ENOSPACE;
 
   fptu_payload *payload = fptu_field_payload(pf);
-  payload->other.varlen.brutto = (uint16_t)(units - 1);
-  payload->other.varlen.opaque_bytes = (uint16_t)bytes;
-
   ((uint32_t *)payload)[units - 1] =
       0; // clear a padding for rid an `uninitialized` from memory-checkers.
-  memcpy(payload->other.data, value, bytes);
+  if (bytes) {
+    payload->other.varlen.brutto = uint16_t(units - 1);
+    payload->other.varlen.opaque_bytes = uint16_t(bytes);
+    memcpy(payload->other.data, value, bytes);
+  }
   return FPTU_SUCCESS;
 }
 
