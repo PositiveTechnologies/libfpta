@@ -110,7 +110,7 @@ class trivial_dict {
   }
 
   static cxx11_constexpr bool is_valid(const fpta_shove_t &shove) {
-    return shove && length(shove) >= fpta_name_len_min &&
+    return (shove & mask_hash) != 0 && length(shove) >= fpta_name_len_min &&
            length(shove) <= fpta_name_len_max;
   }
 
