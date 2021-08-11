@@ -198,8 +198,11 @@ public:
     for (size_t i = 0; i < vector.size(); ++i) {
       if (!is_valid(vector[i]))
         return false;
-      if (i > 0 &&
-          (!gt()(vector[i - 1], vector[i]) || eq()(vector[i - 1], vector[i])))
+      if (i < 1)
+        continue;
+      if (!gt()(vector[i - 1], vector[i]))
+        return false;
+      if (eq()(vector[i - 1], vector[i]))
         return false;
     }
     return true;
@@ -238,8 +241,9 @@ public:
       return false;
 
     std::sort(vector.begin() + anchor, vector.end(), gt());
-    std::inplace_merge(vector.begin(), vector.begin() + anchor, vector.end(),
-                       gt());
+    if (anchor)
+      std::inplace_merge(vector.begin(), vector.begin() + anchor, vector.end(),
+                         gt());
     assert(validate());
     return true;
   }
