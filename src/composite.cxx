@@ -301,8 +301,13 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
 
   case fptu_int32: {
     /* rebase signed min-value to binary all-zeros */
+#ifndef ENABLE_UBSAN
     int32_t value = field->payload()->peek_i32();
     value -= INT32_MIN;
+#else
+    uint32_t value = field->payload()->peek_u32();
+    value += uint32_t(-INT32_MIN);
+#endif
     /* convert byte order for proper comparison result in a index kind. */
     value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
@@ -311,8 +316,13 @@ static int __hot concat_ordered(fpta_key &key, const bool tersely,
 
   case fptu_int64: {
     /* rebase signed min-value to binary all-zeros */
+#ifndef ENABLE_UBSAN
     int64_t value = field->payload()->peek_i64();
     value -= INT64_MIN;
+#else
+    uint64_t value = field->payload()->peek_u64();
+    value += uint64_t(-INT64_MIN);
+#endif
     /* convert byte order for proper comparison result in a index kind. */
     value = obverse ? erthink::h2be(value) : erthink::h2le(value);
     /* concatenate to the resulting key */
