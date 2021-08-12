@@ -100,7 +100,7 @@ static __hot int fpta_normalize_key(const fpta_index_type index, fpta_key &key,
 
   if (likely(key.mdbx.iov_len <= fpta_max_keylen)) {
     /* ключ не слишком длинный, делаем копию только если запрошено */
-    if (copy)
+    if (copy && key.mdbx.iov_len)
       key.mdbx.iov_base =
           memcpy(&key.place, key.mdbx.iov_base, key.mdbx.iov_len);
     return FPTA_SUCCESS;
@@ -580,7 +580,8 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
       return FPTA_EINVAL;
     key.mdbx.iov_len = value.binary_length;
     key.mdbx.iov_base = (void *)value.str;
-    assert(strnlen(value.str, key.mdbx.iov_len) == key.mdbx.iov_len);
+    assert(key.mdbx.iov_len == 0 ||
+           strnlen(value.str, key.mdbx.iov_len) == key.mdbx.iov_len);
     break;
 
   case fptu_96:
