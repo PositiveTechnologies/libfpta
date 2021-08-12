@@ -179,7 +179,7 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
                              fpta_cursor_is_descending(cursor->options))
                                 ? MDBX_FIRST
                                 : MDBX_LAST,
-                            MDBX_cursor_op(-1 /* intentional invalid */),
+                            MDBX_cursor_op(0 /* intentional invalid */),
                             nullptr, nullptr);
       if (unlikely(rc != MDBX_SUCCESS) && rc != FPTA_NODATA)
         goto bailout;

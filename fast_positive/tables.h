@@ -1530,6 +1530,10 @@ typedef enum fpta_index_type {
   fpta_index_fobverse = 4 << fpta_column_index_shift,
   fpta_index_fsecondary = 8 << fpta_column_index_shift,
   fpta_index_fnullable = 16 << fpta_column_index_shift,
+  fpta_index_max = 31 << fpta_column_index_shift,
+#ifdef ENABLE_UBSAN
+  fpta_index_invalid = -1 /* avoid UBSAN false-positive trap by a tests */,
+#endif /* ENABLE_UBSAN */
 
   /* Колонка НЕ индексируется и в последствии не может быть указана
    * при открытии курсора как опорная. */

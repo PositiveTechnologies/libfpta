@@ -876,6 +876,9 @@ int fpta_column_describe(const char *column_name, fptu_type data_type,
   if (unlikely(data_type < fptu_uint16 || data_type > fptu_nested))
     return FPTA_ETYPE;
 
+  if (unlikely(size_t(index_type) > size_t(fpta_index_max)))
+    return FPTA_EFLAG;
+
   if (unlikely(fpta_is_indexed(index_type) &&
                fpta_index_is_reverse(index_type) &&
                (fpta_index_is_unordered(index_type) || data_type < fptu_96) &&
