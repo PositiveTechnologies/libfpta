@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 00d858c7fff50c71ffff485b740d6244e79f0d3fc4486bb6a63f7633d78b96bc_v0_10_2_11_g5d4d0261
+#define MDBX_BUILD_SOURCERY dde79450f93e005d8609bb32b5a0879a09c599ad7b82d904ba2966eab3b96b99_v0_10_2_17_g42d545e5
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -16327,25 +16327,26 @@ static int __hot cmp_int_unaligned(const MDBX_val *a, const MDBX_val *b) {
 /* Compare two items lexically */
 static int __hot cmp_lexical(const MDBX_val *a, const MDBX_val *b) {
   if (a->iov_len == b->iov_len)
-    return memcmp(a->iov_base, b->iov_base, a->iov_len);
+    return a->iov_len ? memcmp(a->iov_base, b->iov_base, a->iov_len) : 0;
 
   const int diff_len = (a->iov_len < b->iov_len) ? -1 : 1;
   const size_t shortest = (a->iov_len < b->iov_len) ? a->iov_len : b->iov_len;
-  int diff_data = memcmp(a->iov_base, b->iov_base, shortest);
+  int diff_data = shortest ? memcmp(a->iov_base, b->iov_base, shortest) : 0;
   return likely(diff_data) ? diff_data : diff_len;
 }
 
 /* Compare two items in reverse byte order */
 static int __hot cmp_reverse(const MDBX_val *a, const MDBX_val *b) {
-  const uint8_t *pa = (const uint8_t *)a->iov_base + a->iov_len;
-  const uint8_t *pb = (const uint8_t *)b->iov_base + b->iov_len;
   const size_t shortest = (a->iov_len < b->iov_len) ? a->iov_len : b->iov_len;
-
-  const uint8_t *const end = pa - shortest;
-  while (pa != end) {
-    int diff = *--pa - *--pb;
-    if (likely(diff))
-      return diff;
+  if (likely(shortest)) {
+    const uint8_t *pa = (const uint8_t *)a->iov_base + a->iov_len;
+    const uint8_t *pb = (const uint8_t *)b->iov_base + b->iov_len;
+    const uint8_t *const end = pa - shortest;
+    do {
+      int diff = *--pa - *--pb;
+      if (likely(diff))
+        return diff;
+    } while (pa != end);
   }
   return CMP2INT(a->iov_len, b->iov_len);
 }
@@ -16353,7 +16354,9 @@ static int __hot cmp_reverse(const MDBX_val *a, const MDBX_val *b) {
 /* Fast non-lexically comparator */
 static int __hot cmp_lenfast(const MDBX_val *a, const MDBX_val *b) {
   int diff = CMP2INT(a->iov_len, b->iov_len);
-  return likely(diff) ? diff : memcmp(a->iov_base, b->iov_base, a->iov_len);
+  return likely(diff || a->iov_len == 0)
+             ? diff
+             : memcmp(a->iov_base, b->iov_base, a->iov_len);
 }
 
 static bool unsure_equal(MDBX_cmp_func cmp, const MDBX_val *a,
@@ -20692,18 +20695,20 @@ __cold static int mdbx_page_check(MDBX_cursor *const mc,
         break;
       case F_DUPDATA /* short sub-page */:
         if (unlikely(dsize <= PAGEHDRSZ)) {
-          rc = bad_page(mp, "invalid nested-page record size (%zu)\n", dsize);
+          rc = bad_page(mp, "invalid nested/sub-page record size (%zu)\n",
+                        dsize);
           continue;
         } else {
           const MDBX_page *const sp = (MDBX_page *)data;
           const char *const end_of_subpage = data + dsize;
           const int nsubkeys = page_numkeys(sp);
-          switch (sp->mp_flags) {
+          switch (sp->mp_flags & /* ignore legacy P_DIRTY flag */ ~0x10) {
           case P_LEAF | P_SUBP:
           case P_LEAF | P_LEAF2 | P_SUBP:
             break;
           default:
-            rc = bad_page(mp, "invalid nested-page flags (%u)\n", sp->mp_flags);
+            rc = bad_page(mp, "invalid nested/sub-page flags (0x%02x)\n",
+                          sp->mp_flags);
             continue;
           }
 
@@ -23964,7 +23969,7 @@ __cold static int mdbx_walk_tree(mdbx_walk_ctx_t *ctx, const pgno_t pgno,
       size_t subalign_bytes = 0;
       MDBX_page_type_t subtype;
 
-      switch (sp->mp_flags) {
+      switch (sp->mp_flags & /* ignore legacy P_DIRTY flag */ ~0x10) {
       case P_LEAF | P_SUBP:
         subtype = MDBX_subpage_leaf;
         break;
@@ -28408,9 +28413,9 @@ __dll_export
         0,
         10,
         2,
-        11,
-        {"2021-08-05T02:26:36+03:00", "2db7edf4827a95358594097ecaf31cf9a1b94b79", "5d4d02617d389288c37a315fd4551eca9ae31ed6",
-         "v0.10.2-11-g5d4d0261"},
+        17,
+        {"2021-08-14T17:46:34+03:00", "0c7a580c8a63de939c6eb95b508415e6f657b1bc", "42d545e579671a3170627dc6481e82ac13093e4a",
+         "v0.10.2-17-g42d545e5"},
         sourcery};
 
 __dll_export
