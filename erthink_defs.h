@@ -720,6 +720,14 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 
 //------------------------------------------------------------------------------
 
+#ifndef __nosanitize_enum
+#if __has_attribute(no_sanitize)
+#define __nosanitize_enum __attribute((__no_sanitize__("enum")))
+#else
+#define __nosanitize_enum
+#endif
+#endif /* __nosanitize_enum */
+
 /* Oh, below are some songs and dances since:
  *  - C++ requires explicit definition of the necessary operators.
  *  - the proper implementation of DEFINE_ENUM_FLAG_OPERATORS for C++ required
@@ -739,32 +747,40 @@ static __inline void __noop_consume_args(void *anchor, ...) { (void)anchor; }
 #else
 /* C always allows these operators for enums */
 #define CONSTEXPR_ENUM_FLAGS_OPERATIONS 1
-#endif /* __cpp_constexpr */
+#endif /* CONSTEXPR_ENUM_FLAGS_OPERATIONS */
 
 /// Define operator overloads to enable bit operations on enum values that are
 /// used to define flags (based on Microsoft's DEFINE_ENUM_FLAG_OPERATORS).
 #define DEFINE_ENUM_FLAG_OPERATORS(ENUM)                                       \
   extern "C++" {                                                               \
-  cxx01_constexpr ENUM operator|(ENUM a, ENUM b) {                             \
+  __nosanitize_enum cxx01_constexpr ENUM operator|(ENUM a, ENUM b) {           \
     return ENUM(unsigned(a) | unsigned(b));                                    \
   }                                                                            \
-  cxx14_constexpr ENUM &operator|=(ENUM &a, ENUM b) { return a = a | b; }      \
-  cxx01_constexpr ENUM operator&(ENUM a, ENUM b) {                             \
+  __nosanitize_enum cxx14_constexpr ENUM &operator|=(ENUM &a, ENUM b) {        \
+    return a = a | b;                                                          \
+  }                                                                            \
+  __nosanitize_enum cxx01_constexpr ENUM operator&(ENUM a, ENUM b) {           \
     return ENUM(unsigned(a) & unsigned(b));                                    \
   }                                                                            \
-  cxx01_constexpr ENUM operator&(ENUM a, unsigned b) {                         \
+  __nosanitize_enum cxx01_constexpr ENUM operator&(ENUM a, unsigned b) {       \
     return ENUM(unsigned(a) & b);                                              \
   }                                                                            \
-  cxx01_constexpr ENUM operator&(unsigned a, ENUM b) {                         \
+  __nosanitize_enum cxx01_constexpr ENUM operator&(unsigned a, ENUM b) {       \
     return ENUM(a & unsigned(b));                                              \
   }                                                                            \
-  cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) { return a = a & b; }      \
-  cxx14_constexpr ENUM &operator&=(ENUM &a, unsigned b) { return a = a & b; }  \
+  __nosanitize_enum cxx14_constexpr ENUM &operator&=(ENUM &a, ENUM b) {        \
+    return a = a & b;                                                          \
+  }                                                                            \
+  __nosanitize_enum cxx14_constexpr ENUM &operator&=(ENUM &a, unsigned b) {    \
+    return a = a & b;                                                          \
+  }                                                                            \
   cxx01_constexpr unsigned operator~(ENUM a) { return ~unsigned(a); }          \
-  cxx01_constexpr ENUM operator^(ENUM a, ENUM b) {                             \
+  __nosanitize_enum cxx01_constexpr ENUM operator^(ENUM a, ENUM b) {           \
     return ENUM(unsigned(a) ^ unsigned(b));                                    \
   }                                                                            \
-  cxx14_constexpr ENUM &operator^=(ENUM &a, ENUM b) { return a = a ^ b; }      \
+  __nosanitize_enum cxx14_constexpr ENUM &operator^=(ENUM &a, ENUM b) {        \
+    return a = a ^ b;                                                          \
+  }                                                                            \
   }
 #else /* __cplusplus */
 /* nope for C since it always allows these operators for enums */
