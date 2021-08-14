@@ -176,11 +176,12 @@ struct diy_fp {
       const int gap = /* avoid underflow of (upper_bound - lower_bound) */ 3;
       const int shift = clz64(value) - gap;
       cxx11_constexpr_var uint64_t top = UINT64_MAX >> gap;
-      const uint64_t rounding = UINT64_C(1) << (1 - shift);
-      value =
-          (shift >= 0)
-              ? value << shift
-              : ((value < top - rounding) ? value + rounding : top) >> -shift;
+      if (shift >= 0)
+        value = value << shift;
+      else {
+        const uint64_t rounding = UINT64_C(1) << (1 - shift);
+        value = ((value < top - rounding) ? value + rounding : top) >> -shift;
+      }
       assert(top >= value && value > 0);
       return diy_fp(value, exp2 - shift);
     }
