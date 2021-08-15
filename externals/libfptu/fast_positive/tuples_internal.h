@@ -395,6 +395,7 @@ static __inline fptu_lge fptu_cmp_str_binary(const char *left_cstr,
                                              const void *right_data,
                                              size_t right_len) {
   size_t left_len = left_cstr ? strlen(left_cstr) : 0;
+  // coverity[var_deref_model : FALSE]
   return fptu_cmp_binary(left_cstr, left_len, right_data, right_len);
 }
 

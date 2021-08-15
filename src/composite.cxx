@@ -76,6 +76,7 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
         /* append bytes to the key */
         uint8_t *obverse_append =
             ((uint8_t *)&key.place.longkey_obverse.head) + key.mdbx.iov_len;
+        // coverity[overrun-local : FALSE]
         memcpy(obverse_append, data, chunk);
         /* update pointer to the end of a chunk */
         data = (const uint8_t *)data + chunk;
@@ -84,6 +85,7 @@ static int __hot concat_bytes(fpta_key &key, const void *data, size_t length) {
         uint8_t *reverse_ahead = ((uint8_t *)&key.place.longkey_reverse.tail) +
                                  sizeof(key.place.longkey_reverse.tail) -
                                  key.mdbx.iov_len;
+        // coverity[overrun-local : FALSE]
         memcpy(reverse_ahead - chunk, (const uint8_t *)data + length - chunk,
                chunk);
       }

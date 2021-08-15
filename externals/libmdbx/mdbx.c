@@ -16946,8 +16946,10 @@ int mdbx_get_ex(MDBX_txn *txn, MDBX_dbi dbi, MDBX_val *key, MDBX_val *data,
       MDBX_node *node = page_node(cx.outer.mc_pg[cx.outer.mc_top],
                                   cx.outer.mc_ki[cx.outer.mc_top]);
       if (F_ISSET(node_flags(node), F_DUPDATA)) {
+        // coverity[uninit_use : FALSE]
         mdbx_tassert(txn, cx.outer.mc_xcursor == &cx.inner &&
                               (cx.inner.mx_cursor.mc_flags & C_INITIALIZED));
+        // coverity[uninit_use : FALSE]
         *values_count =
             (sizeof(*values_count) >= sizeof(cx.inner.mx_db.md_entries) ||
              cx.inner.mx_db.md_entries <= PTRDIFF_MAX)
@@ -27552,6 +27554,7 @@ retry_mapview:;
 
   if (limit < map->limit) {
     /* unmap an excess at end of mapping. */
+    // coverity[offset_free : FALSE]
     if (unlikely(munmap(map->dxb + limit, map->limit - limit)))
       return errno;
     map->limit = limit;
@@ -27625,6 +27628,7 @@ retry_mapview:;
     if (unlikely(munmap(map->address, map->limit)))
       return errno;
 
+    // coverity[pass_freed_arg : FALSE]
     ptr = mmap(map->address, limit, mmap_prot,
                (flags & MDBX_MRESIZE_MAY_MOVE)
                    ? mmap_flags
@@ -27634,11 +27638,13 @@ retry_mapview:;
     if (MAP_FIXED_NOREPLACE != 0 && MAP_FIXED_NOREPLACE != MAP_FIXED &&
         unlikely(ptr == MAP_FAILED) && !(flags & MDBX_MRESIZE_MAY_MOVE) &&
         errno == /* kernel don't support MAP_FIXED_NOREPLACE */ EINVAL)
+      // coverity[pass_freed_arg : FALSE]
       ptr = mmap(map->address, limit, mmap_prot, mmap_flags | MAP_FIXED,
                  map->fd, 0);
 
     if (unlikely(ptr == MAP_FAILED)) {
       /* try to restore prev mapping */
+      // coverity[pass_freed_arg : FALSE]
       ptr = mmap(map->address, map->limit, mmap_prot,
                  (flags & MDBX_MRESIZE_MAY_MOVE)
                      ? mmap_flags
@@ -27648,6 +27654,7 @@ retry_mapview:;
       if (MAP_FIXED_NOREPLACE != 0 && MAP_FIXED_NOREPLACE != MAP_FIXED &&
           unlikely(ptr == MAP_FAILED) && !(flags & MDBX_MRESIZE_MAY_MOVE) &&
           errno == /* kernel don't support MAP_FIXED_NOREPLACE */ EINVAL)
+        // coverity[pass_freed_arg : FALSE]
         ptr = mmap(map->address, map->limit, mmap_prot, mmap_flags | MAP_FIXED,
                    map->fd, 0);
       if (unlikely(ptr == MAP_FAILED)) {

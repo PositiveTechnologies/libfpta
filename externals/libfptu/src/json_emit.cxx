@@ -534,15 +534,19 @@ void json::field_value(const fptu_field *field) {
     value_dateime(payload->peek_dt());
     break;
   case fptu_96:
+    // coverity[overrun-buffer-arg : FALSE]
     value_hexadecimal(payload->fixbin, 96 / 8);
     break;
   case fptu_128:
+    // coverity[overrun-buffer-arg : FALSE]
     value_hexadecimal(payload->fixbin, 128 / 8);
     break;
   case fptu_160:
+    // coverity[overrun-buffer-arg : FALSE]
     value_hexadecimal(payload->fixbin, 160 / 8);
     break;
   case fptu_256:
+    // coverity[overrun-buffer-arg : FALSE]
     value_hexadecimal(payload->fixbin, 256 / 8);
     break;
   case fptu_cstr:

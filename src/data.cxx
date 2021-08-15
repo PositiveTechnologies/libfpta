@@ -156,6 +156,7 @@ static fpta_value fpta_field2value_ex(const fptu_field *field,
     if (fpta_is_indexed_and_nullable(index)) {
       if (FPTA_CLEAN_DENIL && is_fixbin_denil<fptu_96>(index, payload->fixbin))
         break;
+      // coverity[overrun-call : FALSE]
       assert(check_fixbin_not_denil(index, payload, 96 / 8));
     }
     result.type = fpta_binary;
@@ -167,6 +168,7 @@ static fpta_value fpta_field2value_ex(const fptu_field *field,
     if (fpta_is_indexed_and_nullable(index)) {
       if (FPTA_CLEAN_DENIL && is_fixbin_denil<fptu_128>(index, payload->fixbin))
         break;
+      // coverity[overrun-call : FALSE]
       assert(check_fixbin_not_denil(index, payload, 128 / 8));
     }
     result.type = fpta_binary;
@@ -178,6 +180,7 @@ static fpta_value fpta_field2value_ex(const fptu_field *field,
     if (fpta_is_indexed_and_nullable(index)) {
       if (FPTA_CLEAN_DENIL && is_fixbin_denil<fptu_160>(index, payload->fixbin))
         break;
+      // coverity[overrun-call : FALSE]
       assert(check_fixbin_not_denil(index, payload, 160 / 8));
     }
     result.type = fpta_binary;
@@ -189,6 +192,7 @@ static fpta_value fpta_field2value_ex(const fptu_field *field,
     if (fpta_is_indexed_and_nullable(index)) {
       if (FPTA_CLEAN_DENIL && is_fixbin_denil<fptu_256>(index, payload->fixbin))
         break;
+      // coverity[overrun-call : FALSE]
       assert(check_fixbin_not_denil(index, payload, 256 / 8));
     }
     result.type = fpta_binary;

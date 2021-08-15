@@ -171,6 +171,7 @@ fptu_lge fptu_cmp_96(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
+  // coverity[overrun-buffer-arg : FALSE]
   return cmpbin(pf->payload()->fixbin, value, 12);
 }
 
@@ -182,6 +183,7 @@ fptu_lge fptu_cmp_128(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
+  // coverity[overrun-buffer-arg : FALSE]
   return cmpbin(pf->payload()->fixbin, value, 16);
 }
 
@@ -193,6 +195,7 @@ fptu_lge fptu_cmp_160(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
+  // coverity[overrun-buffer-arg : FALSE]
   return cmpbin(pf->payload()->fixbin, value, 20);
 }
 
@@ -204,6 +207,7 @@ fptu_lge fptu_cmp_256(fptu_ro ro, unsigned column, const uint8_t *value) {
   if (unlikely(pf == nullptr))
     return fptu_ic;
 
+  // coverity[overrun-buffer-arg : FALSE]
   return cmpbin(pf->payload()->fixbin, value, 32);
 }
 
@@ -257,12 +261,16 @@ __hot static fptu_lge fptu_cmp_fields_same_type(const fptu_field *left,
     return fptu_cmp2lge(payload_left->peek_fp64(), payload_right->peek_fp64());
 
   case fptu_96:
+    // coverity[overrun-buffer-arg : FALSE]
     return cmpbin(payload_left->fixbin, payload_right->fixbin, 12);
   case fptu_128:
+    // coverity[overrun-buffer-arg : FALSE]
     return cmpbin(payload_left->fixbin, payload_right->fixbin, 16);
   case fptu_160:
+    // coverity[overrun-buffer-arg : FALSE]
     return cmpbin(payload_left->fixbin, payload_right->fixbin, 20);
   case fptu_256:
+    // coverity[overrun-buffer-arg : FALSE]
     return cmpbin(payload_left->fixbin, payload_right->fixbin, 32);
 
   case fptu_cstr:
