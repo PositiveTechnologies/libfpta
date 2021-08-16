@@ -36,7 +36,7 @@ namespace erthink {
 #define mul_64x64_high(a, b) __builtin_e2k_umulhd(a, b)
 #endif /* __e2k__ Elbrus && __iset__ >= 3 */
 
-#if !defined(__clang__)
+#if defined(_MSC_VER) && !defined(__clang__)
 
 #if defined(_M_X64) || defined(_M_IA64) || defined(_M_AMD64)
 #pragma intrinsic(_umul128)
