@@ -349,6 +349,7 @@ TYPED_TEST_P(d2a, stairwell) {
       TestFixture::probe_d2a(buffer, f32);
   }
 
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
   for (uint64_t mantissa = erthink::grisu::IEEE754_DOUBLE_MANTISSA_MASK;
        mantissa != 0; mantissa >>= 1) {
     for (uint64_t offset = 1; offset < mantissa; offset <<= 1) {
@@ -365,8 +366,10 @@ TYPED_TEST_P(d2a, stairwell) {
       }
     }
   }
+#endif /* MinGW */
 }
 
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 TYPED_TEST_P(d2a, random3e7) {
   char buffer[erthink::d2a_max_chars + 1];
   uint64_t prng(uint64_t(time(0)));
@@ -379,11 +382,16 @@ TYPED_TEST_P(d2a, random3e7) {
       break;
   }
 }
+#endif /* MinGW */
 
 //------------------------------------------------------------------------------
 
 #ifdef REGISTER_TYPED_TEST_SUITE_P
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell, random3e7);
+#else
+REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell);
+#endif /* MinGW */
 INSTANTIATE_TYPED_TEST_SUITE_P(accurate, d2a, std::true_type);
 INSTANTIATE_TYPED_TEST_SUITE_P(fast, d2a, std::false_type);
 #endif
@@ -419,6 +427,7 @@ static void check_shodan(double value) {
   EXPECT_EQ(value, probe);
 }
 
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
 static bool check_shodan_x64(uint64_t u64) {
   const double f64 = erthink::grisu::cast(u64);
   switch (std::fpclassify(f64)) {
@@ -439,6 +448,7 @@ static bool check_shodan_x64(uint64_t u64) {
     return true;
   }
 }
+#endif /* MinGW */
 
 TEST(d2a, shodan_printer) {
   check_shodan(0, "0.0");
@@ -542,6 +552,7 @@ TEST(d2a, shodan_printer) {
       check_shodan(f32);
   }
 
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
   for (uint64_t mantissa = erthink::grisu::IEEE754_DOUBLE_MANTISSA_MASK;
        mantissa != 0; mantissa >>= 1) {
     for (uint64_t offset = 1; offset < mantissa; offset <<= 1) {
@@ -558,6 +569,7 @@ TEST(d2a, shodan_printer) {
       }
     }
   }
+#endif /* MinGW */
 }
 
 //------------------------------------------------------------------------------
