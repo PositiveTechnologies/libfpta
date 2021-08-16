@@ -707,6 +707,7 @@ struct fractional_printer : public ieee754_default_printer<true, 32> {
     assert(zero_needed >= 0 && zero_needed < max_chars - 1 - (end - first));
     if (zero_needed > 0) {
       memmove(first + zero_needed, first, size_t(end - first));
+      // coverity[bad_memset : FALSE]
       memset(first, '0', size_t(zero_needed));
       end += zero_needed;
     } else {
