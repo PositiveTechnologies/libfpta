@@ -485,7 +485,8 @@ int fpta_db_sequence(fpta_txn *txn, uint64_t *result, uint64_t increment) {
 //----------------------------------------------------------------------------
 
 int
-#if defined(__GNUC__) || __has_attribute(weak)
+#if (defined(__GNUC__) || __has_attribute(weak)) &&                            \
+    !(defined(_WIN32) || defined(_WIN64))
     __attribute__((weak))
 #endif
     fpta_panic(int errnum_initial, int errnum_fatal) {

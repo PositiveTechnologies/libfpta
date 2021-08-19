@@ -337,7 +337,7 @@ union
 
 #if defined(HAVE_SYSTIME_H_TIMEVAL_TV_USEC) ||                                 \
     defined(HAVE_SYSSELECT_H_TIMEVAL_TV_USEC)
-  static FPTU_API fptu_time from_timeval(const struct timeval &tv) {
+  static fptu_time from_timeval(const struct timeval &tv) {
     fptu_time result = {((uint64_t)tv.tv_sec << 32) |
                         us2fractional((uint_fast32_t)tv.tv_usec)};
     return result;
@@ -345,7 +345,7 @@ union
 #endif /* HAVE_xxx_TIMEVAL_TV_USEC */
 
 #ifdef _FILETIME_
-  static FPTU_API fptu_time from_filetime(FILETIME *pFileTime) {
+  static fptu_time from_filetime(FILETIME *pFileTime) {
     uint64_t ns100 =
         ((uint64_t)pFileTime->dwHighDateTime << 32) + pFileTime->dwLowDateTime;
     return from_100ns(

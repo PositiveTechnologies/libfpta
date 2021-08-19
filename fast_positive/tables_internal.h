@@ -94,7 +94,7 @@
 
 __extern_C int_fast32_t mrand64(void);
 
-#ifdef HAVE_UNISTD_H
+#if defined(HAVE_UNISTD_H) && !(defined(_WIN32) || defined(_WIN64))
 #include <unistd.h>
 #else
 static __inline int_fast32_t mrand48(void) { return mrand64(); }

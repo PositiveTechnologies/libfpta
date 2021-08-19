@@ -604,7 +604,7 @@ __cold std::ostream &operator<<(std::ostream &out, const fptu_lge value) {
 __cold std::ostream &operator<<(std::ostream &out, const fptu_time &value) {
   int year_offset = 1900;
   struct tm utc_tm;
-#ifdef _MSC_VER
+#if defined(_WIN32) || defined(_WIN64)
   const __time64_t utc64 = value.utc;
   const errno_t gmtime_rc = _gmtime64_s(&utc_tm, &utc64);
   assert(gmtime_rc == 0 && utc_tm.tm_year > 69);

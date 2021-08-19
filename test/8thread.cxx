@@ -18,6 +18,10 @@
 #include "fpta_test.h"
 #include <functional> // for std::ref
 #include <string>
+
+#if defined(__cpp_lib_jthread) ||                                              \
+    (defined(_GLIBCXX_HAS_GTHREADS) || !defined(__GLIBCXX__))
+
 #include <thread>
 
 static const char testdb_name[] = TEST_DB_DIR "ut_thread.fpta";
@@ -896,6 +900,9 @@ TEST(Threaded, AsyncSchemaChange) {
 }
 
 //------------------------------------------------------------------------------
+#else
+TEST(ReadMe, CXX_STD_Threads_NotAvailadble) {}
+#endif /* std::thread */
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);

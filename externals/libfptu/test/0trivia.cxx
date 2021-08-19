@@ -19,7 +19,7 @@
 
 #include <cmath>
 
-#ifdef _MSC_VER
+#if defined(_WIN32) || defined(_WIN64)
 #pragma warning(push, 1)
 #include <windows.h>
 #pragma warning(pop)
