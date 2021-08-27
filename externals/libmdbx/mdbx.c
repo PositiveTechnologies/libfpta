@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 09b445aad96c776626c1569d55fbd375ce100c421cd422f2bc2efb59e46be466_v0_10_2_18_g99b75b50
+#define MDBX_BUILD_SOURCERY c1ddf5ac03e647338fa2a0f0cf8d1c6c2314af6323ae683c5ff750411947e812_v0_10_3_0_gbf603bdf
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -15256,59 +15256,58 @@ __cold static int mdbx_setup_dxb(MDBX_env *env, const int lck_rc,
       }
     }
 
-    //------------------------------------------------- setup madvise/readahead
     atomic_store32(&env->me_lck->mti_discarded_tail,
                    bytes2pgno(env, used_aligned2os_bytes), mo_Relaxed);
+  } /* lck exclusive, lck_rc == MDBX_RESULT_TRUE */
+
+  //---------------------------------------------------- setup madvise/readahead
 #if MDBX_ENABLE_MADVISE
-    if (used_aligned2os_bytes < env->me_dxb_mmap.current) {
+  if (used_aligned2os_bytes < env->me_dxb_mmap.current) {
 #if defined(MADV_REMOVE)
-      if ((env->me_flags & MDBX_WRITEMAP) != 0 &&
-          /* not recovery mode */ env->me_stuck_meta < 0) {
-        mdbx_notice("open-MADV_%s %u..%u", "REMOVE (deallocate file space)",
-                    env->me_lck->mti_discarded_tail.weak,
-                    bytes2pgno(env, env->me_dxb_mmap.current));
-        err = madvise(env->me_map + used_aligned2os_bytes,
-                      env->me_dxb_mmap.current - used_aligned2os_bytes,
-                      MADV_REMOVE)
-                  ? ignore_enosys(errno)
-                  : MDBX_SUCCESS;
-        if (unlikely(MDBX_IS_ERROR(err)))
-          return err;
-      }
-#endif /* MADV_REMOVE */
-#if defined(MADV_DONTNEED)
-      mdbx_notice("open-MADV_%s %u..%u", "DONTNEED",
+    if (lck_rc && (env->me_flags & MDBX_WRITEMAP) != 0 &&
+        /* not recovery mode */ env->me_stuck_meta < 0) {
+      mdbx_notice("open-MADV_%s %u..%u", "REMOVE (deallocate file space)",
                   env->me_lck->mti_discarded_tail.weak,
                   bytes2pgno(env, env->me_dxb_mmap.current));
-      err = madvise(env->me_map + used_aligned2os_bytes,
-                    env->me_dxb_mmap.current - used_aligned2os_bytes,
-                    MADV_DONTNEED)
-                ? ignore_enosys(errno)
-                : MDBX_SUCCESS;
+      err =
+          madvise(env->me_map + used_aligned2os_bytes,
+                  env->me_dxb_mmap.current - used_aligned2os_bytes, MADV_REMOVE)
+              ? ignore_enosys(errno)
+              : MDBX_SUCCESS;
       if (unlikely(MDBX_IS_ERROR(err)))
         return err;
-#elif defined(POSIX_MADV_DONTNEED)
-      err = ignore_enosys(
-          posix_madvise(env->me_map + used_aligned2os_bytes,
-                        env->me_dxb_mmap.current - used_aligned2os_bytes,
-                        POSIX_MADV_DONTNEED));
-      if (unlikely(MDBX_IS_ERROR(err)))
-        return err;
-#elif defined(POSIX_FADV_DONTNEED)
-      err = ignore_enosys(
-          posix_fadvise(env->me_lazy_fd, used_aligned2os_bytes,
-                        env->me_dxb_mmap.current - used_aligned2os_bytes,
-                        POSIX_FADV_DONTNEED));
-      if (unlikely(MDBX_IS_ERROR(err)))
-        return err;
-#endif /* MADV_DONTNEED */
     }
-
-    err = mdbx_set_readahead(env, bytes2pgno(env, used_bytes), readahead, true);
-    if (unlikely(err != MDBX_SUCCESS))
+#endif /* MADV_REMOVE */
+#if defined(MADV_DONTNEED)
+    mdbx_notice("open-MADV_%s %u..%u", "DONTNEED",
+                env->me_lck->mti_discarded_tail.weak,
+                bytes2pgno(env, env->me_dxb_mmap.current));
+    err =
+        madvise(env->me_map + used_aligned2os_bytes,
+                env->me_dxb_mmap.current - used_aligned2os_bytes, MADV_DONTNEED)
+            ? ignore_enosys(errno)
+            : MDBX_SUCCESS;
+    if (unlikely(MDBX_IS_ERROR(err)))
       return err;
+#elif defined(POSIX_MADV_DONTNEED)
+    err = ignore_enosys(posix_madvise(
+        env->me_map + used_aligned2os_bytes,
+        env->me_dxb_mmap.current - used_aligned2os_bytes, POSIX_MADV_DONTNEED));
+    if (unlikely(MDBX_IS_ERROR(err)))
+      return err;
+#elif defined(POSIX_FADV_DONTNEED)
+    err = ignore_enosys(posix_fadvise(
+        env->me_lazy_fd, used_aligned2os_bytes,
+        env->me_dxb_mmap.current - used_aligned2os_bytes, POSIX_FADV_DONTNEED));
+    if (unlikely(MDBX_IS_ERROR(err)))
+      return err;
+#endif /* MADV_DONTNEED */
+  }
+
+  err = mdbx_set_readahead(env, bytes2pgno(env, used_bytes), readahead, true);
+  if (unlikely(err != MDBX_SUCCESS))
+    return err;
 #endif /* MDBX_ENABLE_MADVISE */
-  }    /* lck exclusive, lck_rc == MDBX_RESULT_TRUE */
 
   return rc;
 }
@@ -28419,10 +28418,10 @@ __dll_export
     const struct MDBX_version_info mdbx_version = {
         0,
         10,
-        2,
-        18,
-        {"2021-08-16T23:45:56+03:00", "49223251049d710cc2274e9ce738f2281accebb4", "99b75b5004047d8792973501d8eb7ef49df9a5da",
-         "v0.10.2-18-g99b75b50"},
+        3,
+        0,
+        {"2021-08-27T22:47:12+03:00", "89059f5e31a893b0739257a1df03e3d9fcc6d74d", "bf603bdffc22c00d393b7614c1f11f3ebe4efb25",
+         "v0.10.3-0-gbf603bdf"},
         sourcery};
 
 __dll_export
