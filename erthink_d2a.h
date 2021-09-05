@@ -796,16 +796,10 @@ template <typename T> class fpclassify;
 
 template <> class fpclassify<float> {
   using type = uint32_t;
-  static type read(const float *src) noexcept {
-    static_assert(sizeof(type) == sizeof(*src), "WTF?");
-    type r;
-    std::memcpy(&r, src, sizeof(type));
-    return r;
-  }
   const type value;
 
 public:
-  fpclassify(const float &src) noexcept : value(read(&src)) {}
+  fpclassify(const float src) noexcept : value(bit_cast<type>(src)) {}
   constexpr fpclassify(const type value) noexcept : value(value) {}
   constexpr bool is_negative() const noexcept {
     return value > UINT32_C(0x7fffFFFF);
@@ -840,16 +834,10 @@ public:
 
 template <> class fpclassify<double> {
   using type = uint64_t;
-  static type read(const double *src) noexcept {
-    static_assert(sizeof(type) == sizeof(*src), "WTF?");
-    type r;
-    std::memcpy(&r, src, sizeof(type));
-    return r;
-  }
   const type value;
 
 public:
-  fpclassify(const double &src) noexcept : value(read(&src)) {}
+  fpclassify(const double src) noexcept : value(bit_cast<type>(src)) {}
   constexpr fpclassify(const type value) noexcept : value(value) {}
   constexpr bool is_negative() const noexcept {
     return value > UINT64_C(0x7fffFFFFffffFFFF);
