@@ -359,8 +359,8 @@ tail_recursion:
 
 //----------------------------------------------------------------------------
 
-int fpta_name_refresh_filter(fpta_txn *txn, fpta_name *table_id,
-                             fpta_filter *filter) {
+__hot int fpta_name_refresh_filter(fpta_txn *txn, fpta_name *table_id,
+                                   fpta_filter *filter) {
 tail_recursion:
   int rc = FPTA_SUCCESS;
   if (filter) {

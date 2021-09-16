@@ -1112,7 +1112,7 @@ void fpta_name_destroy(fpta_name *id) {
   memset(id, 0, sizeof(fpta_name));
 }
 
-int fpta_name_refresh(fpta_txn *txn, fpta_name *name_id) {
+__hot int fpta_name_refresh(fpta_txn *txn, fpta_name *name_id) {
   if (unlikely(name_id == nullptr))
     return FPTA_EINVAL;
 
@@ -1124,8 +1124,8 @@ int fpta_name_refresh(fpta_txn *txn, fpta_name *name_id) {
                                   is_table ? nullptr : name_id);
 }
 
-int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
-                             fpta_name *column_id) {
+__hot int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
+                                   fpta_name *column_id) {
   int rc = fpta_id_validate(table_id, fpta_table);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
