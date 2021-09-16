@@ -366,6 +366,9 @@ tail_recursion:
   if (filter) {
     switch (filter->type) {
     default:
+      return FPTA_EINVAL;
+
+    case fpta_node_fnrow:
       break;
 
     case fpta_node_fncol:
