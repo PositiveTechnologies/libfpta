@@ -1196,7 +1196,7 @@ __hot int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
   if (unlikely(column_id->version_tsn > table_id->version_tsn))
     return FPTA_SCHEMA_CHANGED;
 
-  if (column_id->version_tsn != table_id->version_tsn) {
+  if (unlikely(column_id->version_tsn != table_id->version_tsn)) {
     column_id->column.num = ~0u;
     for (size_t i = 0; i < schema->column_count(); ++i) {
       if (fpta_shove_eq(column_id->shove, schema->column_shove(i))) {
