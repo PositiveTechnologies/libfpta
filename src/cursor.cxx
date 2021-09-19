@@ -91,7 +91,7 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
       return FPTA_NO_INDEX;
   }
 
-  rc = fpta_name_refresh_filter(txn, column_id->column.table, filter);
+  rc = fpta_name_refresh_filter(column_id->column.table, filter);
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 

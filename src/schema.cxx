@@ -1124,6 +1124,42 @@ __hot int fpta_name_refresh(fpta_txn *txn, fpta_name *name_id) {
                                   is_table ? nullptr : name_id);
 }
 
+__hot int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id) {
+  assert(fpta_shove2index(table_id->shove) == (fpta_index_type)fpta_flag_table);
+  assert(fpta_shove2index(column_id->shove) !=
+         (fpta_index_type)fpta_flag_table);
+
+  const fpta_table_schema *const schema = table_id->table_schema;
+  assert(schema->signature() == FTPA_SCHEMA_SIGNATURE);
+  assert(schema->table_shove() == table_id->shove);
+  assert(table_id->version_tsn >= schema->version_tsn());
+
+  if (unlikely(column_id->column.table != table_id)) {
+    if (column_id->column.table != column_id)
+      return FPTA_EINVAL;
+    column_id->column.table = table_id;
+  }
+
+  if (unlikely(column_id->version_tsn > table_id->version_tsn))
+    return FPTA_SCHEMA_CHANGED;
+
+  if (unlikely(column_id->version_tsn != table_id->version_tsn)) {
+    column_id->column.num = ~0u;
+    for (size_t i = 0; i < schema->column_count(); ++i) {
+      if (fpta_shove_eq(column_id->shove, schema->column_shove(i))) {
+        column_id->shove = schema->column_shove(i);
+        column_id->column.num = (unsigned)i;
+        break;
+      }
+    }
+    column_id->version_tsn = table_id->version_tsn;
+  }
+
+  if (unlikely(column_id->column.num > fpta_max_cols))
+    return FPTA_ENOENT;
+  return FPTA_SUCCESS;
+}
+
 __hot int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
                                    fpta_name *column_id) {
   int rc = fpta_id_validate(table_id, fpta_table);
@@ -1184,33 +1220,7 @@ __hot int fpta_name_refresh_couple(fpta_txn *txn, fpta_name *table_id,
   if (column_id == nullptr)
     return FPTA_SUCCESS;
 
-  assert(fpta_shove2index(column_id->shove) !=
-         (fpta_index_type)fpta_flag_table);
-
-  if (unlikely(column_id->column.table != table_id)) {
-    if (column_id->column.table != column_id)
-      return FPTA_EINVAL;
-    column_id->column.table = table_id;
-  }
-
-  if (unlikely(column_id->version_tsn > table_id->version_tsn))
-    return FPTA_SCHEMA_CHANGED;
-
-  if (unlikely(column_id->version_tsn != table_id->version_tsn)) {
-    column_id->column.num = ~0u;
-    for (size_t i = 0; i < schema->column_count(); ++i) {
-      if (fpta_shove_eq(column_id->shove, schema->column_shove(i))) {
-        column_id->shove = schema->column_shove(i);
-        column_id->column.num = (unsigned)i;
-        break;
-      }
-    }
-    column_id->version_tsn = table_id->version_tsn;
-  }
-
-  if (unlikely(column_id->column.num > fpta_max_cols))
-    return FPTA_ENOENT;
-  return FPTA_SUCCESS;
+  return fpta_name_refresh_column(table_id, column_id);
 }
 
 //----------------------------------------------------------------------------

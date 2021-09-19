@@ -359,8 +359,13 @@ tail_recursion:
 
 //----------------------------------------------------------------------------
 
-__hot int fpta_name_refresh_filter(fpta_txn *txn, fpta_name *table_id,
-                                   fpta_filter *filter) {
+__hot int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter) {
+  /* Функция fpta_name_refresh_filter() не доступна пользователю
+   * и вызывается только из fpta_cursor_open(). Причем до вызова
+   * refresh_filter() вызывается fpta_name_refresh_couple(), которая проверяет
+   * транзакцию, table_id и при необходимости подгружает и обновляет схему.
+   * Поэтому здесь достаточно fpta_name_refresh_column(), что позволяет
+   * избавиться от повторения проверок. */
 tail_recursion:
   int rc = FPTA_SUCCESS;
   if (filter) {
@@ -372,8 +377,7 @@ tail_recursion:
       break;
 
     case fpta_node_fncol:
-      rc =
-          fpta_name_refresh_couple(txn, table_id, filter->node_fncol.column_id);
+      rc = fpta_name_refresh_column(table_id, filter->node_fncol.column_id);
       break;
 
     case fpta_node_not:
@@ -382,7 +386,7 @@ tail_recursion:
 
     case fpta_node_or:
     case fpta_node_and:
-      rc = fpta_name_refresh_filter(txn, table_id, filter->node_and.a);
+      rc = fpta_name_refresh_filter(table_id, filter->node_and.a);
       if (unlikely(rc != FPTA_SUCCESS))
         break;
       filter = filter->node_and.b;
@@ -394,7 +398,7 @@ tail_recursion:
     case fpta_node_ge:
     case fpta_node_eq:
     case fpta_node_ne:
-      rc = fpta_name_refresh_couple(txn, table_id, filter->node_cmp.left_id);
+      rc = fpta_name_refresh_column(table_id, filter->node_cmp.left_id);
       break;
     }
   }
