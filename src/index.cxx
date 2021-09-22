@@ -190,7 +190,7 @@ static bool fpta_index_ordered_is_compat(fptu_type data_type,
    *  - но НЕ допускается смешивать integer и float.
    *  - shoved допустим только при возможности больших ключей.
    */
-  static int32_t bits[fpta_invalid] = {
+  static const int32_t bits[fpta_invalid] = {
       /* fpta_null */
       0,
 
@@ -243,7 +243,7 @@ static bool fpta_index_unordered_is_compat(fptu_type data_type,
    *    преобразует значение, либо вернет ошибку.
    *  - но НЕ допускается смешивать integer и float.
    *  - shoved для всех типов, которые могут быть длиннее 8. */
-  static int32_t bits[fpta_invalid] = {
+  static const int32_t bits[fpta_invalid] = {
       /* fpta_null */
       0,
 
