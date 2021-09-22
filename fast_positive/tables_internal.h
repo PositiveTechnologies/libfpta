@@ -500,9 +500,6 @@ int fpta_composite_index_validate(
     const fpta_table_schema::composite_item_t *const composites_end,
     const fpta_shove_t skipself);
 
-int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id);
-int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter);
-
 //----------------------------------------------------------------------------
 
 int fpta_open_table(fpta_txn *txn, fpta_table_schema *table_def,

@@ -189,6 +189,8 @@ public:
 //----------------------------------------------------------------------------
 
 bool fpta_filter_validate(const fpta_filter *filter);
+int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id);
+int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter);
 
 static __inline bool fpta_db_validate(const fpta_db *db) {
   if (unlikely(db == nullptr || db->mdbx_env == nullptr))
