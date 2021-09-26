@@ -17,6 +17,60 @@
 
 #include "details.h"
 
+static bool fpta_cmp_is_compat(fptu_type data_type,
+                               fpta_value_type value_type) {
+  /* Смысл функции в отбраковке фильтров, в которых используются сравнения
+   * дающие постоянный результат, не зависящий от данных. Критерий сравнимости:
+   *  - недопустимо сравнение для:
+   *     1. составных колонок (data_type == fptu_null) с чем-либо
+   *     2. специальных значений fpta_begin, fpta_end, fpta_epsilon с чем-либо;
+   *     3. чисел с не-числами;
+   *  - допускается сравнивать:
+   *     1. взаимо-однозначные типы;
+   *     2. числа с числами в любой комбинации (со знаком,
+   *        беззнаковые, целые, с плавающей точкой);
+   *  - ограниченные/дополнительные/специальные случаи:
+   *     1. fpta_null == fptu_opaque нулевой длины;
+   *     2. fpta_string == fptu_opaque, при по-байтном равенстве;
+   *     3. fpta_binary == fptu_cstr, при по-байтном равенстве;
+   *     4. fpta_binary == fptu_96/fptu_128/fptu_160/fptu_256,
+   *        при по-байтном равенстве
+   *     5. fpta_shoved трактуется как fpta_binary, т.е. они равнозначны;
+   */
+  if (unlikely(value_type > fpta_shoved))
+    return false;
+
+  static const int32_t bits[fpta_shoved + 1] = {
+      /* fpta_null */
+      1 << fptu_opaque,
+
+      /* fpta_signed_int */
+      fptu_any_number,
+
+      /* fpta_unsigned_int */
+      fptu_any_number,
+
+      /* fpta_datetime */
+      1 << fptu_datetime,
+
+      /* fpta_float_point */
+      fptu_any_number,
+
+      /* fpta_string */
+      1 << fptu_cstr | 1 << fptu_opaque,
+
+      /* fpta_binary */
+      1 << fptu_96 | 1 << fptu_128 | 1 << fptu_160 | 1 << fptu_256 |
+          1 << fptu_cstr | 1 << fptu_opaque | 1 << fptu_nested,
+
+      /* fpta_shoved */
+      1 << fptu_96 | 1 << fptu_128 | 1 << fptu_160 | 1 << fptu_256 |
+          1 << fptu_cstr | 1 << fptu_opaque | 1 << fptu_nested,
+  };
+
+  return (bits[value_type] & (1 << data_type)) != 0;
+}
+
 static __hot fptu_lge fpta_cmp_null(const fptu_field *left) {
   const auto payload = left->payload();
 
@@ -344,16 +398,13 @@ tail_recursion:
     rc = fpta_id_validate(filter->node_cmp.left_id, fpta_column);
     if (unlikely(rc != FPTA_SUCCESS))
       return false;
-    if (unlikely(fpta_column_is_composite(filter->node_cmp.left_id)))
-      return false;
 
-    if (unlikely(filter->node_cmp.right_value.type == fpta_begin ||
-                 filter->node_cmp.right_value.type == fpta_end))
-      return false;
+    if (unlikely(filter->node_cmp.right_value.type == fpta_null) &&
+        fpta_column_is_nullable(filter->node_cmp.left_id->shove))
+      return true;
 
-    /* FIXME: проверка на совместимость типов node_cmp.left_id и
-     * node_cmp.right_value*/
-    return true;
+    return fpta_cmp_is_compat(fpta_name_coltype(filter->node_cmp.left_id),
+                              filter->node_cmp.right_value.type);
   }
 }
 
