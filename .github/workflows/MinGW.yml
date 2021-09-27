@@ -43,4 +43,4 @@ jobs:
         GTEST_RUNTIME_LIMIT: 99
         MALLOC_CHECK_: 7
         MALLOC_PERTURB_: 42
-      run: cd @build && cmake --build . --target test
+      run: cd @build && cmake --build . --target test || ctest --rerun-failed --output-on-failure

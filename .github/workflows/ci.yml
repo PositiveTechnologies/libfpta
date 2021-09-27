@@ -24,7 +24,7 @@ jobs:
         GTEST_RUNTIME_LIMIT: 99
         MALLOC_CHECK_: 7
         MALLOC_PERTURB_: 42
-      run: make --keep-going test
+      run: make --keep-going test || ctest --rerun-failed --output-on-failure
     - name: c-mode
       env:
         MALLOC_CHECK_: 7
