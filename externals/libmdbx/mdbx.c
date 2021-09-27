@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 3917b803f28da617e8accc6ee369d6f4b1eb6353bd8281b3c0f43b8500c5eb92_v0_10_3_1_gc714ee9b
+#define MDBX_BUILD_SOURCERY 15083592de7ca237a8b161748812da9810457df001ad461b8cd8e48ba403e226_v0_10_3_4_gc8122690
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -28419,9 +28419,9 @@ __dll_export
         0,
         10,
         3,
-        1,
-        {"2021-09-03T23:10:22+03:00", "65f29a1cfa62516b31ebf0595fdccb5c5069dc31", "c714ee9b555e03d5892ff57c8c0d460d06950ddb",
-         "v0.10.3-1-gc714ee9b"},
+        4,
+        {"2021-09-28T00:37:33+03:00", "c6edb4a62b63f81f6334864fc540cbe23fc0139a", "c81226906afe0e3758ac9143bcbe6a672b6c1b57",
+         "v0.10.3-4-gc8122690"},
         sourcery};
 
 __dll_export
