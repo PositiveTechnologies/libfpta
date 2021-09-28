@@ -351,7 +351,7 @@ tail_recursion:
 
 //----------------------------------------------------------------------------
 
-bool fpta_filter_validate(const fpta_filter *filter) {
+int fpta_filter_validate(const fpta_filter *filter) {
   int rc;
 
 tail_recursion:
@@ -363,30 +363,31 @@ tail_recursion:
   case fpta_node_fncol:
     rc = fpta_id_validate(filter->node_fncol.column_id, fpta_column);
     if (unlikely(rc != FPTA_SUCCESS))
-      return false;
+      return rc;
     if (unlikely(fpta_column_is_composite(filter->node_fncol.column_id)))
-      return false;
+      return FPTA_ETYPE;
     if (unlikely(!filter->node_fncol.predicate))
-      return false;
-    return true;
+      return FPTA_EINVAL;
+    return FPTA_SUCCESS;
 
   case fpta_node_fnrow:
     if (unlikely(!filter->node_fnrow.predicate))
-      return false;
-    return true;
+      return FPTA_EINVAL;
+    return FPTA_SUCCESS;
 
   case fpta_node_not:
     if (unlikely(!filter->node_not))
-      return false;
+      return FPTA_EINVAL;
     filter = filter->node_not;
     goto tail_recursion;
 
   case fpta_node_or:
   case fpta_node_and:
     if (unlikely(!filter->node_and.a || !filter->node_and.b))
-      return false;
-    if (unlikely(!fpta_filter_validate(filter->node_and.a)))
-      return false;
+      return FPTA_EINVAL;
+    rc = fpta_filter_validate(filter->node_and.a);
+    if (unlikely(rc != FPTA_SUCCESS))
+      return rc;
     filter = filter->node_and.b;
     goto tail_recursion;
 
@@ -398,14 +399,17 @@ tail_recursion:
   case fpta_node_ne:
     rc = fpta_id_validate(filter->node_cmp.left_id, fpta_column);
     if (unlikely(rc != FPTA_SUCCESS))
-      return false;
+      return rc;
 
     if (unlikely(filter->node_cmp.right_value.type == fpta_null) &&
         fpta_column_is_nullable(filter->node_cmp.left_id->shove))
-      return true;
+      return FPTA_SUCCESS;
 
-    return fpta_cmp_is_compat(fpta_name_coltype(filter->node_cmp.left_id),
-                              filter->node_cmp.right_value.type);
+    return likely(
+               fpta_cmp_is_compat(fpta_name_coltype(filter->node_cmp.left_id),
+                                  filter->node_cmp.right_value.type))
+               ? FPTA_SUCCESS
+               : FPTA_ETYPE;
   }
 }
 

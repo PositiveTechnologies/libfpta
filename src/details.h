@@ -188,7 +188,7 @@ public:
 
 //----------------------------------------------------------------------------
 
-bool fpta_filter_validate(const fpta_filter *filter);
+int fpta_filter_validate(const fpta_filter *filter);
 int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id);
 int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter);
 
