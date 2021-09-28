@@ -356,9 +356,6 @@ bool fpta_filter_validate(const fpta_filter *filter) {
 
 tail_recursion:
 
-  if (!filter)
-    return true;
-
   switch (filter->type) {
   default:
     return false;
@@ -379,11 +376,15 @@ tail_recursion:
     return true;
 
   case fpta_node_not:
+    if (unlikely(!filter->node_not))
+      return false;
     filter = filter->node_not;
     goto tail_recursion;
 
   case fpta_node_or:
   case fpta_node_and:
+    if (unlikely(!filter->node_and.a || !filter->node_and.b))
+      return false;
     if (unlikely(!fpta_filter_validate(filter->node_and.a)))
       return false;
     filter = filter->node_and.b;

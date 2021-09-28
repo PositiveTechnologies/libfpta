@@ -95,8 +95,10 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
   if (unlikely(rc != FPTA_SUCCESS))
     return rc;
 
-  if (unlikely(!fpta_filter_validate(filter)))
-    return FPTA_EINVAL;
+  if (filter) {
+    if (unlikely(!fpta_filter_validate(filter)))
+      return FPTA_EINVAL;
+  }
 
   fpta_db *db = txn->db;
   fpta_cursor *cursor = fpta_cursor_alloc(db);
