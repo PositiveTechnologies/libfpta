@@ -17,8 +17,8 @@
 
 #include "details.h"
 
-static bool fpta_cmp_is_compat(fptu_type data_type,
-                               fpta_value_type value_type) {
+static inline bool fpta_cmp_is_compat(fptu_type data_type,
+                                      fpta_value_type value_type) {
   /* Смысл функции в отбраковке фильтров, в которых используются сравнения
    * дающие постоянный результат, не зависящий от данных. Критерий сравнимости:
    *  - недопустимо сравнение для:
