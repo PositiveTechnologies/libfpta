@@ -36,7 +36,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 15083592de7ca237a8b161748812da9810457df001ad461b8cd8e48ba403e226_v0_10_3_4_gc8122690
+#define MDBX_BUILD_SOURCERY fc1465eefd1446af5026674d101336e7f2ef9316385670edd0edeb1c15e680cf_v0_10_4_0_g590b225f
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -2219,7 +2219,7 @@ typedef uint16_t indx_t;
 
 /*----------------------------------------------------------------------------*/
 /* Core structures for database and shared memory (i.e. format definition) */
-#pragma pack(push, 1)
+#pragma pack(push, 4)
 
 /* Information about a single database in the environment. */
 typedef struct MDBX_db {
