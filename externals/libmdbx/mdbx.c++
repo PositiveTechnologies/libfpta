@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY fc1465eefd1446af5026674d101336e7f2ef9316385670edd0edeb1c15e680cf_v0_10_4_0_g590b225f
+#define MDBX_BUILD_SOURCERY 783046896c7a0ed430a0f65b28d3632edc41f69d227ca12ff88eeb6719dcc72f_v0_10_5_0_gedda9515
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -2274,6 +2274,8 @@ typedef struct MDBX_meta {
   bin128_t mm_bootid;
 
 } MDBX_meta;
+
+#pragma pack(1)
 
 /* Common header for all page types. The page type depends on mp_flags.
  *

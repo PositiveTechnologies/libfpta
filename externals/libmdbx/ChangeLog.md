@@ -20,6 +20,24 @@ ChangeLog
  - Packages for [Astra Linux](https://astralinux.ru/), [ALT Linux](https://www.altlinux.org/), [ROSA Linux](https://www.rosalinux.ru/), etc.
 
 
+## v0.10.5 at 2021-10-13
+
+Acknowledgements:
+
+ - [Noel Kuntze](https://github.com/Thermi) for immediately bug reporting.
+
+Fixes:
+
+ - Fixed unaligned access regression after the `#pragma pack` fix for modern compilers.
+ - Added UBSAN-test to CI to avoid a regression(s) similar to lately fixed.
+ - Fixed possibility of meta-pages clashing after manually turn to a particular meta-page using `mdbx_chk` utility.
+
+Minors:
+
+ - Refined handling of weak or invalid meta-pages while a DB opening.
+ - Refined providing information for the @MAIN and @GC sub-databases of a last committed modification transaction's ID.
+
+
 ## v0.10.4 at 2021-10-10
 
 Acknowledgements:
@@ -29,7 +47,7 @@ Acknowledgements:
 
 Fixes:
 
- - Fixed possibility of looping update GC during transaction commit (no public issue since the problem was discovered inside [Positive Technologies](https://www.ptsecurity.ru).
+ - Fixed possibility of looping update GC during transaction commit (no public issue since the problem was discovered inside [Positive Technologies](https://www.ptsecurity.ru)).
  - Fixed `#pragma pack` to avoid provoking some compilers to generate code with [unaligned access](https://github.com/erthink/libmdbx/issues/235).
  - Fixed `noexcept` for potentially throwing `txn::put()` of C++ API.
 
