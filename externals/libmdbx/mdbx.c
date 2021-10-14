@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 783046896c7a0ed430a0f65b28d3632edc41f69d227ca12ff88eeb6719dcc72f_v0_10_5_0_gedda9515
+#define MDBX_BUILD_SOURCERY 85bc9c7f9abbde697804567872d47e90ed6deccdb5811bb75eb220561e79324a_v0_10_5_2_g51491062
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -16537,10 +16537,11 @@ mdbx_page_get_ex(MDBX_cursor *const mc, const pgno_t pgno,
   mdbx_tassert(txn, front <= txn->mt_front);
   if (unlikely(pgno >= txn->mt_next_pgno)) {
     mdbx_error("page #%" PRIaPGNO " beyond next-pgno", pgno);
+  notfound:
     ret.page = nullptr;
-  corrupted:
-    mc->mc_txn->mt_flags |= MDBX_TXN_ERROR;
     ret.err = MDBX_PAGE_NOTFOUND;
+  bailout:
+    mc->mc_txn->mt_flags |= MDBX_TXN_ERROR;
     return ret;
   }
 
@@ -16580,33 +16581,36 @@ dirty:
              "mismatch actual pgno (%" PRIaPGNO ") != expected (%" PRIaPGNO
              ")\n",
              ret.page->mp_pgno, pgno);
-    goto corrupted;
+    goto notfound;
   }
 
 #if !MDBX_DISABLE_PAGECHECKS
   if (unlikely(ret.page->mp_flags & P_ILL_BITS)) {
-    bad_page(ret.page, "invalid page's flags (%u)\n", ret.page->mp_flags);
-    goto corrupted;
+    ret.err =
+        bad_page(ret.page, "invalid page's flags (%u)\n", ret.page->mp_flags);
+    goto bailout;
   }
 
   if (unlikely(ret.page->mp_txnid > front) &&
       unlikely(ret.page->mp_txnid > txn->mt_front || front < txn->mt_txnid)) {
-    bad_page(ret.page,
-             "invalid page txnid (%" PRIaTXN ") for %s' txnid (%" PRIaTXN ")\n",
-             ret.page->mp_txnid,
-             (front == txn->mt_front && front != txn->mt_txnid) ? "front-txn"
-                                                                : "parent-page",
-             front);
-    goto corrupted;
+    ret.err = bad_page(
+        ret.page,
+        "invalid page txnid (%" PRIaTXN ") for %s' txnid (%" PRIaTXN ")\n",
+        ret.page->mp_txnid,
+        (front == txn->mt_front && front != txn->mt_txnid) ? "front-txn"
+                                                           : "parent-page",
+        front);
+    goto bailout;
   }
 
   if (unlikely((ret.page->mp_upper < ret.page->mp_lower ||
                 ((ret.page->mp_lower | ret.page->mp_upper) & 1) ||
                 PAGEHDRSZ + ret.page->mp_upper > env->me_psize) &&
                !IS_OVERFLOW(ret.page))) {
-    bad_page(ret.page, "invalid page lower(%u)/upper(%u) with limit (%u)\n",
-             ret.page->mp_lower, ret.page->mp_upper, page_space(env));
-    goto corrupted;
+    ret.err =
+        bad_page(ret.page, "invalid page lower(%u)/upper(%u) with limit (%u)\n",
+                 ret.page->mp_lower, ret.page->mp_upper, page_space(env));
+    goto bailout;
   }
 #endif /* !MDBX_DISABLE_PAGECHECKS */
 
@@ -16851,7 +16855,7 @@ __hot static int mdbx_page_search(MDBX_cursor *mc, const MDBX_val *key,
         break;
       }
     while (unlikely((scan = scan->mt_parent) != nullptr));
-    if (unlikely((rc = mdbx_page_get(mc, root, &mc->mc_pg[0], pp_txnid) != 0)))
+    if (unlikely((rc = mdbx_page_get(mc, root, &mc->mc_pg[0], pp_txnid)) != 0))
       return rc;
   }
 
@@ -28451,9 +28455,9 @@ __dll_export
         0,
         10,
         5,
-        0,
-        {"2021-10-13T16:35:26+03:00", "31713895aac05dd55b3ebc8cadd419f96b38de54", "edda9515d67b4e6d3a6b1e95f1a7f7a20b462038",
-         "v0.10.5-0-gedda9515"},
+        2,
+        {"2021-10-15T01:11:20+03:00", "55f877883a6ed58b32d717d8878059fa8f5c2068", "514910621e260a0af00d12830242cbe895eb958f",
+         "v0.10.5-2-g51491062"},
         sourcery};
 
 __dll_export
