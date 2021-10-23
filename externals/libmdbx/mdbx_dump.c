@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 85bc9c7f9abbde697804567872d47e90ed6deccdb5811bb75eb220561e79324a_v0_10_5_2_g51491062
+#define MDBX_BUILD_SOURCERY 918eea7458487812b07b514656d83381f5965b04f9069a9862751dc58c60b8c9_v0_11_1_1_g93a24abb
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -90,7 +90,7 @@
 #endif
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
-#endif
+#endif /* _CRT_SECURE_NO_WARNINGS */
 #if _MSC_VER > 1800
 #pragma warning(disable : 4464) /* relative include path contains '..' */
 #endif
@@ -573,7 +573,7 @@ extern "C" {
 #if defined(_WIN32) || defined(_WIN64)
 #if !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
-#endif
+#endif /* _CRT_SECURE_NO_WARNINGS */
 #if !defined(_NO_CRT_STDIO_INLINE) && MDBX_BUILD_SHARED_LIBRARY &&             \
     !defined(xMDBX_TOOLS) && MDBX_WITHOUT_MSVC_CRT
 #define _NO_CRT_STDIO_INLINE
@@ -2164,7 +2164,7 @@ MDBX_MAYBE_UNUSED static
 #define MDBX_MAGIC UINT64_C(/* 56-bit prime */ 0x59659DBDEF4C11)
 
 /* FROZEN: The version number for a database's datafile format. */
-#define MDBX_DATA_VERSION 2
+#define MDBX_DATA_VERSION 3
 /* The version number for a database's lockfile format. */
 #define MDBX_LOCK_VERSION 4
 
@@ -2569,7 +2569,11 @@ typedef struct MDBX_lockinfo {
 
 #define MDBX_DATA_MAGIC                                                        \
   ((MDBX_MAGIC << 8) + MDBX_PNL_ASCENDING * 64 + MDBX_DATA_VERSION)
-#define MDBX_DATA_MAGIC_DEVEL ((MDBX_MAGIC << 8) + 255)
+
+#define MDBX_DATA_MAGIC_LEGACY_COMPAT                                          \
+  ((MDBX_MAGIC << 8) + MDBX_PNL_ASCENDING * 64 + 2)
+
+#define MDBX_DATA_MAGIC_LEGACY_DEVEL ((MDBX_MAGIC << 8) + 255)
 
 #define MDBX_LOCK_MAGIC ((MDBX_MAGIC << 8) + MDBX_LOCK_VERSION)
 

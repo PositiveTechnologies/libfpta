@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 85bc9c7f9abbde697804567872d47e90ed6deccdb5811bb75eb220561e79324a_v0_10_5_2_g51491062
+#define MDBX_BUILD_SOURCERY 918eea7458487812b07b514656d83381f5965b04f9069a9862751dc58c60b8c9_v0_11_1_1_g93a24abb
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -68,7 +68,7 @@
 #endif
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
-#endif
+#endif /* _CRT_SECURE_NO_WARNINGS */
 #if _MSC_VER > 1800
 #pragma warning(disable : 4464) /* relative include path contains '..' */
 #endif
@@ -551,7 +551,7 @@ extern "C" {
 #if defined(_WIN32) || defined(_WIN64)
 #if !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
-#endif
+#endif /* _CRT_SECURE_NO_WARNINGS */
 #if !defined(_NO_CRT_STDIO_INLINE) && MDBX_BUILD_SHARED_LIBRARY &&             \
     !defined(xMDBX_TOOLS) && MDBX_WITHOUT_MSVC_CRT
 #define _NO_CRT_STDIO_INLINE
@@ -2142,7 +2142,7 @@ MDBX_MAYBE_UNUSED static
 #define MDBX_MAGIC UINT64_C(/* 56-bit prime */ 0x59659DBDEF4C11)
 
 /* FROZEN: The version number for a database's datafile format. */
-#define MDBX_DATA_VERSION 2
+#define MDBX_DATA_VERSION 3
 /* The version number for a database's lockfile format. */
 #define MDBX_LOCK_VERSION 4
 
@@ -2547,7 +2547,11 @@ typedef struct MDBX_lockinfo {
 
 #define MDBX_DATA_MAGIC                                                        \
   ((MDBX_MAGIC << 8) + MDBX_PNL_ASCENDING * 64 + MDBX_DATA_VERSION)
-#define MDBX_DATA_MAGIC_DEVEL ((MDBX_MAGIC << 8) + 255)
+
+#define MDBX_DATA_MAGIC_LEGACY_COMPAT                                          \
+  ((MDBX_MAGIC << 8) + MDBX_PNL_ASCENDING * 64 + 2)
+
+#define MDBX_DATA_MAGIC_LEGACY_DEVEL ((MDBX_MAGIC << 8) + 255)
 
 #define MDBX_LOCK_MAGIC ((MDBX_MAGIC << 8) + MDBX_LOCK_VERSION)
 
@@ -13545,7 +13549,8 @@ static int mdbx_validate_meta(MDBX_env *env, MDBX_meta *const meta,
   const uint64_t magic_and_version =
       unaligned_peek_u64(4, &meta->mm_magic_and_version);
   if (unlikely(magic_and_version != MDBX_DATA_MAGIC &&
-               magic_and_version != MDBX_DATA_MAGIC_DEVEL)) {
+               magic_and_version != MDBX_DATA_MAGIC_LEGACY_COMPAT &&
+               magic_and_version != MDBX_DATA_MAGIC_LEGACY_DEVEL)) {
     mdbx_error("meta[%u] has invalid magic/version %" PRIx64, meta_number,
                magic_and_version);
     return ((magic_and_version >> 8) != MDBX_MAGIC) ? MDBX_INVALID
@@ -15288,6 +15293,26 @@ __cold static int mdbx_setup_dxb(MDBX_env *env, const int lck_rc,
 
     atomic_store32(&env->me_lck->mti_discarded_tail,
                    bytes2pgno(env, used_aligned2os_bytes), mo_Relaxed);
+
+    if ((env->me_flags & MDBX_RDONLY) == 0 && env->me_stuck_meta < 0) {
+      for (int n = 0; n < 3; ++n) {
+        MDBX_meta *const pmeta = METAPAGE(env, n);
+        if (unlikely(unaligned_peek_u64(4, &pmeta->mm_magic_and_version) !=
+                     MDBX_DATA_MAGIC)) {
+          const txnid_t txnid = mdbx_meta_txnid_fluid(env, pmeta);
+          mdbx_notice("%s %s"
+                      "meta[%u], txnid %" PRIaTXN,
+                      "updating db-format signature for",
+                      META_IS_STEADY(pmeta) ? "stead-" : "weak-", n, txnid);
+          err = mdbx_override_meta(env, n, txnid, pmeta);
+          if (unlikely(err != MDBX_SUCCESS)) {
+            mdbx_error("%s meta[%u], txnid %" PRIaTXN ", error %d",
+                       "updating db-format signature for", n, txnid, err);
+            return err;
+          }
+        }
+      }
+    }
   } /* lck exclusive, lck_rc == MDBX_RESULT_TRUE */
 
   //---------------------------------------------------- setup madvise/readahead
@@ -28433,7 +28458,7 @@ __cold int mdbx_get_sysraminfo(intptr_t *page_size, intptr_t *total_pages,
 
 
 #if MDBX_VERSION_MAJOR != 0 ||                             \
-    MDBX_VERSION_MINOR != 10
+    MDBX_VERSION_MINOR != 11
 #error "API version mismatch! Had `git fetch --tags` done?"
 #endif
 
@@ -28453,11 +28478,11 @@ __dll_export
 #endif
     const struct MDBX_version_info mdbx_version = {
         0,
-        10,
-        5,
-        2,
-        {"2021-10-15T01:11:20+03:00", "55f877883a6ed58b32d717d8878059fa8f5c2068", "514910621e260a0af00d12830242cbe895eb958f",
-         "v0.10.5-2-g51491062"},
+        11,
+        1,
+        1,
+        {"2021-10-24T02:28:28+03:00", "c93a4fd7cbff46e4b4e08d18488a60125c6da8e4", "93a24abbabfb46fcf47cfc1b2311bf426fcd3e4f",
+         "v0.11.1-1-g93a24abb"},
         sourcery};
 
 __dll_export
