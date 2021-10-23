@@ -312,51 +312,67 @@ enum fpta_error {
   FPTA_OK = FPTA_SUCCESS,
   FPTA_ERRROR_BASE = 4242,
 
-  FPTA_EOOPS
-  /* Internal unexpected Oops */,
-  FPTA_SCHEMA_CORRUPTED
-  /* Schema is invalid or corrupted (internal error) */,
-  FPTA_ETYPE
-  /* Type mismatch (given value vs column/field or index) */,
-  FPTA_DATALEN_MISMATCH
-  /* Data length mismatch (given value vs data type) */,
-  FPTA_KEY_MISMATCH
-  /* Key mismatch while updating row via cursor */,
-  FPTA_COLUMN_MISSING
-  /* Required column missing */,
-  FPTA_INDEX_CORRUPTED
-  /* Index is inconsistent or corrupted (internal error) */,
-  FPTA_NO_INDEX
-  /* No (such) index for given column */,
-  FPTA_SCHEMA_CHANGED
-  /* Schema changed (transaction should be restared) */,
-  FPTA_ECURSOR
-  /* Cursor is not positioned */,
-  FPTA_TOOMANY
-  /* Too many tables, columns or indexes (one of fpta's limits reached) */,
-  FPTA_WANNA_DIE
-  /* Failure while transaction rollback */,
-  FPTA_TXN_CANCELLED
-  /* Transaction already cancelled */,
-  FPTA_SIMILAR_INDEX
-  /* Adding index which is similar to one of the existing */,
-  FPTA_TARDY_DBI
-  /* Another thread still use handle(s) that should be reopened. */,
-  FPTA_CLUMSY_INDEX
-  /* Adding index which is too clumsy */,
+  /* Internal unexpected Oops */
+  FPTA_EOOPS = 4243,
 
-  FPTA_FORMAT_MISMATCH
-  /* Database format mismatch the version of libfpta */,
+  /* Schema is invalid or corrupted (internal error) */
+  FPTA_SCHEMA_CORRUPTED = 4244,
 
-  FPTA_APP_MISMATCH
-  /* Applicaton version mismatch the database content */,
+  /* Type mismatch (given value vs column/field or index) */
+  FPTA_ETYPE = 4245,
+
+  /* Data length mismatch (given value vs data type) */
+  FPTA_DATALEN_MISMATCH = 4246,
+
+  /* Key mismatch while updating row via cursor */
+  FPTA_KEY_MISMATCH = 4247,
+
+  /* Required column missing */
+  FPTA_COLUMN_MISSING = 4248,
+
+  /* Index is inconsistent or corrupted (internal error) */
+  FPTA_INDEX_CORRUPTED = 4249,
+
+  /* No (such) index for given column */
+  FPTA_NO_INDEX = 4250,
+
+  /* Schema changed (transaction should be restared) */
+  FPTA_SCHEMA_CHANGED = 4251,
+
+  /* Cursor is not positioned */
+  FPTA_ECURSOR = 4252,
+
+  /* Too many tables, columns or indexes (one of fpta's limits reached) */
+  FPTA_TOOMANY = 4253,
+
+  /* Failure while transaction rollback */
+  FPTA_WANNA_DIE = 4254,
+
+  /* Transaction already cancelled */
+  FPTA_TXN_CANCELLED = 4255,
+
+  /* Adding index which is similar to one of the existing */
+  FPTA_SIMILAR_INDEX = 4256,
+
+  /* Another thread still use handle(s) that should be reopened. */
+  FPTA_TARDY_DBI = 4257,
+
+  /* Adding index which is too clumsy */
+  FPTA_CLUMSY_INDEX = 4258,
+
+  /* Database format mismatch the version of libfpta */
+  FPTA_FORMAT_MISMATCH = 4259,
+
+  /* Applicaton version mismatch the database content */
+  FPTA_APP_MISMATCH = 4260,
 
   FPTA_ERRROR_LAST = FPTA_APP_MISMATCH,
 
-  FPTA_NODATA = -1 /* No data or EOF was reached */,
-  FPTA_DEADBEEF = INT32_C(0xDeadBeef) /* Pseudo error for results by refs,
-    mean `no value` returned */
-  ,
+  /* No data or EOF was reached */
+  FPTA_NODATA = -1,
+
+  /* Pseudo error for results by refs, mean `no value` returned */
+  FPTA_DEADBEEF = INT32_C(0xDeadBeef),
 
   /**************************************** Native (system) error codes ***/
 
