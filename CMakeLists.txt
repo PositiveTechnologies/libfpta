@@ -228,6 +228,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
 set(erthink_HEADERS
   erthink.h
+  erthink_128.h
   erthink_arch.h
   erthink_bswap.h
   erthink_byteorder.h

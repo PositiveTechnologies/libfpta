@@ -60,3 +60,17 @@
 #define __amd64__ 1
 #endif /* __amd64__ */
 #endif /* all x86 */
+
+#ifndef ERTHINK_NATIVE_U128_TYPE
+#if defined(__SIZEOF_INT128__) ||                                              \
+    (defined(_INTEGRAL_MAX_BITS) && _INTEGRAL_MAX_BITS >= 128)
+#define ERTHINK_NATIVE_U128_TYPE __uint128_t
+#endif
+#endif /* ERTHINK_NATIVE_U128_TYPE */
+
+#ifndef ERTHINK_NATIVE_I128_TYPE
+#if defined(__SIZEOF_INT128__) ||                                              \
+    (defined(_INTEGRAL_MAX_BITS) && _INTEGRAL_MAX_BITS >= 128)
+#define ERTHINK_NATIVE_I128_TYPE __int128_t
+#endif
+#endif /* ERTHINK_NATIVE_I128_TYPE */
