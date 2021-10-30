@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2021 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/erthink/erthink
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,12 +42,12 @@
 #endif
 
 #include "erthink_carryadd.h"
-#include "erthink_casting.h"
-#include "erthink_clz.h"
+#include "erthink_casting.h++"
+#include "erthink_clz.h++"
 #include "erthink_defs.h"
-#include "erthink_misc.h"
+#include "erthink_misc.h++"
 #include "erthink_mul.h"
-#include "erthink_u2a.h"
+#include "erthink_u2a.h++"
 
 #ifdef _MSC_VER
 #pragma warning(push, 1)

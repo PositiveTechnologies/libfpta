@@ -1,4 +1,4 @@
-##  Copyright (c) 2012-2020 Leonid Yuriev <leo@yuriev.ru>.
+##  Copyright (c) 2012-2021 Leonid Yuriev <leo@yuriev.ru>.
 ##
 ##  Licensed under the Apache License, Version 2.0 (the "License");
 ##  you may not use this file except in compliance with the License.
@@ -226,14 +226,31 @@ endif(NOT SUBPROJECT)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_library(erthink INTERFACE)
-
 set(erthink_HEADERS
-  erthink_arch.h erthink_bswap.h erthink_byteorder.h erthink_carryadd.h
-  erthink_casting.h erthink_clz.h erthink_d2a.h erthink_defs.h
-  erthink_dynamic_constexpr.h erthink_intrin.h erthink_misc.h erthink_mul.h
-  erthink_rot.h erthink_u2a.h erthink_optimize4size.h erthink_optimize4speed.h
-  erthink_short_alloc.h erthink_ifunc.h erthink_endian.h erthink.h)
+  erthink.h
+  erthink_arch.h
+  erthink_bswap.h
+  erthink_byteorder.h
+  erthink_carryadd.h
+  erthink_defs.h
+  erthink_intrin.h
+  erthink_ifunc.h
+  erthink_endian.h
+  erthink_optimize4size.h
+  erthink_optimize4speed.h
+
+  erthink.h++
+  erthink_casting.h++
+  erthink_clz.h++
+  erthink_d2a.h++
+  erthink_dynamic_constexpr.h++
+  erthink_misc.h++
+  erthink_mul.h
+  erthink_rot.h
+  erthink_u2a.h++
+  erthink_short_alloc.h++
+)
+add_library(erthink INTERFACE)
 
 if(ERTHINK_CXX_STANDARD)
   target_compile_features(erthink INTERFACE "cxx_std_${ERTHINK_CXX_STANDARD}")

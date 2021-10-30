@@ -15,10 +15,26 @@
  *  limitations under the License.
  */
 
-#if defined(_MSC_VER) && !defined(__clang__)
-#pragma optimize("gt", on)
+#if !(defined(__cplusplus) && __cplusplus >= 201103L)
+#error "This source code requires C++11 at least."
 #endif
 
-#if defined(__GNUC__) && !defined(__clang__) && !defined(__LCC__)
-#pragma GCC optimize("-Ofast")
+#pragma once
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4505) /* unreferenced local function... */
+#endif
+
+#include "erthink.h"
+#include "erthink_casting.h++"
+#include "erthink_clz.h++"
+#include "erthink_d2a.h++"
+#include "erthink_dynamic_constexpr.h++"
+#include "erthink_misc.h++"
+#include "erthink_short_alloc.h++"
+#include "erthink_u2a.h++"
+
+#ifdef _MSC_VER
+#pragma warning(pop)
 #endif
