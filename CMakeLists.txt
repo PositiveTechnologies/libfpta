@@ -237,6 +237,7 @@ set(erthink_HEADERS
   erthink_intrin.h
   erthink_ifunc.h
   erthink_endian.h
+  erthink_mul.h
   erthink_optimize4size.h
   erthink_optimize4speed.h
 
@@ -246,8 +247,7 @@ set(erthink_HEADERS
   erthink_d2a.h++
   erthink_dynamic_constexpr.h++
   erthink_misc.h++
-  erthink_mul.h
-  erthink_rot.h
+  erthink_rot.h++
   erthink_u2a.h++
   erthink_short_alloc.h++
 )
