@@ -34,10 +34,20 @@
 #pragma warning(pop)
 #endif
 
-#if (UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul)
+#if (UINTPTR_MAX > 0xffffFFFFul || ULONG_MAX > 0xffffFFFFul) ||                \
+    defined(__LP64__)
 #define ERTHINK_ARCH64
+#define ERTHINK_ARCH_BITS 64
+#elif defined(__AVR__)
+#define ERTHINK_ARCH8
+#define ERTHINK_ARCH_BITS 8
+#elif defined(__MSP430__) || defined(__Z8000__) ||                             \
+    (defined(__SIZEOF_INT__) && __SIZEOF_INT__ < 4)
+#define ERTHINK_ARCH16
+#define ERTHINK_ARCH_BITS 16
 #else
 #define ERTHINK_ARCH32
+#define ERTHINK_ARCH_BITS 32
 #endif /* FPT_ARCH64/32 */
 
 #if defined(i386) || defined(__386) || defined(__i386) || defined(__i386__) || \
