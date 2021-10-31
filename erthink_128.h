@@ -18,7 +18,9 @@
 #pragma once
 
 #include "erthink_arch.h"
+#include "erthink_bswap.h"
 #include "erthink_byteorder.h"
+#include "erthink_clz.h++"
 #include "erthink_defs.h"
 #include "erthink_intrin.h"
 #include "erthink_mul.h"
@@ -31,132 +33,702 @@
 #endif                          /* _MSC_VER (warnings) */
 
 #ifdef __cplusplus
+#include "erthink_dynamic_constexpr.h++"
+#include <array>
+#include <utility>
+
 namespace erthink {
 #endif /* __cplusplus */
 
-#ifndef ERTHINK_USE_NATIVE_U128
+#ifndef ERTHINK_USE_NATIVE_128
 #if defined(__SIZEOF_INT128__) ||                                              \
     (defined(_INTEGRAL_MAX_BITS) && _INTEGRAL_MAX_BITS >= 128)
-#define ERTHINK_USE_NATIVE_U128 1
+#define ERTHINK_USE_NATIVE_128 1
 #else
-#define ERTHINK_USE_NATIVE_U128 0
+#define ERTHINK_USE_NATIVE_128 0
 #endif
-#endif /* ERTHINK_USE_NATIVE_U128 */
+#endif /* ERTHINK_USE_NATIVE_128 */
 
-typedef union uint128_t {
+#if ERTHINK_USE_NATIVE_128
+#define erthink_u128_constexpr cxx11_constexpr
+#else
+#define erthink_u128_constexpr erthink_dynamic_constexpr
+#endif /* ERTHINK_USE_NATIVE_128 */
+
+union uint128_t {
+  struct {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    uint64_t l, h;
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    uint64_t h, l;
+#else
+#error "FIXME: Unsupported byte order"
+#endif /* __BYTE_ORDER__ */
+  };
+#ifdef ERTHINK_NATIVE_U128_TYPE
+  ERTHINK_NATIVE_U128_TYPE u128;
+#endif /* ERTHINK_NATIVE_U128_TYPE */
+#ifdef ERTHINK_NATIVE_I128_TYPE
+  ERTHINK_NATIVE_I128_TYPE i128;
+#endif /* ERTHINK_NATIVE_U128_TYPE */
   uint32_t u64[2];
   uint32_t u32[4];
   uint16_t u16[8];
   uint8_t u8[16];
-#ifdef ERTHINK_NATIVE_U128_TYPE
-  ERTHINK_NATIVE_U128_TYPE u128;
-#endif
-  struct {
+
+#ifdef __cplusplus
+  uint128_t() = default;
+  cxx11_constexpr uint128_t(const uint128_t &) = default;
+
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    uint64_t l, h;
+  cxx11_constexpr uint128_t(uint64_t h, uint64_t l) noexcept : l(l), h(h) {}
+  cxx11_constexpr uint128_t(uint64_t u) noexcept : l(u), h(0) {}
+  cxx11_constexpr uint128_t(int64_t i) noexcept : l(i), h(i >> 63) {}
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  cxx11_constexpr uint128_t(uint64_t h, uint64_t l) noexcept : h(h), l(l) {}
+  cxx11_constexpr uint128_t(uint64_t u) noexcept : h(0), l(u) {}
+  cxx11_constexpr uint128_t(int64_t i) noexcept : h(i >> 63), l(i) {}
 #else
-    uint64_t h, l;
-#endif
-  };
-} uint128_t;
+#error "FIXME: Unsupported byte order"
+#endif /* __BYTE_ORDER__ */
+  cxx11_constexpr uint128_t(unsigned u) noexcept : uint128_t(uint64_t(u)) {}
+  cxx11_constexpr uint128_t(int i) noexcept : uint128_t(int64_t(i)) {}
+
+  cxx11_constexpr explicit operator uint64_t() const noexcept { return l; }
+  cxx11_constexpr explicit operator uint32_t() const noexcept {
+    return uint32_t(l);
+  }
+  cxx11_constexpr uint128_t &operator=(const uint128_t &) noexcept = default;
+  cxx11_constexpr uint128_t &operator=(const uint64_t u) noexcept {
+    l = u;
+    h = 0;
+    return *this;
+  }
+  cxx11_constexpr uint128_t &operator=(const int64_t i) noexcept {
+    l = i;
+    h = i >> 63;
+    return *this;
+  }
+
+#ifdef ERTHINK_NATIVE_U128_TYPE
+  cxx11_constexpr uint128_t(const ERTHINK_NATIVE_U128_TYPE &v) noexcept
+      : u128(v) {}
+  cxx11_constexpr operator ERTHINK_NATIVE_U128_TYPE() const noexcept {
+    return u128;
+  }
+  cxx11_constexpr uint128_t &
+  operator=(const ERTHINK_NATIVE_U128_TYPE v) noexcept {
+    u128 = v;
+    return *this;
+  }
+#endif /* ERTHINK_NATIVE_U128_TYPE */
+
+#ifdef ERTHINK_NATIVE_U128_TYPE
+  cxx11_constexpr uint128_t(const ERTHINK_NATIVE_I128_TYPE &v) noexcept
+      : i128(v) {}
+  cxx11_constexpr operator ERTHINK_NATIVE_I128_TYPE() const noexcept {
+    return i128;
+  }
+  cxx11_constexpr uint128_t &
+  operator=(const ERTHINK_NATIVE_I128_TYPE v) noexcept {
+    i128 = v;
+    return *this;
+  }
+#endif /* ERTHINK_NATIVE_U128_TYPE */
+
+  cxx11_constexpr operator bool() const noexcept {
+#if ERTHINK_USE_NATIVE_128
+    return u128 != 0;
+#else
+    return (l | h) != 0;
+#endif /* ERTHINK_USE_NATIVE_128 */
+  }
+
+  cxx11_constexpr bool most_significant_bit() const noexcept {
+    return static_cast<int64_t>(h) < 0;
+  }
+
+  cxx11_constexpr uint32_t most_significant_word() const noexcept {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return u32[3];
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    return u32[0];
+#else
+#error "FIXME: Unsupported byte order"
+#endif /* __BYTE_ORDER__ */
+  }
+
+  __nothrow_pure_function static erthink_u128_constexpr
+      std::pair<uint128_t, uint128_t>
+      divmod(const uint128_t &dividend, const uint128_t &divisor) noexcept;
+
+  erthink_u128_constexpr uint128_t
+  divmod_quotient(const uint128_t &divisor) noexcept {
+    const auto quotient_remainder(divmod(*this, divisor));
+    *this = quotient_remainder.second;
+    return quotient_remainder.first;
+  }
+
+  erthink_u128_constexpr uint128_t
+  divmod_remainder(const uint128_t &divisor) noexcept {
+    const auto quotient_remainder(divmod(*this, divisor));
+    *this = quotient_remainder.first;
+    return quotient_remainder.second;
+  }
+
+#endif /* __cplusplus */
+};
 
 #ifndef __cplusplus
 typedef union uint128_t uint128_t;
-#endif
-
-static __always_inline uint128_t not128(const uint128_t v) {
-  uint128_t r;
-#if ERTHINK_USE_NATIVE_U128
-  r.u128 = ~v.u128;
 #else
-  r.l = ~v.l;
-  r.h = ~v.h;
-#endif
+
+//------------------------------------------------------------------------------
+
+#if !ERTHINK_USE_NATIVE_128
+namespace details {
+
+cxx11_constexpr __nothrow_pure_function uint128_t
+add128_constexpr(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
+  const uint64_t l = x.l + y.l;
+  const bool c = l < x.l;
+  return uint128_t(x.h + y.h + c, l);
+}
+
+static __nothrow_pure_function uint128_t
+add128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
+  uint128_t r;
+  add64carry_last(add64carry_first(x.l, y.l, &r.l), x.h, y.h, &r.h);
   return r;
 }
 
-static __always_inline uint128_t left128(const uint128_t v, unsigned s) {
+ERTHINK_DYNAMIC_CONSTEXPR(uint128_t, add128,
+                          (const uint128_t &x, const uint128_t &y), (x, y),
+                          (x.h + x.l + y.h + y.l))
+
+// ----------------------------------------------------------------------------
+
+cxx11_constexpr __nothrow_pure_function uint128_t
+sub128_constexpr(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
+  const uint64_t l = x.l - y.l;
+  const bool c = l > x.l;
+  return uint128_t(x.h - y.h - c, l);
+}
+
+static __nothrow_pure_function uint128_t
+sub128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
   uint128_t r;
-  assert(s < 128);
-#if ERTHINK_USE_NATIVE_U128
-  r.u128 = v.u128 << s;
-#else
-  r.l = (s < 64) ? v.l << s : 0;
-  r.h = (s < 64) ? (v.h << s) | (s ? v.l >> (64 - s) : 0) : v.l << (s - 64);
-#endif
+  sub64borrow_last(sub64borrow_first(x.l, y.l, &r.l), x.h, y.h, &r.h);
   return r;
 }
 
-static __always_inline uint128_t right128(const uint128_t v, unsigned s) {
-  uint128_t r;
-  assert(s < 128);
-#if ERTHINK_USE_NATIVE_U128
-  r.u128 = v.u128 >> s;
+ERTHINK_DYNAMIC_CONSTEXPR(uint128_t, sub128,
+                          (const uint128_t &x, const uint128_t &y), (x, y),
+                          (x.h + x.l + y.h + y.l))
+
+// ----------------------------------------------------------------------------
+
+cxx11_constexpr __nothrow_pure_function bool
+gt128_constexpr(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
+#ifdef ERTHINK_ARCH64
+  return (x.h > y.h) | ((x.h == y.h) & (x.l > y.l));
 #else
-  r.l = (s < 64) ? (s ? v.h << (64 - s) : 0) | (v.l >> s) : v.h >> (s - 64);
-  r.h = (s < 64) ? v.h >> s : 0;
-#endif
-  return r;
+  return x.h > y.h || (x.h == y.h && x.l > y.l);
+#endif /* ERTHINK_ARCH64 */
 }
 
-static __always_inline uint128_t or128(uint128_t x, uint128_t y) {
-  uint128_t r;
-#if ERTHINK_USE_NATIVE_U128
-  r.u128 = x.u128 | y.u128;
+static __nothrow_pure_function bool
+gt128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
+#if defined(sub64borrow_next) || __has_builtin(__builtin_subcll)
+  uint128_t unused;
+  return sub64borrow_next(sub64borrow_first(y.l, x.l, &unused.l), y.h, x.h,
+                          &unused.h);
 #else
-  r.l = x.l | y.l;
-  r.h = x.h | y.h;
-#endif
-  return r;
+  return gt128_constexpr(x, y);
+#endif /* sub64borrow_next || __builtin_subcll */
 }
 
-static __always_inline uint128_t xor128(uint128_t x, uint128_t y) {
-  uint128_t r;
-#if ERTHINK_USE_NATIVE_U128
-  r.u128 = x.u128 ^ y.u128;
+ERTHINK_DYNAMIC_CONSTEXPR(bool, gt128, (const uint128_t &x, const uint128_t &y),
+                          (x, y), (x.h + x.l + y.h + y.l))
+
+// ----------------------------------------------------------------------------
+
+cxx11_constexpr __nothrow_pure_function bool
+lt128_constexpr(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
+#ifdef ERTHINK_ARCH64
+  return (x.h < y.h) | ((x.h == y.h) & (x.l < y.l));
 #else
-  r.l = x.l ^ y.l;
-  r.h = x.h ^ y.h;
-#endif
-  return r;
+  return x.h < y.h || (x.h == y.h && x.l < y.l);
+#endif /* ERTHINK_ARCH64 */
 }
 
-static __always_inline uint128_t ror128(uint128_t v, unsigned s) {
-  s &= 127;
-#if ERTHINK_USE_NATIVE_U128
-  v.u128 = (v.u128 << (128 - s)) | (v.u128 >> s);
+static __nothrow_pure_function bool
+lt128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
+#if defined(sub64borrow_next) || __has_builtin(__builtin_subcll)
+  uint128_t unused;
+  return sub64borrow_next(sub64borrow_first(x.l, y.l, &unused.l), x.h, y.h,
+                          &unused.h);
+#else
+  return lt128_constexpr(x, y);
+#endif /* sub64borrow_next || __builtin_subcll */
+}
+
+ERTHINK_DYNAMIC_CONSTEXPR(bool, lt128, (const uint128_t &x, const uint128_t &y),
+                          (x, y), (x.h + x.l + y.h + y.l))
+
+// ----------------------------------------------------------------------------
+
+cxx11_constexpr __nothrow_pure_function uint128_t
+umul128_constexpr(uint64_t x, uint64_t y) cxx11_noexcept {
+  const uint64_t xl = x & UINT32_C(0xFFFFffff);
+  const uint64_t xh = x >> 32;
+  const uint64_t yl = y & UINT32_C(0xFFFFffff);
+  const uint64_t yh = y >> 32;
+
+  const uint64_t ll = xl * yl;
+  const uint64_t hh = xh * yh;
+  const uint64_t hl = xh * yl + (ll >> 32);
+  const uint64_t lh = xl * yh + (hl & UINT32_C(0xFFFFffff));
+
+  return uint128_t(hh + (hl >> 32) + (lh >> 32),
+                   (lh << 32) | (ll & UINT32_C(0xFFFFffff)));
+}
+
+static __nothrow_pure_function uint128_t umul128_dynamic(uint64_t x, uint64_t y)
+    cxx11_noexcept {
+  uint64_t h, l = mul_64x64_128(x, y, &h);
+  return uint128_t(h, l);
+}
+
+ERTHINK_DYNAMIC_CONSTEXPR(uint128_t, umul128,
+                          (const uint64_t x, const uint64_t y), (x, y), (x + y))
+
+} // namespace details
+#endif /* ERTHINK_USE_NATIVE_128 */
+
+//------------------------------------------------------------------------------
+
+cxx11_constexpr uint128_t operator~(const uint128_t &v) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(~v.u128);
+#else
+  return uint128_t(~v.h, ~v.l);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr uint128_t operator^(const uint128_t &x,
+                                    const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 ^ y.u128);
+#else
+  return uint128_t(x.h ^ y.h, x.l ^ y.l);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr uint128_t operator&(const uint128_t &x,
+                                    const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 & y.u128);
+#else
+  return uint128_t(x.h & y.h, x.l & y.l);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr uint128_t operator|(const uint128_t &x,
+                                    const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 | y.u128);
+#else
+  return uint128_t(x.h | y.h, x.l | y.l);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+erthink_u128_constexpr uint128_t operator+(const uint128_t &x,
+                                           const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 + y.u128);
+#else
+  return details::add128(x, y);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+erthink_u128_constexpr uint128_t operator-(const uint128_t &x,
+                                           const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 - y.u128);
+#else
+  return details::sub128(x, y);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr uint128_t operator<<(const uint128_t &v, unsigned s) noexcept {
+  constexpr_assert(s < 128);
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(v.u128 << s);
+#else
+  return uint128_t((s < 64) ? (v.h << s) | (s ? v.l >> (64 - s) : 0)
+                            : v.l << (s - 64),
+                   (s < 64) ? v.l << s : 0);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr uint128_t operator>>(const uint128_t &v, unsigned s) noexcept {
+  constexpr_assert(s < 128);
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(v.u128 >> s);
+#else
+  return uint128_t((s < 64) ? v.h >> s : 0,
+                   (s < 64) ? (s ? v.h << (64 - s) : 0) | (v.l >> s)
+                            : v.h >> (s - 64));
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr uint128_t operator+(const uint128_t &v) noexcept { return v; }
+
+erthink_u128_constexpr uint128_t operator-(const uint128_t &v) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(-v.i128);
+#else
+  return uint128_t(0) - v;
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+erthink_u128_constexpr uint128_t &operator++(uint128_t &v) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  ++v.u128;
   return v;
 #else
-  return s ? or128(left128(v, 128 - s), right128(v, s)) : v;
-#endif
+  return v = v + uint128_t(1);
+#endif /* ERTHINK_USE_NATIVE_128 */
 }
 
-static __always_inline uint128_t rol128(uint128_t v, unsigned s) {
-  return ror128(v, 128 - s);
-}
-
-static __always_inline uint128_t add128(uint128_t x, uint128_t y) {
-  uint128_t r;
-#if ERTHINK_USE_NATIVE_U128
-  r.u128 = x.u128 + y.u128;
+erthink_u128_constexpr uint128_t &operator--(uint128_t &v) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  --v.u128;
+  return v;
 #else
-  add64carry_last(add64carry_first(x.l, y.l, &r.l), x.h, y.h, &r.h);
-#endif
-  return r;
+  return v = v - uint128_t(1);
+#endif /* ERTHINK_USE_NATIVE_128 */
 }
 
-static __always_inline uint128_t mul128(uint128_t x, uint128_t y) {
-  uint128_t r;
-#if ERTHINK_USE_NATIVE_U128
-  r.u128 = x.u128 * y.u128;
+erthink_u128_constexpr uint128_t operator++(uint128_t &v, int) noexcept {
+  const auto t = v;
+  ++v;
+  return t;
+}
+
+erthink_u128_constexpr uint128_t operator--(uint128_t &v, int) noexcept {
+  const auto t = v;
+  --v;
+  return t;
+}
+
+erthink_u128_constexpr uint128_t &operator+=(uint128_t &x,
+                                             uint128_t y) noexcept {
+  return x = x + y;
+}
+
+erthink_u128_constexpr uint128_t &operator-=(uint128_t &x,
+                                             uint128_t y) noexcept {
+  return x = x - y;
+}
+
+cxx11_constexpr uint128_t &operator|=(uint128_t &x, uint128_t y) noexcept {
+  return x = x | y;
+}
+
+cxx11_constexpr uint128_t &operator&=(uint128_t &x, uint128_t y) noexcept {
+  return x = x & y;
+}
+
+cxx11_constexpr uint128_t &operator^=(uint128_t &x, uint128_t y) noexcept {
+  return x = x ^ y;
+}
+
+cxx11_constexpr uint128_t &operator<<=(uint128_t &x, unsigned s) noexcept {
+  return x = x << s;
+}
+
+cxx11_constexpr uint128_t &operator>>=(uint128_t &x, unsigned s) noexcept {
+  return x = x >> s;
+}
+
+cxx11_constexpr bool operator==(const uint128_t &x,
+                                const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return x.u128 == y.u128;
+#elif defined(ERTHINK_ARCH64)
+  return (x.l == y.l) & (x.h == y.h);
 #else
-  r.l = mul_64x64_128(x.l, y.l, &r.h);
+  return (x.l == y.l) && (x.h == y.h);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr bool operator!=(const uint128_t &x,
+                                const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return x.u128 != y.u128;
+#elif defined(ERTHINK_ARCH64)
+  return (x.l != y.l) | (x.h != y.h);
+#else
+  return (x.l != y.l) || (x.h != y.h);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr bool operator>(const uint128_t &x,
+                               const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return x.u128 > y.u128;
+#else
+  return details::gt128(x, y);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr bool operator<(const uint128_t &x,
+                               const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return x.u128 < y.u128;
+#else
+  return details::lt128(x, y);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+cxx11_constexpr bool operator>=(const uint128_t &x,
+                                const uint128_t &y) noexcept {
+  return !(x < y);
+}
+cxx11_constexpr bool operator<=(const uint128_t &x,
+                                const uint128_t &y) noexcept {
+  return !(x > y);
+}
+
+//------------------------------------------------------------------------------
+
+#if !ERTHINK_USE_NATIVE_128
+namespace details {
+
+/* Based on "Improved division by invariant integers"
+ * https://gmplib.org/~tege/division-paper.pdf */
+
+static cxx11_constexpr uint16_t
+reciprocal_v0_constexpr(const size_t d9) noexcept {
+  constexpr_assert(d9 >= 256 && d9 <= 511);
+  return uint16_t(UINT32_C(0x7fd00) / d9);
+}
+
+static cxx11_constexpr std::array<uint16_t, 256> make_reciprocal_v0() noexcept {
+  std::array<uint16_t, 256> table{};
+  for (size_t i = 256; i < 512; ++i)
+    table[i - 256] = reciprocal_v0_constexpr(i);
+  return table;
+}
+
+static cxx11_constexpr __nothrow_pure_function uint16_t
+reciprocal_v0_dynamic(const size_t d9) noexcept {
+  constexpr auto table = make_reciprocal_v0();
+  constexpr_assert(d9 >= 256 && d9 <= 511);
+  return table[d9 - 256];
+}
+
+ERTHINK_DYNAMIC_CONSTEXPR(uint16_t, reciprocal_v0, (const size_t d9), (d9), d9)
+
+erthink_u128_constexpr uint64_t reciprocal_2by1(const uint64_t d) noexcept {
+  const uint_fast32_t v0 = reciprocal_v0(size_t(d >> 55));
+  const uint64_t d40 = (d >> 24) + 1;
+  const uint_fast32_t v1 = (v0 << 11) - uint_fast32_t(v0 * v0 * d40 >> 40) - 1;
+  const uint64_t v2 = (uint64_t(v1) << 13) +
+                      (v1 * (UINT64_C(0x1000000000000000) - v1 * d40) >> 47);
+  const uint64_t d63 = (d + 1) >> 1;
+  const uint64_t e = ((d & 1) ? v2 >> 1 : 0) - v2 * d63;
+  const uint64_t v3 = (v2 << 31) + (umul128(v2, e).h >> 1);
+  const uint64_t v4 = v3 - (umul128(v3, d) + uint128_t(d)).h - d;
+  return v4;
+}
+
+erthink_u128_constexpr uint64_t reciprocal_3by2(const uint128_t &d) noexcept {
+  auto v = reciprocal_2by1(d.h);
+  auto p = d.h * v + d.l;
+  if (p < d.l) {
+    v -= (p < d.h) ? 1 : 2;
+    p -= (p < d.h) ? d.h : d.h + d.h;
+  }
+  const auto t = umul128(v, d.l);
+  p += t.h;
+  if (p < t.h)
+    v -= (uint128_t(p, t.l) < d) ? 1 : 2;
+  return v;
+}
+
+erthink_u128_constexpr std::pair<uint64_t, uint64_t>
+divmod_2by1(const uint128_t &u, const uint64_t d, const uint64_t v) noexcept {
+  auto q = umul128(v, u.h) + u;
+  auto r = u.l - ++q.h * d;
+  if (r > q.l) {
+    --q.h;
+    r += d;
+  }
+  if (unlikely(r >= d)) {
+    ++q.h;
+    r -= d;
+  }
+  return {q.h, r};
+}
+
+erthink_u128_constexpr std::pair<uint64_t, uint128_t>
+divmod_3by2(const uint64_t u2, const uint64_t u1, const uint64_t u0,
+            const uint128_t &d, const uint64_t v) noexcept {
+  auto q = umul128(v, u2) + uint128_t(u2, u1);
+  auto r = uint128_t(u1 - q.h * d.h, u0) - umul128(d.l, q.h) - d;
+  if (r.h >= q.l) {
+    --q.h;
+    r += d;
+  }
+  if (unlikely(r >= d)) {
+    ++q.h;
+    r -= d;
+  }
+  return {q.h + 1, r};
+}
+
+erthink_u128_constexpr __nothrow_pure_function std::pair<uint128_t, uint128_t>
+divmod_u128(uint128_t x, uint128_t y) noexcept {
+  if (y.h == 0) {
+    const unsigned s = clz(y.l);
+    uint64_t o = 0;
+    if (s) {
+      o = x.h >> (64 - s);
+      x <<= s;
+      y.l <<= s;
+    }
+    const auto v = reciprocal_2by1(y.l);
+    const auto h = divmod_2by1(uint128_t(o, x.h), y.l, v);
+    const auto l = divmod_2by1(uint128_t(h.second, x.l), y.l, v);
+    return {uint128_t(h.first, l.first), l.second >> s};
+  }
+
+  if (y.h > x.h)
+    return {0, x};
+
+  const unsigned s = clz(y.h);
+  if (s == 0) {
+    const unsigned q = (y.h < x.h) | (y.l <= x.l);
+    return {q, q ? x - y : x};
+  }
+
+  const uint64_t o = x.h >> (64 - s);
+  x <<= s;
+  y <<= s;
+  const auto v = reciprocal_3by2(y);
+  const auto r = divmod_3by2(o, x.h, x.l, y, v);
+  return {r.first, r.second >> s};
+}
+
+erthink_u128_constexpr __nothrow_pure_function std::pair<uint128_t, uint128_t>
+divmod_s128(const uint128_t &x, const uint128_t &y) noexcept {
+  const auto sign = static_cast<int32_t>(x.most_significant_word() ^
+                                         y.most_significant_word());
+  auto pair = divmod_u128(x.most_significant_bit() ? -x : x,
+                          y.most_significant_bit() ? -y : y);
+  if (sign < 0) {
+    pair.first = -pair.first;
+    pair.second = -pair.second;
+  }
+  return pair;
+}
+
+} // namespace details
+#endif /* ERTHINK_USE_NATIVE_128 */
+
+erthink_u128_constexpr uint128_t operator*(const uint128_t &x,
+                                           const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 * y.u128);
+#else
+  uint128_t r = details::umul128(x.l, y.l);
   r.h += x.l * y.h + y.l * x.h;
-#endif
   return r;
+#endif /* ERTHINK_USE_NATIVE_128 */
 }
 
-#ifdef __cplusplus
+erthink_u128_constexpr uint128_t operator/(const uint128_t &x,
+                                           const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 / y.u128);
+#else
+  return details::divmod_u128(x, y).first;
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+erthink_u128_constexpr uint128_t operator%(const uint128_t &x,
+                                           const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return uint128_t(x.u128 % y.u128);
+#else
+  return details::divmod_u128(x, y).second;
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+erthink_u128_constexpr std::pair<uint128_t, uint128_t>
+uint128_t::divmod(const uint128_t &dividend,
+                  const uint128_t &divisor) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return {dividend.u128 / divisor.u128, dividend.u128 % divisor.u128};
+#else
+  return details::divmod_u128(dividend, divisor);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+//------------------------------------------------------------------------------
+
+erthink_u128_constexpr uint128_t &operator*=(uint128_t &x,
+                                             uint128_t y) noexcept {
+  return x = x * y;
+}
+
+erthink_u128_constexpr uint128_t &operator/=(uint128_t &x,
+                                             uint128_t y) noexcept {
+  return x = x / y;
+}
+
+erthink_u128_constexpr uint128_t &operator%=(uint128_t &x,
+                                             uint128_t y) noexcept {
+  return x = x % y;
+}
+
+//------------------------------------------------------------------------------
+
+template <>
+cxx11_constexpr uint128_t ror<uint128_t>(uint128_t v, unsigned s) noexcept {
+  return (s &= 127) ? (v << (128 - s)) | (v >> s) : v;
+}
+
+static cxx11_constexpr uint128_t ror128(uint128_t v, unsigned s) noexcept {
+  return ror(v, s);
+}
+
+template <>
+cxx11_constexpr uint128_t rol<uint128_t>(uint128_t v, unsigned s) noexcept {
+  return (s &= 127) ? (v >> (128 - s)) | (v << s) : v;
+}
+
+static cxx11_constexpr uint128_t rol128(uint128_t v, unsigned s) noexcept {
+  return rol(v, s);
+}
+
+template <> cxx11_constexpr int clz<uint128_t>(uint128_t v) {
+  return v.h ? clz(v.h) : 64 + clz(v.l);
+}
+
+static cxx11_constexpr int clz128(uint128_t v) { return clz(v); }
+
+static constexpr_intrin uint128_t bswap128(uint128_t v) noexcept {
+  return uint128_t(bswap(v.l), bswap(v.h));
+}
+
+template <> constexpr_intrin uint128_t bswap<uint128_t>(uint128_t v) {
+  return bswap128(v);
+}
+
 } // namespace erthink
 #endif
 
