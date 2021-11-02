@@ -373,8 +373,8 @@ TYPED_TEST_P(d2a, stairwell) {
 TYPED_TEST_P(d2a, random3e7) {
   char buffer[erthink::d2a_max_chars + 1];
   uint64_t prng(uint64_t(time(0)));
-  SCOPED_TRACE("PGNG seed=" + std::to_string(prng));
-  for (int i = 0; i < 33333333;) {
+  SCOPED_TRACE("PRNG seed=" + std::to_string(prng));
+  for (int i = 0; i < 3333333;) {
     i += TestFixture::probe_d2a(prng, buffer);
     prng *= UINT64_C(6364136223846793005);
     prng += UINT64_C(1442695040888963407);
