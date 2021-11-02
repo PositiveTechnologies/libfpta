@@ -76,10 +76,10 @@ cxx11_constexpr bool is_constant_evaluated() cxx11_noexcept {
 
 #else
 
-#define erthink_dynamic_constexpr
+#define erthink_dynamic_constexpr inline
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static RESULT_TYPE NAME DECLARGS_PARENTHESIZED cxx11_noexcept {              \
+  static inline RESULT_TYPE NAME DECLARGS_PARENTHESIZED cxx11_noexcept {       \
     return NAME##_dynamic CALLARGS_PARENTHESIZED;                              \
   }
 
