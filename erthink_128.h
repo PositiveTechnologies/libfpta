@@ -142,10 +142,6 @@ union uint128_t {
 #endif /* ERTHINK_USE_NATIVE_128 */
   }
 
-  cxx11_constexpr bool most_significant_bit() const noexcept {
-    return static_cast<int64_t>(h) < 0;
-  }
-
   cxx11_constexpr uint32_t most_significant_word() const noexcept {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     return u32[3];
@@ -154,6 +150,14 @@ union uint128_t {
 #else
 #error "FIXME: Unsupported byte order"
 #endif /* __BYTE_ORDER__ */
+  }
+
+  cxx11_constexpr bool most_significant_bit() const noexcept {
+#ifdef ERTHINK_ARCH64
+    return static_cast<int64_t>(h) < 0;
+#else
+    return static_cast<int32_t>(most_significant_word()) < 0;
+#endif /* ERTHINK_ARCH64 */
   }
 
   __nothrow_pure_function static erthink_u128_constexpr
