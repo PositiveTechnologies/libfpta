@@ -445,24 +445,27 @@ erthink_u128_constexpr uint128_t operator--(uint128_t &v, int) noexcept {
 }
 
 erthink_u128_constexpr uint128_t &operator+=(uint128_t &x,
-                                             uint128_t y) noexcept {
+                                             const uint128_t &y) noexcept {
   return x = x + y;
 }
 
 erthink_u128_constexpr uint128_t &operator-=(uint128_t &x,
-                                             uint128_t y) noexcept {
+                                             const uint128_t &y) noexcept {
   return x = x - y;
 }
 
-cxx11_constexpr uint128_t &operator|=(uint128_t &x, uint128_t y) noexcept {
+cxx11_constexpr uint128_t &operator|=(uint128_t &x,
+                                      const uint128_t &y) noexcept {
   return x = x | y;
 }
 
-cxx11_constexpr uint128_t &operator&=(uint128_t &x, uint128_t y) noexcept {
+cxx11_constexpr uint128_t &operator&=(uint128_t &x,
+                                      const uint128_t &y) noexcept {
   return x = x & y;
 }
 
-cxx11_constexpr uint128_t &operator^=(uint128_t &x, uint128_t y) noexcept {
+cxx11_constexpr uint128_t &operator^=(uint128_t &x,
+                                      const uint128_t &y) noexcept {
   return x = x ^ y;
 }
 
@@ -496,8 +499,8 @@ cxx11_constexpr bool operator!=(const uint128_t &x,
 #endif /* ERTHINK_USE_NATIVE_128 */
 }
 
-cxx11_constexpr bool operator>(const uint128_t &x,
-                               const uint128_t &y) noexcept {
+erthink_u128_constexpr bool operator>(const uint128_t &x,
+                                      const uint128_t &y) noexcept {
 #if ERTHINK_USE_NATIVE_128
   return x.u128 > y.u128;
 #else
@@ -505,8 +508,8 @@ cxx11_constexpr bool operator>(const uint128_t &x,
 #endif /* ERTHINK_USE_NATIVE_128 */
 }
 
-cxx11_constexpr bool operator<(const uint128_t &x,
-                               const uint128_t &y) noexcept {
+erthink_u128_constexpr bool operator<(const uint128_t &x,
+                                      const uint128_t &y) noexcept {
 #if ERTHINK_USE_NATIVE_128
   return x.u128 < y.u128;
 #else
@@ -514,12 +517,13 @@ cxx11_constexpr bool operator<(const uint128_t &x,
 #endif /* ERTHINK_USE_NATIVE_128 */
 }
 
-cxx11_constexpr bool operator>=(const uint128_t &x,
-                                const uint128_t &y) noexcept {
+erthink_u128_constexpr bool operator>=(const uint128_t &x,
+                                       const uint128_t &y) noexcept {
   return !(x < y);
 }
-cxx11_constexpr bool operator<=(const uint128_t &x,
-                                const uint128_t &y) noexcept {
+
+erthink_u128_constexpr bool operator<=(const uint128_t &x,
+                                       const uint128_t &y) noexcept {
   return !(x > y);
 }
 
