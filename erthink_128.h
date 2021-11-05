@@ -33,8 +33,10 @@
 #endif                          /* _MSC_VER (warnings) */
 
 #ifdef __cplusplus
+#include "erthink_casting.h++" // for erthink::enable_if_t stub
 #include "erthink_dynamic_constexpr.h++"
 #include <array>
+#include <type_traits>
 #include <utility>
 
 namespace erthink {
@@ -79,35 +81,31 @@ union uint128_t {
 #ifdef __cplusplus
   uint128_t() = default;
   cxx11_constexpr uint128_t(const uint128_t &) = default;
-
+  cxx11_constexpr uint128_t &operator=(const uint128_t &) noexcept = default;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   cxx11_constexpr uint128_t(uint64_t h, uint64_t l) noexcept : l(l), h(h) {}
-  cxx11_constexpr uint128_t(uint64_t u) noexcept : l(u), h(0) {}
-  cxx11_constexpr uint128_t(int64_t i) noexcept : l(i), h(i >> 63) {}
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   cxx11_constexpr uint128_t(uint64_t h, uint64_t l) noexcept : h(h), l(l) {}
-  cxx11_constexpr uint128_t(uint64_t u) noexcept : h(0), l(u) {}
-  cxx11_constexpr uint128_t(int64_t i) noexcept : h(i >> 63), l(i) {}
 #else
 #error "FIXME: Unsupported byte order"
 #endif /* __BYTE_ORDER__ */
-  cxx11_constexpr uint128_t(unsigned u) noexcept : uint128_t(uint64_t(u)) {}
-  cxx11_constexpr uint128_t(int i) noexcept : uint128_t(int64_t(i)) {}
 
-  cxx11_constexpr explicit operator uint64_t() const noexcept { return l; }
-  cxx11_constexpr explicit operator uint32_t() const noexcept {
-    return uint32_t(l);
+  template <typename T, typename = typename erthink::enable_if_t<
+                            std::is_convertible<T, uint64_t>::value>>
+  cxx11_constexpr uint128_t(const T &v) noexcept
+      : uint128_t(std::is_signed<T>::value ? static_cast<int64_t>(v) >> 63 : 0,
+                  static_cast<uint64_t>(v)) {}
+
+  template <typename T, typename = typename erthink::enable_if_t<
+                            std::is_convertible<uint64_t, T>::value>>
+  cxx11_constexpr explicit operator T() const noexcept {
+    return T(l);
   }
-  cxx11_constexpr uint128_t &operator=(const uint128_t &) noexcept = default;
-  cxx11_constexpr uint128_t &operator=(const uint64_t u) noexcept {
-    l = u;
-    h = 0;
-    return *this;
-  }
-  cxx11_constexpr uint128_t &operator=(const int64_t i) noexcept {
-    l = i;
-    h = i >> 63;
-    return *this;
+
+  template <typename T, typename = typename erthink::enable_if_t<
+                            std::is_convertible<T, uint64_t>::value>>
+  cxx11_constexpr uint128_t &operator=(const T &v) noexcept {
+    return operator=(uint128_t(v));
   }
 
 #ifdef ERTHINK_NATIVE_U128_TYPE
