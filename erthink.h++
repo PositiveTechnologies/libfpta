@@ -29,6 +29,7 @@
 #include "erthink.h"
 #include "erthink_casting.h++"
 #include "erthink_clz.h++"
+#include "erthink_constexpr_cstr.h++"
 #include "erthink_d2a.h++"
 #include "erthink_dynamic_constexpr.h++"
 #include "erthink_misc.h++"

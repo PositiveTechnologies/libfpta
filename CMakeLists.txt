@@ -244,6 +244,7 @@ set(erthink_HEADERS
   erthink.h++
   erthink_casting.h++
   erthink_clz.h++
+  erthink_constexpr_cstr.h++
   erthink_d2a.h++
   erthink_dynamic_constexpr.h++
   erthink_misc.h++
