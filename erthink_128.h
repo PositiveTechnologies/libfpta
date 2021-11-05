@@ -36,6 +36,7 @@
 #include "erthink_casting.h++" // for erthink::enable_if_t stub
 #include "erthink_dynamic_constexpr.h++"
 #include <array>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -185,6 +186,24 @@ union uint128_t {
 typedef union uint128_t uint128_t;
 #else
 
+//------------------------------------------------------------------------------
+} // namespace erthink
+namespace std {
+
+template <>
+struct numeric_limits<erthink::uint128_t> : public numeric_limits<unsigned> {
+  using type = erthink::uint128_t;
+  static constexpr int radix = 2;
+  static constexpr int digits = 128;
+  static constexpr int digits10 = /* 39 */ 1 + 128 * 643l / 2136;
+  static constexpr type max() noexcept {
+    /* 340282366920938463463374607431768211455 */
+    return type(~uint64_t(0), ~uint64_t(0));
+  }
+};
+
+} // namespace std
+namespace erthink {
 //------------------------------------------------------------------------------
 
 #if !ERTHINK_USE_NATIVE_128
