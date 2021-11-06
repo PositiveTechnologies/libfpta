@@ -34,11 +34,31 @@
 
 #ifdef __cplusplus
 #include "erthink_casting.h++" // for erthink::enable_if_t stub
+#include "erthink_constexpr_cstr.h++"
 #include "erthink_dynamic_constexpr.h++"
+#include <algorithm> // for std::reverse
 #include <array>
 #include <limits>
+#include <ostream>
+#include <string>
+#include <system_error>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+
+#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+#include <charconv>
+#define HAVE_std_to_chars 1
+#else
+#define HAVE_std_to_chars 0
+#endif /* __cpp_lib_to_chars */
+
+#if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606L
+#include <string_view>
+#define HAVE_std_string_view 1
+#else
+#define HAVE_std_string_view 0
+#endif /* __cpp_lib_string_view */
 
 namespace erthink {
 #endif /* __cplusplus */
@@ -179,6 +199,40 @@ union uint128_t {
     return quotient_remainder.second;
   }
 
+  cxx11_constexpr std::pair<char *, std::errc>
+  to_chars(char *first, char *last, unsigned base = 10) const noexcept;
+  inline std::string to_string(unsigned base = 10,
+                               const std::string::allocator_type &alloc =
+                                   std::string::allocator_type()) const;
+  std::string to_hex() const { return to_string(16); }
+
+  static cxx11_constexpr std::tuple<const char *, uint128_t, std::errc>
+  from_chars(const char *first, const char *last, unsigned base = 10) noexcept;
+  static cxx11_constexpr uint128_t from_string(const char *begin,
+                                               const char *end,
+                                               unsigned base = 0);
+
+#if HAVE_std_string_view
+  static cxx11_constexpr std::tuple<const char *, uint128_t, std::errc>
+  from_chars(const std::string_view &sv, unsigned base = 10) noexcept {
+    return from_chars(sv.data(), sv.data() + sv.length(), base);
+  }
+  static cxx11_constexpr uint128_t from_string(const std::string_view &sv,
+                                               unsigned base = 0) {
+    return from_string(sv.data(), sv.data() + sv.length(), base);
+  }
+#endif /* HAVE_std_string_view*/
+
+  static cxx11_constexpr uint128_t from_string(const char *cstr,
+                                               unsigned base = 0) {
+    return from_string(cstr, cstr ? cstr + strlen(cstr) : cstr, base);
+  }
+  friend constexpr uint128_t operator"" _u128(const char *str) {
+    return uint128_t::from_string(str);
+  }
+
+  friend inline std::ostream &operator<<(std::ostream &out, uint128_t);
+
 #endif /* __cplusplus */
 };
 
@@ -201,6 +255,31 @@ struct numeric_limits<erthink::uint128_t> : public numeric_limits<unsigned> {
     return type(~uint64_t(0), ~uint64_t(0));
   }
 };
+
+inline std::string to_string(const erthink::uint128_t &v, unsigned base = 10) {
+  return v.to_string(base);
+}
+
+#if HAVE_std_to_chars
+
+cxx11_constexpr std::to_chars_result to_chars(char *first, char *last,
+                                              const erthink::uint128_t &value,
+                                              int base = 10) noexcept {
+  const auto pair = value.to_chars(first, last, base);
+  return {pair.first, pair.second};
+}
+
+cxx11_constexpr std::from_chars_result from_chars(const char *first,
+                                                  const char *last,
+                                                  erthink::uint128_t &value,
+                                                  int base = 10) noexcept {
+  const auto triplet = erthink::uint128_t::from_chars(first, last, base);
+  if (std::get<0>(triplet) != first && std::get<2>(triplet) == std::errc())
+    value = std::get<1>(triplet);
+  return {std::get<0>(triplet), std::get<2>(triplet)};
+}
+
+#endif /* HAVE_std_to_chars*/
 
 } // namespace std
 namespace erthink {
@@ -529,8 +608,22 @@ erthink_u128_constexpr bool operator<=(const uint128_t &x,
 
 //------------------------------------------------------------------------------
 
-#if !ERTHINK_USE_NATIVE_128
 namespace details {
+
+cxx11_constexpr unsigned char2digit(char c) noexcept {
+  if (c <= '9')
+    /* intentional unsigned overflow during subtraction in case c < '0' */
+    return unsigned(c) - '0';
+  c |= 32;
+  return (c >= 'a') ? c - 'a' + 10 : ~0u;
+}
+
+cxx11_constexpr char digit2char(unsigned char d,
+                                unsigned char alphabase = 'a') noexcept {
+  return (d < 10) ? d + '0' : d + alphabase - 10;
+}
+
+#if !ERTHINK_USE_NATIVE_128
 
 /* Based on "Improved division by invariant integers"
  * https://gmplib.org/~tege/division-paper.pdf */
@@ -661,8 +754,9 @@ divmod_s128(const uint128_t &x, const uint128_t &y) noexcept {
   return pair;
 }
 
-} // namespace details
 #endif /* ERTHINK_USE_NATIVE_128 */
+
+} // namespace details
 
 erthink_u128_constexpr uint128_t operator*(const uint128_t &x,
                                            const uint128_t &y) noexcept {
@@ -754,8 +848,165 @@ template <> constexpr_intrin uint128_t bswap<uint128_t>(uint128_t v) {
   return bswap128(v);
 }
 
+//------------------------------------------------------------------------------
+
+cxx11_constexpr std::pair<char *, std::errc>
+uint128_t::to_chars(char *first, char *last, unsigned base) const noexcept {
+  if (unlikely(base < 2 || base > 36))
+    return {nullptr, std::errc::invalid_argument};
+
+  auto v = *this;
+  auto p = last;
+  do {
+    const auto d = char(v.divmod_remainder(base));
+    if (unlikely(p <= first))
+      return {last, std::errc::value_too_large};
+    *--p = details::digit2char(d);
+  } while (v);
+
+  const auto len = last - p;
+  if (p > first)
+    std::memmove(first, p, len);
+  return {first + len, std::errc()};
+}
+
+inline std::string
+uint128_t::to_string(unsigned base,
+                     const std::string::allocator_type &alloc) const {
+  if (unlikely(base < 2 || base > 36))
+    throw std::invalid_argument("invalid base");
+
+  if (*this < uint128_t(base))
+    return std::string(details::digit2char(char(*this)), 1, alloc);
+
+  std::string str(alloc);
+  auto v = *this;
+  do {
+    const auto d = char(v.divmod_remainder(base));
+    str.push_back(details::digit2char(d));
+  } while (v);
+
+  std::reverse(str.begin(), str.end());
+  return str;
+}
+
+inline std::ostream &operator<<(std::ostream &out, uint128_t v) {
+  const auto flags = out.flags();
+  assert(flags & std::ios_base::basefield);
+
+  // producing digits in reverse order (from least to most significant)
+  std::array<char, /* enough for octal representation */ 128 / 3 + 1> buffer;
+  auto digits = buffer.end();
+  do {
+    char d;
+    if (flags & std::ios_base::dec) {
+      d = char(v.divmod_remainder(10)) + '0';
+    } else {
+      d = char(v) & ((flags & std::ios_base::hex) ? 15 : 7);
+      v >>= (flags & std::ios_base::hex) ? 4 : 3;
+      d += d < 10 ? '0'
+                  : (flags & std::ios_base::uppercase) ? 'A' - 10 : 'a' - 10;
+    }
+    assert(digits > buffer.begin() && digits <= buffer.end());
+    *--digits = d;
+  } while (v);
+
+  // compute the result width and padding for adjustment
+  const auto prefix_len =
+      ((flags & std::ios_base::showpos) ? /* the '+' sign */ 1 : 0) +
+      ((std::ios_base::showbase !=
+        (flags & (std::ios_base::showbase | std::ios_base::dec)))
+           ? /* no prefix for decimal */ 0
+           : (flags & std::ios_base::hex) ? /* '0x' for hex */ 2
+                                          : /* '0' for octal */ 1);
+  auto padding = out.width() - (buffer.end() - digits + prefix_len);
+
+  // padding at the left up to target width in case of right adjustment
+  if (flags & std::ios_base::right)
+    while (padding-- > 0 && !out.bad())
+      out.put(out.fill());
+
+  // put sign and base prefix if required
+  if (prefix_len) {
+    static const char pattern[] = {'+', '0', 'x', '+', '0', 'X'};
+    const char *prefix =
+        (flags & std::ios_base::uppercase) ? pattern + 4 : pattern + 1;
+    out.write((flags & std::ios_base::showpos) ? prefix - 1 : prefix,
+              prefix_len);
+  }
+
+  // padding up to target width in case of internal adjustment
+  if (flags & std::ios_base::internal)
+    while (padding-- > 0 && !out.bad())
+      out.put(out.fill());
+
+  // output digits
+  out.write(&*digits, buffer.end() - digits);
+
+  // padding at the right up to target width in case of left adjustment
+  if (flags & std::ios_base::left)
+    while (padding-- > 0 && !out.bad())
+      out.put(out.fill());
+
+  return out;
+}
+
+//------------------------------------------------------------------------------
+
+cxx11_constexpr std::tuple<const char *, uint128_t, std::errc>
+uint128_t::from_chars(const char *first, const char *last,
+                      unsigned base) noexcept {
+  auto scan = first;
+  if (!base) {
+    base = 10;
+    if (scan + 1 < last && scan[0] == '0') {
+      const unsigned is_hex = (scan[1] | 32) == 'x';
+      scan += is_hex + 1;
+      base = 8 << is_hex;
+    }
+  }
+
+  uint128_t result(0);
+  if (unlikely(base < 2 || base > 36))
+    return {nullptr, result, std::errc::invalid_argument};
+
+  int_fast8_t state = 0 /* no pattern match case */;
+  while (likely(scan < last)) {
+    const auto digit = details::char2digit(*scan);
+    if (unlikely(digit >= base))
+      break;
+    const auto next = result * uint128_t(10) + uint128_t(digit);
+    state |= likely(result >= next) ? 1 /* pattern match */
+                                    : -1 /* overflow case */;
+    result = next;
+    ++scan;
+  }
+
+  const std::errc rc = likely(state > 0)
+                           ? std::errc()
+                           : (state ? std::errc::result_out_of_range
+                                    : std::errc::invalid_argument);
+  return {scan, result, rc};
+}
+
+cxx11_constexpr uint128_t uint128_t::from_string(const char *begin,
+                                                 const char *end,
+                                                 unsigned base) {
+  constexpr_assert(end >= begin);
+  const auto tuple = from_chars(begin, end, base);
+  return (std::get<2>(tuple) == std::errc() && std::get<0>(tuple) == end)
+             ? std::get<1>(tuple)
+             : (((std::get<2>(tuple) == std::errc::result_out_of_range)
+                     ? throw std::out_of_range(begin)
+                     : std::get<0>(tuple)
+                           ? throw std::invalid_argument(begin)
+                           : throw std::invalid_argument("invalid base"),
+                 std::get<1>(tuple)));
+}
+
 } // namespace erthink
-#endif
+
+#endif /* __cplusplus */
 
 #ifdef _MSC_VER
 #pragma warning(pop)
