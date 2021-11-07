@@ -792,7 +792,31 @@ inline std::ostream &operator<<(std::ostream &out,
   return out.write(buf, end - buf);
 }
 
-template <typename T> class fpclassify;
+template <typename T> class fpclassify {
+  const int std_fpclassify;
+  const bool negative;
+
+public:
+  fpclassify(const T &value) noexcept
+      : std_fpclassify(::std::fpclassify(value)), negative(value < T(0)) {}
+
+  constexpr bool is_negative() const noexcept { return negative; }
+  constexpr bool is_zero() const noexcept { return std_fpclassify == FP_ZERO; }
+  constexpr bool is_finite() const noexcept {
+    return std_fpclassify != FP_INFINITE;
+  }
+  constexpr bool is_nan() const noexcept { return std_fpclassify == FP_NAN; }
+  constexpr bool is_infinity() const noexcept {
+    return std_fpclassify == FP_INFINITE;
+  }
+  constexpr bool is_normal() const noexcept {
+    return std_fpclassify == FP_NORMAL;
+  }
+  constexpr bool is_subnormal() const noexcept {
+    return std_fpclassify == FP_SUBNORMAL;
+  }
+  constexpr operator int() const noexcept { return std_fpclassify; }
+};
 
 template <> class fpclassify<float> {
   using type = uint32_t;
