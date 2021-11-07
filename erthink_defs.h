@@ -199,7 +199,8 @@
 #define cxx01_constexpr __inline
 #define cxx01_constexpr_var const
 #elif !defined(DOXYGEN) &&                                                     \
-    (!defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                 \
+    ((__cplusplus < 201103L && defined(__cpp_constexpr) &&                     \
+      __cpp_constexpr < 200704L) ||                                            \
      (defined(__LCC__) && __LCC__ < 124) ||                                    \
      (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ < 407) &&          \
       !defined(__clang__) && !defined(__LCC__)) ||                             \
@@ -218,7 +219,7 @@
 #define cxx11_constexpr __inline
 #define cxx11_constexpr_var const
 #elif !defined(DOXYGEN) &&                                                     \
-    (!defined(__cpp_constexpr) || __cpp_constexpr < 201304 ||                  \
+    (!defined(__cpp_constexpr) || __cpp_constexpr < 201304L ||                 \
      (defined(__LCC__) && __LCC__ < 124) ||                                    \
      (defined(__GNUC__) && __GNUC__ < 6 && !defined(__clang__) &&              \
       !defined(__LCC__)) ||                                                    \
@@ -290,13 +291,13 @@
 #endif
 #endif /* if_constexpr */
 
-#if !defined(constexpr_assert)
-#if !defined(__cpp_constexpr) || __cpp_constexpr >= 201304L
-#define constexpr_assert(cond) assert(cond)
+#ifndef CONSTEXPR_ASSERT
+#if defined NDEBUG
+#define CONSTEXPR_ASSERT(expr) void(0)
 #else
-#define constexpr_assert(cond)
+#define CONSTEXPR_ASSERT(expr) ((expr) ? void(0) : [] { assert(!#expr); }())
 #endif
-#endif /* constexpr_assert */
+#endif /* CONSTEXPR_ASSERT */
 
 #ifndef NDEBUG_CONSTEXPR
 #ifdef NDEBUG

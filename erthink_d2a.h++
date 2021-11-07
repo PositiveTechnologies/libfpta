@@ -695,7 +695,7 @@ struct fractional_printer : public ieee754_default_printer<true, 32> {
   }
 
   void sign(bool negative) cxx11_noexcept {
-    constexpr_assert(!negative);
+    assert(!negative);
     (void)negative;
   }
 
@@ -822,13 +822,11 @@ public:
   constexpr bool is_subnormal() const noexcept {
     return is_finite() && (value & UINT32_C(0x7fffFFFF)) < UINT32_C(0x00800000);
   }
-  cxx11_constexpr operator int() const noexcept {
-    if (likely(is_finite())) {
-      if (likely(is_normal()))
-        return FP_NORMAL;
-      return is_zero() ? FP_ZERO : FP_SUBNORMAL;
-    }
-    return is_infinity() ? FP_INFINITE : FP_NAN;
+  constexpr operator int() const noexcept {
+    return likely(is_finite())
+               ? (likely(is_normal()) ? FP_NORMAL
+                                      : (is_zero() ? FP_ZERO : FP_SUBNORMAL))
+               : is_infinity() ? FP_INFINITE : FP_NAN;
   }
 };
 
@@ -865,13 +863,11 @@ public:
     return is_finite() && (value & UINT64_C(0x7fffFFFFffffFFFF)) <
                               UINT64_C(0x0010000000000000);
   }
-  cxx11_constexpr operator int() const noexcept {
-    if (likely(is_finite())) {
-      if (likely(is_normal()))
-        return FP_NORMAL;
-      return is_zero() ? FP_ZERO : FP_SUBNORMAL;
-    }
-    return is_infinity() ? FP_INFINITE : FP_NAN;
+  constexpr operator int() const noexcept {
+    return likely(is_finite())
+               ? (likely(is_normal()) ? FP_NORMAL
+                                      : (is_zero() ? FP_ZERO : FP_SUBNORMAL))
+               : is_infinity() ? FP_INFINITE : FP_NAN;
   }
 };
 

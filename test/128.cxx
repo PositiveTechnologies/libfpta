@@ -30,22 +30,22 @@ struct uint64_lcg {
   using result_type = uint64_t;
   result_type state;
 
-  cxx11_constexpr uint64_lcg(uint64_t seed) noexcept : state(seed) {}
-  static cxx11_constexpr result_type min() noexcept { return 0; }
-  static cxx11_constexpr result_type max() noexcept { return ~result_type(0); }
-  cxx11_constexpr result_type operator()() {
+  constexpr uint64_lcg(uint64_t seed) noexcept : state(seed) {}
+  static constexpr result_type min() noexcept { return 0; }
+  static constexpr result_type max() noexcept { return ~result_type(0); }
+  cxx14_constexpr result_type operator()() {
     const result_type r = (state += UINT64_C(1442695040888963407));
     state *= UINT64_C(6364136223846793005);
     return r;
   }
-  cxx11_constexpr result_type operator()(size_t range) {
+  cxx14_constexpr result_type operator()(size_t range) {
     return operator()() % range;
   }
 };
 
 static uint64_lcg lcg(uint64_t(time(0)));
 
-static auto random_shuffle_0_127() noexcept {
+static std::array<unsigned, 128> random_shuffle_0_127() noexcept {
   std::array<unsigned, 128> r;
   std::iota(r.begin(), r.end(), 0);
   std::shuffle(r.begin(), r.end(), lcg);

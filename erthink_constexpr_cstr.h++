@@ -32,7 +32,7 @@
 
 namespace erthink {
 
-static cxx11_constexpr size_t strlen_constexpr(const char *c_str) noexcept {
+static cxx14_constexpr size_t strlen_constexpr(const char *c_str) noexcept {
   for (size_t i = 0; c_str; ++i)
     if (!c_str[i])
       return i;
