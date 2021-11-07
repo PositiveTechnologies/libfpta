@@ -1798,11 +1798,10 @@ static inline uint64_t cast_wide(uint32_t value) { return value; }
 static inline uint64_t cast_wide(uint64_t value) { return value; }
 static inline double_t cast_wide(float value) { return value; }
 static inline double_t cast_wide(double value) { return value; }
-#if FLT_EVAL_METHOD > 1
-static inline double_t cast_wide(double_t /*long double*/ value) {
-  return value;
-}
-#endif
+#if defined(LDBL_MANT_DIG) && defined(LDBL_MAX_EXP) &&                         \
+    (LDBL_MANT_DIG != DBL_MANT_DIG || LDBL_MAX_EXP != DBL_MAX_EXP)
+static inline double_t cast_wide(long double value) { return value; }
+#endif /* long double */
 
 template <typename VALUE_TYPE, typename RANGE_BEGIN_TYPE,
           typename RANGE_END_TYPE>
