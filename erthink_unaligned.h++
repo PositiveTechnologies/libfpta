@@ -43,10 +43,16 @@
 
 namespace erthink {
 
+#if __GNUC_PREREQ(5, 0) || !defined(_GCC_MAX_ALIGN_T)
+using max_align_t = std::max_align_t;
+#else
+using max_align_t = ::max_align_t;
+#endif
+
 template <typename T, unsigned expected_alignment = 1>
 static T cxx20_constexpr peek_unaligned(const T *source) noexcept {
   constexpr auto required_alignment =
-      std::min(sizeof(T), std::max(alignof(T), alignof(std::max_align_t)));
+      std::min(sizeof(T), std::max(alignof(T), alignof(max_align_t)));
   if (ERTHINK_UNALIGNED_OK || expected_alignment >= required_alignment)
     return *source;
   else {
@@ -59,7 +65,7 @@ static T cxx20_constexpr peek_unaligned(const T *source) noexcept {
 template <typename T, unsigned expected_alignment = 1>
 static T cxx20_constexpr poke_unaligned(T *target, const T &source) noexcept {
   constexpr auto required_alignment =
-      std::min(sizeof(T), std::max(alignof(T), alignof(std::max_align_t)));
+      std::min(sizeof(T), std::max(alignof(T), alignof(max_align_t)));
   if (ERTHINK_UNALIGNED_OK || expected_alignment >= required_alignment)
     return *target = source;
   else {
