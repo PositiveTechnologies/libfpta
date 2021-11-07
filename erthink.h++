@@ -35,6 +35,7 @@
 #include "erthink_misc.h++"
 #include "erthink_short_alloc.h++"
 #include "erthink_u2a.h++"
+#include "erthink_unaligned.h++"
 
 #ifdef _MSC_VER
 #pragma warning(pop)
