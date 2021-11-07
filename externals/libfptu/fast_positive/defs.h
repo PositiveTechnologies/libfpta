@@ -255,13 +255,13 @@
 #endif
 #endif /* if_constexpr */
 
-#if !defined(constexpr_assert)
-#if !defined(__cpp_constexpr) || __cpp_constexpr >= 201304L
-#define constexpr_assert(cond) assert(cond)
+#ifndef CONSTEXPR_ASSERT
+#if defined NDEBUG
+#define CONSTEXPR_ASSERT(expr) void(0)
 #else
-#define constexpr_assert(cond)
+#define CONSTEXPR_ASSERT(expr) ((expr) ? void(0) : [] { assert(!#expr); }())
 #endif
-#endif /* constexpr_assert */
+#endif /* CONSTEXPR_ASSERT */
 
 #ifndef NDEBUG_CONSTEXPR
 #ifdef NDEBUG

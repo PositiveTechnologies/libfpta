@@ -727,7 +727,7 @@ static __inline float fptu_fp32_denil(void) {
 #else
   const uint32_t u32 = FPTU_DENIL_FP32_BIN;
   float fp32 = 0.0;
-  constexpr_assert(sizeof(u32) == sizeof(fp32));
+  assert(sizeof(u32) == sizeof(fp32));
   memcpy(&fp32, &u32, sizeof(fp32));
   return fp32;
 #endif /* FPTU_DENIL_FP32_MAS */
@@ -752,7 +752,7 @@ static __inline double fptu_fp64_denil(void) {
 #else
   const uint64_t u64 = FPTU_DENIL_FP64_BIN;
   double fp64 = 0.0;
-  constexpr_assert(sizeof(u64) == sizeof(fp64));
+  assert(sizeof(u64) == sizeof(fp64));
   memcpy(&fp64, &u64, sizeof(fp64));
   return fp64;
 #endif /* FPTU_DENIL_FP64_MAS */
