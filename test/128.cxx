@@ -140,6 +140,45 @@ static void probe_full(const erthink::uint128_t &a,
 
 //------------------------------------------------------------------------------
 
+TEST(u128, from_to_chars) {
+  using erthink::operator"" _u128;
+  ASSERT_EQ(std::to_string(std::numeric_limits<erthink::uint128_t>::max()),
+            "340282366920938463463374607431768211455");
+  ASSERT_EQ(std::numeric_limits<erthink::uint128_t>::max(),
+            340282366920938463463374607431768211455_u128);
+
+  ASSERT_EQ(std::to_string(std::numeric_limits<erthink::uint128_t>::min()),
+            "0");
+  ASSERT_EQ(std::numeric_limits<erthink::uint128_t>::min(), 0_u128);
+
+#if HAVE_std_to_chars
+  const char *zero = "000000";
+  ASSERT_EQ(
+      std::get<1>(erthink::uint128_t::from_chars(zero, zero + strlen(zero))),
+      erthink::uint128_t(0));
+
+  const char *hex = "0x12345";
+  ASSERT_EQ(std::get<1>(erthink::uint128_t::from_chars(hex, hex + strlen(hex))),
+            erthink::uint128_t(0x12345));
+
+  const char *max = "340282366920938463463374607431768211455";
+  ASSERT_EQ(std::get<1>(erthink::uint128_t::from_chars(max, max + strlen(max))),
+            std::numeric_limits<erthink::uint128_t>::max());
+
+  const char *overflow = "0x340282366920938463463374607431768211455";
+  ASSERT_EQ(std::get<2>(erthink::uint128_t::from_chars(
+                overflow, overflow + strlen(overflow))),
+            std::errc::result_out_of_range);
+
+  const char *invalid = "098765x4321";
+  ASSERT_EQ(std::get<2>(erthink::uint128_t::from_chars(
+                invalid, invalid + strlen(invalid))),
+            std::errc::invalid_argument);
+#endif /* HAVE_std_to_chars */
+}
+
+//------------------------------------------------------------------------------
+
 TEST(u128, trivia) {
 #ifndef ERTHINK_NATIVE_U128_TYPE
   GTEST_SKIP();
