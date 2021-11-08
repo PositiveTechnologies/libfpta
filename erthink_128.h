@@ -49,16 +49,16 @@
 #if (defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L) ||          \
     (__cplusplus >= 201703L && defined(__GLIBCXX__) && __GLIBCXX__ > 20200304)
 #include <charconv>
-#define HAVE_std_to_chars 1
+#define ERTHINK_HAVE_std_to_chars 1
 #else
-#define HAVE_std_to_chars 0
+#define ERTHINK_HAVE_std_to_chars 0
 #endif /* __cpp_lib_to_chars */
 
 #if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606L
 #include <string_view>
-#define HAVE_std_string_view 1
+#define ERTHINK_HAVE_std_string_view 1
 #else
-#define HAVE_std_string_view 0
+#define ERTHINK_HAVE_std_string_view 0
 #endif /* __cpp_lib_string_view */
 
 namespace erthink {
@@ -209,7 +209,7 @@ union uint128_t {
                                                         const char *end,
                                                         unsigned base = 0);
 
-#if HAVE_std_string_view
+#if ERTHINK_HAVE_std_string_view
   static erthink_u128_constexpr14 std::tuple<const char *, uint128_t, std::errc>
   from_chars(const std::string_view &sv, unsigned base = 10) noexcept {
     return from_chars(sv.data(), sv.data() + sv.length(), base);
@@ -219,7 +219,7 @@ union uint128_t {
   from_string(const std::string_view &sv, unsigned base = 0) {
     return from_string(sv.data(), sv.data() + sv.length(), base);
   }
-#endif /* HAVE_std_string_view */
+#endif /* ERTHINK_HAVE_std_string_view */
 
   static erthink_u128_constexpr14 uint128_t from_string(const char *cstr,
                                                         unsigned base = 0) {
@@ -256,7 +256,7 @@ inline std::string to_string(const erthink::uint128_t &v, unsigned base = 10) {
   return v.to_string(base);
 }
 
-#if HAVE_std_to_chars
+#if ERTHINK_HAVE_std_to_chars
 
 erthink_u128_constexpr11 std::to_chars_result
 to_chars(char *first, char *last, const erthink::uint128_t &value,
@@ -274,7 +274,7 @@ from_chars(const char *first, const char *last, erthink::uint128_t &value,
   return {std::get<0>(triplet), std::get<2>(triplet)};
 }
 
-#endif /* HAVE_std_to_chars*/
+#endif /* ERTHINK_HAVE_std_to_chars */
 
 } // namespace std
 namespace erthink {
