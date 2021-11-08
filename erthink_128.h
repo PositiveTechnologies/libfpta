@@ -46,7 +46,8 @@
 #include <type_traits>
 #include <utility>
 
-#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+#if (defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L) ||          \
+    (__cplusplus >= 201703L && defined(__GLIBCXX__) && __GLIBCXX__ > 20200304)
 #include <charconv>
 #define HAVE_std_to_chars 1
 #else
@@ -203,7 +204,7 @@ union uint128_t {
   std::string to_hex() const { return to_string(16); }
 
   static erthink_u128_constexpr14 std::tuple<const char *, uint128_t, std::errc>
-  from_chars(const char *first, const char *last, unsigned base = 10) noexcept;
+  from_chars(const char *first, const char *last, unsigned base = 0) noexcept;
   static erthink_u128_constexpr14 uint128_t from_string(const char *begin,
                                                         const char *end,
                                                         unsigned base = 0);
@@ -224,12 +225,6 @@ union uint128_t {
                                                         unsigned base = 0) {
     return from_string(cstr, cstr ? cstr + strlen(cstr) : cstr, base);
   }
-
-  friend erthink_u128_constexpr14 uint128_t operator"" _u128(const char *str) {
-    return uint128_t::from_string(str);
-  }
-
-  friend inline std::ostream &operator<<(std::ostream &out, uint128_t);
 
 #endif /* __cplusplus */
 };
@@ -863,6 +858,11 @@ uint128_t::to_chars(char *first, char *last, unsigned base) const noexcept {
   if (unlikely(base < 2 || base > 36))
     return {nullptr, std::errc::invalid_argument};
 
+  if (*this < uint128_t(base)) {
+    *first = details::digit2char(char(*this));
+    return {first + 1, std::errc()};
+  }
+
   auto v = *this;
   auto p = last;
   do {
@@ -885,7 +885,7 @@ uint128_t::to_string(unsigned base,
     throw std::invalid_argument("invalid base");
 
   if (*this < uint128_t(base))
-    return std::string(details::digit2char(char(*this)), 1, alloc);
+    return std::string(1, details::digit2char(char(*this)), alloc);
 
   std::string str(alloc);
   auto v = *this;
@@ -930,7 +930,7 @@ inline std::ostream &operator<<(std::ostream &out, uint128_t v) {
   auto padding = out.width() - (buffer.end() - digits + prefix_len);
 
   // padding at the left up to target width in case of right adjustment
-  if (flags & std::ios_base::right)
+  if (!(flags & (std::ios_base::internal | std::ios_base::left)))
     while (padding-- > 0 && !out.bad())
       out.put(out.fill());
 
@@ -984,8 +984,8 @@ uint128_t::from_chars(const char *first, const char *last,
     const auto digit = details::char2digit(*scan);
     if (unlikely(digit >= base))
       break;
-    const auto next = result * uint128_t(10) + uint128_t(digit);
-    state |= likely(result >= next) ? 1 /* pattern match */
+    const auto next = result * uint128_t(base) + uint128_t(digit);
+    state |= likely(next >= result) ? 1 /* pattern match */
                                     : -1 /* overflow case */;
     result = next;
     ++scan;
@@ -1011,6 +1011,10 @@ erthink_u128_constexpr14 uint128_t uint128_t::from_string(const char *begin,
                            ? throw std::invalid_argument(begin)
                            : throw std::invalid_argument("invalid base"),
                  std::get<1>(tuple)));
+}
+
+erthink_u128_constexpr14 uint128_t operator"" _u128(const char *str) {
+  return uint128_t::from_string(str);
 }
 
 } // namespace erthink
