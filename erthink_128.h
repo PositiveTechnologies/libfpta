@@ -20,6 +20,7 @@
 #include "erthink_arch.h"
 #include "erthink_bswap.h"
 #include "erthink_byteorder.h"
+#include "erthink_carryadd.h"
 #include "erthink_clz.h++"
 #include "erthink_defs.h"
 #include "erthink_intrin.h"
@@ -334,13 +335,14 @@ gt128_constexpr(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
 
 static __nothrow_pure_function bool
 gt128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
-#if defined(sub64borrow_next) || __has_builtin(__builtin_subcll)
+#if defined(sub64borrow_next) || __has_builtin(__builtin_sub_overflow) ||      \
+    __has_builtin(__builtin_subcll)
   uint128_t unused;
   return sub64borrow_next(sub64borrow_first(y.l, x.l, &unused.l), y.h, x.h,
                           &unused.h);
 #else
   return gt128_constexpr(x, y);
-#endif /* sub64borrow_next || __builtin_subcll */
+#endif /* sub64borrow_next || __builtin_sub_overflow || __builtin_subcll */
 }
 
 ERTHINK_DYNAMIC_CONSTEXPR(bool, gt128, (const uint128_t &x, const uint128_t &y),
@@ -359,13 +361,14 @@ lt128_constexpr(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
 
 static __nothrow_pure_function bool
 lt128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
-#if defined(sub64borrow_next) || __has_builtin(__builtin_subcll)
+#if defined(sub64borrow_next) || __has_builtin(__builtin_sub_overflow) ||      \
+    __has_builtin(__builtin_subcll)
   uint128_t unused;
   return sub64borrow_next(sub64borrow_first(x.l, y.l, &unused.l), x.h, y.h,
                           &unused.h);
 #else
   return lt128_constexpr(x, y);
-#endif /* sub64borrow_next || __builtin_subcll */
+#endif /* sub64borrow_next || __builtin_sub_overflow || __builtin_subcll */
 }
 
 ERTHINK_DYNAMIC_CONSTEXPR(bool, lt128, (const uint128_t &x, const uint128_t &y),
