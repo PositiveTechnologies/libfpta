@@ -17,7 +17,7 @@
 
 #include "details.h"
 
-#include "../externals/libfptu/src/erthink/erthink_clz.h"
+#include "../externals/libfptu/src/erthink/erthink_clz.h++"
 
 /* Проверяет наличие в строке значений non-nullable колонок, которые
  * не индексированы, либо индексированы без ограничений уникальности.

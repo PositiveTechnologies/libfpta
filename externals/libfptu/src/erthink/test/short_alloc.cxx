@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2021 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/erthink/erthink
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,10 +15,10 @@
  *  limitations under the License.
  */
 
-#include "testing.h"
+#include "testing.h++"
 
 #include "erthink_defs.h"
-#include "erthink_short_alloc.h"
+#include "erthink_short_alloc.h++"
 
 #if __GLIBC_PREREQ(2, 4)
 #include <malloc.h>

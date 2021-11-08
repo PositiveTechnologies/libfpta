@@ -19,7 +19,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include "erthink/erthink.h"
+#include "erthink/erthink.h++"
 #include "fast_positive/tuples_internal.h"
 
 #ifdef _MSC_VER

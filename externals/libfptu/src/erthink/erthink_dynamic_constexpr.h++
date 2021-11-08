@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2021 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/erthink/erthink
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,10 +40,10 @@ cxx11_constexpr bool is_constant_evaluated() cxx11_noexcept {
 #if defined(__cpp_lib_is_constant_evaluated) &&                                \
     __cpp_lib_is_constant_evaluated >= 201811L
 
-#define erthink_dynamic_constexpr cxx11_constexpr
+#define erthink_dynamic_constexpr cxx14_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static cxx11_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED               \
+  static cxx14_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED               \
       cxx11_noexcept {                                                         \
     return ::std::is_constant_evaluated()                                      \
                ? NAME##_constexpr CALLARGS_PARENTHESIZED                       \
@@ -52,7 +52,7 @@ cxx11_constexpr bool is_constant_evaluated() cxx11_noexcept {
 
 #elif __GNUC_PREREQ(9, 0) || __has_builtin(__builtin_is_constant_evaluated)
 
-#define erthink_dynamic_constexpr cxx11_constexpr
+#define erthink_dynamic_constexpr cxx14_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
   static cxx14_constexpr RESULT_TYPE NAME DECLARGS_PARENTHESIZED               \
@@ -76,10 +76,10 @@ cxx11_constexpr bool is_constant_evaluated() cxx11_noexcept {
 
 #else
 
-#define erthink_dynamic_constexpr
+#define erthink_dynamic_constexpr inline
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
                                   CALLARGS_PARENTHESIZED, PROBE_ARG)           \
-  static RESULT_TYPE NAME DECLARGS_PARENTHESIZED cxx11_noexcept {              \
+  static inline RESULT_TYPE NAME DECLARGS_PARENTHESIZED cxx11_noexcept {       \
     return NAME##_dynamic CALLARGS_PARENTHESIZED;                              \
   }
 

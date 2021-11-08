@@ -16,7 +16,7 @@
  */
 
 #include "details.h"
-#include "externals/libfptu/src/erthink/erthink_casting.h"
+#include "externals/libfptu/src/erthink/erthink_casting.h++"
 
 //----------------------------------------------------------------------------
 

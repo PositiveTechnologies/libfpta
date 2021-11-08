@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 1994-2020 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 1994-2021 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/erthink/erthink
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +16,6 @@
  */
 
 #pragma once
-
-#if !defined(__cplusplus) || __cplusplus < 201103L
-#error "This source code requires C++11 at least."
-#endif
 
 #include "erthink_arch.h"
 #include "erthink_carryadd.h"

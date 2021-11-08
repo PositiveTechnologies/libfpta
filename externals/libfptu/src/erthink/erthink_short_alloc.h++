@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2020 Leonid Yuriev <leo@yuriev.ru>.
+ *  Copyright (c) 2019-2021 Leonid Yuriev <leo@yuriev.ru>.
  *  https://github.com/erthink/erthink
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -158,23 +158,25 @@ public:
   }
 
   cxx11_constexpr bool debug_check() const cxx11_noexcept {
+    return
 #ifndef NDEBUG
-    assert(checkpoint_A_ == signature_A);
-    assert(checkpoint_B_ == signature_B);
-    assert(checkpoint_C_ == signature_C);
-    assert(ptr_ >= buf_ && ptr_ <= buf_ + sizeof(buf_));
+        CONSTEXPR_ASSERT(checkpoint_A_ == signature_A),
+        CONSTEXPR_ASSERT(checkpoint_B_ == signature_B),
+        CONSTEXPR_ASSERT(checkpoint_C_ == signature_C),
+        CONSTEXPR_ASSERT(ptr_ >= buf_ && ptr_ <= buf_ + sizeof(buf_)),
 #endif
-    return true;
+        true;
   }
 
   allocation_arena(const allocation_arena &) = delete;
   allocation_arena &operator=(const allocation_arena &) = delete;
 
   cxx11_constexpr bool pointer_in_bounds(const void *ptr) const cxx11_noexcept {
+    return
 #ifndef NDEBUG
-    debug_check();
+        debug_check(),
 #endif
-    return pointer_in_buffer(static_cast<const char *>(ptr));
+        pointer_in_buffer(static_cast<const char *>(ptr));
   }
   cxx11_constexpr bool chunk_in_bounds(const void *ptr,
                                        std::size_t bytes) const cxx11_noexcept {
@@ -244,10 +246,11 @@ public:
   }
 
   cxx11_constexpr std::size_t used() const cxx11_noexcept {
+    return
 #ifndef NDEBUG
-    debug_check();
+        debug_check(),
 #endif
-    return static_cast<std::size_t>(ptr_ - buf_);
+        static_cast<std::size_t>(ptr_ - buf_);
   }
 
   void reset() cxx11_noexcept {
