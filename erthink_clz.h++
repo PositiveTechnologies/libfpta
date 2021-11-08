@@ -23,6 +23,7 @@
 
 #include "erthink_arch.h"
 #include "erthink_defs.h"
+#include "erthink_dynamic_constexpr.h++"
 #include "erthink_intrin.h"
 
 #ifdef _MSC_VER
@@ -35,9 +36,9 @@
 
 namespace erthink {
 
-template <typename T> cxx14_constexpr int clz(T v);
+template <typename T> cxx14_constexpr int clz(T v) noexcept;
 
-static cxx14_constexpr int fallback_clz32(uint32_t v) {
+static cxx14_constexpr int clz32_constexpr(uint32_t v) noexcept {
   v |= v >> 1;
   v |= v >> 2;
   v |= v >> 4;
@@ -49,11 +50,7 @@ static cxx14_constexpr int fallback_clz32(uint32_t v) {
   return deBruijn_clz32[v * UINT32_C(0x07C4ACDD) >> 27];
 }
 
-static cxx14_constexpr int fallback_clz64(uint64_t v) {
-#ifdef ERTHINK_ARCH32
-  const uint32_t hi = static_cast<uint32_t>(v >> 32);
-  return (hi ? 0 : 32) + fallback_clz32(hi ? hi : static_cast<uint32_t>(v));
-#else
+static cxx14_constexpr int clz64_constexpr(uint64_t v) noexcept {
   v |= v >> 1;
   v |= v >> 2;
   v |= v >> 4;
@@ -66,59 +63,87 @@ static cxx14_constexpr int fallback_clz64(uint64_t v) {
       17, 8,  37, 4,  23, 27, 48, 10, 29, 12, 43, 20, 32, 41, 53, 18,
       38, 24, 49, 30, 44, 33, 54, 39, 50, 45, 55, 51, 56, 57, 58, 0};
   return deBruijn_clz64[v * UINT64_C(0x03F79D71B4CB0A89) >> 58];
-#endif
 }
 
 #if defined(__GNUC__) || defined(__clang__)
 
-template <> cxx14_constexpr int clz<unsigned>(unsigned v) {
+template <> cxx14_constexpr int clz<unsigned>(unsigned v) noexcept {
   return __builtin_clz(v);
 }
-template <> cxx14_constexpr int clz<unsigned long>(unsigned long v) {
+template <> cxx14_constexpr int clz<unsigned long>(unsigned long v) noexcept {
   return __builtin_clzl(v);
 }
-template <> cxx14_constexpr int clz<unsigned long long>(unsigned long long v) {
+template <>
+cxx14_constexpr int clz<unsigned long long>(unsigned long long v) noexcept {
   return __builtin_clzll(v);
 }
 
-#elif defined(_MSC_VER) && !defined(__clang__)
+static cxx14_constexpr int clz64(uint64_t v) noexcept { return clz(v); }
+
+static cxx14_constexpr int clz32(uint32_t v) noexcept { return clz(v); }
+
+#elif defined(_MSC_VER)
 
 #pragma intrinsic(_BitScanReverse)
-template <> cxx14_constexpr int clz<uint32_t>(uint32_t v) {
+static constexpr_intrin int clz32_dynamic(uint32_t v) noexcept {
   unsigned long index;
   assert(v > 0);
   _BitScanReverse(&index, v);
-  return 31 - (int)index;
+  return 31 - int(index);
 }
 
+ERTHINK_DYNAMIC_CONSTEXPR(int, clz32, (uint32_t v), (v), v)
+
 #ifdef ERTHINK_ARCH64
+
 #pragma intrinsic(_BitScanReverse64)
-template <> cxx14_constexpr int clz<uint64_t>(uint64_t v) {
+static constexpr_intrin int clz64_dynamic(uint64_t v) noexcept {
   unsigned long index;
   assert(v > 0);
   _BitScanReverse64(&index, v);
-  return 63 - (int)index;
+  return 63 - int(index);
 }
+
+ERTHINK_DYNAMIC_CONSTEXPR(int, clz64, (uint64_t v), (v), v)
+
 #else
-template <> cxx14_constexpr int clz<uint64_t>(uint64_t v) {
-  return (v > UINT32_MAX) ? clz(static_cast<uint32_t>(v >> 32))
-                          : 32 + clz(static_cast<uint32_t>(v));
+
+static erthink_dynamic_constexpr int clz64(uint64_t v) noexcept {
+  const auto h = static_cast<uint32_t>(v >> 32);
+  return h ? clz32(h) : 32 + clz32(static_cast<uint32_t>(v));
 }
+
 #endif /* ARCH 32/64 */
+
+template <> erthink_dynamic_constexpr int clz<uint32_t>(uint32_t v) noexcept {
+  return clz32(v);
+}
+template <> erthink_dynamic_constexpr int clz<uint64_t>(uint64_t v) noexcept {
+  return clz64(v);
+}
 
 #else /* fallback */
 
-template <> cxx14_constexpr int clz<uint32_t>(uint32_t v) {
-  return fallback_clz32(v);
+static cxx14_constexpr int clz32(uint32_t v) noexcept {
+  return clz32_constexpr(v);
 }
-template <> cxx14_constexpr int clz<uint64_t>(uint64_t v) {
-  return fallback_clz64(v);
+
+static cxx14_constexpr int clz64(uint64_t v) noexcept {
+#ifdef ERTHINK_ARCH64
+  return clz64_constexpr(v);
+#else
+  const auto h = static_cast<uint32_t>(v >> 32);
+  return h ? clz32(h) : 32 + clz32(static_cast<uint32_t>(v));
+#endif
+}
+
+template <> cxx14_constexpr int clz<uint32_t>(uint32_t v) noexcept {
+  return clz32(v);
+}
+template <> cxx14_constexpr int clz<uint64_t>(uint64_t v) noexcept {
+  return clz64(v);
 }
 
 #endif /* compiler */
-
-static cxx14_constexpr int clz64(uint64_t v) { return clz(v); }
-
-static cxx14_constexpr int clz32(uint32_t v) { return clz(v); }
 
 } // namespace erthink

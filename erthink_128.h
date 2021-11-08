@@ -717,7 +717,7 @@ divmod_3by2(const uint64_t u2, const uint64_t u1, const uint64_t u0,
 erthink_u128_constexpr14 __nothrow_pure_function std::pair<uint128_t, uint128_t>
 divmod_u128(uint128_t x, uint128_t y) noexcept {
   if (y.h == 0) {
-    const unsigned s = clz(y.l);
+    const unsigned s = clz64(y.l);
     uint64_t o = 0;
     if (s) {
       o = x.h >> (64 - s);
@@ -733,7 +733,7 @@ divmod_u128(uint128_t x, uint128_t y) noexcept {
   if (y.h > x.h)
     return {0, x};
 
-  const unsigned s = clz(y.h);
+  const unsigned s = clz64(y.h);
   if (s == 0) {
     const unsigned q = (y.h < x.h) | (y.l <= x.l);
     return {q, q ? x - y : x};
@@ -822,32 +822,34 @@ erthink_u128_constexpr14 uint128_t &operator%=(uint128_t &x,
 
 //------------------------------------------------------------------------------
 
-template <>
-cxx14_constexpr uint128_t ror<uint128_t>(uint128_t v, unsigned s) noexcept {
+static cxx14_constexpr uint128_t ror128(uint128_t v, unsigned s) noexcept {
   return (s &= 127) ? (v << (128 - s)) | (v >> s) : v;
 }
 
-static cxx14_constexpr uint128_t ror128(uint128_t v, unsigned s) noexcept {
-  return ror(v, s);
+static cxx14_constexpr uint128_t rol128(uint128_t v, unsigned s) noexcept {
+  return (s &= 127) ? (v >> (128 - s)) | (v << s) : v;
+}
+
+static cxx14_constexpr int clz128(uint128_t v) noexcept {
+  return v.h ? clz64(v.h) : 64 + clz64(v.l);
+}
+
+static constexpr_intrin uint128_t bswap128(uint128_t v) noexcept {
+  return uint128_t(bswap(v.l), bswap(v.h));
+}
+
+template <>
+cxx14_constexpr uint128_t ror<uint128_t>(uint128_t v, unsigned s) noexcept {
+  return ror128(v, s);
 }
 
 template <>
 cxx14_constexpr uint128_t rol<uint128_t>(uint128_t v, unsigned s) noexcept {
-  return (s &= 127) ? (v >> (128 - s)) | (v << s) : v;
+  return rol128(v, s);
 }
 
-static cxx14_constexpr uint128_t rol128(uint128_t v, unsigned s) noexcept {
-  return rol(v, s);
-}
-
-template <> cxx14_constexpr int clz<uint128_t>(uint128_t v) {
-  return v.h ? clz(v.h) : 64 + clz(v.l);
-}
-
-static cxx14_constexpr int clz128(uint128_t v) { return clz(v); }
-
-static constexpr_intrin uint128_t bswap128(uint128_t v) noexcept {
-  return uint128_t(bswap(v.l), bswap(v.h));
+template <> cxx14_constexpr int clz<uint128_t>(uint128_t v) noexcept {
+  return clz128(v);
 }
 
 template <> constexpr_intrin uint128_t bswap<uint128_t>(uint128_t v) {

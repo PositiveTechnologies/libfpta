@@ -29,15 +29,15 @@ DEFINE_ENUM_FLAG_OPERATORS(foo)
 // LY: workaround for CLANG & GCC8
 #define INT64_LITERAL(x) int64_t(INT64_C(x))
 
-TEST(ops, fallback_clz32) {
-  EXPECT_EQ(31, erthink::fallback_clz32(1));
+TEST(ops, clz32_constexpr) {
+  EXPECT_EQ(31, erthink::clz32_constexpr(1));
   const uint32_t all = ~UINT32_C(0);
   for (int i = 0; i < 32; ++i) {
     SCOPED_TRACE("i = " + std::to_string(i));
     uint32_t bit = UINT32_C(1) << i;
-    EXPECT_EQ(31 - i, erthink::fallback_clz32(bit));
-    EXPECT_EQ((i == 31) ? 1 : 0, erthink::fallback_clz32(~bit));
-    EXPECT_EQ(i, erthink::fallback_clz32(all >> i));
+    EXPECT_EQ(31 - i, erthink::clz32_constexpr(bit));
+    EXPECT_EQ((i == 31) ? 1 : 0, erthink::clz32_constexpr(~bit));
+    EXPECT_EQ(i, erthink::clz32_constexpr(all >> i));
   }
 }
 
@@ -56,15 +56,15 @@ TEST(ops, clz32) {
 
 //------------------------------------------------------------------------------
 
-TEST(ops, fallback_clz64) {
-  EXPECT_EQ(63, erthink::fallback_clz64(1));
+TEST(ops, clz64_constexpr) {
+  EXPECT_EQ(63, erthink::clz64_constexpr(1));
   const uint64_t all = ~UINT64_C(0);
   for (int i = 0; i < 64; ++i) {
     SCOPED_TRACE("i = " + std::to_string(i));
     uint64_t bit = UINT64_C(1) << i;
-    EXPECT_EQ(63 - i, erthink::fallback_clz64(bit));
-    EXPECT_EQ((i == 63) ? 1 : 0, erthink::fallback_clz64(~bit));
-    EXPECT_EQ(i, erthink::fallback_clz64(all >> i));
+    EXPECT_EQ(63 - i, erthink::clz64_constexpr(bit));
+    EXPECT_EQ((i == 63) ? 1 : 0, erthink::clz64_constexpr(~bit));
+    EXPECT_EQ(i, erthink::clz64_constexpr(all >> i));
   }
 }
 
