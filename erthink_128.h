@@ -219,7 +219,7 @@ union uint128_t {
   from_string(const std::string_view &sv, unsigned base = 0) {
     return from_string(sv.data(), sv.data() + sv.length(), base);
   }
-#endif /* HAVE_std_string_view*/
+#endif /* HAVE_std_string_view */
 
   static erthink_u128_constexpr14 uint128_t from_string(const char *cstr,
                                                         unsigned base = 0) {
@@ -243,6 +243,9 @@ struct numeric_limits<erthink::uint128_t> : public numeric_limits<unsigned> {
   static constexpr int radix = 2;
   static constexpr int digits = 128;
   static constexpr int digits10 = /* 39 */ 1 + 128 * 643l / 2136;
+  static constexpr type epsilon() noexcept { return 0; }
+  static constexpr type lowest() noexcept { return 0; }
+  static constexpr type min() noexcept { return 0; }
   static constexpr type max() noexcept {
     /* 340282366920938463463374607431768211455 */
     return type(~uint64_t(0), ~uint64_t(0));
