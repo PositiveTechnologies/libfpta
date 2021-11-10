@@ -281,6 +281,26 @@ from_chars(const char *first, const char *last, erthink::uint128_t &value,
 namespace erthink {
 //------------------------------------------------------------------------------
 
+constexpr bool operator==(const uint128_t &x, const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return x.u128 == y.u128;
+#elif defined(ERTHINK_ARCH64)
+  return (x.l == y.l) & (x.h == y.h);
+#else
+  return (x.l == y.l) && (x.h == y.h);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+constexpr bool operator!=(const uint128_t &x, const uint128_t &y) noexcept {
+#if ERTHINK_USE_NATIVE_128
+  return x.u128 != y.u128;
+#elif defined(ERTHINK_ARCH64)
+  return (x.l != y.l) | (x.h != y.h);
+#else
+  return (x.l != y.l) || (x.h != y.h);
+#endif /* ERTHINK_USE_NATIVE_128 */
+}
+
 #if !ERTHINK_USE_NATIVE_128
 namespace details {
 
@@ -295,6 +315,7 @@ static __nothrow_pure_function uint128_t
 add128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
   uint128_t r;
   add64carry_last(add64carry_first(x.l, y.l, &r.l), x.h, y.h, &r.h);
+  assert(r == add128_constexpr(x, y));
   return r;
 }
 
@@ -315,6 +336,7 @@ static __nothrow_pure_function uint128_t
 sub128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
   uint128_t r;
   sub64borrow_last(sub64borrow_first(x.l, y.l, &r.l), x.h, y.h, &r.h);
+  assert(r == sub128_constexpr(x, y));
   return r;
 }
 
@@ -338,11 +360,13 @@ gt128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
 #if defined(sub64borrow_next) || __has_builtin(__builtin_sub_overflow) ||      \
     __has_builtin(__builtin_subcll)
   uint128_t unused;
-  return sub64borrow_next(sub64borrow_first(y.l, x.l, &unused.l), y.h, x.h,
-                          &unused.h);
+  const bool r = sub64borrow_next(sub64borrow_first(y.l, x.l, &unused.l), y.h,
+                                  x.h, &unused.h);
 #else
-  return gt128_constexpr(x, y);
+  const bool r = gt128_constexpr(x, y);
 #endif /* sub64borrow_next || __builtin_sub_overflow || __builtin_subcll */
+  assert(r == gt128_constexpr(x, y));
+  return r;
 }
 
 ERTHINK_DYNAMIC_CONSTEXPR(bool, gt128, (const uint128_t &x, const uint128_t &y),
@@ -364,11 +388,13 @@ lt128_dynamic(const uint128_t &x, const uint128_t &y) cxx11_noexcept {
 #if defined(sub64borrow_next) || __has_builtin(__builtin_sub_overflow) ||      \
     __has_builtin(__builtin_subcll)
   uint128_t unused;
-  return sub64borrow_next(sub64borrow_first(x.l, y.l, &unused.l), x.h, y.h,
-                          &unused.h);
+  const bool r = sub64borrow_next(sub64borrow_first(x.l, y.l, &unused.l), x.h,
+                                  y.h, &unused.h);
 #else
-  return lt128_constexpr(x, y);
+  const bool r = lt128_constexpr(x, y);
 #endif /* sub64borrow_next || __builtin_sub_overflow || __builtin_subcll */
+  assert(r == lt128_constexpr(x, y));
+  return r;
 }
 
 ERTHINK_DYNAMIC_CONSTEXPR(bool, lt128, (const uint128_t &x, const uint128_t &y),
@@ -395,6 +421,7 @@ umul128_constexpr(uint64_t x, uint64_t y) cxx11_noexcept {
 static __nothrow_pure_function uint128_t umul128_dynamic(uint64_t x, uint64_t y)
     cxx11_noexcept {
   uint64_t h, l = mul_64x64_128(x, y, &h);
+  assert(uint128_t(h, l) == umul128_constexpr(x, y));
   return uint128_t(h, l);
 }
 
@@ -558,26 +585,6 @@ cxx14_constexpr uint128_t &operator<<=(uint128_t &x, unsigned s) noexcept {
 
 cxx14_constexpr uint128_t &operator>>=(uint128_t &x, unsigned s) noexcept {
   return x = x >> s;
-}
-
-constexpr bool operator==(const uint128_t &x, const uint128_t &y) noexcept {
-#if ERTHINK_USE_NATIVE_128
-  return x.u128 == y.u128;
-#elif defined(ERTHINK_ARCH64)
-  return (x.l == y.l) & (x.h == y.h);
-#else
-  return (x.l == y.l) && (x.h == y.h);
-#endif /* ERTHINK_USE_NATIVE_128 */
-}
-
-constexpr bool operator!=(const uint128_t &x, const uint128_t &y) noexcept {
-#if ERTHINK_USE_NATIVE_128
-  return x.u128 != y.u128;
-#elif defined(ERTHINK_ARCH64)
-  return (x.l != y.l) | (x.h != y.h);
-#else
-  return (x.l != y.l) || (x.h != y.h);
-#endif /* ERTHINK_USE_NATIVE_128 */
 }
 
 erthink_u128_constexpr11 bool operator>(const uint128_t &x,
