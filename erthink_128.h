@@ -468,6 +468,10 @@ constexpr uint128_t operator<<(const uint128_t &v, unsigned s) noexcept {
 #endif /* ERTHINK_USE_NATIVE_128 */
 }
 
+constexpr uint128_t operator<<(const uint128_t &v, int s) noexcept {
+  return operator<<(v, unsigned(s));
+}
+
 constexpr uint128_t operator>>(const uint128_t &v, unsigned s) noexcept {
 #if ERTHINK_USE_NATIVE_128
   return CONSTEXPR_ASSERT(s < 128), uint128_t(v.u128 >> s);
@@ -477,6 +481,10 @@ constexpr uint128_t operator>>(const uint128_t &v, unsigned s) noexcept {
                    (s < 64) ? (s ? v.h << (64 - s) : 0) | (v.l >> s)
                             : v.h >> (s - 64));
 #endif /* ERTHINK_USE_NATIVE_128 */
+}
+
+constexpr uint128_t operator>>(const uint128_t &v, int s) noexcept {
+  return operator>>(v, unsigned(s));
 }
 
 constexpr uint128_t operator+(const uint128_t &v) noexcept { return v; }
