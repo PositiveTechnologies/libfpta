@@ -49,6 +49,11 @@
 
 #include <gtest/gtest.h>
 
+#ifndef GTEST_SKIP
+#define GTEST_SKIP()                                                           \
+  return GTEST_MESSAGE_("Skipped", ::testing::TestPartResult::kSuccess)
+#endif
+
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
