@@ -506,7 +506,7 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_SUCCESS;
 
   case fptu_fp32: {
-    const erthink::fpclassify<decltype(value.fp)> fpc(value.uint);
+    const auto fpc(erthink::fpclassify_from_uint(value.uint));
     if (unlikely(fpc.is_nan()))
       return FPTA_EVALUE;
     if (unlikely(std::abs(value.fp) > FLT_MAX) && !fpc.is_infinity())
@@ -543,7 +543,7 @@ int fpta_index_value2key(fpta_shove_t shove, const fpta_value &value,
     return FPTA_SUCCESS;
 
   case fptu_fp64: {
-    const erthink::fpclassify<decltype(value.fp)> fpc(value.uint);
+    const auto fpc(erthink::fpclassify_from_uint(value.uint));
     if (unlikely(fpc.is_nan()))
       return FPTA_EVALUE;
     if (unlikely(std::abs(value.fp) > DBL_MAX) && !fpc.is_infinity())

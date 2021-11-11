@@ -1,5 +1,8 @@
-// The contents of this file are generated automatically. 
+// The contents of this file are generated automatically.
 // You should not edit it manually.
+
+/* *INDENT-OFF* */
+/* clang-format off */
 
 TEST(u128, autogen_basic_0) {
   using U128 = erthink::uint128_t;

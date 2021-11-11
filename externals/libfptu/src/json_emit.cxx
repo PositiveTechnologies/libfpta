@@ -403,8 +403,7 @@ void json::value_uint64(const uint64_t &value) {
 
 void json::value_fp32(const fptu_payload *payload) {
   if (likely(payload->peek_u32() != FPTU_DENIL_FP32_BIN)) {
-    erthink::fpclassify<decltype(payload->unaligned_fp32)> fpc(
-        payload->peek_u32());
+    const auto fpc(erthink::fpclassify_from_uint(payload->peek_u32()));
     if (likely(fpc.is_finite())) {
       number(payload->peek_fp32());
       return;
@@ -424,8 +423,7 @@ void json::value_fp32(const fptu_payload *payload) {
 
 void json::value_fp64(const fptu_payload *payload) {
   if (likely(payload->peek_u64() != FPTU_DENIL_FP64_BIN)) {
-    erthink::fpclassify<decltype(payload->unaligned_fp64)> fpc(
-        payload->peek_u64());
+    const auto fpc(erthink::fpclassify_from_uint(payload->peek_u64()));
     if (likely(fpc.is_finite())) {
       number(payload->peek_fp64());
       return;

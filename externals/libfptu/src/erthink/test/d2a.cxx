@@ -208,24 +208,18 @@ template <typename T> struct d2a : public ::testing::Test {
   }
 
   bool probe_d2a(uint64_t u64, char (&buffer)[erthink::d2a_max_chars + 1]) {
-    const double f64 = erthink::grisu::cast(u64);
-    switch (std::fpclassify(f64)) {
-    case FP_NAN:
-    case FP_INFINITE:
+    const auto fpc64(erthink::fpclassify_from_uint(u64));
+    if (fpc64.is_nan() || fpc64.is_infinity())
       return false;
-    default:
-      probe_d2a(buffer, f64);
-    }
+    const double f64 = erthink::grisu::cast(u64);
+    probe_d2a(buffer, f64);
 
     const float f32 = static_cast<float>(f64);
-    switch (std::fpclassify(f32)) {
-    case FP_NAN:
-    case FP_INFINITE:
+    const erthink::fpclassify<float> fpc32(f32);
+    if (fpc32.is_infinity())
       return false;
-    default:
-      probe_d2a(buffer, f32);
-      return true;
-    }
+    probe_d2a(buffer, f32);
+    return true;
   }
 
   void ensure_shortest(const double value,

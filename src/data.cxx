@@ -391,7 +391,7 @@ int fpta_upsert_column_ex(fptu_rw *pt, const fpta_name *column_id,
     }
     return fptu_upsert_uint32(pt, colnum, (uint_fast32_t)value.uint);
 
-  case fptu_fp32:
+  case fptu_fp32: {
     if (unlikely(value.type != fpta_float_point))
       return FPTA_ETYPE;
     if (fpta_is_indexed_and_nullable(index) &&
@@ -403,16 +403,15 @@ int fpta_upsert_column_ex(fptu_rw *pt, const fpta_name *column_id,
        * при конвертации во float */
       value.uint = FPTA_QSNAN_FP32x64_BIN;
     }
-    if (unlikely(
-            erthink::fpclassify<decltype(value.fp)>(value.uint).is_nan())) {
+    const auto fpc(erthink::fpclassify_from_uint(value.uint));
+    if (unlikely(fpc.is_nan())) {
       if (FPTA_PROHIBIT_UPSERT_NAN)
         return FPTA_EVALUE;
     } else if (!std::is_same<decltype(value.fp), float>::value &&
-               unlikely(std::abs(value.fp) > FLT_MAX) &&
-               !erthink::fpclassify<decltype(value.fp)>(value.uint)
-                    .is_infinity())
+               unlikely(std::abs(value.fp) > FLT_MAX) && !fpc.is_infinity())
       return FPTA_EVALUE;
     return fptu_upsert_fp32(pt, colnum, float(value.fp));
+  }
 
   case fptu_int64:
     switch (value.type) {
@@ -448,7 +447,7 @@ int fpta_upsert_column_ex(fptu_rw *pt, const fpta_name *column_id,
     }
     return fptu_upsert_uint64(pt, colnum, value.uint);
 
-  case fptu_fp64:
+  case fptu_fp64: {
     if (unlikely(value.type != fpta_float_point))
       return FPTA_ETYPE;
     if (fpta_is_indexed_and_nullable(index)) {
@@ -456,16 +455,15 @@ int fpta_upsert_column_ex(fptu_rw *pt, const fpta_name *column_id,
       if (unlikely(value.uint == denil))
         goto denil_catched;
     }
-    if (unlikely(
-            erthink::fpclassify<decltype(value.fp)>(value.uint).is_nan())) {
+    const auto fpc(erthink::fpclassify_from_uint(value.uint));
+    if (unlikely(fpc.is_nan())) {
       if (FPTA_PROHIBIT_UPSERT_NAN)
         return FPTA_EVALUE;
     } else if (!std::is_same<decltype(value.fp), double>::value &&
-               unlikely(std::abs(value.fp) > DBL_MAX) &&
-               !erthink::fpclassify<decltype(value.fp)>(value.uint)
-                    .is_infinity())
+               unlikely(std::abs(value.fp) > DBL_MAX) && !fpc.is_infinity())
       return FPTA_EVALUE;
     return fptu_upsert_fp64(pt, colnum, value.fp);
+  }
 
   case fptu_datetime:
     if (value.type != fpta_datetime)

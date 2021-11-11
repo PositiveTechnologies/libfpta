@@ -589,7 +589,7 @@ typedef struct fpta_value {
     void *binary_data;
     int64_t sint;
     uint64_t uint;
-    double_t fp;
+    double fp;
     fptu_time datetime;
 
     /* ВАЖНО! К большому сожалению и некоторому неудобству, строка
