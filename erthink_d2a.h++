@@ -796,8 +796,14 @@ template <typename T> class fpclassify {
   const int std_fpclassify;
   const bool negative;
 
+  constexpr fpclassify(const uint64_t) noexcept = delete;
+  constexpr fpclassify(const int64_t) noexcept = delete;
+  constexpr fpclassify(const uint32_t) noexcept = delete;
+  constexpr fpclassify(const int32_t) noexcept = delete;
+
 public:
-  fpclassify(const T &value) noexcept
+  constexpr fpclassify(const fpclassify &) noexcept = default;
+  explicit fpclassify(const T &value) noexcept
       : std_fpclassify(::std::fpclassify(value)), negative(value < T(0)) {}
 
   constexpr bool is_negative() const noexcept { return negative; }
@@ -822,9 +828,15 @@ template <> class fpclassify<float> {
   using type = uint32_t;
   const type value;
 
-public:
-  fpclassify(const float src) noexcept : value(bit_cast<type>(src)) {}
+  constexpr fpclassify(const uint64_t) noexcept = delete;
+  constexpr fpclassify(const int64_t) noexcept = delete;
   constexpr fpclassify(const type value) noexcept : value(value) {}
+  constexpr fpclassify(const int32_t) noexcept = delete;
+
+public:
+  constexpr fpclassify(const fpclassify &) noexcept = default;
+  explicit fpclassify(const float src) noexcept : value(bit_cast<type>(src)) {}
+  friend constexpr fpclassify fpclassify_from_uint(const type value) noexcept;
   constexpr bool is_negative() const noexcept {
     return value > UINT32_C(0x7fffFFFF);
   }
@@ -854,13 +866,24 @@ public:
   }
 };
 
+constexpr fpclassify<float>
+fpclassify_from_uint(const uint32_t value) noexcept {
+  return fpclassify<float>(value);
+}
+
 template <> class fpclassify<double> {
   using type = uint64_t;
   const type value;
 
-public:
-  fpclassify(const double src) noexcept : value(bit_cast<type>(src)) {}
   constexpr fpclassify(const type value) noexcept : value(value) {}
+  constexpr fpclassify(const int64_t) noexcept = delete;
+  constexpr fpclassify(const uint32_t) noexcept = delete;
+  constexpr fpclassify(const int32_t) noexcept = delete;
+
+public:
+  constexpr fpclassify(const fpclassify &) noexcept = default;
+  explicit fpclassify(const double src) noexcept : value(bit_cast<type>(src)) {}
+  friend constexpr fpclassify fpclassify_from_uint(const type value) noexcept;
   constexpr bool is_negative() const noexcept {
     return value > UINT64_C(0x7fffFFFFffffFFFF);
   }
@@ -894,5 +917,10 @@ public:
                : is_infinity() ? FP_INFINITE : FP_NAN;
   }
 };
+
+constexpr fpclassify<double>
+fpclassify_from_uint(const uint64_t value) noexcept {
+  return fpclassify<double>(value);
+}
 
 } // namespace erthink
