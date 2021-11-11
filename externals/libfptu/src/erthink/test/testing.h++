@@ -95,7 +95,7 @@ public:
       if (last_reported != current) {
         last_reported = current;
         std::cout << "[  SKIPPED ] RUNTIME_LIMIT was reached" << std::endl;
-        GTEST_SUCCESS_("Skipped") << "SKIPPEND by RUNTIME_LIMIT";
+        GTEST_SKIP() << "SKIPPEND by RUNTIME_LIMIT", true;
       }
       return true;
     }

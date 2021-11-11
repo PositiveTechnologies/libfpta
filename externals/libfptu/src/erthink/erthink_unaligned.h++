@@ -47,7 +47,7 @@ namespace erthink {
 using max_align_t = std::max_align_t;
 #else
 using max_align_t = ::max_align_t;
-#endif
+#endif /* workaround for std::max_align_t */
 
 template <typename T, unsigned expected_alignment = 1>
 static T cxx20_constexpr peek_unaligned(const T *source) noexcept {

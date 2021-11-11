@@ -58,11 +58,11 @@
 
 namespace erthink {
 
-#if !defined(__GNUC__) || __GNUC__ >= 5
-using max_align_t = ::std::max_align_t;
+#if __GNUC_PREREQ(5, 0) || !defined(_GCC_MAX_ALIGN_T)
+using max_align_t = std::max_align_t;
 #else
 using max_align_t = ::max_align_t;
-#endif /* __GNUC__ < 5 */
+#endif /* workaround for std::max_align_t */
 
 class allocation_arena_exhausted : public std::bad_alloc {
 public:
