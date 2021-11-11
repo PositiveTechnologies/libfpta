@@ -94,6 +94,11 @@
 #define SCOPED_TRACE_ONLY
 #endif /* __LCC__ */
 
+#ifndef GTEST_SKIP
+#define GTEST_SKIP()                                                           \
+  return GTEST_MESSAGE_("Skipped", ::testing::TestPartResult::kSuccess)
+#endif
+
 //----------------------------------------------------------------------------
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -147,7 +152,7 @@ public:
       if (last_reported != current) {
         last_reported = current;
         std::cout << "[  SKIPPED ] RUNTIME_LIMIT was reached" << std::endl;
-        GTEST_SUCCESS_("Skipped") << "SKIPPEND by RUNTIME_LIMIT";
+        GTEST_SKIP() << "SKIPPEND by RUNTIME_LIMIT", true;
       }
       return true;
     }
