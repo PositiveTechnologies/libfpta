@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY 5164dc46e51fd265b0570a4edd631fded7fb2885572ccf1c46722d9b7b2c12b7_v0_11_1_9_gb46e5c4c
+#define MDBX_BUILD_SOURCERY 1c2dcbd1670abb2b36d4f0b5cdab2db2cbc0f59f8c009e7d7966b4a151bf0bd7_v0_11_1_17_g0e2ca3eb
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1002,15 +1002,7 @@ typedef union MDBX_srwlock {
 #ifndef __cplusplus
 
 MDBX_MAYBE_UNUSED MDBX_INTERNAL_FUNC void mdbx_osal_jitter(bool tiny);
-
-MDBX_MAYBE_UNUSED static __inline void mdbx_jitter4testing(bool tiny) {
-#if MDBX_DEBUG
-  if (MDBX_DBG_JITTER & mdbx_runtime_flags)
-    mdbx_osal_jitter(tiny);
-#else
-  (void)tiny;
-#endif
-}
+MDBX_MAYBE_UNUSED static __inline void mdbx_jitter4testing(bool tiny);
 
 /*----------------------------------------------------------------------------*/
 /* Atomics */
@@ -2188,8 +2180,6 @@ typedef struct MDBX_meta {
   MDBX_db mm_dbs[CORE_DBS]; /* first is free space, 2nd is main db */
                             /* The size of pages used in this DB */
 #define mm_psize mm_dbs[FREE_DBI].md_xsize
-/* Any persistent environment flags, see mdbx_env */
-#define mm_flags mm_dbs[FREE_DBI].md_flags
   MDBX_canary mm_canary;
 
 #define MDBX_DATASIGN_NONE 0u
@@ -2957,6 +2947,15 @@ extern uint8_t mdbx_runtime_flags;
 extern uint8_t mdbx_loglevel;
 extern MDBX_debug_func *mdbx_debug_logger;
 
+MDBX_MAYBE_UNUSED static __inline void mdbx_jitter4testing(bool tiny) {
+#if MDBX_DEBUG
+  if (MDBX_DBG_JITTER & mdbx_runtime_flags)
+    mdbx_osal_jitter(tiny);
+#else
+  (void)tiny;
+#endif
+}
+
 MDBX_INTERNAL_FUNC void MDBX_PRINTF_ARGS(4, 5)
     mdbx_debug_log(int level, const char *function, int line, const char *fmt,
                    ...) MDBX_PRINTF_ARGS(4, 5);
@@ -3260,10 +3259,11 @@ typedef struct MDBX_node {
  *                |  1, a > b
  *                \
  */
-#if 1
+#ifndef __e2k__
 /* LY: fast enough on most systems */
 #define CMP2INT(a, b) (((b) > (a)) ? -1 : (a) > (b))
 #else
+/* LY: more parallelable on VLIW Elbrus */
 #define CMP2INT(a, b) (((a) > (b)) - ((b) > (a)))
 #endif
 
@@ -13914,9 +13914,7 @@ __cold static MDBX_page *mdbx_meta_model(const MDBX_env *env, MDBX_page *model,
                        pages2pv(pv2pages(model_meta->mm_geo.shrink_pv)));
 
   model_meta->mm_psize = env->me_psize;
-  model_meta->mm_flags = (uint16_t)env->me_flags & DB_PERSISTENT_FLAGS;
-  model_meta->mm_flags =
-      MDBX_INTEGERKEY; /* this is mm_dbs[FREE_DBI].md_flags */
+  model_meta->mm_dbs[FREE_DBI].md_flags = MDBX_INTEGERKEY;
   model_meta->mm_dbs[FREE_DBI].md_root = P_INVALID;
   model_meta->mm_dbs[MAIN_DBI].md_root = P_INVALID;
   mdbx_meta_set_txnid(env, model_meta, MIN_TXNID + num);
@@ -14196,7 +14194,7 @@ static int mdbx_sync_locked(MDBX_env *env, unsigned flags,
       unaligned_poke_u64(4, target->mm_datasync_sign, MDBX_DATASIGN_WEAK);
 #ifndef NDEBUG
       /* debug: provoke failure to catch a violators, but don't touch mm_psize
-       * and mm_flags to allow readers catch actual pagesize. */
+       * to allow readers catch actual pagesize. */
       uint8_t *provoke_begin = (uint8_t *)&target->mm_dbs[FREE_DBI].md_root;
       uint8_t *provoke_end = (uint8_t *)&target->mm_datasync_sign;
       memset(provoke_begin, 0xCC, provoke_end - provoke_begin);
@@ -28486,9 +28484,9 @@ __dll_export
         0,
         11,
         1,
-        9,
-        {"2021-11-07T22:14:33+03:00", "514c94c6224f7db94e6c8651b6535838bb786e8b", "b46e5c4ce852b75400bfc595754986e248675a6f",
-         "v0.11.1-9-gb46e5c4c"},
+        17,
+        {"2021-11-10T03:17:59+03:00", "b934e88a1b3eb6917b670989d652c0c5087ec5f0", "0e2ca3eb515d6939513a29321aaf13678f682e8b",
+         "v0.11.1-17-g0e2ca3eb"},
         sourcery};
 
 __dll_export

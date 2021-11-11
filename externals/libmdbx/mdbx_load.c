@@ -34,7 +34,7 @@
  * top-level directory of the distribution or, alternatively, at
  * <http://www.OpenLDAP.org/license.html>. */
 
-#define MDBX_BUILD_SOURCERY 5164dc46e51fd265b0570a4edd631fded7fb2885572ccf1c46722d9b7b2c12b7_v0_11_1_9_gb46e5c4c
+#define MDBX_BUILD_SOURCERY 1c2dcbd1670abb2b36d4f0b5cdab2db2cbc0f59f8c009e7d7966b4a151bf0bd7_v0_11_1_17_g0e2ca3eb
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -1024,15 +1024,7 @@ typedef union MDBX_srwlock {
 #ifndef __cplusplus
 
 MDBX_MAYBE_UNUSED MDBX_INTERNAL_FUNC void mdbx_osal_jitter(bool tiny);
-
-MDBX_MAYBE_UNUSED static __inline void mdbx_jitter4testing(bool tiny) {
-#if MDBX_DEBUG
-  if (MDBX_DBG_JITTER & mdbx_runtime_flags)
-    mdbx_osal_jitter(tiny);
-#else
-  (void)tiny;
-#endif
-}
+MDBX_MAYBE_UNUSED static __inline void mdbx_jitter4testing(bool tiny);
 
 /*----------------------------------------------------------------------------*/
 /* Atomics */
@@ -2210,8 +2202,6 @@ typedef struct MDBX_meta {
   MDBX_db mm_dbs[CORE_DBS]; /* first is free space, 2nd is main db */
                             /* The size of pages used in this DB */
 #define mm_psize mm_dbs[FREE_DBI].md_xsize
-/* Any persistent environment flags, see mdbx_env */
-#define mm_flags mm_dbs[FREE_DBI].md_flags
   MDBX_canary mm_canary;
 
 #define MDBX_DATASIGN_NONE 0u
@@ -2979,6 +2969,15 @@ extern uint8_t mdbx_runtime_flags;
 extern uint8_t mdbx_loglevel;
 extern MDBX_debug_func *mdbx_debug_logger;
 
+MDBX_MAYBE_UNUSED static __inline void mdbx_jitter4testing(bool tiny) {
+#if MDBX_DEBUG
+  if (MDBX_DBG_JITTER & mdbx_runtime_flags)
+    mdbx_osal_jitter(tiny);
+#else
+  (void)tiny;
+#endif
+}
+
 MDBX_INTERNAL_FUNC void MDBX_PRINTF_ARGS(4, 5)
     mdbx_debug_log(int level, const char *function, int line, const char *fmt,
                    ...) MDBX_PRINTF_ARGS(4, 5);
@@ -3282,10 +3281,11 @@ typedef struct MDBX_node {
  *                |  1, a > b
  *                \
  */
-#if 1
+#ifndef __e2k__
 /* LY: fast enough on most systems */
 #define CMP2INT(a, b) (((b) > (a)) ? -1 : (a) > (b))
 #else
+/* LY: more parallelable on VLIW Elbrus */
 #define CMP2INT(a, b) (((a) > (b)) - ((b) > (a)))
 #endif
 
