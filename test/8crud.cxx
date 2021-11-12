@@ -430,6 +430,10 @@ TEST(Nullable, AsyncSchemaChange) {
   ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
                                   1, false, &db_correlator));
 
+  // шаг приращения номера транзакций: обычно равен 1, но равен 2 на 32-битных
+  // архитектурах без 64-битных атомарных операций.
+  unsigned txnid_step = 42;
+
   // выполняем первое пробное обновление в корреляторе
   // обе колонки требуют значений
   {
@@ -444,9 +448,13 @@ TEST(Nullable, AsyncSchemaChange) {
               fpta_name_refresh_couple(txn_correlator, &cr_table, &cr_col_se));
     ASSERT_EQ(0u, cr_col_pk.column.num);
     ASSERT_EQ(1u, cr_col_se.column.num);
-    EXPECT_EQ(db_initial_version + 0, cr_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 0, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 0, cr_col_se.version_tsn);
+    txnid_step = unsigned(mdbx_txn_id(fpta_mdbx_txn(txn_correlator)) -
+                          db_initial_version);
+    ASSERT_TRUE(txnid_step == 1 ||
+                txnid_step == /* 32-bit arch without 64-bit atomic ops */ 2);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cr_col_se.version_tsn);
 
     EXPECT_EQ(FPTA_COLUMN_MISSING, fpta_insert_row(txn_correlator, &cr_table,
                                                    fptu_take(tuple_empty)));
@@ -477,11 +485,11 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификаторы и версию схемы
     ASSERT_EQ(0u, cm_col_pk.column.num);
-    EXPECT_EQ(db_initial_version + 0, cm_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 0, cm_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cm_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cm_col_pk.version_tsn);
     // вторая колонка не использовалась и поэтому требует ручного обновления
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_commander, &cm_col_se));
-    EXPECT_EQ(db_initial_version + 0, cm_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cm_col_se.version_tsn);
     ASSERT_EQ(1u, cm_col_se.column.num);
 
     // удаляем существующую таблицу
@@ -527,15 +535,15 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификатор таблицы, он должен был обновиться автоматически,
     // а идентификаторы колонок - нет
-    EXPECT_EQ(db_initial_version + 2, cr_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 0, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 0, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 0 * txnid_step, cr_col_se.version_tsn);
     // обновляем и сверяем идентификаторы колонок
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_pk));
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_se));
-    EXPECT_EQ(db_initial_version + 2, cr_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 2, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 2, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cr_col_se.version_tsn);
     EXPECT_EQ(0u, cr_col_pk.column.num);
     EXPECT_EQ(1u, cr_col_se.column.num);
 
@@ -562,11 +570,11 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификаторы и версию схемы
     ASSERT_EQ(0u, cm_col_pk.column.num);
-    EXPECT_EQ(db_initial_version + 2, cm_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 2, cm_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cm_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cm_col_se.version_tsn);
     // первая колонка не использовалась и поэтому требует ручного обновления
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_commander, &cm_col_pk));
-    EXPECT_EQ(db_initial_version + 2, cm_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cm_col_pk.version_tsn);
     ASSERT_EQ(1u, cm_col_se.column.num);
 
     // удаляем существующую таблицу
@@ -612,15 +620,15 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификатор таблицы, он должен был обновиться автоматически,
     // а идентификаторы колонок - нет
-    EXPECT_EQ(db_initial_version + 4, cr_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 2, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 2, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 2 * txnid_step, cr_col_se.version_tsn);
     // обновляем и сверяем идентификаторы колонок
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_pk));
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_se));
-    EXPECT_EQ(db_initial_version + 4, cr_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 4, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 4, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cr_col_se.version_tsn);
     EXPECT_EQ(0u, cr_col_pk.column.num);
     EXPECT_EQ(1u, cr_col_se.column.num);
 
@@ -650,9 +658,9 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификаторы и версию схемы
     ASSERT_EQ(0u, cm_col_pk.column.num);
-    EXPECT_EQ(db_initial_version + 4, cm_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 4, cm_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 4, cm_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cm_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cm_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cm_col_se.version_tsn);
     ASSERT_EQ(1u, cm_col_se.column.num);
 
     // удаляем существующую таблицу
@@ -698,15 +706,15 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификатор таблицы, он должен был обновиться автоматически,
     // а идентификаторы колонок - нет
-    EXPECT_EQ(db_initial_version + 6, cr_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 4, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 4, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 4 * txnid_step, cr_col_se.version_tsn);
     // обновляем и сверяем идентификаторы колонок
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_pk));
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_se));
-    EXPECT_EQ(db_initial_version + 6, cr_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 6, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 6, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cr_col_se.version_tsn);
     EXPECT_EQ(0u, cr_col_pk.column.num);
     EXPECT_EQ(1u, cr_col_se.column.num);
 
@@ -733,9 +741,9 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификаторы и версию схемы
     ASSERT_EQ(0u, cm_col_pk.column.num);
-    EXPECT_EQ(db_initial_version + 6, cm_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 6, cm_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 6, cm_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cm_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cm_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cm_col_se.version_tsn);
     ASSERT_EQ(1u, cm_col_se.column.num);
 
     // удаляем существующую таблицу
@@ -778,14 +786,14 @@ TEST(Nullable, AsyncSchemaChange) {
     // сверяем идентификаторы колонок
     ASSERT_EQ(0u, cr_col_pk.column.num);
     ASSERT_EQ(1u, cr_col_se.column.num);
-    EXPECT_EQ(db_initial_version + 8, cr_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 8 * txnid_step, cr_table.version_tsn);
     // идентификаторы колонок не использовались с прошлой транзакции
-    EXPECT_EQ(db_initial_version + 6, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 6, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 6 * txnid_step, cr_col_se.version_tsn);
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_pk));
     EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn_correlator, &cr_col_se));
-    EXPECT_EQ(db_initial_version + 8, cr_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 8, cr_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 8 * txnid_step, cr_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 8 * txnid_step, cr_col_se.version_tsn);
 
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_correlator, false));
   }
@@ -815,9 +823,9 @@ TEST(Nullable, AsyncSchemaChange) {
 
     // сверяем идентификаторы и версию схемы
     ASSERT_EQ(0u, cm_col_pk.column.num);
-    EXPECT_EQ(db_initial_version + 8, cm_table.version_tsn);
-    EXPECT_EQ(db_initial_version + 8, cm_col_pk.version_tsn);
-    EXPECT_EQ(db_initial_version + 8, cm_col_se.version_tsn);
+    EXPECT_EQ(db_initial_version + 8 * txnid_step, cm_table.version_tsn);
+    EXPECT_EQ(db_initial_version + 8 * txnid_step, cm_col_pk.version_tsn);
+    EXPECT_EQ(db_initial_version + 8 * txnid_step, cm_col_se.version_tsn);
     ASSERT_EQ(1u, cm_col_se.column.num);
 
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn_commander, false));

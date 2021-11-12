@@ -4007,6 +4007,13 @@ TEST(Smoke, TransacionRestart) {
   fpta_txn *rw_txn = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(rw_db, fpta_schema, &rw_txn));
   ASSERT_NE(nullptr, rw_txn);
+  // шаг приращения номера транзакций: обычно равен 1, но равен 2 на 32-битных
+  // архитектурах без 64-битных атомарных операций.
+  const unsigned txnid_step =
+      unsigned(mdbx_txn_id(fpta_mdbx_txn(rw_txn)) - initial_db_version);
+  ASSERT_TRUE(txnid_step == 1 ||
+              txnid_step == /* 32-bit arch without 64-bit atomic ops */ 2);
+
   // описываем простейшую таблицу с одним PK
   fpta_column_set def;
   fpta_column_set_init(&def);
@@ -4024,7 +4031,7 @@ TEST(Smoke, TransacionRestart) {
   // в запущенной читающей транзакции таблицы еще не должно быть
   size_t lag = ~42u;
   EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
-  EXPECT_EQ(1u, lag);
+  EXPECT_EQ(txnid_step, lag);
   EXPECT_EQ(FPTA_NOTFOUND,
             fpta_table_info(ro_txn, &ro_table, nullptr, nullptr));
   // перезапускаем транзакцию чтения, теперь таблица должна появиться
@@ -4033,7 +4040,7 @@ TEST(Smoke, TransacionRestart) {
   uint64_t db_version = 42, schema_version = 42;
   EXPECT_EQ(FPTA_OK,
             fpta_transaction_versions(ro_txn, &db_version, &schema_version));
-  EXPECT_EQ(initial_db_version + 1u, db_version);
+  EXPECT_EQ(initial_db_version + 1 * txnid_step, db_version);
   EXPECT_EQ(db_version, schema_version);
 
   // начинаем транзакцию для вставки данных
@@ -4070,7 +4077,7 @@ TEST(Smoke, TransacionRestart) {
   EXPECT_EQ(0u, stat.total_bytes);
   lag = ~42u;
   EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
-  EXPECT_EQ(1u, lag);
+  EXPECT_EQ(txnid_step, lag);
 
   // перезапускаем транзакцию чтения
   ASSERT_EQ(FPTA_OK, fpta_transaction_restart(ro_txn));
@@ -4082,8 +4089,8 @@ TEST(Smoke, TransacionRestart) {
   EXPECT_EQ(row_count, stat.row_count);
   EXPECT_EQ(FPTA_OK,
             fpta_transaction_versions(ro_txn, &db_version, &schema_version));
-  EXPECT_EQ(initial_db_version + 2u, db_version);
-  EXPECT_EQ(db_version - 1u, schema_version);
+  EXPECT_EQ(initial_db_version + 2 * txnid_step, db_version);
+  EXPECT_EQ(db_version - 1 * txnid_step, schema_version);
 
   // начинаем транзакцию для удаления таблицы
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(rw_db, fpta_schema, &rw_txn));
@@ -4619,6 +4626,13 @@ TEST(Smoke, CursorRERERE_drop_table) {
   fpta_txn *rw_txn = nullptr;
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(rw_db, fpta_schema, &rw_txn));
   ASSERT_NE(nullptr, rw_txn);
+  // шаг приращения номера транзакций: обычно равен 1, но равен 2 на 32-битных
+  // архитектурах без 64-битных атомарных операций.
+  const unsigned txnid_step =
+      unsigned(mdbx_txn_id(fpta_mdbx_txn(rw_txn)) - initial_db_version);
+  ASSERT_TRUE(txnid_step == 1 ||
+              txnid_step == /* 32-bit arch without 64-bit atomic ops */ 2);
+
   // описываем простейшую таблицу с одним PK
   fpta_column_set def;
   fpta_column_set_init(&def);
@@ -4636,7 +4650,7 @@ TEST(Smoke, CursorRERERE_drop_table) {
   // в запущенной читающей транзакции таблицы еще не должно быть
   size_t lag = ~42u;
   EXPECT_EQ(FPTA_OK, fpta_transaction_lag_ex(ro_txn, &lag, nullptr, nullptr));
-  EXPECT_EQ(1u, lag);
+  EXPECT_EQ(txnid_step, lag);
   scoped_cursor_guard cursor_guard;
   fpta_cursor *cursor = (fpta_cursor *)&cursor;
   EXPECT_EQ(FPTA_NOTFOUND,
