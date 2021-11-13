@@ -3782,7 +3782,7 @@ static void check_estimation(const ptrdiff_t gap, fpta_txn *txn,
 }
 
 TEST(Smoke, Estimate) {
-  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
   if (skipped)
     return;
 
@@ -3874,6 +3874,10 @@ TEST(Smoke, Estimate) {
     ASSERT_EQ(FPTA_OK, fpta_table_info(txn, &table, nullptr, &stat));
     if (prev_height != stat.btree_depth)
       edges.push_back((unsigned)sequence);
+
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
   }
   // отменяем эту транзакцию и начинаем новую
   ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
@@ -3920,9 +3924,14 @@ TEST(Smoke, Estimate) {
         check_estimation(gap, txn, stat, id, padding);
       }
     }
+    skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      goto skip;
   }
   // должен остаться только элемент (вызывающий переполнение БД)
   ASSERT_EQ(1u, edges.size());
+
+skip:
   ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, true));
   txn = nullptr;
 
