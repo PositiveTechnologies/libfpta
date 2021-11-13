@@ -44,6 +44,11 @@ static void write_thread_proc(fpta_db *db, const int thread_num,
   SCOPED_TRACE("Thread " + std::to_string(thread_num) + " started");
 
   for (int i = 0; i < reps; ++i) {
+    static bool skipped;
+    skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
+
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
     ASSERT_NE(nullptr, txn);
@@ -110,10 +115,6 @@ static void write_thread_proc(fpta_db *db, const int thread_num,
 }
 
 TEST(Threaded, SimpleConcurence) {
-  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
-  if (skipped)
-    return;
-
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
@@ -219,6 +220,11 @@ static void read_thread_proc(fpta_db *db,
   filter_b.node_cmp.left_id = &port;
 
   for (int i = 0; i < reps; ++i) {
+    static bool skipped;
+    skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
+
     fpta_txn *txn = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
     ASSERT_NE(nullptr, txn);
@@ -252,10 +258,6 @@ static void read_thread_proc(fpta_db *db,
 }
 
 TEST(Threaded, SimpleSelect) {
-  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
-  if (skipped)
-    return;
-
   // чистим
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
@@ -414,6 +416,10 @@ static void visitor_thread_proc(fpta_db *db,
   filter.node_cmp.right_value = fpta_value_sint(0);
 
   for (int i = 0; i < reps; ++i) {
+    static bool skipped;
+    skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
 
     // start read-transaction and get max_value
     int64_t max_value = 0;
@@ -504,10 +510,6 @@ static void visitor_thread_proc(fpta_db *db,
 }
 
 TEST(Threaded, SimpleVisitor) {
-  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
-  if (skipped)
-    return;
-
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -606,10 +608,6 @@ static void info_thread_proc(fpta_db *db) {
 }
 
 TEST(Threaded, ParallelOpen) {
-  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
-  if (skipped)
-    return;
-
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -840,7 +838,6 @@ TEST(Threaded, AsyncSchemaChange) {
    * 4. Завершаем операции и освобождаем ресурсы.
    */
 
-  /* FIXME: Описание сценария теста */
   const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
   if (skipped)
     return;
