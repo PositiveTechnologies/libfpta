@@ -2656,7 +2656,7 @@ TEST(Smoke, OverchargeOnCommit) {
    *  3. Параметры подобраны так, чтобы переполнение случилось при фиксации
    *     транзакции (при добавлении записи в garbage-таблицу внутри libmdbx).
    */
-  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
   if (skipped)
     return;
   if (REMOVE_FILE(testdb_name) != 0) {
@@ -2730,6 +2730,10 @@ TEST(Smoke, OverchargeOnCommit) {
 
   int err = FPTA_OK;
   for (uint64_t pk = 0; err == FPTA_OK; ++pk) {
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
+
     // открываем транзакцию на запись, записываем данные
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
     ASSERT_NE(nullptr, txn);
