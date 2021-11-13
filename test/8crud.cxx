@@ -1122,7 +1122,7 @@ TEST(CRUD, ExtraOps) {
 
   fpta_db *db_correlator = nullptr;
   ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  20, true, &db_correlator));
+                                  128, true, &db_correlator));
   ASSERT_NE(nullptr, db_correlator);
 
   { // create table
@@ -1157,7 +1157,7 @@ TEST(CRUD, ExtraOps) {
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
 
   ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime_default,
-                                  30, false, &db_correlator));
+                                  128, false, &db_correlator));
   ASSERT_NE(nullptr, db_correlator);
 
   int i = 0;
@@ -1198,7 +1198,7 @@ TEST(CRUD, ExtraOps) {
 
       size_t deleted = 0;
       for (size_t j = 0; j < 20000; ++j) {
-        EXPECT_EQ(FPTA_OK, fpta_cursor_delete(cursor));
+        ASSERT_EQ(FPTA_OK, fpta_cursor_delete(cursor));
         ++deleted;
         if ((j & 63) == 0) {
           const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
