@@ -1096,6 +1096,8 @@ TEST(Nullable, SchemaReloadAfterAbort) {
 
 //----------------------------------------------------------------------------
 
+#if defined(NDEBUG) || defined(__OPTIMIZE__)
+
 static std::string random_string(int len) {
   static std::string alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
   std::string result;
@@ -1104,7 +1106,7 @@ static std::string random_string(int len) {
   return result;
 }
 
-TEST(CRUD, DISABLED_ExtraOps) {
+TEST(CRUD, ExtraOps) {
   /* FIXME: Описание сценария теста */
   const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
   if (skipped)
@@ -1198,6 +1200,11 @@ TEST(CRUD, DISABLED_ExtraOps) {
       for (size_t j = 0; j < 20000; ++j) {
         EXPECT_EQ(FPTA_OK, fpta_cursor_delete(cursor));
         ++deleted;
+        if ((j & 63) == 0) {
+          const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+          if (skipped)
+            break;
+        }
       }
       ASSERT_EQ(FPTA_OK, fpta_cursor_close(cursor));
     }
@@ -1242,11 +1249,16 @@ TEST(CRUD, DISABLED_ExtraOps) {
     fpta_name_destroy(&lc);
 
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
   }
   EXPECT_EQ(FPTA_OK, fpta_db_close(db_correlator));
   ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
   ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
 }
+
+#endif /* defined(NDEBUG) || defined(__OPTIMIZE__) */
 
 //----------------------------------------------------------------------------
 
