@@ -1399,6 +1399,10 @@ TEST(Schema, Overkill) {
    *     чтобы при большой схеме (~1000 таблиц от 2 до ~1000 колонок и индексов)
    *     выполнять минимум итераций теста, т.е. уйти от O((T*C)^3).
    *  5. Коммитим транзакцию, для проверки переоткрываем БД и читаем схему. */
+  bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -1477,19 +1481,25 @@ TEST(Schema, Overkill) {
     }
     ASSERT_EQ(FPTA_OK, fpta_table_create(txn, table_name.c_str(), &def));
     ASSERT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
   }
-  ASSERT_EQ(unsigned(fpta_max_dbi), whole_dbi);
 
-  // пробуем создать лишнюю таблицу
-  fpta_column_set_init(&def);
-  EXPECT_EQ(FPTA_OK,
-            fpta_column_describe("pk", fptu_uint32,
-                                 fpta_primary_unique_ordered_obverse, &def));
-  EXPECT_EQ(FPTA_OK, fpta_column_describe(
-                         "se", fptu_cstr,
-                         fpta_secondary_withdups_ordered_obverse, &def));
-  EXPECT_EQ(FPTA_TOOMANY, fpta_table_create(txn, "overkill", &def));
-  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  if (!skipped) {
+    ASSERT_EQ(unsigned(fpta_max_dbi), whole_dbi);
+
+    // пробуем создать лишнюю таблицу
+    fpta_column_set_init(&def);
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe("pk", fptu_uint32,
+                                   fpta_primary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "se", fptu_cstr,
+                           fpta_secondary_withdups_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_TOOMANY, fpta_table_create(txn, "overkill", &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  }
 
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   txn = nullptr;
@@ -1499,9 +1509,11 @@ TEST(Schema, Overkill) {
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
   ASSERT_NE(nullptr, txn);
   EXPECT_EQ(FPTA_OK, fpta_schema_fetch(txn, &schema_info));
-  EXPECT_EQ(unsigned(fpta_tables_max), schema_info.tables_count);
-  EXPECT_EQ(unsigned(fpta_max_dbi),
-            schema_info.indexes_count + schema_info.tables_count);
+  if (!skipped) {
+    EXPECT_EQ(unsigned(fpta_tables_max), schema_info.tables_count);
+    EXPECT_EQ(unsigned(fpta_max_dbi),
+              schema_info.indexes_count + schema_info.tables_count);
+  }
   EXPECT_EQ(FPTA_OK, fpta_schema_destroy(&schema_info));
   EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
   txn = nullptr;
@@ -1513,6 +1525,10 @@ TEST(Schema, Overkill) {
 //----------------------------------------------------------------------------
 
 TEST(Schema, PreviousDbiReuseBig) {
+  bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
   if (REMOVE_FILE(testdb_name) != 0) {
     ASSERT_EQ(ENOENT, errno);
   }
@@ -1537,6 +1553,9 @@ TEST(Schema, PreviousDbiReuseBig) {
     EXPECT_EQ(FPTA_OK, fpta_column_describe(
                            ("c_" + std::to_string(idx)).c_str(), fptu_cstr,
                            fpta_secondary_withdups_ordered_obverse, &def));
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
   }
   EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
 
