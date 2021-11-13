@@ -4904,8 +4904,13 @@ TEST(Smoke, DISABLED_IndexCosts) {
 
   // открываем/создаем базу в 128 мегабайт
   fpta_db *db = nullptr;
-  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
-                                  2048, true, &db));
+  const int large_db_open_err = test_db_open(
+      testdb_name, fpta_weak, fpta_regime4testing, 2048, true, &db);
+  if (large_db_open_err == FPTA_ETOO_LARGE) {
+    GTEST_SKIP() << "Not enough memory for the test database";
+    return;
+  }
+  ASSERT_EQ(FPTA_OK, large_db_open_err);
   ASSERT_NE(nullptr, db);
 
   // описываем простейшую таблицу с тремя колонками
