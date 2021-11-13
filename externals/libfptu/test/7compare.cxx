@@ -35,6 +35,8 @@
 #pragma warning(pop)
 #endif
 
+runtime_limiter ci_runtime_limiter;
+
 TEST(Compare, FetchTags) {
   char space[fptu_buffer_enough];
   ASSERT_TRUE(shuffle6::selftest());
@@ -180,13 +182,8 @@ TEST(Compare, Base) {
   ASSERT_EQ(FPTU_OK, fptu_clear(minor));
 }
 
-#ifdef __OPTIMIZE__
-TEST(Compare, Shuffle)
-#else
 /* LY: Без оптимизации выполняется до 3 минут */
-TEST(Compare, DISABLED_Shuffle)
-#endif
-{
+TEST(Compare, Shuffle) {
   /* Проверка сравнения для разумного количества вариантов наполнения кортежей.
    *
    * Сценарий:
@@ -341,6 +338,10 @@ TEST(Compare, DISABLED_Shuffle)
                  * нескольких итераций.
                  * Поэтому через 42 секунды прекращаем валять дурака. */
                 return;
+
+              const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+              if (skipped)
+                break;
             }
           }
         }
