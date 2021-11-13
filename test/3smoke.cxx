@@ -23,6 +23,8 @@
 #include "tools.hpp"
 #include <chrono>
 
+#include "../../externals/libfptu/src/erthink/erthink_u2a.h++"
+
 static const char testdb_name[] = TEST_DB_DIR "ut_smoke.fpta";
 static const char testdb_name_lck[] =
     TEST_DB_DIR "ut_smoke.fpta" MDBX_LOCK_SUFFIX;
@@ -4375,10 +4377,9 @@ public:
     fpta_value order;
     EXPECT_EQ(FPTA_OK, fpta_cursor_get(cursor_guard.get(), &row));
     // Debug("current", row);
-    const auto col =
-        fpta_index_is_primary(index)
-            ? &ro_col_pk
-            : fpta_index_is_unique(index) ? &ro_col_se : &ro_col_order;
+    const auto col = fpta_index_is_primary(index)  ? &ro_col_pk
+                     : fpta_index_is_unique(index) ? &ro_col_se
+                                                   : &ro_col_order;
     EXPECT_EQ(FPTA_OK, fpta_get_column(row, col, &order));
     EXPECT_EQ(fpta_unsigned_int, order.type);
     return (unsigned)order.uint;
@@ -4882,10 +4883,10 @@ TEST(SmokeCrud, TableVersion) {
 TEST(Smoke, DISABLED_IndexCosts) {
   /* Псевдо-тест оценки стоимости операций.
    *
-   * 1. Создаем базу с одной таблицей, в которой три колонки:
-   *     - pk_int32 с первичным индексом;
-   *     - strA с вторичным индексом с контролем уникальности;
-   *     - strB с вторичным индексом без контроля уникальности
+   * 1. Создаем большую базу с одной таблицей, в которой три колонки:
+   *     - pk_i32 с первичным индексом;
+   *     - str_uniq с вторичным индексом с контролем уникальности;
+   *     - str_dups с вторичным индексом без контроля уникальности
    *       и низкой кардинальностью.
    *
    *  2. Таблица наполняется до ~10 миллионов записей, при этом в ~40 точках
@@ -4915,10 +4916,26 @@ TEST(Smoke, DISABLED_IndexCosts) {
     ASSERT_EQ(ENOENT, errno);
   }
 
-  // открываем/создаем базу в 128 мегабайт
+  // выясняем доступный объем ОЗУ
+  intptr_t pagesize, total_pages, avail_pages;
+  ASSERT_EQ(FPTA_OK,
+            mdbx_get_sysraminfo(&pagesize, &total_pages, &avail_pages));
+  ASSERT_GT(pagesize, 1024);
+  ASSERT_GT(total_pages, 32);
+  ASSERT_GT(avail_pages, 16);
+  ASSERT_GT(total_pages, avail_pages);
+  const size_t ram_avail_mb = size_t((uint64_t(pagesize) * avail_pages) >> 20);
+  if (ram_avail_mb < 256) {
+    GTEST_SKIP() << "Not enough available RAM";
+    return;
+  }
+
+  // создаем БД размером немного меньше половины ОЗУ, но не более 100 Гб
+  const size_t less_than_half = ram_avail_mb / 16 * 7;
   fpta_db *db = nullptr;
   const int large_db_open_err = test_db_open(
-      testdb_name, fpta_weak, fpta_regime4testing, 2048, true, &db);
+      testdb_name, fpta_weak, fpta_regime4testing,
+      (less_than_half > 100 * 1024) ? 100 * 1024 : less_than_half, true, &db);
   if (large_db_open_err == FPTA_ETOO_LARGE) {
     GTEST_SKIP() << "Not enough memory for the test database";
     return;
@@ -4934,10 +4951,10 @@ TEST(Smoke, DISABLED_IndexCosts) {
             fpta_column_describe("pk_i32", fptu_int32,
                                  fpta_primary_unique_ordered_obverse, &def));
   EXPECT_EQ(FPTA_OK,
-            fpta_column_describe("strA", fptu_cstr,
+            fpta_column_describe("str_uniq", fptu_cstr,
                                  fpta_secondary_unique_ordered_obverse, &def));
   EXPECT_EQ(FPTA_OK, fpta_column_describe(
-                         "strB", fptu_cstr,
+                         "str_dups", fptu_cstr,
                          fpta_secondary_withdups_ordered_obverse, &def));
   EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
 
@@ -4955,20 +4972,20 @@ TEST(Smoke, DISABLED_IndexCosts) {
 
   //---------------------------------------------------------------------------
   // инициализируем идентификаторы таблицы и её колонок
-  fpta_name table, col_pk, col_a, col_b;
+  fpta_name table, col_pk_i32, col_str_uniq, col_str_dups;
   EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
-  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk, "pk_i32"));
-  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_a, "strA"));
-  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_b, "strB"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_pk_i32, "pk_i32"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_str_uniq, "str_uniq"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_str_dups, "str_dups"));
 
   // начинаем транзакцию для вставки данных
   EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
   ASSERT_NE(nullptr, txn);
 
   // для вставки делаем привязку вручную
-  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_pk));
-  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_a));
-  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_b));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_pk_i32));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_str_uniq));
+  EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_str_dups));
 
   // создаем кортеж для наполнения таблицы
   fptu_rw *tuple = fptu_alloc(3, 256);
@@ -4994,153 +5011,246 @@ TEST(Smoke, DISABLED_IndexCosts) {
     } index_bench[3];
   };
 
-  std::pair<unsigned, unsigned> minmax{INT_MAX, 0};
+  std::pair<unsigned, unsigned> minmax_cost = {~0u, 0u};
+  std::pair<double, double> minmax_bench = {DBL_MAX, 0u};
   std::vector<point> bunch;
   int err = FPTA_OK;
 
   // генератор значений колонок
   struct generator {
-    char buf[128];
+    char buf[64];
 
     fpta_value pk(unsigned n) { return fpta_value_uint(n); }
 
-    fpta_value a(unsigned n) {
-      snprintf(buf, sizeof(buf), "%0*u", (n + 22621) % 23 + 1, n);
-      return fpta_value_cstr(buf);
+    fpta_value str_uniq(const unsigned n) {
+      const auto v = n;
+      const auto w = (n + 22621) % 23 + 1;
+      memset(buf, '0', 24);
+      const auto e = erthink::u2a(v, buf + 24);
+      *e = 0;
+      const auto b = (e - w < buf + 24) ? e - w : buf + 24;
+#ifndef NDEBUG
+      static char xbuf[64];
+      snprintf(xbuf, sizeof(xbuf), "%0*u", w, v);
+      assert(strcmp(xbuf, b) == 0);
+#endif /* !NDEBUG */
+      return fpta_value_cstr(b);
     }
-    fpta_value b(unsigned n) {
-      snprintf(buf, sizeof(buf), "%*u", n % 11 + 1, n % 5);
-      return fpta_value_cstr(buf);
+
+    fpta_value str_dups(const unsigned n) {
+      const auto v = n % 5;
+      const auto w = n % 11 + 1;
+      memset(buf, ' ', 16);
+      const auto e = erthink::u2a(v, buf + 16);
+      *e = 0;
+      const auto b = (e - w < buf + 16) ? e - w : buf + 16;
+#ifndef NDEBUG
+      static char xbuf[64];
+      snprintf(xbuf, sizeof(xbuf), "%*u", w, v);
+      assert(strcmp(xbuf, b) == 0);
+#endif /* !NDEBUG */
+      return fpta_value_cstr(b);
     }
   };
 
-  for (int n = 42, count = 0; !err && n <= 9999999; n = (n * 177) >> 7) {
+  bool db_full = false;
+  const unsigned char smalls[] = {0, 1, 2, 34, 156, 255};
+  for (size_t n = 0, i = 0, count = 0; !db_full;) {
+    n = (i < sizeof(smalls)) ? smalls[i++] : size_t(n * 1.378240772) + 3;
     //-------------------------------------------------------------------------
+    if (!txn) {
+      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+      ASSERT_NE(nullptr, txn);
+    }
     // наполняем до следующей границы
     while (count < n) {
       generator maker;
       fptu_clear(tuple);
-      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_pk, maker.pk(count)));
-      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_a, maker.a(count)));
-      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_b, maker.b(count)));
+      ASSERT_EQ(FPTA_OK,
+                fpta_upsert_column(tuple, &col_pk_i32, maker.pk(count)));
+      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_str_uniq,
+                                            maker.str_uniq(count)));
+      ASSERT_EQ(FPTA_OK, fpta_upsert_column(tuple, &col_str_dups,
+                                            maker.str_dups(count)));
       ASSERT_EQ(nullptr, fptu::check(tuple));
       err = fpta_upsert_row(txn, &table, fptu_take(tuple));
       if (err != FPTA_OK) {
+        db_full = err == FPTA_DB_FULL;
         EXPECT_EQ(err, FPTA_DB_FULL);
         break;
       }
       count++;
     }
-
-    if (err == FPTA_OK) {
-      //-----------------------------------------------------------------------
-      // получаем метрики
-      union {
-        fpta_table_stat stat;
-        char space[sizeof(fpta_table_stat) +
-                   sizeof(fpta_table_stat::index_cost_info) * 2];
-      } snap;
-
-      ASSERT_EQ(FPTA_OK, fpta_table_info_ex(txn, &table, nullptr, &snap.stat,
-                                            sizeof(snap)));
-      ASSERT_EQ(size_t(n), snap.stat.row_count);
-
-      bunch.emplace_back();
-      point &y = bunch.back();
-      y.row_count = snap.stat.row_count;
-      y.total_items = snap.stat.total_items;
-      y.total_bytes = snap.stat.total_bytes;
-      y.btree_depth = snap.stat.btree_depth;
-      y.branch_pages = snap.stat.branch_pages;
-      y.leaf_pages = snap.stat.leaf_pages;
-      y.large_pages = snap.stat.large_pages;
-      y.cost_scan_O1N = snap.stat.cost_scan_O1N;
-      y.cost_search_OlogN = snap.stat.cost_search_OlogN;
-      y.cost_uniq_MOlogN = snap.stat.cost_uniq_MOlogN;
-      y.cost_alter_MOlogN = snap.stat.cost_alter_MOlogN;
-
-      /* avoid warning out of bounds array access */
-      static_assert(
-          sizeof(y.index_costs[0]) == sizeof(snap.stat.index_costs[0]), "WTF?");
-      memcpy(y.index_costs, &snap.stat.index_costs, sizeof(y.index_costs));
-
-      const auto i_minmax =
-          std::minmax({y.cost_scan_O1N, y.cost_search_OlogN, y.cost_uniq_MOlogN,
-                       y.cost_alter_MOlogN, y.index_costs[0].scan_O1N,
-                       y.index_costs[0].search_OlogN, y.index_costs[1].scan_O1N,
-                       y.index_costs[1].search_OlogN, y.index_costs[2].scan_O1N,
-                       y.index_costs[2].search_OlogN});
-      minmax.first = std::min(minmax.first, i_minmax.first);
-      minmax.second = std::min(minmax.second, i_minmax.second);
-
-      //-----------------------------------------------------------------------
-      // замеряем реальные затраты
-
-      struct bench {
-        static double probe(int (*proba)(fpta_cursor *, unsigned,
-                                         fpta_value (generator::*)(unsigned)),
-                            fpta_txn *txn, fpta_name *col, unsigned count,
-                            fpta_value (generator::*make)(unsigned)) {
-          fpta_cursor *cursor;
-          int err =
-              fpta_cursor_open(txn, col, fpta_value_begin(), fpta_value_end(),
-                               nullptr, fpta_unsorted_dont_fetch, &cursor);
-          scoped_cursor_guard cursor_guard;
-          cursor_guard.reset(cursor);
-
-          const auto start = std::chrono::steady_clock::now();
-          std::chrono::nanoseconds duration;
-          int i = 0;
-          do {
-            err = proba(cursor, count, make);
-            EXPECT_EQ(FPTA_OK, err);
-            ++i;
-            duration = std::chrono::steady_clock::now() - start;
-          } while (err == FPTA_OK &&
-                   duration < std::chrono::milliseconds(1000));
-          return duration.count() * 1e-9 / i;
-        }
-
-        static int scan(fpta_cursor *cursor, unsigned count,
-                        fpta_value (generator::*make)(unsigned)) {
-          (void)make;
-          int err = fpta_cursor_move(cursor, fpta_first);
-          for (unsigned i = 1; i < count && err == FPTA_OK; ++i)
-            err = fpta_cursor_move(cursor, fpta_next);
-          return err;
-        }
-
-        static int search(fpta_cursor *cursor, unsigned count,
-                          fpta_value (generator::*make)(unsigned)) {
-          const uint64_t mixer = UINT64_C(3131777041);
-          assert(mixer > count && count > 1);
-          generator maker;
-          for (unsigned i = 0; i < count; ++i) {
-            unsigned n = ((i + 49057) * mixer) % count;
-            const auto key = (maker.*make)(n);
-            int err = fpta_cursor_locate(cursor, true, &key, nullptr);
-            if (err != FPTA_OK)
-              return err;
-          }
-          return FPTA_OK;
-        }
-      };
-
-      y.index_bench[0].scan =
-          bench::probe(bench::scan, txn, &col_pk, count, &generator::pk);
-      y.index_bench[0].search =
-          bench::probe(bench::search, txn, &col_pk, count, &generator::pk);
-      y.index_bench[1].scan =
-          bench::probe(bench::scan, txn, &col_a, count, &generator::a);
-      y.index_bench[1].search =
-          bench::probe(bench::search, txn, &col_a, count, &generator::a);
-      y.index_bench[2].scan =
-          bench::probe(bench::scan, txn, &col_b, count, &generator::b);
-      y.index_bench[2].search =
-          bench::probe(bench::search, txn, &col_b, count, &generator::b);
+    if (err != FPTA_OK && err != FPTA_DB_FULL)
+      break;
+    err = fpta_transaction_commit(txn);
+    if (err != FPTA_OK && err != FPTA_TXN_CANCELLED) {
+      EXPECT_EQ(err, FPTA_DB_FULL);
+      break;
     }
-    const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
-    if (skipped)
+    txn = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+    ASSERT_NE(nullptr, txn);
+
+    //-----------------------------------------------------------------------
+    // получаем метрики
+    union {
+      fpta_table_stat stat;
+      char space[sizeof(fpta_table_stat) +
+                 sizeof(fpta_table_stat::index_cost_info) * 2];
+    } snap;
+
+    ASSERT_EQ(FPTA_OK, fpta_table_info_ex(txn, &table, nullptr, &snap.stat,
+                                          sizeof(snap)));
+    if (!db_full) {
+      ASSERT_EQ(size_t(n), snap.stat.row_count);
+    } else if (snap.stat.row_count - bunch.back().row_count < 1000)
+      break;
+
+    bunch.emplace_back();
+    point &y = bunch.back();
+    y.row_count = snap.stat.row_count;
+    y.total_items = snap.stat.total_items;
+    y.total_bytes = snap.stat.total_bytes;
+    y.btree_depth = snap.stat.btree_depth;
+    y.branch_pages = snap.stat.branch_pages;
+    y.leaf_pages = snap.stat.leaf_pages;
+    y.large_pages = snap.stat.large_pages;
+    y.cost_scan_O1N = snap.stat.cost_scan_O1N;
+    y.cost_search_OlogN = snap.stat.cost_search_OlogN;
+    y.cost_uniq_MOlogN = snap.stat.cost_uniq_MOlogN;
+    y.cost_alter_MOlogN = snap.stat.cost_alter_MOlogN;
+
+    /* avoid warning out of bounds array access */
+    static_assert(sizeof(y.index_costs[0]) == sizeof(snap.stat.index_costs[0]),
+                  "WTF?");
+    memcpy(y.index_costs, &snap.stat.index_costs, sizeof(y.index_costs));
+
+    EXPECT_GE(y.index_costs[0].search_OlogN, y.index_costs[0].scan_O1N);
+    EXPECT_GE(y.index_costs[1].search_OlogN, y.index_costs[1].scan_O1N);
+    EXPECT_GE(y.index_costs[2].search_OlogN, y.index_costs[2].scan_O1N);
+
+    EXPECT_GE(y.cost_scan_O1N, y.index_costs[0].scan_O1N);
+    EXPECT_GE(y.cost_scan_O1N, y.index_costs[1].scan_O1N);
+    EXPECT_GE(y.cost_scan_O1N, y.index_costs[2].scan_O1N);
+    EXPECT_GE(y.cost_search_OlogN, y.index_costs[0].search_OlogN);
+    EXPECT_GE(y.cost_search_OlogN, y.index_costs[1].search_OlogN);
+    EXPECT_GE(y.cost_search_OlogN, y.index_costs[2].search_OlogN);
+
+    EXPECT_GE(y.cost_search_OlogN, y.cost_scan_O1N);
+    EXPECT_GE(y.cost_uniq_MOlogN, y.cost_scan_O1N);
+    EXPECT_GE(y.cost_search_OlogN, y.cost_uniq_MOlogN);
+    EXPECT_GE(y.cost_alter_MOlogN, y.cost_search_OlogN);
+
+    if (y.row_count) {
+      const auto minmax = std::minmax(
+          {/* y.cost_scan_O1N, y.cost_search_OlogN, y.cost_uniq_MOlogN,
+           y.cost_alter_MOlogN, */
+           y.index_costs[0].scan_O1N, y.index_costs[0].search_OlogN,
+           y.index_costs[1].scan_O1N, y.index_costs[1].search_OlogN,
+           y.index_costs[2].scan_O1N, y.index_costs[2].search_OlogN});
+      minmax_cost.first = std::min(minmax_cost.first, minmax.first);
+      minmax_cost.second = std::max(minmax_cost.second, minmax.second);
+    }
+
+    //-----------------------------------------------------------------------
+    // замеряем реальные затраты
+
+    struct bench {
+      static double probe(int (*proba)(fpta_cursor *, unsigned,
+                                       fpta_value (generator::*)(unsigned)),
+                          fpta_txn *txn, fpta_name *col, unsigned count,
+                          fpta_value (generator::*make)(unsigned)) {
+        fpta_cursor *cursor;
+        int err =
+            fpta_cursor_open(txn, col, fpta_value_begin(), fpta_value_end(),
+                             nullptr, fpta_unsorted_dont_fetch, &cursor);
+        scoped_cursor_guard cursor_guard;
+        cursor_guard.reset(cursor);
+
+        const auto start = std::chrono::steady_clock::now();
+        std::chrono::nanoseconds duration;
+        int i = 0;
+        do {
+          err = proba(cursor, count, make);
+          EXPECT_EQ(count ? FPTA_OK : FPTA_NODATA, err);
+          ++i;
+          duration = std::chrono::steady_clock::now() - start;
+        } while (err == FPTA_OK && duration < std::chrono::milliseconds(100));
+        return count ? double(duration.count()) / (i * count) : 0;
+      }
+
+      static int scan(fpta_cursor *cursor, unsigned count,
+                      fpta_value (generator::*make)(unsigned)) {
+        (void)make;
+        int err = fpta_cursor_move(cursor, fpta_first);
+        for (unsigned i = 1; i < count && err == FPTA_OK; ++i)
+          err = fpta_cursor_move(cursor, fpta_next);
+        return err;
+      }
+
+      static int search(fpta_cursor *cursor, unsigned count,
+                        fpta_value (generator::*make)(unsigned)) {
+        const uint64_t mixer = UINT64_C(3131777041);
+        assert(mixer > count && count > 1);
+        generator maker;
+        for (unsigned i = 0; i < count; ++i) {
+          unsigned n = ((i + 49057) * mixer) % count;
+          const auto key = (maker.*make)(n);
+          int err = fpta_cursor_locate(cursor, true, &key, nullptr);
+          if (err != FPTA_OK)
+            return err;
+        }
+        return count ? FPTA_OK : FPTA_NODATA;
+      }
+    };
+
+    const auto index_1_col =
+        (y.index_costs[1].column_shove == col_str_uniq.shove) ? &col_str_uniq
+                                                              : &col_str_dups;
+    const auto index_2_col =
+        (y.index_costs[2].column_shove == col_str_dups.shove) ? &col_str_dups
+                                                              : &col_str_uniq;
+    const auto index_1_gen =
+        (y.index_costs[1].column_shove == col_str_uniq.shove)
+            ? &generator::str_uniq
+            : &generator::str_dups;
+    const auto index_2_gen =
+        (y.index_costs[2].column_shove == col_str_dups.shove)
+            ? &generator::str_dups
+            : &generator::str_uniq;
+
+    ASSERT_NE(index_1_col, index_2_col);
+    ASSERT_NE(index_1_gen, index_2_gen);
+
+    y.index_bench[0].scan = bench::probe(bench::scan, txn, &col_pk_i32,
+                                         snap.stat.row_count, &generator::pk);
+    y.index_bench[0].search = bench::probe(bench::search, txn, &col_pk_i32,
+                                           snap.stat.row_count, &generator::pk);
+    y.index_bench[1].scan = bench::probe(bench::scan, txn, index_1_col,
+                                         snap.stat.row_count, index_1_gen);
+    y.index_bench[1].search = bench::probe(bench::search, txn, index_1_col,
+                                           snap.stat.row_count, index_1_gen);
+    y.index_bench[2].scan = bench::probe(bench::scan, txn, index_2_col,
+                                         snap.stat.row_count, index_2_gen);
+    y.index_bench[2].search = bench::probe(bench::search, txn, index_2_col,
+                                           snap.stat.row_count, index_2_gen);
+    if (y.row_count) {
+      const auto minmax =
+          std::minmax({y.index_bench[0].scan, y.index_bench[0].search,
+                       y.index_bench[1].scan, y.index_bench[1].search,
+                       y.index_bench[2].scan, y.index_bench[2].search});
+      minmax_bench.first = std::min(minmax_bench.first, minmax.first);
+      minmax_bench.second = std::max(minmax_bench.second, minmax.second);
+    }
+    EXPECT_GT(y.index_bench[0].search, y.index_bench[0].scan);
+    EXPECT_GT(y.index_bench[1].search, y.index_bench[1].scan);
+    EXPECT_GT(y.index_bench[2].search, y.index_bench[2].scan);
+
+    EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    txn = nullptr;
+
+    if (err != FPTA_OK || GTEST_IS_EXECUTION_TIMEOUT())
       break;
   }
 
@@ -5151,72 +5261,160 @@ TEST(Smoke, DISABLED_IndexCosts) {
   // вывод результатов
 
   struct scale {
-    double ratio;
-    double operator()(unsigned value) const { return value * ratio; }
+    const double base, ratio;
+    double operator()(double value) const { return (value - base) * ratio; }
   };
-  const scale s{1.0 / minmax.first};
+  const scale sc{0, 99.9 / minmax_cost.second};
+  const scale sb{0, 99.9 / minmax_bench.second};
 
-  std::cout << "         overall_____________  pk_i4____________  "
-               "uniq_str_________  dups_str_________\n";
-  std::cout
-      << "#######  scan seek uniq alter  scan seek EST ACT  scan seek EST "
-         "ACT  scan seek EST ACT\n";
+  const auto index_1_name =
+      (bunch.front().index_costs[1].column_shove == col_str_uniq.shove)
+          ? "str_uniq"
+          : "str_dups";
+  const auto index_2_name =
+      (bunch.front().index_costs[2].column_shove == col_str_dups.shove)
+          ? "str_dups"
+          : "str_uniq";
+
+  /* *INDENT-OFF* */
+  /* clang-format off */
+  std::cout << " "
+               "        pk_i32___________________________________  "
+            << index_1_name << "_________________________________  "
+            << index_2_name << "_________________________________  "
+               "overall___\n";
+  std::cout << "#######  "
+               "__bench__ ___estimate___ ______tree______  "
+               "__bench__ ___estimate___ ______tree______  "
+               "__bench__ ___estimate___ ______tree______  "
+               "____________________\n";
+  std::cout << "         "
+               "scan seek scan seek  lge H     B      L O  "
+               "scan seek scan seek  lge H     B      L O  "
+               "scan seek scan seek  lge H     B      L O  "
+               "scan seek uniq alter\n";
+  /* *INDENT-ON* */
+  /* clang-format on */
+
+  struct {
+    double operator()(const unsigned v) const { return v ? v : 1; }
+    double operator()(const double v) const { return v ? v : 1; }
+  } nz;
 
   for (const auto &i : bunch) {
-    const auto ratio_pk_est =
-        double(i.index_costs[0].search_OlogN) / i.index_costs[0].scan_O1N;
-    const auto ratio_pk_act = i.index_bench[0].search / i.index_bench[0].scan;
-
-    const auto ratio_a_est =
-        double(i.index_costs[1].search_OlogN) / i.index_costs[1].scan_O1N;
-    const auto ratio_a_act = i.index_bench[1].search / i.index_bench[1].scan;
-
-    const auto ratio_b_est =
-        double(i.index_costs[2].search_OlogN) / i.index_costs[2].scan_O1N;
-    const auto ratio_b_act = i.index_bench[2].search / i.index_bench[2].scan;
-
     fptu::format(
         std::cout,
-        "%7zu  %4.f %4.f %4.f %5.f  %4.f %4.f %3.f %3.f  %4.f %4.f %3.f %3.f "
-        " %4.f %4.f %3.f %3.f\n",
-        i.row_count, s(i.cost_scan_O1N), s(i.cost_search_OlogN),
-        s(i.cost_uniq_MOlogN), s(i.cost_alter_MOlogN),
+        "%7zu"
+        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %5zu %6zu %zu"
+        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %5zu %6zu %zu"
+        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %5zu %6zu %zu"
+        "  %4.f %4.f %4.f %5.f\n",
+        i.row_count,
 
-        s(i.index_costs[0].scan_O1N), s(i.index_costs[0].search_OlogN),
-        ratio_pk_est, ratio_pk_act,
+        sb(i.index_bench[0].scan), sb(i.index_bench[0].search),
+        sc(i.index_costs[0].scan_O1N), sc(i.index_costs[0].search_OlogN),
+        log2(nz(i.index_costs[0].search_OlogN / nz(i.index_costs[0].scan_O1N)) /
+             nz(i.index_bench[0].search / nz(i.index_bench[0].scan))),
+        i.index_costs[0].btree_depth, i.index_costs[0].branch_pages,
+        i.index_costs[0].leaf_pages, i.index_costs[0].large_pages,
 
-        s(i.index_costs[1].scan_O1N), s(i.index_costs[1].search_OlogN),
-        ratio_a_est, ratio_a_act,
+        sb(i.index_bench[1].scan), sb(i.index_bench[1].search),
+        sc(i.index_costs[1].scan_O1N), sc(i.index_costs[1].search_OlogN),
+        log2(nz(i.index_costs[1].search_OlogN / nz(i.index_costs[1].scan_O1N)) /
+             nz(i.index_bench[1].search / nz(i.index_bench[1].scan))),
+        i.index_costs[1].btree_depth, i.index_costs[1].branch_pages,
+        i.index_costs[1].leaf_pages, i.index_costs[1].large_pages,
 
-        s(i.index_costs[2].scan_O1N), s(i.index_costs[2].search_OlogN),
-        ratio_b_est, ratio_b_act);
+        sb(i.index_bench[2].scan), sb(i.index_bench[2].search),
+        sc(i.index_costs[2].scan_O1N), sc(i.index_costs[2].search_OlogN),
+        log2(nz(i.index_costs[2].search_OlogN / nz(i.index_costs[2].scan_O1N)) /
+             nz(i.index_bench[2].search / nz(i.index_bench[2].scan))),
+        i.index_costs[2].btree_depth, i.index_costs[2].branch_pages,
+        i.index_costs[2].leaf_pages, i.index_costs[2].large_pages,
 
-    if (i.row_count < 100000) {
-      EXPECT_GE(ratio_pk_est * 3, ratio_pk_act);
-      EXPECT_LE(ratio_pk_est, ratio_pk_act * 3);
-      EXPECT_GE(ratio_a_est * 3, ratio_a_act);
-      EXPECT_LE(ratio_a_est, ratio_a_act * 3);
-      EXPECT_GE(ratio_b_est * 3, ratio_b_act);
-      EXPECT_LE(ratio_b_est, ratio_b_act * 3);
-    } else {
-      EXPECT_GE(ratio_pk_est * 2, ratio_pk_act);
-      EXPECT_LE(ratio_pk_est, ratio_pk_act * 2);
-      EXPECT_GE(ratio_a_est * 2, ratio_a_act);
-      EXPECT_LE(ratio_a_est, ratio_a_act * 2);
-      EXPECT_GE(ratio_b_est * 2, ratio_b_act);
-      EXPECT_LE(ratio_b_est, ratio_b_act * 2);
+        sc(i.cost_scan_O1N), sc(i.cost_search_OlogN), sc(i.cost_uniq_MOlogN),
+        sc(i.cost_alter_MOlogN));
+  }
+
+  for (const auto &i : bunch) {
+    const auto ratio_pk_i32_est =
+        i.index_costs[0].search_OlogN / nz(i.index_costs[0].scan_O1N);
+    const auto ratio_pk_act =
+        i.index_bench[0].search / nz(i.index_bench[0].scan);
+
+    const auto ratio_1_est =
+        i.index_costs[1].search_OlogN / nz(i.index_costs[1].scan_O1N);
+    const auto ratio_1_act =
+        i.index_bench[1].search / nz(i.index_bench[1].scan);
+
+    const auto ratio_2_est =
+        i.index_costs[2].search_OlogN / nz(i.index_costs[2].scan_O1N);
+    const auto ratio_2_act =
+        i.index_bench[2].search / nz(i.index_bench[2].scan);
+
+    const auto info_1 = fptu::format(
+        "  pk_i32: rows %zu, depth %u, branch %zu, leaf %zu => scan %4.f, "
+        "seek "
+        "%4.f, est "
+        "%3.f, act %3.f",
+        i.row_count, i.index_costs[0].btree_depth,
+        i.index_costs[0].branch_pages, i.index_costs[0].leaf_pages,
+        sc(i.index_costs[0].scan_O1N), sc(i.index_costs[0].search_OlogN),
+        ratio_pk_i32_est, ratio_pk_act);
+    const auto info_2 = fptu::format(
+        "%s: rows %zu, depth %u, branch %zu, leaf %zu => scan %4.f, "
+        "seek "
+        "%4.f, est "
+        "%3.f, act %3.f",
+        index_1_name, i.row_count, i.index_costs[1].btree_depth,
+        i.index_costs[1].branch_pages, i.index_costs[1].leaf_pages,
+        sc(i.index_costs[1].scan_O1N), sc(i.index_costs[1].search_OlogN),
+        ratio_1_est, ratio_1_act);
+    const auto info_3 = fptu::format(
+        "%s: rows %zu, depth %u, branch %zu, leaf %zu => scan %4.f, "
+        "seek "
+        "%4.f, est "
+        "%3.f, act %3.f",
+        index_2_name, i.row_count, i.index_costs[2].btree_depth,
+        i.index_costs[2].branch_pages, i.index_costs[2].leaf_pages,
+        sc(i.index_costs[2].scan_O1N), sc(i.index_costs[2].search_OlogN),
+        ratio_2_est, ratio_2_act);
+
+    // Для отладки
+    SCOPED_TRACE(info_1);
+    SCOPED_TRACE(info_2);
+    SCOPED_TRACE(info_3);
+
+    EXPECT_GE(ratio_pk_i32_est * 4, ratio_pk_act);
+    EXPECT_LE(ratio_pk_i32_est, ratio_pk_act * 4);
+    EXPECT_GE(ratio_1_est * 4, ratio_1_act);
+    EXPECT_LE(ratio_1_est, ratio_1_act * 4);
+    EXPECT_GE(ratio_2_est * 4, ratio_2_act);
+    EXPECT_LE(ratio_2_est, ratio_2_act * 4);
+    if (i.row_count > 999) {
+      EXPECT_GE(ratio_pk_i32_est * 3, ratio_pk_act);
+      EXPECT_LE(ratio_pk_i32_est, ratio_pk_act * 3);
+      EXPECT_GE(ratio_1_est * 3, ratio_1_act);
+      EXPECT_LE(ratio_1_est, ratio_1_act * 3);
+      EXPECT_GE(ratio_2_est * 3, ratio_2_act);
+      EXPECT_LE(ratio_2_est, ratio_2_act * 3);
     }
-
-    /* Для отладки
-    fptu::format(std::cout, "col_pk: depth %u, branch %zu, leaf %zu\n",
-                 i.index_costs[0].btree_depth, i.index_costs[0].branch_pages,
-                 i.index_costs[0].leaf_pages);
-    fptu::format(std::cout, "col_a: depth %u, branch %zu, leaf %zu\n",
-                 i.index_costs[1].btree_depth, i.index_costs[1].branch_pages,
-                 i.index_costs[1].leaf_pages);
-    fptu::format(std::cout, "col_b: depth %u, branch %zu, leaf %zu\n",
-                 i.index_costs[2].btree_depth, i.index_costs[2].branch_pages,
-                 i.index_costs[2].leaf_pages); */
+    if (i.row_count > 9999) {
+      EXPECT_GE(ratio_pk_i32_est * 2, ratio_pk_act);
+      EXPECT_LE(ratio_pk_i32_est, ratio_pk_act * 2);
+      EXPECT_GE(ratio_1_est * 2, ratio_1_act);
+      EXPECT_LE(ratio_1_est, ratio_1_act * 2);
+      EXPECT_GE(ratio_2_est * 2, ratio_2_act);
+      EXPECT_LE(ratio_2_est, ratio_2_act * 2);
+    }
+    if (i.row_count > 99999) {
+      EXPECT_GE(ratio_pk_i32_est * 1.5, ratio_pk_act);
+      EXPECT_LE(ratio_pk_i32_est, ratio_pk_act * 1.5);
+      EXPECT_GE(ratio_1_est * 1.5, ratio_1_act);
+      EXPECT_LE(ratio_1_est, ratio_1_act * 1.5);
+      EXPECT_GE(ratio_2_est * 1.5, ratio_2_act);
+      EXPECT_LE(ratio_2_est, ratio_2_act * 1.5);
+    }
   }
 
   //---------------------------------------------------------------------------
@@ -5224,9 +5422,9 @@ TEST(Smoke, DISABLED_IndexCosts) {
   EXPECT_EQ(FPTU_OK, fptu_clear(tuple));
   free(tuple);
   fpta_name_destroy(&table);
-  fpta_name_destroy(&col_pk);
-  fpta_name_destroy(&col_a);
-  fpta_name_destroy(&col_b);
+  fpta_name_destroy(&col_pk_i32);
+  fpta_name_destroy(&col_str_uniq);
+  fpta_name_destroy(&col_str_dups);
 
   // закрываем и удаляем базу
   EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
