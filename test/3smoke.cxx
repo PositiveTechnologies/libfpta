@@ -5126,6 +5126,9 @@ TEST(Smoke, DISABLED_IndexCosts) {
       y.index_bench[2].search =
           bench::probe(bench::search, txn, &col_b, count, &generator::b);
     }
+    const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      break;
   }
 
   fpta_transaction_abort(txn);
