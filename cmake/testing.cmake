@@ -73,8 +73,9 @@ if(BUILD_TESTING)
     else()
       if(NOT DEFINED GTEST_USE_VERSION
           OR GTEST_USE_VERSION STREQUAL "master"
+          OR GTEST_USE_VERSION STREQUAL "main"
           OR GTEST_USE_VERSION STREQUAL "LAST_RELEASE")
-        set(GTEST_CLONE_TAG "master")
+        set(GTEST_CLONE_TAG "main")
       else()
         set(GTEST_CLONE_TAG "origin/${GTEST_USE_VERSION}")
       endif()
