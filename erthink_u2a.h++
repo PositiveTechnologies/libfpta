@@ -103,8 +103,8 @@ static __always_inline char *dec2(uint_fast32_t v, char *ptr,
   return ptr + 1;
 }
 
-static __always_inline char *dec3(uint_fast32_t v, char *ptr,
-                                  std::size_t force = 0) {
+static __always_inline __maybe_unused char *dec3(uint_fast32_t v, char *ptr,
+                                                 std::size_t force = 0) {
   assert(v < 1000u);
   const uint_fast32_t hi = v / 10u;
   const uint_fast32_t lo = v % 10u;
