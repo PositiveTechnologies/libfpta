@@ -225,8 +225,16 @@ int fpta_table_info(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
                             offsetof(fpta_table_stat, index_costs));
 }
 
+static inline __pure_function unsigned log2_dot8(const size_t value) {
+  const unsigned w = 8 * sizeof(value);
+  const unsigned z = erthink::clz(value) + 1;
+  const unsigned f = (value << z) >> (w - 8);
+  const unsigned c = f * (255 - f) * 43;
+  return ((w - z) << 8) + f + (c >> 15);
+}
+
 static inline __pure_function unsigned ilog2(size_t value) {
-  return 8 * sizeof(value) - erthink::clz(value + 1);
+  return log2_dot8(value + 1) >> 8;
 }
 
 static inline __pure_function size_t index_bytes(size_t branch_pages,
@@ -236,14 +244,14 @@ static inline __pure_function size_t index_bytes(size_t branch_pages,
   return (branch_pages + leaf_pages + overflow_pages) * page_size;
 }
 
-static inline __pure_function unsigned leaf_factor(size_t entries,
-                                                   size_t leaf_pages) {
-  return ilog2((entries + leaf_pages) / (leaf_pages + 1));
+static inline __pure_function unsigned leaf_factor(const size_t entries,
+                                                   const size_t leaf_pages) {
+  return ilog2((entries + leaf_pages + 42) / (leaf_pages + 42));
 }
 
-static inline __pure_function unsigned branch_factor(size_t leaf_pages,
-                                                     size_t branch_pages) {
-  return ilog2(leaf_pages / (branch_pages + 1) + branch_pages);
+static inline __pure_function unsigned
+branch_factor(const size_t leaf_pages, const size_t branch_pages) {
+  return ilog2(leaf_pages * 256 / (branch_pages + 1) + branch_pages * 256) - 8;
 }
 
 static inline __pure_function unsigned scan_cost(size_t bytes, size_t items) {
@@ -279,7 +287,7 @@ static void index_stat2cost(const MDBX_stat &stat,
   r.search_OlogN = search_cost(leaf_factor(r.items, r.leaf_pages),
                                branch_factor(r.leaf_pages, r.branch_pages),
                                r.btree_depth - 1, r.scan_O1N);
-  r.clumsy_factor = unsigned(r.btree_depth * r.bytes / (r.items + 1));
+  r.clumsy_factor = r.btree_depth * unsigned(r.bytes / (r.items + 1));
 }
 
 int fpta_table_info_ex(fpta_txn *txn, fpta_name *table_id, size_t *row_count,
