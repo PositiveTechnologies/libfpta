@@ -92,11 +92,10 @@ public:
      *
      * Соответственно ниже для descending-курсора выполняется "переворот"
      * контрольного номера дубликата. */
-    const int expected_dup_id = fpta_index_is_unique(se_index)
-                                    ? 42
-                                    : fpta_cursor_is_descending(ordering)
-                                          ? NDUP - (dup_id + 1)
-                                          : dup_id;
+    const int expected_dup_id = fpta_index_is_unique(se_index) ? 42
+                                : fpta_cursor_is_descending(ordering)
+                                    ? NDUP - (dup_id + 1)
+                                    : dup_id;
 
     SCOPED_TRACE("logical-order " + std::to_string(expected_order) + " [" +
                  std::to_string(0) + "..." + std::to_string(NNN) +

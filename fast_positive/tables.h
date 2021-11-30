@@ -3486,7 +3486,7 @@ template <typename First, typename Second, typename... More>
 inline int
 describe_composite_index(const char *composite_name, fpta_index_type index_type,
                          fpta_column_set *column_set, const First &first,
-                         const Second &second, const More &... more) {
+                         const Second &second, const More &...more) {
   const std::array<const char *, sizeof...(More) + 2> array{
       {first, second, more...}};
   return fpta_describe_composite_index(composite_name, index_type, column_set,

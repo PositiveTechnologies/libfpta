@@ -752,10 +752,11 @@ int fpta_db_info(const fpta_db *db, const fpta_txn *txn, fpta_db_stat_t *stat) {
   stat->durability =
       ((mdbx_info.mi_mode & MDBX_UTTERLY_NOSYNC) == MDBX_UTTERLY_NOSYNC)
           ? fpta_weak
-          : (mdbx_info.mi_mode &
-             (MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC | MDBX_MAPASYNC))
-                ? fpta_lazy
-                : (mdbx_info.mi_mode & MDBX_RDONLY) ? fpta_readonly : fpta_sync;
+      : (mdbx_info.mi_mode &
+         (MDBX_SAFE_NOSYNC | MDBX_NOMETASYNC | MDBX_MAPASYNC))
+          ? fpta_lazy
+      : (mdbx_info.mi_mode & MDBX_RDONLY) ? fpta_readonly
+                                          : fpta_sync;
 
   static_assert(0 == fpta_regime_default, "Oops");
   stat->regime_flags =
