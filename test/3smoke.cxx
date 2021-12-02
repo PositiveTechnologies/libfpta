@@ -5000,8 +5000,6 @@ TEST(Smoke, DISABLED_IndexCosts) {
     size_t branch_pages;
     size_t leaf_pages;
     size_t large_pages;
-    unsigned cost_scan_O1N;
-    unsigned cost_search_OlogN;
     unsigned cost_uniq_MOlogN;
     unsigned cost_alter_MOlogN;
 
@@ -5116,8 +5114,6 @@ TEST(Smoke, DISABLED_IndexCosts) {
     y.branch_pages = snap.stat.branch_pages;
     y.leaf_pages = snap.stat.leaf_pages;
     y.large_pages = snap.stat.large_pages;
-    y.cost_scan_O1N = snap.stat.cost_scan_O1N;
-    y.cost_search_OlogN = snap.stat.cost_search_OlogN;
     y.cost_uniq_MOlogN = snap.stat.cost_uniq_MOlogN;
     y.cost_alter_MOlogN = snap.stat.cost_alter_MOlogN;
 
@@ -5130,22 +5126,11 @@ TEST(Smoke, DISABLED_IndexCosts) {
     EXPECT_GE(y.index_costs[1].search_OlogN, y.index_costs[1].scan_O1N);
     EXPECT_GE(y.index_costs[2].search_OlogN, y.index_costs[2].scan_O1N);
 
-    EXPECT_GE(y.cost_scan_O1N, y.index_costs[0].scan_O1N);
-    EXPECT_GE(y.cost_scan_O1N, y.index_costs[1].scan_O1N);
-    EXPECT_GE(y.cost_scan_O1N, y.index_costs[2].scan_O1N);
-    EXPECT_GE(y.cost_search_OlogN, y.index_costs[0].search_OlogN);
-    EXPECT_GE(y.cost_search_OlogN, y.index_costs[1].search_OlogN);
-    EXPECT_GE(y.cost_search_OlogN, y.index_costs[2].search_OlogN);
-
-    EXPECT_GE(y.cost_search_OlogN, y.cost_scan_O1N);
-    EXPECT_GE(y.cost_uniq_MOlogN, y.cost_scan_O1N);
-    EXPECT_GE(y.cost_search_OlogN, y.cost_uniq_MOlogN);
-    EXPECT_GE(y.cost_alter_MOlogN, y.cost_search_OlogN);
+    EXPECT_GE(y.cost_alter_MOlogN, y.cost_uniq_MOlogN);
 
     if (y.row_count) {
       const auto minmax = std::minmax(
-          {/* y.cost_scan_O1N, y.cost_search_OlogN, y.cost_uniq_MOlogN,
-           y.cost_alter_MOlogN, */
+          {/* y.cost_uniq_MOlogN, y.cost_alter_MOlogN, */
            y.index_costs[0].scan_O1N, y.index_costs[0].search_OlogN,
            y.index_costs[1].scan_O1N, y.index_costs[1].search_OlogN,
            y.index_costs[2].scan_O1N, y.index_costs[2].search_OlogN});
@@ -5192,7 +5177,7 @@ TEST(Smoke, DISABLED_IndexCosts) {
       static int search(fpta_cursor *cursor, unsigned count,
                         fpta_value (generator::*make)(unsigned)) {
         const uint64_t mixer = UINT64_C(3131777041);
-        assert(mixer > count && count > 1);
+        assert(mixer > count);
         generator maker;
         for (unsigned i = 0; i < count; ++i) {
           unsigned n = ((i + 49057) * mixer) % count;
@@ -5278,21 +5263,21 @@ TEST(Smoke, DISABLED_IndexCosts) {
 
   /* *INDENT-OFF* */
   /* clang-format off */
-  std::cout << " "
-               "        pk_i32___________________________________  "
-            << index_1_name << "_________________________________  "
-            << index_2_name << "_________________________________  "
+  std::cout << "    "
+               "        pk_i32____________________________________  "
+            << index_1_name << "__________________________________  "
+            << index_2_name << "__________________________________  "
                "overall___\n";
-  std::cout << "#######  "
-               "__bench__ ___estimate___ ______tree______  "
-               "__bench__ ___estimate___ ______tree______  "
-               "__bench__ ___estimate___ ______tree______  "
-               "____________________\n";
-  std::cout << "         "
-               "scan seek scan seek  lge H     B      L O  "
-               "scan seek scan seek  lge H     B      L O  "
-               "scan seek scan seek  lge H     B      L O  "
-               "scan seek uniq alter\n";
+  std::cout << "##########  "
+               "__bench__ ___estimate___ _______tree_______  "
+               "__bench__ ___estimate___ _______tree_______  "
+               "__bench__ ___estimate___ _______tree_______  "
+               "__________\n";
+  std::cout << "            "
+               "scan seek scan seek  lge H      B       L O  "
+               "scan seek scan seek  lge H      B       L O  "
+               "scan seek scan seek  lge H      B       L O  "
+               "uniq alter\n";
   /* *INDENT-ON* */
   /* clang-format on */
 
@@ -5304,11 +5289,11 @@ TEST(Smoke, DISABLED_IndexCosts) {
   for (const auto &i : bunch) {
     fptu::format(
         std::cout,
-        "%7zu"
-        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %5zu %6zu %zu"
-        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %5zu %6zu %zu"
-        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %5zu %6zu %zu"
-        "  %4.f %4.f %4.f %5.f\n",
+        "%10zu"
+        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %6zu %7zu %zu"
+        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %6zu %7zu %zu"
+        "  %4.1f %4.1f %4.1f %4.1f %+3.1f %u %6zu %7zu %zu"
+        "  %4.f %5.f\n",
         i.row_count,
 
         sb(i.index_bench[0].scan), sb(i.index_bench[0].search),
@@ -5332,8 +5317,7 @@ TEST(Smoke, DISABLED_IndexCosts) {
         i.index_costs[2].btree_depth, i.index_costs[2].branch_pages,
         i.index_costs[2].leaf_pages, i.index_costs[2].large_pages,
 
-        sc(i.cost_scan_O1N), sc(i.cost_search_OlogN), sc(i.cost_uniq_MOlogN),
-        sc(i.cost_alter_MOlogN));
+        sc(i.cost_uniq_MOlogN), sc(i.cost_alter_MOlogN));
   }
 
   for (const auto &i : bunch) {
