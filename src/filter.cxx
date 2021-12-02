@@ -314,6 +314,13 @@ tail_recursion:
     return true;
 
   switch (fn->type) {
+  case fpta_node_collapsed_true:
+  case fpta_node_cond_true:
+    return true;
+  case fpta_node_collapsed_false:
+  case fpta_node_cond_false:
+    return false;
+
   case fpta_node_not:
     return !fpta_filter_match(fn->node_not, tuple);
 
@@ -351,14 +358,79 @@ tail_recursion:
 
 //----------------------------------------------------------------------------
 
-int fpta_filter_validate(const fpta_filter *filter) {
-  int rc;
+#define FILTER_PROPAGATE_TRUE (FPTA_ERRROR_LAST+11)
+#define FILTER_PROPAGATE_FALSE (FPTA_ERRROR_LAST+12)
 
-tail_recursion:
+static int fpta_filter_rewrite_on_error(fpta_filter *filter, int err) {
+  assert(err != FPTA_SUCCESS);
+
+  if (err == FILTER_PROPAGATE_FALSE) {
+    switch (filter->type) {
+    default:
+      assert(false);
+      return FPTA_EOOPS;
+
+    case fpta_node_not:
+      filter->type = fpta_node_collapsed_true;
+      return FILTER_PROPAGATE_TRUE;
+
+    case fpta_node_or:
+      if (filter->node_or.a->type != fpta_node_collapsed_false
+          && filter->node_or.a->type != fpta_node_cond_false)
+        return FPTA_SUCCESS;
+      if (filter->node_or.b->type != fpta_node_collapsed_false
+          && filter->node_or.b->type != fpta_node_cond_false)
+        return FPTA_SUCCESS;
+      /* fallthrough */
+      __fallthrough;
+
+    case fpta_node_and:
+      filter->type = fpta_node_collapsed_false;
+      return FILTER_PROPAGATE_FALSE;
+    }
+  }
+
+  if (err == FILTER_PROPAGATE_TRUE) {
+    switch (filter->type) {
+    default:
+      assert(false);
+      return FPTA_EOOPS;
+
+    case fpta_node_not:
+      filter->type = fpta_node_collapsed_false;
+      return FILTER_PROPAGATE_FALSE;
+
+    case fpta_node_and:
+      if (filter->node_and.a->type != fpta_node_collapsed_true
+          && filter->node_and.a->type != fpta_node_cond_true)
+        return FPTA_SUCCESS;
+      if (filter->node_and.b->type != fpta_node_collapsed_true
+          && filter->node_and.b->type != fpta_node_cond_true)
+        return FPTA_SUCCESS;
+      /* fallthrough */
+      __fallthrough;
+
+    case fpta_node_or:
+      filter->type = fpta_node_collapsed_true;
+      return FILTER_PROPAGATE_TRUE;
+    }
+  }
+
+  return err;
+}
+
+int fpta_filter_validate(fpta_filter *filter) {
+  int rc;
 
   switch (filter->type) {
   default:
-    return false;
+    return FPTA_EINVAL;
+
+  case fpta_node_collapsed_true:
+  case fpta_node_collapsed_false:
+  case fpta_node_cond_true:
+  case fpta_node_cond_false:
+    return FPTA_SUCCESS;
 
   case fpta_node_fncol:
     rc = fpta_id_validate(filter->node_fncol.column_id, fpta_column);
@@ -376,20 +448,29 @@ tail_recursion:
     return FPTA_SUCCESS;
 
   case fpta_node_not:
+    assert(filter->node_not == filter->node_or.a &&
+           filter->node_not == filter->node_and.a &&
+           filter->node_or.b == filter->node_and.b);
     if (unlikely(!filter->node_not))
       return FPTA_EINVAL;
-    filter = filter->node_not;
-    goto tail_recursion;
+    rc = fpta_filter_validate(filter->node_not);
+    if (unlikely(rc != FPTA_SUCCESS))
+      return fpta_filter_rewrite_on_error(filter, rc);
+    return FPTA_SUCCESS;
 
   case fpta_node_or:
   case fpta_node_and:
+    assert(filter->node_or.a == filter->node_and.a &&
+           filter->node_or.b == filter->node_and.b);
     if (unlikely(!filter->node_and.a || !filter->node_and.b))
       return FPTA_EINVAL;
     rc = fpta_filter_validate(filter->node_and.a);
     if (unlikely(rc != FPTA_SUCCESS))
-      return rc;
-    filter = filter->node_and.b;
-    goto tail_recursion;
+      return fpta_filter_rewrite_on_error(filter, rc);
+    rc = fpta_filter_validate(filter->node_and.b);
+    if (unlikely(rc != FPTA_SUCCESS))
+      return fpta_filter_rewrite_on_error(filter, rc);
+    return FPTA_SUCCESS;
 
   case fpta_node_lt:
   case fpta_node_gt:
@@ -405,11 +486,17 @@ tail_recursion:
         fpta_column_is_nullable(filter->node_cmp.left_id->shove))
       return FPTA_SUCCESS;
 
-    return likely(
-               fpta_cmp_is_compat(fpta_name_coltype(filter->node_cmp.left_id),
-                                  filter->node_cmp.right_value.type))
-               ? FPTA_SUCCESS
-               : FPTA_ETYPE;
+    if (likely(fpta_cmp_is_compat(fpta_name_coltype(filter->node_cmp.left_id),
+                                  filter->node_cmp.right_value.type)))
+      return FPTA_SUCCESS;
+
+    if (filter->type != fpta_node_ne) {
+      filter->type = fpta_node_cond_false;
+      return FILTER_PROPAGATE_FALSE;
+    } else {
+      filter->type = fpta_node_cond_true;
+      return FILTER_PROPAGATE_TRUE;
+    }
   }
 }
 
