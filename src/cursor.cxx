@@ -221,7 +221,8 @@ int fpta_cursor::bring(MDBX_val *key, MDBX_val *data, const MDBX_cursor_op op) {
 
   metrics.scans += 1 & (ops_scan_mask >> op);
   metrics.searches += 1 & (ops_search_mask >> op);
-  return mdbx_cursor_get(mdbx_cursor, key, data, op);
+  int err = mdbx_cursor_get(mdbx_cursor, key, data, op);
+  return likely(err != int(MDBX_ENODATA)) ? err : int(MDBX_NOTFOUND);
 }
 
 static inline bool is_forward_direction(MDBX_cursor_op op) {
