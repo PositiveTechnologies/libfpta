@@ -623,7 +623,7 @@
 static inline void __noop_consume_args() {}
 template <typename First, typename... Rest>
 static inline void __noop_consume_args(const First &first,
-                                       const Rest &... rest) {
+                                       const Rest &...rest) {
   (void)first;
   __noop_consume_args(rest...);
 }

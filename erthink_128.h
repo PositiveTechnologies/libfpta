@@ -622,7 +622,8 @@ namespace details {
 constexpr unsigned char2digit(char c) noexcept {
   return (c <= '9') ? unsigned(c) - '0' /* intentional unsigned overflow during
                                            subtraction in case: c < '0' */
-                    : (c |= 32, c >= 'a') ? c - 'a' + 10 : ~0u;
+         : (c |= 32, c >= 'a') ? c - 'a' + 10
+                               : ~0u;
 }
 
 constexpr char digit2char(unsigned char d,
@@ -934,7 +935,8 @@ inline std::ostream &operator<<(std::ostream &out, uint128_t v) {
       d = char(v) & ((flags & std::ios_base::hex) ? 15 : 7);
       v >>= (flags & std::ios_base::hex) ? 4 : 3;
       d += d < 10 ? '0'
-                  : (flags & std::ios_base::uppercase) ? 'A' - 10 : 'a' - 10;
+           : (flags & std::ios_base::uppercase) ? 'A' - 10
+                                                : 'a' - 10;
     }
     assert(digits > buffer.begin() && digits <= buffer.end());
     *--digits = d;
@@ -946,8 +948,8 @@ inline std::ostream &operator<<(std::ostream &out, uint128_t v) {
       ((std::ios_base::showbase !=
         (flags & (std::ios_base::showbase | std::ios_base::dec)))
            ? /* no prefix for decimal */ 0
-           : (flags & std::ios_base::hex) ? /* '0x' for hex */ 2
-                                          : /* '0' for octal */ 1);
+       : (flags & std::ios_base::hex) ? /* '0x' for hex */ 2
+                                      : /* '0' for octal */ 1);
   auto padding = out.width() - (buffer.end() - digits + prefix_len);
 
   // padding at the left up to target width in case of right adjustment
@@ -1028,9 +1030,9 @@ erthink_u128_constexpr14 uint128_t uint128_t::from_string(const char *begin,
              ? std::get<1>(tuple)
              : (((std::get<2>(tuple) == std::errc::result_out_of_range)
                      ? throw std::out_of_range(begin)
-                     : std::get<0>(tuple)
-                           ? throw std::invalid_argument(begin)
-                           : throw std::invalid_argument("invalid base"),
+                 : std::get<0>(tuple)
+                     ? throw std::invalid_argument(begin)
+                     : throw std::invalid_argument("invalid base"),
                  std::get<1>(tuple)));
 }
 

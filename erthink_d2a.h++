@@ -862,7 +862,8 @@ public:
     return likely(is_finite())
                ? (likely(is_normal()) ? FP_NORMAL
                                       : (is_zero() ? FP_ZERO : FP_SUBNORMAL))
-               : is_infinity() ? FP_INFINITE : FP_NAN;
+           : is_infinity() ? FP_INFINITE
+                           : FP_NAN;
   }
 };
 
@@ -914,7 +915,8 @@ public:
     return likely(is_finite())
                ? (likely(is_normal()) ? FP_NORMAL
                                       : (is_zero() ? FP_ZERO : FP_SUBNORMAL))
-               : is_infinity() ? FP_INFINITE : FP_NAN;
+           : is_infinity() ? FP_INFINITE
+                           : FP_NAN;
   }
 };
 

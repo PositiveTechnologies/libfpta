@@ -81,7 +81,7 @@ cxx11_constexpr TO bit_cast(const FROM &src) cxx11_noexcept {
 
 #if defined(__cpp_concepts) && __cpp_concepts >= 201507L
 template <typename TO, typename FROM>
-    requires(sizeof(TO) == sizeof(FROM)) &&
+requires(sizeof(TO) == sizeof(FROM)) &&
     std::is_trivially_copyable<FROM>::value
         &&std::is_trivially_copyable<TO>::value
 #else
