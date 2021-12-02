@@ -93,6 +93,10 @@ else()
 endif()
 
 if(DEFINED PROJECT_NAME)
+  option(MDBX_FORCE_BUILD_AS_MAIN_PROJECT "Force libmdbx to full control build options even it added as a subdirectory to your project." OFF)
+endif()
+
+if(DEFINED PROJECT_NAME AND NOT MDBX_FORCE_BUILD_AS_MAIN_PROJECT)
   set(SUBPROJECT ON)
   set(NOT_SUBPROJECT OFF)
   if(NOT MDBX_AMALGAMATED_SOURCE AND NOT DEFINED BUILD_TESTING)
@@ -294,11 +298,11 @@ else()
 
     if(UNIX)
       find_program(CLANG_FORMAT
-        NAMES clang-format-12 clang-format-11 clang-format-10 clang-format)
+        NAMES clang-format-13 clang-format)
       if(CLANG_FORMAT)
         execute_process(COMMAND ${CLANG_FORMAT} "--version" OUTPUT_VARIABLE clang_format_version_info)
         string(REGEX MATCH "version ([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?" clang_format_version_info CLANG_FORMAT_VERSION)
-        if(clang_format_version_info AND NOT CLANG_FORMAT_VERSION VERSION_LESS 10.0)
+        if(clang_format_version_info AND NOT CLANG_FORMAT_VERSION VERSION_LESS 13.0)
           # Enable 'make reformat' target.
           add_custom_target(reformat
             VERBATIM

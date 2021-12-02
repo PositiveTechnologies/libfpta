@@ -1383,10 +1383,10 @@ DEFINE_ENUM_FLAG_OPERATORS(MDBX_txn_flags_t)
 enum MDBX_db_flags_t {
   MDBX_DB_DEFAULTS = 0,
 
-  /** Use reverse string keys */
+  /** Use reverse string comparison for keys. */
   MDBX_REVERSEKEY = UINT32_C(0x02),
 
-  /** Use sorted duplicates, i.e. allow multi-values */
+  /** Use sorted duplicates, i.e. allow multi-values for a keys. */
   MDBX_DUPSORT = UINT32_C(0x04),
 
   /** Numeric keys in native byte order either uint32_t or uint64_t. The keys
@@ -1394,18 +1394,19 @@ enum MDBX_db_flags_t {
    * arguments. */
   MDBX_INTEGERKEY = UINT32_C(0x08),
 
-  /** With \ref MDBX_DUPSORT; sorted dup items have fixed size */
+  /** With \ref MDBX_DUPSORT; sorted dup items have fixed size. The data values
+   * must all be of the same size. */
   MDBX_DUPFIXED = UINT32_C(0x10),
 
   /** With \ref MDBX_DUPSORT and with \ref MDBX_DUPFIXED; dups are fixed size
-   * \ref MDBX_INTEGERKEY -style integers. The data values must all be of the
-   * same size and must be aligned while passing as arguments. */
+   * like \ref MDBX_INTEGERKEY -style integers. The data values must all be of
+   * the same size and must be aligned while passing as arguments. */
   MDBX_INTEGERDUP = UINT32_C(0x20),
 
-  /** With \ref MDBX_DUPSORT; use reverse string comparison */
+  /** With \ref MDBX_DUPSORT; use reverse string comparison for data values. */
   MDBX_REVERSEDUP = UINT32_C(0x40),
 
-  /** Create DB if not already existing */
+  /** Create DB if not already existing. */
   MDBX_CREATE = UINT32_C(0x40000),
 
   /** Opens an existing sub-database created with unknown flags.
@@ -1736,7 +1737,7 @@ enum MDBX_error_t {
 #ifdef ENODATA
   MDBX_ENODATA = ENODATA,
 #else
-  MDBX_ENODATA = -1,
+  MDBX_ENODATA = 9919 /* for compatibility with LLVM's C++ libraries/headers */,
 #endif /* ENODATA */
   MDBX_EINVAL = EINVAL,
   MDBX_EACCESS = EACCES,
@@ -3285,9 +3286,11 @@ struct MDBX_commit_latency {
   uint32_t gc;
   /** \brief Duration of internal audit if enabled. */
   uint32_t audit;
-  /** \brief Duration of writing dirty/modified data pages. */
+  /** \brief Duration of writing dirty/modified data pages to a filesystem,
+   * i.e. the summary duration of a `write()` syscalls during commit. */
   uint32_t write;
-  /** \brief Duration of syncing written data to the dist/storage. */
+  /** \brief Duration of syncing written data to the disk/storage, i.e.
+   * the duration of a `fdatasync()` or a `msync()` syscall during commit. */
   uint32_t sync;
   /** \brief Duration of transaction ending (releasing resources). */
   uint32_t ending;
@@ -3510,10 +3513,14 @@ LIBMDBX_API int mdbx_canary_get(const MDBX_txn *txn, MDBX_canary *canary);
  * The reasons to not using custom comparators are:
  *   - The order of records could not be validated without your code.
  *     So `mdbx_chk` utility will reports "wrong order" errors
- *     and the `-i` option is required to ignore ones.
+ *     and the `-i` option is required to suppress ones.
  *   - A records could not be ordered or sorted without your code.
- *     So mdbx_load utility should be used with `-a` option to preserve
- *     input data order. */
+ *     So `mdbx_load` utility should be used with `-a` option to preserve
+ *     input data order.
+ *   - However, the custom comparators feature will never be removed.
+ *     You have been warned but still can use custom comparators knowing
+ *     about the issues noted above. In this case you should ignore `deprecated`
+ *     warnings or define `MDBX_DEPRECATED` macro to empty to avoid ones. */
 typedef int(MDBX_cmp_func)(const MDBX_val *a,
                            const MDBX_val *b) MDBX_CXX17_NOEXCEPT;
 
