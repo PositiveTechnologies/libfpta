@@ -738,6 +738,7 @@ static void commander_thread(fpta_db *db, volatile bool &done_flag) {
   // разрушаем описание таблицы
   EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
 
+  mdbx_setup_debug(MDBX_LOG_DONTCHANGE, save_flags, MDBX_LOGGER_DONTCHANGE);
   SCOPED_TRACE("commander-thread finished");
 }
 
