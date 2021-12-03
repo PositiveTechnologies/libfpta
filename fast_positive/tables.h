@@ -2341,7 +2341,7 @@ typedef enum fpta_filter_bits {
   /* внутренние типы узлов используемые реврайтером
    * для устранения тавтологических сравнений */
   fpta_node_collapsed_true = -8,
-  fpta_node_collapsed_false = - 7,
+  fpta_node_collapsed_false = -7,
   fpta_node_cond_true = -6,
   fpta_node_cond_false = -5,
 

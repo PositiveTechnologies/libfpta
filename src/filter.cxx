@@ -358,8 +358,8 @@ tail_recursion:
 
 //----------------------------------------------------------------------------
 
-#define FILTER_PROPAGATE_TRUE (FPTA_ERRROR_LAST+11)
-#define FILTER_PROPAGATE_FALSE (FPTA_ERRROR_LAST+12)
+#define FILTER_PROPAGATE_TRUE (FPTA_ERRROR_LAST + 11)
+#define FILTER_PROPAGATE_FALSE (FPTA_ERRROR_LAST + 12)
 
 static int fpta_filter_rewrite_on_error(fpta_filter *filter, int err) {
   assert(err != FPTA_SUCCESS);
@@ -375,11 +375,11 @@ static int fpta_filter_rewrite_on_error(fpta_filter *filter, int err) {
       return FILTER_PROPAGATE_TRUE;
 
     case fpta_node_or:
-      if (filter->node_or.a->type != fpta_node_collapsed_false
-          && filter->node_or.a->type != fpta_node_cond_false)
+      if (filter->node_or.a->type != fpta_node_collapsed_false &&
+          filter->node_or.a->type != fpta_node_cond_false)
         return FPTA_SUCCESS;
-      if (filter->node_or.b->type != fpta_node_collapsed_false
-          && filter->node_or.b->type != fpta_node_cond_false)
+      if (filter->node_or.b->type != fpta_node_collapsed_false &&
+          filter->node_or.b->type != fpta_node_cond_false)
         return FPTA_SUCCESS;
       /* fallthrough */
       __fallthrough;
@@ -401,11 +401,11 @@ static int fpta_filter_rewrite_on_error(fpta_filter *filter, int err) {
       return FILTER_PROPAGATE_FALSE;
 
     case fpta_node_and:
-      if (filter->node_and.a->type != fpta_node_collapsed_true
-          && filter->node_and.a->type != fpta_node_cond_true)
+      if (filter->node_and.a->type != fpta_node_collapsed_true &&
+          filter->node_and.a->type != fpta_node_cond_true)
         return FPTA_SUCCESS;
-      if (filter->node_and.b->type != fpta_node_collapsed_true
-          && filter->node_and.b->type != fpta_node_cond_true)
+      if (filter->node_and.b->type != fpta_node_collapsed_true &&
+          filter->node_and.b->type != fpta_node_cond_true)
         return FPTA_SUCCESS;
       /* fallthrough */
       __fallthrough;

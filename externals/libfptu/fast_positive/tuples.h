@@ -620,7 +620,8 @@ enum fptu_filter
 #ifdef __cplusplus
     : uint32_t
 #endif
-{ fptu_ffilter = UINT32_C(1) << (fptu_null | fptu_farray),
+{
+  fptu_ffilter = UINT32_C(1) << (fptu_null | fptu_farray),
   fptu_any = ~UINT32_C(0), // match any type
   fptu_any_int = fptu_ffilter | (UINT32_C(1) << fptu_int32) |
                  (UINT32_C(1) << fptu_int64), // match int32/int64
@@ -1584,8 +1585,9 @@ public:
   static cxx14_constexpr intptr_t compare(const string_view &a,
                                           const string_view &b) {
     const intptr_t diff = a.len - b.len;
-    return diff ? diff
-                : (a.str == b.str) ? 0 : memcmp(a.data(), b.data(), a.length());
+    return diff               ? diff
+           : (a.str == b.str) ? 0
+                              : memcmp(a.data(), b.data(), a.length());
   }
   cxx14_constexpr bool operator==(const string_view &v) const {
     return compare(*this, v) == 0;
