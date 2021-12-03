@@ -44,7 +44,7 @@ static void write_thread_proc(fpta_db *db, const int thread_num,
   SCOPED_TRACE("Thread " + std::to_string(thread_num) + " started");
 
   for (int i = 0; i < reps; ++i) {
-    static bool skipped;
+    static volatile bool skipped;
     skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
     if (skipped)
       break;
@@ -220,7 +220,7 @@ static void read_thread_proc(fpta_db *db,
   filter_b.node_cmp.left_id = &port;
 
   for (int i = 0; i < reps; ++i) {
-    static bool skipped;
+    static volatile bool skipped;
     skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
     if (skipped)
       break;
@@ -416,7 +416,7 @@ static void visitor_thread_proc(fpta_db *db,
   filter.node_cmp.right_value = fpta_value_sint(0);
 
   for (int i = 0; i < reps; ++i) {
-    static bool skipped;
+    static volatile bool skipped;
     skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
     if (skipped)
       break;
