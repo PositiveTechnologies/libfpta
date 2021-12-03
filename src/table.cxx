@@ -244,11 +244,11 @@ static void index_stat2cost(const MDBX_stat &stat,
 
   if (unlikely(r->leaf_pages < 3)) {
     r->scan_O1N = r->items ? 42 + (log2_dot8(r->items) >> 5) : 0;
-    r->search_OlogN = r->scan_O1N * (r->leaf_pages * 2 + 7) / 3;
+    r->search_OlogN = unsigned(r->scan_O1N * (r->leaf_pages * 2 + 7) / 3);
   } else {
     /* Исходим из того, что для сканирования всех записей потребуется обработать
      * все страницы, а также немного повозиться с каждой записью. */
-    r->scan_O1N = 42 + r->bytes / (r->items + 1);
+    r->scan_O1N = unsigned(42 + r->bytes / (r->items + 1));
 
     /* Поиск одной записи по значению ключа потребует бинарного поиска в одной
      * странице на каждом уровне дерева. Исходим из того, что стоимость

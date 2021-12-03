@@ -1108,7 +1108,7 @@ static std::string random_string(int len) {
 
 TEST(CRUD, ExtraOps) {
   /* FIXME: Описание сценария теста */
-  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
   if (skipped)
     return;
 
@@ -1201,7 +1201,7 @@ TEST(CRUD, ExtraOps) {
         ASSERT_EQ(FPTA_OK, fpta_cursor_delete(cursor));
         ++deleted;
         if ((j & 63) == 0) {
-          const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+          skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
           if (skipped)
             break;
         }
@@ -1249,7 +1249,7 @@ TEST(CRUD, ExtraOps) {
     fpta_name_destroy(&lc);
 
     EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
-    const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    skipped = skipped || GTEST_IS_EXECUTION_TIMEOUT();
     if (skipped)
       break;
   }
