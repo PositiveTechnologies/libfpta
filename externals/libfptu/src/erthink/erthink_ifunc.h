@@ -137,7 +137,7 @@
   RESULT_TYPE(*RESOLVER(void)) DECLARGS_PARENTHESIZED;                         \
                                                                                \
   static __cold void __attribute__((__constructor__))                          \
-      NAME##_iFunc_init(void) {                                                \
+  NAME##_iFunc_init(void) {                                                    \
     NAME##_iFuncPtr = RESOLVER();                                              \
   }
 

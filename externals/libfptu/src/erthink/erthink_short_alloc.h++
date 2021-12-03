@@ -305,7 +305,7 @@ public:
     arena_.deallocate(reinterpret_cast<char *>(p), n * sizeof(T));
   }
 
-  template <typename... Args> inline void construct(T *p, Args &&... args) {
+  template <typename... Args> inline void construct(T *p, Args &&...args) {
     new (p) T(std::forward<Args>(args)...);
   }
 
