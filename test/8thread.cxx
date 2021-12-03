@@ -673,7 +673,19 @@ TEST(Threaded, ParallelOpen) {
 
 //------------------------------------------------------------------------------
 
-static void commander_thread(fpta_db *db, const volatile bool &done_flag) {
+static bool jitter(size_t &entropy, volatile bool &done_flag) {
+  if (done_flag || GTEST_IS_EXECUTION_TIMEOUT()) {
+    done_flag = true;
+    return true;
+  }
+
+  entropy = entropy * 69069 + 1;
+  for (auto i = (entropy >> 16) & 3; i; --i)
+    std::this_thread::yield();
+  return false;
+}
+
+static void commander_thread(fpta_db *db, volatile bool &done_flag) {
   SCOPED_TRACE("commander-thread started");
 
   // описываем простейшую таблицу с двумя колонками
@@ -686,13 +698,19 @@ static void commander_thread(fpta_db *db, const volatile bool &done_flag) {
             fpta_column_describe("x", fptu_cstr, fpta_noindex_nullable, &def));
   EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
 
+  const auto save_flags = MDBX_debug_flags_t(mdbx_setup_debug(
+      MDBX_LOG_DONTCHANGE, MDBX_DBG_DONTCHANGE, MDBX_LOGGER_DONTCHANGE));
+  if (sizeof(size_t) < 8)
+    mdbx_setup_debug(MDBX_LOG_DONTCHANGE,
+                     save_flags & ~(MDBX_DBG_AUDIT | MDBX_DBG_JITTER),
+                     MDBX_LOGGER_DONTCHANGE);
+  size_t entropy = std::hash<std::thread::id>{}(std::this_thread::get_id());
   unsigned prev_state = 0;
-  int i = 0;
-  while (!done_flag) {
+  unsigned i = 0;
+  while (!jitter(entropy, done_flag)) {
     fpta_txn *txn;
     EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
     ASSERT_NE(nullptr, txn);
-    std::this_thread::yield();
 
     unsigned new_state = (((i++ + 58511) * 977) >> 3) & 3;
     if ((prev_state ^ new_state) & 1) {
@@ -715,7 +733,6 @@ static void commander_thread(fpta_db *db, const volatile bool &done_flag) {
     ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
     txn = nullptr;
     prev_state = new_state;
-    std::this_thread::yield();
   }
 
   // разрушаем описание таблицы
@@ -747,8 +764,9 @@ static void executor_thread(fpta_db *db, const char *const read,
     EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_pk, "pk"));
     EXPECT_EQ(FPTA_OK, fpta_column_init(&w_table, &col_x, "x"));
 
+    size_t entropy = std::hash<std::thread::id>{}(std::this_thread::get_id());
     for (int counter = 0; counter < 3; ++counter) {
-      for (int achieved = 0; achieved != 31;) {
+      for (int achieved = 0; achieved != 31 && !jitter(entropy, done_flag);) {
         fpta_txn *txn;
         EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
         ASSERT_NE(nullptr, txn);
@@ -779,11 +797,8 @@ static void executor_thread(fpta_db *db, const char *const read,
         EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
         ASSERT_NE(nullptr, txn);
 
-        if (guard.done)
-          achieved |= 1 << 2;
         size_t lag = 42;
         do {
-          std::this_thread::yield();
           size_t row_count;
           fpta_table_stat stat;
           err = fpta_table_info(txn, &r_table, &row_count, &stat);
@@ -801,7 +816,8 @@ static void executor_thread(fpta_db *db, const char *const read,
                       fpta_transaction_lag_ex(txn, &lag, nullptr, nullptr));
             break;
           }
-        } while (err == FPTA_SUCCESS && lag < 42 && !guard.done);
+        } while (err == FPTA_SUCCESS && lag < 42 &&
+                 !jitter(entropy, done_flag));
 
         ASSERT_EQ(FPTA_OK, fpta_transaction_commit(txn));
         txn = nullptr;
@@ -867,7 +883,7 @@ TEST(Threaded, AsyncSchemaChange) {
 
   volatile bool commander_done = false;
   auto commander =
-      std::thread(commander_thread, db_commander, std::cref(commander_done));
+      std::thread(commander_thread, db_commander, std::ref(commander_done));
 
   volatile bool enricher_done = false;
   auto enricher1 = std::thread(executor_thread, db_enricher, "table1", "table2",
