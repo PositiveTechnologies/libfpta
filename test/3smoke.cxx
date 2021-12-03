@@ -5018,33 +5018,33 @@ TEST(Smoke, DISABLED_IndexCosts) {
   struct generator {
     char buf[64];
 
-    fpta_value pk(unsigned n) { return fpta_value_uint(n); }
+    fpta_value pk(size_t n) { return fpta_value_uint(n); }
 
-    fpta_value str_uniq(const unsigned n) {
+    fpta_value str_uniq(const size_t n) {
       const auto v = n;
-      const auto w = (n + 22621) % 23 + 1;
+      const auto w = unsigned(n + 22621) % 23 + 1;
       memset(buf, '0', 24);
       const auto e = erthink::u2a(v, buf + 24);
       *e = 0;
       const auto b = (e - w < buf + 24) ? e - w : buf + 24;
 #ifndef NDEBUG
       static char xbuf[64];
-      snprintf(xbuf, sizeof(xbuf), "%0*u", w, v);
+      snprintf(xbuf, sizeof(xbuf), "%0*zu", w, v);
       assert(strcmp(xbuf, b) == 0);
 #endif /* !NDEBUG */
       return fpta_value_cstr(b);
     }
 
-    fpta_value str_dups(const unsigned n) {
+    fpta_value str_dups(const size_t n) {
       const auto v = n % 5;
-      const auto w = n % 11 + 1;
+      const auto w = unsigned(n % 11 + 1);
       memset(buf, ' ', 16);
       const auto e = erthink::u2a(v, buf + 16);
       *e = 0;
       const auto b = (e - w < buf + 16) ? e - w : buf + 16;
 #ifndef NDEBUG
       static char xbuf[64];
-      snprintf(xbuf, sizeof(xbuf), "%*u", w, v);
+      snprintf(xbuf, sizeof(xbuf), "%*zu", w, v);
       assert(strcmp(xbuf, b) == 0);
 #endif /* !NDEBUG */
       return fpta_value_cstr(b);
@@ -5142,10 +5142,10 @@ TEST(Smoke, DISABLED_IndexCosts) {
     // замеряем реальные затраты
 
     struct bench {
-      static double probe(int (*proba)(fpta_cursor *, unsigned,
-                                       fpta_value (generator::*)(unsigned)),
-                          fpta_txn *txn, fpta_name *col, unsigned count,
-                          fpta_value (generator::*make)(unsigned)) {
+      static double probe(int (*proba)(fpta_cursor *, size_t,
+                                       fpta_value (generator::*)(size_t)),
+                          fpta_txn *txn, fpta_name *col, size_t count,
+                          fpta_value (generator::*make)(size_t)) {
         fpta_cursor *cursor;
         int err =
             fpta_cursor_open(txn, col, fpta_value_begin(), fpta_value_end(),
@@ -5155,7 +5155,7 @@ TEST(Smoke, DISABLED_IndexCosts) {
 
         const auto start = std::chrono::steady_clock::now();
         std::chrono::nanoseconds duration;
-        int i = 0;
+        size_t i = 0;
         do {
           err = proba(cursor, count, make);
           EXPECT_EQ(count ? FPTA_OK : FPTA_NODATA, err);
@@ -5165,22 +5165,22 @@ TEST(Smoke, DISABLED_IndexCosts) {
         return count ? double(duration.count()) / (i * count) : 0;
       }
 
-      static int scan(fpta_cursor *cursor, unsigned count,
-                      fpta_value (generator::*make)(unsigned)) {
+      static int scan(fpta_cursor *cursor, size_t count,
+                      fpta_value (generator::*make)(size_t)) {
         (void)make;
         int err = fpta_cursor_move(cursor, fpta_first);
-        for (unsigned i = 1; i < count && err == FPTA_OK; ++i)
+        for (size_t i = 1; i < count && err == FPTA_OK; ++i)
           err = fpta_cursor_move(cursor, fpta_next);
         return err;
       }
 
-      static int search(fpta_cursor *cursor, unsigned count,
-                        fpta_value (generator::*make)(unsigned)) {
+      static int search(fpta_cursor *cursor, size_t count,
+                        fpta_value (generator::*make)(size_t)) {
         const uint64_t mixer = UINT64_C(3131777041);
         assert(mixer > count);
         generator maker;
-        for (unsigned i = 0; i < count; ++i) {
-          unsigned n = ((i + 49057) * mixer) % count;
+        for (size_t i = 0; i < count; ++i) {
+          size_t n = ((i + 49057) * mixer) % count;
           const auto key = (maker.*make)(n);
           int err = fpta_cursor_locate(cursor, true, &key, nullptr);
           if (err != FPTA_OK)
