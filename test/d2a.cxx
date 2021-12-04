@@ -310,10 +310,7 @@ TYPED_TEST_P(d2a, trivia) {
   TestFixture::probe_d2a(buffer, -DBL_MAX / M_PI);
   TestFixture::probe_d2a(buffer, DBL_MIN * M_PI);
   TestFixture::probe_d2a(buffer, -DBL_MIN * M_PI);
-}
 
-TYPED_TEST_P(d2a, stairwell) {
-  char buffer[erthink::d2a_max_chars + 1];
   TestFixture::probe_d2a(UINT64_C(4989988387303176888), buffer);
   TestFixture::probe_d2a(UINT64_C(4895412794877399892), buffer);
   TestFixture::probe_d2a(UINT64_C(13717964465041107931), buffer);
@@ -342,8 +339,10 @@ TYPED_TEST_P(d2a, stairwell) {
     if (!std::isinf(f32))
       TestFixture::probe_d2a(buffer, f32);
   }
+}
 
-#if !defined(__MINGW32__) && !defined(__MINGW64__)
+TYPED_TEST_P(d2a, DISABLED_stairwell) {
+  char buffer[erthink::d2a_max_chars + 1];
   for (uint64_t mantissa = erthink::grisu::IEEE754_DOUBLE_MANTISSA_MASK;
        mantissa != 0; mantissa >>= 1) {
     for (uint64_t offset = 1; offset < mantissa; offset <<= 1) {
@@ -352,6 +351,9 @@ TYPED_TEST_P(d2a, stairwell) {
            exp += erthink::grisu::IEEE754_DOUBLE_IMPLICIT_LEAD) {
         for (uint64_t bit = mantissa; bit != 0;) {
           bit >>= 1;
+#if defined(__MINGW32__) || defined(__MINGW64__)
+          GTEST_SKIP() << "SKIPPEND because of MinGW' libc bugs";
+#endif /* MinGW */
           TestFixture::probe_d2a((mantissa + offset) ^ exp ^ bit, buffer);
           TestFixture::probe_d2a((mantissa - offset) ^ exp ^ bit, buffer);
         }
@@ -360,15 +362,16 @@ TYPED_TEST_P(d2a, stairwell) {
       }
     }
   }
-#endif /* MinGW */
 }
 
-#if !defined(__MINGW32__) && !defined(__MINGW64__)
-TYPED_TEST_P(d2a, random3e7) {
+TYPED_TEST_P(d2a, random3e6) {
   char buffer[erthink::d2a_max_chars + 1];
   uint64_t prng(uint64_t(time(0)));
   SCOPED_TRACE("PRNG seed=" + std::to_string(prng));
-  for (int i = 0; i < 3333333;) {
+  for (int i = 0; i < 333333;) {
+#if defined(__MINGW32__) || defined(__MINGW64__)
+    GTEST_SKIP() << "SKIPPEND because of MinGW' libc bugs";
+#endif /* MinGW */
     i += TestFixture::probe_d2a(prng, buffer);
     prng *= UINT64_C(6364136223846793005);
     prng += UINT64_C(1442695040888963407);
@@ -376,16 +379,11 @@ TYPED_TEST_P(d2a, random3e7) {
       break;
   }
 }
-#endif /* MinGW */
 
 //------------------------------------------------------------------------------
 
 #ifdef REGISTER_TYPED_TEST_SUITE_P
-#if !defined(__MINGW32__) && !defined(__MINGW64__)
-REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell, random3e7);
-#else
-REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, stairwell);
-#endif /* MinGW */
+REGISTER_TYPED_TEST_SUITE_P(d2a, trivia, DISABLED_stairwell, random3e6);
 INSTANTIATE_TYPED_TEST_SUITE_P(accurate, d2a, std::true_type);
 INSTANTIATE_TYPED_TEST_SUITE_P(fast, d2a, std::false_type);
 #endif
@@ -421,7 +419,6 @@ static void check_shodan(double value) {
   EXPECT_EQ(value, probe);
 }
 
-#if !defined(__MINGW32__) && !defined(__MINGW64__)
 static bool check_shodan_x64(uint64_t u64) {
   const double f64 = erthink::grisu::cast(u64);
   switch (std::fpclassify(f64)) {
@@ -442,7 +439,6 @@ static bool check_shodan_x64(uint64_t u64) {
     return true;
   }
 }
-#endif /* MinGW */
 
 TEST(d2a, shodan_printer) {
   check_shodan(0, "0.0");
@@ -545,8 +541,9 @@ TEST(d2a, shodan_printer) {
     if (!std::isinf(f32))
       check_shodan(f32);
   }
+}
 
-#if !defined(__MINGW32__) && !defined(__MINGW64__)
+TEST(d2a, DISABLED_shodan_printer_stairwell) {
   for (uint64_t mantissa = erthink::grisu::IEEE754_DOUBLE_MANTISSA_MASK;
        mantissa != 0; mantissa >>= 1) {
     for (uint64_t offset = 1; offset < mantissa; offset <<= 1) {
@@ -554,6 +551,9 @@ TEST(d2a, shodan_printer) {
            exp <= erthink::grisu::IEEE754_DOUBLE_EXPONENT_MASK;
            exp += erthink::grisu::IEEE754_DOUBLE_IMPLICIT_LEAD) {
         for (uint64_t bit = mantissa; bit != 0;) {
+#if defined(__MINGW32__) || defined(__MINGW64__)
+          GTEST_SKIP() << "SKIPPEND because of MinGW' libc bugs";
+#endif /* MinGW */
           bit >>= 1;
           check_shodan_x64((mantissa + offset) ^ exp ^ bit);
           check_shodan_x64((mantissa - offset) ^ exp ^ bit);
@@ -563,7 +563,6 @@ TEST(d2a, shodan_printer) {
       }
     }
   }
-#endif /* MinGW */
 }
 
 //------------------------------------------------------------------------------
