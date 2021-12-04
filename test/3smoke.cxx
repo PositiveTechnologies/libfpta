@@ -4880,6 +4880,12 @@ TEST(SmokeCrud, TableVersion) {
 
 //-----------------------------------------------------------------------------
 
+/* The workaround for OSX where size_t is neither uint32_t nor uint64_t */
+static char *u2a(size_t v, char *const buffer) {
+  return (sizeof(v) > 4) ? erthink::u2a(uint64_t(v), buffer)
+                         : erthink::u2a(uint32_t(v), buffer);
+}
+
 TEST(Smoke, DISABLED_IndexCosts) {
   /* Псевдо-тест оценки стоимости операций.
    *
@@ -5024,7 +5030,7 @@ TEST(Smoke, DISABLED_IndexCosts) {
       const auto v = n;
       const auto w = unsigned(n + 22621) % 23 + 1;
       memset(buf, '0', 24);
-      const auto e = erthink::u2a(v, buf + 24);
+      const auto e = u2a(v, buf + 24);
       *e = 0;
       const auto b = (e - w < buf + 24) ? e - w : buf + 24;
 #ifndef NDEBUG
@@ -5039,7 +5045,7 @@ TEST(Smoke, DISABLED_IndexCosts) {
       const auto v = n % 5;
       const auto w = unsigned(n % 11 + 1);
       memset(buf, ' ', 16);
-      const auto e = erthink::u2a(v, buf + 16);
+      const auto e = u2a(v, buf + 16);
       *e = 0;
       const auto b = (e - w < buf + 16) ? e - w : buf + 16;
 #ifndef NDEBUG
