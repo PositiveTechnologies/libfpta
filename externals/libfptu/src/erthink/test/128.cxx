@@ -37,6 +37,17 @@ TEST(u128, to_string) {
   ASSERT_EQ(std::to_string(erthink::uint128_t(142)), "142");
   ASSERT_EQ(std::to_string(erthink::uint128_t(42), 16), "2a");
   ASSERT_EQ(std::to_string(erthink::uint128_t(57), 8), "71");
+  ASSERT_EQ(std::to_string(erthink::uint128_t(UINT64_C(0x6E10784D412040D),
+                                              UINT64_C(0xFF39F12CF4081907))),
+            "9143787268497110792970552074639513863");
+  ASSERT_EQ(std::to_string(erthink::uint128_t(~UINT64_C(0))),
+            "18446744073709551615");
+  ASSERT_EQ(std::to_string(erthink::uint128_t(~UINT64_C(0), 0)),
+            "340282366920938463444927863358058659840");
+  ASSERT_EQ(std::to_string(erthink::uint128_t(UINT64_C(0x90770897eb39d46c), 0)),
+            "192026889014721788266898567285392277504");
+  ASSERT_EQ(std::to_string(erthink::uint128_t(UINT64_C(0xb0ec5848ef24a556))),
+            "12748661715452077398");
 }
 
 TEST(u128, from_string) {
@@ -47,11 +58,21 @@ TEST(u128, from_string) {
   ASSERT_EQ(142_u128, erthink::uint128_t(142));
   ASSERT_EQ(0x2A_u128, erthink::uint128_t(42));
   ASSERT_EQ(071_u128, erthink::uint128_t(57));
+  ASSERT_EQ(9143787268497110792970552074639513863_u128,
+            erthink::uint128_t(UINT64_C(0x6E10784D412040D),
+                               UINT64_C(0xFF39F12CF4081907)));
+  ASSERT_EQ(18446744073709551615_u128, erthink::uint128_t(~UINT64_C(0)));
+  ASSERT_EQ(340282366920938463444927863358058659840_u128,
+            erthink::uint128_t(~UINT64_C(0), 0));
+  ASSERT_EQ(192026889014721788266898567285392277504_u128,
+            erthink::uint128_t(UINT64_C(0x90770897eb39d46c), 0));
+  ASSERT_EQ(12748661715452077398_u128,
+            erthink::uint128_t(UINT64_C(0xb0ec5848ef24a556)));
 }
 
 TEST(u128, from_chars) {
 #if !ERTHINK_HAVE_std_to_chars
-  GTEST_SKIP();
+  GTEST_SKIP() << "SKIPPEND because of no std::to_chars<>";
 #else
   const char *zero = "000000";
   const auto from_zero =
@@ -393,7 +414,7 @@ static void probe_full(const erthink::uint128_t &a,
 
 TEST(u128, smoke) {
 #ifndef ERTHINK_NATIVE_U128_TYPE
-  GTEST_SKIP();
+  GTEST_SKIP() << "SKIPPEND because of no native __uint128_t";
 #else
   probe_full(0, 0);
   probe_full(~native_u128(0), ~native_u128(0));
@@ -426,12 +447,12 @@ TEST(u128, smoke) {
 
 //------------------------------------------------------------------------------
 
-TEST(u128, random3e7) {
+TEST(u128, random3e6) {
 #ifndef ERTHINK_NATIVE_U128_TYPE
-  GTEST_SKIP();
+  GTEST_SKIP() << "SKIPPEND because of no native __uint128_t";
 #else
   SCOPED_TRACE("PRNG seed=" + std::to_string(lcg.state));
-  for (auto i = 0; i < 333333; ++i) {
+  for (auto i = 0; i < 33333; ++i) {
     probe_full(lcg(), lcg());
     probe_full({lcg(), lcg()}, lcg());
     probe_full(lcg(), {lcg(), lcg()});
@@ -458,9 +479,9 @@ TEST(u128, random3e7) {
 
 //------------------------------------------------------------------------------
 
-TEST(u128, stairwell) {
+TEST(u128, DISABLED_stairwell) {
 #ifndef ERTHINK_NATIVE_U128_TYPE
-  GTEST_SKIP();
+  GTEST_SKIP() << "SKIPPEND because of no native __uint128_t";
 #else
   SCOPED_TRACE("PRNG seed=" + std::to_string(lcg.state));
   const auto outer = random_shuffle_0_127();
