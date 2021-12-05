@@ -30,7 +30,9 @@ namespace erthink {
 cxx11_constexpr bool is_constant_evaluated() cxx11_noexcept {
 #if defined(__cpp_lib_is_constant_evaluated)
   return std::is_constant_evaluated();
-#elif __GNUC_PREREQ(9, 0) || __has_builtin(__builtin_is_constant_evaluated)
+#elif __GNUC_PREREQ(9, 0) ||                                                   \
+    (__has_builtin(__builtin_is_constant_evaluated) &&                         \
+     (!defined(__LCC__) || __LCC__ > 125))
   return ::__builtin_is_constant_evaluated();
 #else
   return false;
@@ -50,7 +52,9 @@ cxx11_constexpr bool is_constant_evaluated() cxx11_noexcept {
                : NAME##_dynamic CALLARGS_PARENTHESIZED;                        \
   }
 
-#elif __GNUC_PREREQ(9, 0) || __has_builtin(__builtin_is_constant_evaluated)
+#elif __GNUC_PREREQ(9, 0) ||                                                   \
+    (__has_builtin(__builtin_is_constant_evaluated) &&                         \
+     (!defined(__LCC__) || __LCC__ > 125))
 
 #define erthink_dynamic_constexpr cxx14_constexpr
 #define ERTHINK_DYNAMIC_CONSTEXPR(RESULT_TYPE, NAME, DECLARGS_PARENTHESIZED,   \
