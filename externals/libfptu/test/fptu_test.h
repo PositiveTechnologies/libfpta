@@ -58,6 +58,11 @@
 #define SCOPED_TRACE(message) __noop()
 #endif /* __LCC__ */
 
+#ifndef GTEST_SKIP
+#define GTEST_SKIP()                                                           \
+  return GTEST_MESSAGE_("Skipped", ::testing::TestPartResult::kSuccess)
+#endif
+
 //----------------------------------------------------------------------------
 
 /* Ограничитель по времени выполнения.
