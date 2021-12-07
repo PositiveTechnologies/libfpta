@@ -366,7 +366,11 @@ enum fpta_error {
   /* Applicaton version mismatch the database content */
   FPTA_APP_MISMATCH = 4260,
 
-  FPTA_ERRROR_LAST = FPTA_APP_MISMATCH,
+  /* Filter has some tautology that cannot be rewritten-out
+   * due to API compatibility issues. */
+  FPTA_TAUTOLOGICAL_FILTER = 4261,
+
+  FPTA_ERRROR_LAST = FPTA_TAUTOLOGICAL_FILTER,
 
   /* No data or EOF was reached */
   FPTA_NODATA = -1,

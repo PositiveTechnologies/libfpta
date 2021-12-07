@@ -306,13 +306,11 @@ fptu_lge __fpta_filter_cmp(const fptu_field *pf, const fpta_value *right) {
 #endif /* FPTA_ENABLE_TESTS */
 
 __hot bool fpta_filter_match(const fpta_filter *fn, fptu_ro tuple) {
-
-tail_recursion:
-
   if (unlikely(fn == nullptr))
     // empty filter
     return true;
 
+tail_recursion:
   switch (fn->type) {
   case fpta_node_collapsed_true:
   case fpta_node_cond_true:
@@ -322,15 +320,30 @@ tail_recursion:
     return false;
 
   case fpta_node_not:
+    assert(fn->node_not->type != fpta_node_cond_true &&
+           fn->node_not->type != fpta_node_collapsed_true &&
+           fn->node_not->type != fpta_node_cond_true &&
+           fn->node_not->type != fpta_node_collapsed_true);
+#if FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS
+    assert(fn->node_not->type != fpta_node_not);
+#endif /* FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS */
     return !fpta_filter_match(fn->node_not, tuple);
 
   case fpta_node_or:
+    assert(fn->node_or.a->type != fpta_node_cond_true &&
+           fn->node_or.a->type != fpta_node_collapsed_true);
+    assert(fn->node_or.b->type != fpta_node_cond_true &&
+           fn->node_or.b->type != fpta_node_collapsed_true);
     if (fpta_filter_match(fn->node_or.a, tuple))
       return true;
     fn = fn->node_or.b;
     goto tail_recursion;
 
   case fpta_node_and:
+    assert(fn->node_or.a->type != fpta_node_cond_false &&
+           fn->node_or.a->type != fpta_node_collapsed_false);
+    assert(fn->node_or.b->type != fpta_node_cond_false &&
+           fn->node_or.b->type != fpta_node_collapsed_false);
     if (!fpta_filter_match(fn->node_and.a, tuple))
       return false;
     fn = fn->node_and.b;
@@ -428,10 +441,12 @@ int fpta_filter_validate(fpta_filter *filter) {
     return FPTA_EINVAL;
 
   case fpta_node_collapsed_true:
-  case fpta_node_collapsed_false:
   case fpta_node_cond_true:
+    return FILTER_PROPAGATE_TRUE;
+
+  case fpta_node_collapsed_false:
   case fpta_node_cond_false:
-    return FPTA_SUCCESS;
+    return FILTER_PROPAGATE_FALSE;
 
   case fpta_node_fncol:
     if (unlikely(fpta_column_is_composite(filter->node_fncol.column_id)))
@@ -451,6 +466,10 @@ int fpta_filter_validate(fpta_filter *filter) {
            filter->node_or.b == filter->node_and.b);
     if (unlikely(!filter->node_not))
       return FPTA_EINVAL;
+#if FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS
+    if (unlikely(filter->node_not->type == fpta_node_not))
+      return FPTA_TAUTOLOGICAL_FILTER;
+#endif /* FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS */
     rc = fpta_filter_validate(filter->node_not);
     if (unlikely(rc != FPTA_SUCCESS))
       return fpta_filter_rewrite_on_error(filter, rc);
@@ -463,8 +482,11 @@ int fpta_filter_validate(fpta_filter *filter) {
     if (unlikely(!filter->node_and.a || !filter->node_and.b))
       return FPTA_EINVAL;
     rc = fpta_filter_validate(filter->node_and.a);
-    if (unlikely(rc != FPTA_SUCCESS))
-      return fpta_filter_rewrite_on_error(filter, rc);
+    if (unlikely(rc != FPTA_SUCCESS)) {
+      rc = fpta_filter_rewrite_on_error(filter, rc);
+      if (unlikely(rc != FPTA_SUCCESS))
+        return rc;
+    }
     rc = fpta_filter_validate(filter->node_and.b);
     if (unlikely(rc != FPTA_SUCCESS))
       return fpta_filter_rewrite_on_error(filter, rc);

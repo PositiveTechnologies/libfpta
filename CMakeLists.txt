@@ -337,6 +337,8 @@ option(FPTA_ENABLE_ABORT_ON_PANIC
   "Force abort of application process in case of unrecoverable error" ON)
 option(FPTA_PRESERVE_GEOMETRY
   "Preserve DB geometry in non-exclusive mode" ON)
+option(FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS
+  "Check and prohibit double negation (nodes of NOT) for filters" OFF)
 
 CMAKE_DEPENDENT_OPTION(T1HA_USE_FAST_ONESHOT_READ
   "Enable oneshot memory reading for little bit faster hashing" ON

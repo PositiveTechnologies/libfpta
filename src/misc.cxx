@@ -74,7 +74,9 @@ static __cold const char *error2cp(int32_t errcode) {
       "reopened",
       "FPTA_CLUMSY_INDEX: Adding index which is too clumsy",
       "FPTA_FORMAT_MISMATCH: Database format mismatch the libfpta version",
-      "FPTA_APP_MISMATCH: Applicaton version mismatch the database content"};
+      "FPTA_APP_MISMATCH: Applicaton version mismatch the database content",
+      "FPTA_TAUTOLOGICAL_FILTER: Filter has some tautology that cannot be "
+      "rewritten-out due to API compatibility issues"};
 
   static_assert(erthink::array_length(msgs) ==
                     FPTA_ERRROR_LAST - FPTA_ERRROR_BASE,
@@ -227,6 +229,12 @@ __cold std::ostream &operator<<(std::ostream &out,
   switch (value) {
   default:
     return invalid(out, "filter_bits", value);
+  case fpta_node_collapsed_true:
+  case fpta_node_cond_true:
+    return out << "TRUE";
+  case fpta_node_collapsed_false:
+  case fpta_node_cond_false:
+    return out << "FALSE";
   case fpta_node_not:
     return out << "NOT";
   case fpta_node_or:
