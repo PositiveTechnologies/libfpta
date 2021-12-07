@@ -268,12 +268,14 @@ static void index_stat2cost(const MDBX_stat &stat,
     /* средняя высота дерева branch-страниц */
     auto height = (log2_dot8(r->leaf_pages) << 8) / l2epb;
 
-    /* подпираем сверху реальной высотой деревва (актуально для не-уникальных
-     * индексов со значительным количеством дубликатов */
-    const auto limit = (r->btree_depth - 1) << 8;
-    if (height > limit) {
-      r->scan_O1N = (r->scan_O1N + r->scan_O1N * height / limit) / 2;
-      height = limit + (height - limit) / 16;
+    if (r->btree_depth > 1) {
+      /* подпираем сверху реальной высотой деревва (актуально для не-уникальных
+       * индексов со значительным количеством дубликатов */
+      const auto limit = (r->btree_depth - 1) << 8;
+      if (height > limit) {
+        r->scan_O1N = (r->scan_O1N + r->scan_O1N * height / limit) / 2;
+        height = limit + (height - limit) / 16;
+      }
     }
 
     const auto branch_factor =
