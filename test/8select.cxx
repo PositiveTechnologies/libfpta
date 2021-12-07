@@ -2109,6 +2109,682 @@ INSTANTIATE_TEST_CASE_P(
 
 //----------------------------------------------------------------------------
 
+class FilterTautologyRewriter : public ::testing::Test {
+public:
+  bool skipped;
+  fpta_db *db = nullptr;
+  fpta_txn *txn = nullptr;
+  fpta_name table, pk_int, se_str;
+
+  virtual void SetUp() {
+    SCOPED_TRACE("setup");
+    skipped = GTEST_IS_EXECUTION_TIMEOUT();
+    if (skipped)
+      return;
+
+    if (REMOVE_FILE(testdb_name) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+    if (REMOVE_FILE(testdb_name_lck) != 0) {
+      ASSERT_EQ(ENOENT, errno);
+    }
+
+    {
+      // создаем базульку в 1 мегабайт
+      ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak,
+                                      fpta_regime4testing, 1, true, &db));
+      ASSERT_NE(nullptr, db);
+      // create table
+      fpta_column_set def;
+      fpta_column_set_init(&def);
+      EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                             "pk_int", fptu_int32,
+                             fpta_primary_unique_ordered_obverse, &def));
+      EXPECT_EQ(FPTA_OK,
+                fpta_column_describe(
+                    "se_str", fptu_cstr,
+                    fpta_secondary_unique_unordered_nullable_obverse, &def));
+      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+      ASSERT_NE(nullptr, txn);
+      EXPECT_EQ(FPTA_OK, fpta_table_create(txn, "table", &def));
+      EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+      txn = nullptr;
+
+      // разрушаем описание таблицы
+      EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+      EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+      db = nullptr;
+    }
+
+    ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_saferam, 1,
+                                    false, &db));
+    ASSERT_NE(nullptr, db);
+
+    EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "table"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &pk_int, "pk_int"));
+    EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &se_str, "se_str"));
+
+    {
+      // write-transaction
+      EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+      ASSERT_NE(nullptr, txn);
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &table));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &pk_int));
+      EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &se_str));
+
+      // insert one row
+      fptu_rw *tuple = fptu_alloc(9, 2000);
+      ASSERT_NE(nullptr, tuple);
+      EXPECT_EQ(FPTA_OK,
+                fpta_upsert_column(tuple, &pk_int, fpta_value_sint(42)));
+      EXPECT_EQ(FPTA_OK,
+                fpta_upsert_column(tuple, &se_str, fpta_value_cstr("42")));
+
+      EXPECT_EQ(FPTA_OK, fpta_insert_row(txn, &table, fptu_take(tuple)));
+      EXPECT_EQ(FPTU_OK, fptu_clear(tuple));
+      free(tuple);
+
+      // commit and close
+      EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+      txn = nullptr;
+    }
+
+    // read-transaction
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+    ASSERT_NE(nullptr, txn);
+  }
+
+  virtual void TearDown() {
+    if (skipped)
+      return;
+    SCOPED_TRACE("teardown");
+    // end
+    EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    txn = nullptr;
+
+    // разрушаем привязанные идентификаторы
+    fpta_name_destroy(&table);
+    fpta_name_destroy(&pk_int);
+    fpta_name_destroy(&se_str);
+
+    EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+    db = nullptr;
+
+    ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+    ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+  }
+};
+
+static bool filter_predicate_counter(const fptu_ro *, void *, void *ptr) {
+  *static_cast<size_t *>(ptr) += 1;
+  return true;
+}
+
+// simple invalid comparison => `false` without collapsing
+TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToFalse) {
+
+  // eq-compare non-nullable column with null => false
+  {
+    fpta_filter invalid_cmp_with_null;
+    invalid_cmp_with_null.type = fpta_node_eq;
+    invalid_cmp_with_null.node_cmp.left_id = &pk_int;
+    invalid_cmp_with_null.node_cmp.right_value = fpta_value_null();
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                               fpta_value_end(), &invalid_cmp_with_null,
+                               fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(0u, rows);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp_with_null.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // gt-compare integer column with string => false
+  {
+    fpta_filter invalid_cmp_with_str;
+    invalid_cmp_with_str.type = fpta_node_gt;
+    invalid_cmp_with_str.node_cmp.left_id = &pk_int;
+    invalid_cmp_with_str.node_cmp.right_value = fpta_value_str("42");
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &invalid_cmp_with_str,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(0u, rows);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp_with_str.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // lt-compare string column with integer => false
+  {
+    fpta_filter invalid_cmp_with_int;
+    invalid_cmp_with_int.type = fpta_node_lt;
+    invalid_cmp_with_int.node_cmp.left_id = &se_str;
+    invalid_cmp_with_int.node_cmp.right_value = fpta_value_uint(42);
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &invalid_cmp_with_int,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(0u, rows);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp_with_int.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+}
+
+// simple invalid comparison => `true` without collapsing
+TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToTrue) {
+
+  // ne-compare non-nullable column with null => true
+  {
+    fpta_filter invalid_cmp_with_null;
+    invalid_cmp_with_null.type = fpta_node_ne;
+    invalid_cmp_with_null.node_cmp.left_id = &pk_int;
+    invalid_cmp_with_null.node_cmp.right_value = fpta_value_null();
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                               fpta_value_end(), &invalid_cmp_with_null,
+                               fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp_with_null.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // ne-compare integer column with string => true
+  {
+    fpta_filter invalid_cmp_with_str;
+    invalid_cmp_with_str.type = fpta_node_ne;
+    invalid_cmp_with_str.node_cmp.left_id = &pk_int;
+    invalid_cmp_with_str.node_cmp.right_value = fpta_value_str("42");
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &invalid_cmp_with_str,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp_with_str.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // ne-compare string column with integer => true
+  {
+    fpta_filter invalid_cmp_with_int;
+    invalid_cmp_with_int.type = fpta_node_ne;
+    invalid_cmp_with_int.node_cmp.left_id = &se_str;
+    invalid_cmp_with_int.node_cmp.right_value = fpta_value_uint(42);
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &invalid_cmp_with_int,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp_with_int.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+}
+
+// `not` with prpagation
+TEST_F(FilterTautologyRewriter, CompoundNot) {
+
+  // not of nested invalid eq-comparison => `true`
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_eq;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_not;
+    compoind.node_not = &invalid_cmp;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_collapsed_true, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // not of nested invalid ne-comparison => `false`
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_ne;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_not;
+    compoind.node_not = &invalid_cmp;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(0u, rows);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_collapsed_false, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+}
+
+// compoind with nested invalid without propagation
+TEST_F(FilterTautologyRewriter, CompoundNestedWithoutPropagation) {
+
+  // or(nested invalid eq-comparison, other) => or(`false`, other)
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_eq;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_or;
+    compoind.node_or.a = &invalid_cmp;
+    compoind.node_or.b = &predicate_counter;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(1u, counter);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_or, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // or(other, nested invalid eq-comparison) => or(other, `false`)
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_eq;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_or;
+    compoind.node_or.a = &predicate_counter;
+    compoind.node_or.b = &invalid_cmp;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(1u, counter);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_or, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // and(nested invalid ne-comparison, other) => and(`true`, other)
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_ne;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_and;
+    compoind.node_or.a = &invalid_cmp;
+    compoind.node_or.b = &predicate_counter;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(1u, counter);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_and, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // and(other, nested invalid ne-comparison) => and(other, `true`)
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_ne;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_and;
+    compoind.node_or.a = &predicate_counter;
+    compoind.node_or.b = &invalid_cmp;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(1u, counter);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_and, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+}
+
+// compoind with nested invalid with propagation
+TEST_F(FilterTautologyRewriter, CompoundNestedWithPropagation) {
+
+  // or(nested invalid ne-comparison, any) => or(`true`, any) => `true`
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_ne;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_or;
+    compoind.node_or.a = &invalid_cmp;
+    compoind.node_or.b = &predicate_counter;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(0u, counter);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_collapsed_true, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // or(any, nested invalid ne-comparison) => or(any, `true`) => `true`
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_ne;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_or;
+    compoind.node_or.a = &predicate_counter;
+    compoind.node_or.b = &invalid_cmp;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(0u, counter);
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_collapsed_true, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // and(nested invalid eq-comparison, any) => and(`false`, any) => `false`
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_eq;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_and;
+    compoind.node_or.a = &invalid_cmp;
+    compoind.node_or.b = &predicate_counter;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(0u, rows);
+    EXPECT_EQ(0u, counter);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_collapsed_false, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  // and(any, nested invalid eq-comparison) => and(any, `false`) => `false`
+  {
+    fpta_filter invalid_cmp;
+    invalid_cmp.type = fpta_node_eq;
+    invalid_cmp.node_cmp.left_id = &pk_int;
+    invalid_cmp.node_cmp.right_value = fpta_value_null();
+
+    fpta_filter predicate_counter;
+    size_t counter = 0;
+    predicate_counter.type = fpta_node_fnrow;
+    predicate_counter.node_fnrow.predicate = filter_predicate_counter;
+    predicate_counter.node_fnrow.context = this;
+    predicate_counter.node_fnrow.arg = &counter;
+
+    fpta_filter compoind;
+    compoind.type = fpta_node_and;
+    compoind.node_or.a = &predicate_counter;
+    compoind.node_or.b = &invalid_cmp;
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &compoind,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(0u, rows);
+    EXPECT_EQ(0u, counter);
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp.type);
+    EXPECT_EQ(fpta_node_collapsed_false, compoind.type);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+}
+
+TEST_F(FilterTautologyRewriter, CompoundNestedDeepPropagation) {
+  //  true --|
+  //          or => true ------------------|
+  //   any --|                             |
+  //                                        and => false
+  //   any --|                             |
+  //          or => true => not => false --|
+  //  true --|
+  {
+    size_t counter = 0;
+    fpta_filter invalid_cmp_1;
+    invalid_cmp_1.type = fpta_node_ne;
+    invalid_cmp_1.node_cmp.left_id = &se_str;
+    invalid_cmp_1.node_cmp.right_value = fpta_value_uint(42);
+    fpta_filter any_1;
+    any_1.type = fpta_node_fnrow;
+    any_1.node_fnrow.predicate = filter_predicate_counter;
+    any_1.node_fnrow.context = this;
+    any_1.node_fnrow.arg = &counter;
+    fpta_filter or_1;
+    or_1.type = fpta_node_or;
+    or_1.node_or.a = &invalid_cmp_1;
+    or_1.node_or.b = &any_1;
+
+    fpta_filter invalid_cmp_2;
+    invalid_cmp_2.type = fpta_node_ne;
+    invalid_cmp_2.node_cmp.left_id = &pk_int;
+    invalid_cmp_2.node_cmp.right_value = fpta_value_null();
+    fpta_filter any_2;
+    any_2.type = fpta_node_fnrow;
+    any_2.node_fnrow.predicate = filter_predicate_counter;
+    any_2.node_fnrow.context = this;
+    any_2.node_fnrow.arg = &counter;
+    fpta_filter or_2;
+    or_2.type = fpta_node_or;
+    or_2.node_or.a = &any_2;
+    or_2.node_or.b = &invalid_cmp_2;
+    fpta_filter the_not;
+    the_not.type = fpta_node_not;
+    the_not.node_not = &or_2;
+
+    fpta_filter root_and;
+    root_and.type = fpta_node_and;
+    root_and.node_and.a = &or_1;
+    root_and.node_and.b = &the_not;
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &root_and,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(fpta_node_cond_true, invalid_cmp_2.type);
+    EXPECT_EQ(fpta_node_collapsed_true, or_2.type);
+    EXPECT_EQ(fpta_node_collapsed_false, the_not.type);
+    EXPECT_EQ(fpta_node_collapsed_false, root_and.type);
+    EXPECT_EQ(0u, rows);
+    EXPECT_EQ(0u, counter);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+
+  //   any --|
+  //          and => false => not => true --|
+  // false --|                              |
+  //                                         or => true
+  // false --|                              |
+  //          and => false -----------------|
+  //   any --|
+  //
+  {
+    size_t counter = 0;
+    fpta_filter invalid_cmp_1;
+    invalid_cmp_1.type = fpta_node_eq;
+    invalid_cmp_1.node_cmp.left_id = &se_str;
+    invalid_cmp_1.node_cmp.right_value = fpta_value_uint(42);
+    fpta_filter any_1;
+    any_1.type = fpta_node_fnrow;
+    any_1.node_fnrow.predicate = filter_predicate_counter;
+    any_1.node_fnrow.context = this;
+    any_1.node_fnrow.arg = &counter;
+    fpta_filter and_1;
+    and_1.type = fpta_node_and;
+    and_1.node_and.a = &any_1;
+    and_1.node_and.b = &invalid_cmp_1;
+    fpta_filter the_not;
+    the_not.type = fpta_node_not;
+    the_not.node_not = &and_1;
+
+    fpta_filter invalid_cmp_2;
+    invalid_cmp_2.type = fpta_node_eq;
+    invalid_cmp_2.node_cmp.left_id = &pk_int;
+    invalid_cmp_2.node_cmp.right_value = fpta_value_null();
+    fpta_filter any_2;
+    any_2.type = fpta_node_fnrow;
+    any_2.node_fnrow.predicate = filter_predicate_counter;
+    any_2.node_fnrow.context = this;
+    any_2.node_fnrow.arg = &counter;
+    fpta_filter and_2;
+    and_2.type = fpta_node_and;
+    and_2.node_and.a = &invalid_cmp_2;
+    and_2.node_and.b = &any_2;
+
+    fpta_filter root_or;
+    root_or.type = fpta_node_or;
+    root_or.node_or.a = &the_not;
+    root_or.node_or.b = &and_2;
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), &root_or,
+                                        fpta_unsorted_dont_fetch, &cursor));
+    ASSERT_NE(nullptr, cursor);
+    size_t rows;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
+    EXPECT_EQ(fpta_node_cond_false, invalid_cmp_1.type);
+    EXPECT_EQ(fpta_node_collapsed_false, and_1.type);
+    EXPECT_EQ(fpta_node_collapsed_true, the_not.type);
+    EXPECT_EQ(fpta_node_collapsed_true, root_or.type);
+    EXPECT_EQ(1u, rows);
+    EXPECT_EQ(0u, counter);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+  }
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
