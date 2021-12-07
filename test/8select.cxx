@@ -24,6 +24,147 @@ static const char testdb_name_lck[] =
 
 //----------------------------------------------------------------------------
 
+TEST(Select, SmokeFilter) {
+  /* Smoke-проверка перемещения курсора с заданием диапазона и фильтра
+   *
+   * Сценарий:
+   *  1. Создаем базу с одной таблицей и достаточным набором колонок.
+   *
+   *  2. Вставляем одну строку.
+   *
+   *  3. Открываем курсор и перемещаем его к первой подходящей записи.
+   *     Проверяем для сортировки по-возрастанию и по-убыванию.
+   *
+   *  4. Освобождаем ресурсы.
+   */
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // создаем базу
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_sync, fpta_regime_default,
+                                  1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  // начинаем транзакцию с добавлениями
+  fpta_txn *txn = (fpta_txn *)&txn;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  // описываем структуру таблицы и создаем её
+  fpta_column_set def;
+  fpta_column_set_init(&def);
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("int_column", fptu_int64,
+                                 fpta_primary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                         "datetime_column", fptu_datetime,
+                         fpta_secondary_withdups_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK,
+            fpta_column_describe("_id", fptu_int64,
+                                 fpta_secondary_unique_ordered_obverse, &def));
+  EXPECT_EQ(FPTA_OK, fpta_column_set_validate(&def));
+  ASSERT_EQ(FPTA_OK, fpta_table_create(txn, "bugged", &def));
+
+  // разрушаем описание таблицы
+  EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  EXPECT_NE(FPTA_OK, fpta_column_set_validate(&def));
+
+  // готовим идентификаторы для манипуляций с данными
+  fpta_name table, col_num, col_date, col_str;
+  EXPECT_EQ(FPTA_OK, fpta_table_init(&table, "bugged"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_num, "int_column"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_date, "datetime_column"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &col_str, "_id"));
+  ASSERT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &col_num));
+  ASSERT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_date));
+  ASSERT_EQ(FPTA_OK, fpta_name_refresh(txn, &col_str));
+
+  // выделяем кортеж и вставляем строку
+  fptu_rw *pt = fptu_alloc(3, 8 + 8 + 8);
+  ASSERT_NE(nullptr, pt);
+  ASSERT_STREQ(nullptr, fptu::check(pt));
+
+  fptu_time datetime;
+  datetime.fixedpoint = 1492170771;
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt, &col_num, fpta_value_sint(16)));
+  EXPECT_EQ(FPTA_OK,
+            fpta_upsert_column(pt, &col_date, fpta_value_datetime(datetime)));
+  EXPECT_EQ(FPTA_OK, fpta_upsert_column(pt, &col_str,
+                                        fpta_value_sint(6408824664381050880)));
+  ASSERT_STREQ(nullptr, fptu::check(pt));
+  fptu_ro row = fptu_take_noshrink(pt);
+  ASSERT_STREQ(nullptr, fptu::check(row));
+  EXPECT_EQ(FPTA_OK, fpta_put(txn, &table, row, fpta_insert));
+
+  // завершаем транзакцию вставки
+  ASSERT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  //--------------------------------------------------------------------------
+  // начинаем транзакцию чтения
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  // создаём фильтр
+  fpta_filter my_filter;
+  my_filter.type = fpta_node_gt;
+
+  my_filter.node_cmp.left_id = &col_num;
+  my_filter.node_cmp.right_value = fpta_value_sint(15);
+
+  fptu_time datetime2;
+  datetime2.fixedpoint = 1492170700;
+
+  // открываем курсор с диапазоном и фильтром, и сортировкой по-убыванию
+  fpta_cursor *cursor;
+  EXPECT_EQ(FPTA_OK,
+            fpta_cursor_open(txn, &col_date, fpta_value_datetime(datetime2),
+                             fpta_value_end(), &my_filter,
+                             fpta_descending_dont_fetch, &cursor));
+  // перемещаем курсор
+  EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+  // закрываем курсор
+  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+
+  // открываем курсор с диапазоном и фильтром, и сортировкой по-возрастанию
+  EXPECT_EQ(FPTA_OK,
+            fpta_cursor_open(txn, &col_date, fpta_value_datetime(datetime2),
+                             fpta_value_end(), &my_filter,
+                             fpta_ascending_dont_fetch, &cursor));
+  // перемещаем курсор
+  EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
+  // закрываем курсор
+  EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+
+  // завершаем транзакцию с чтением
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  //--------------------------------------------------------------------------
+  // освобождаем ресурсы
+
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&col_num);
+  fpta_name_destroy(&col_date);
+  fpta_name_destroy(&col_str);
+  free(pt);
+  pt = nullptr;
+  EXPECT_EQ(FPTA_SUCCESS, fpta_db_close(db));
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
+
+//----------------------------------------------------------------------------
+
 class Select
     : public ::testing::TestWithParam<
           GTEST_TUPLE_NAMESPACE_::tuple<fpta_index_type, fpta_cursor_options>> {
@@ -157,6 +298,210 @@ public:
     }
   }
 };
+
+//----------------------------------------------------------------------------
+
+TEST(Select, ChoppedLookup) {
+  const bool skipped = GTEST_IS_EXECUTION_TIMEOUT();
+  if (skipped)
+    return;
+
+  if (REMOVE_FILE(testdb_name) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+  if (REMOVE_FILE(testdb_name_lck) != 0) {
+    ASSERT_EQ(ENOENT, errno);
+  }
+
+  // открываем/создаем базульку в 1 мегабайт
+  fpta_db *db = nullptr;
+  ASSERT_EQ(FPTA_OK, test_db_open(testdb_name, fpta_weak, fpta_regime4testing,
+                                  1, true, &db));
+  ASSERT_NE(nullptr, db);
+
+  { // create table
+    fpta_column_set def;
+    fpta_column_set_init(&def);
+
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "_id", fptu_uint64,
+                           fpta_secondary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "_last_changed", fptu_datetime,
+                           fpta_secondary_withdups_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe("id", fptu_cstr,
+                                   fpta_primary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe("description", fptu_cstr,
+                                            fpta_noindex_nullable, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "score", fptu_uint64,
+                           fpta_secondary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK, fpta_column_describe(
+                           "threat_type", fptu_cstr,
+                           fpta_secondary_unique_ordered_obverse, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(
+                  "hash_sha256", fptu_cstr,
+                  fpta_secondary_withdups_ordered_obverse_nullable, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(
+                  "hash_sha1", fptu_cstr,
+                  fpta_secondary_withdups_ordered_obverse_nullable, &def));
+    EXPECT_EQ(FPTA_OK,
+              fpta_column_describe(
+                  "hash_md5", fptu_cstr,
+                  fpta_secondary_withdups_ordered_obverse_nullable, &def));
+
+    fpta_txn *txn = nullptr;
+    EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_schema, &txn));
+    ASSERT_NE(nullptr, txn);
+    EXPECT_EQ(FPTA_OK,
+              fpta_table_create(
+                  txn, "repListHashes_nokind_CybsiExperts_without_kind", &def));
+    EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+    txn = nullptr;
+
+    // разрушаем описание таблицы
+    EXPECT_EQ(FPTA_OK, fpta_column_set_destroy(&def));
+  }
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+  db = nullptr;
+
+  ASSERT_EQ(FPTA_OK,
+            test_db_open(testdb_name, fpta_weak, fpta_saferam, 1, false, &db));
+  ASSERT_NE(nullptr, db);
+
+  fpta_name table, _id, date, id_str, desc, score, threat, sha256, sha1, md5;
+  EXPECT_EQ(FPTA_OK,
+            fpta_table_init(&table,
+                            "repListHashes_nokind_CybsiExperts_without_kind"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &_id, "_id"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &date, "_last_changed"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &id_str, "id"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &desc, "description"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &score, "score"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &threat, "threat_type"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &sha256, "hash_sha256"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &sha1, "hash_sha1"));
+  EXPECT_EQ(FPTA_OK, fpta_column_init(&table, &md5, "hash_md5"));
+
+  // start write-transaction
+  fpta_txn *txn = nullptr;
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_write, &txn));
+  ASSERT_NE(nullptr, txn);
+
+  const std::string md5_content(
+      "DA2A486F74498E403B8F28DA7B0D1BD76930BFAFF840C60CA4591340FBECEAF6");
+  {
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh(txn, &table));
+
+    fptu_rw *tuple = fptu_alloc(9, 2000);
+    ASSERT_NE(nullptr, tuple);
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &_id));
+    uint64_t result = 0;
+    EXPECT_EQ(FPTA_OK, fpta_table_sequence(txn, &table, &result, 1));
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &_id, fpta_value_uint(result)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &date));
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(
+                           tuple, &date, fpta_value_datetime(fptu_now_fine())));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &id_str));
+    const std::string id_str_content("Bad_file");
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &id_str,
+                                          fpta_value_str(id_str_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &desc));
+    const std::string desc_content("bad bad file");
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &desc, fpta_value_str(desc_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &score));
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &score, fpta_value_uint(91)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &threat));
+    std::string threat_content("oooooh so bad file!");
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &threat,
+                                          fpta_value_str(threat_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &sha256));
+    const std::string sha256_content(
+        "BE148EA7ECA5A37AAB92FE2967AE425B8C7D4BC80DEC8099BE25CA5EC309989D");
+    EXPECT_EQ(FPTA_OK, fpta_upsert_column(tuple, &sha256,
+                                          fpta_value_str(sha256_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &sha1));
+    std::string sha1_content("BE148EA7ECA5A37");
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &sha1, fpta_value_str(sha1_content)));
+
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &md5));
+    EXPECT_EQ(FPTA_OK,
+              fpta_upsert_column(tuple, &md5, fpta_value_str(md5_content)));
+
+    EXPECT_EQ(FPTA_OK,
+              fpta_probe_and_upsert_row(txn, &table, fptu_take(tuple)));
+
+    EXPECT_EQ(FPTU_OK, fptu_clear(tuple));
+    free(tuple);
+  }
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // start read transaction
+  EXPECT_EQ(FPTA_OK, fpta_transaction_begin(db, fpta_read, &txn));
+  ASSERT_NE(nullptr, txn);
+  {
+    EXPECT_EQ(FPTA_OK, fpta_name_refresh_couple(txn, &table, &md5));
+
+    fpta_filter filter;
+    filter.type = fpta_node_eq;
+    filter.node_cmp.left_id = &md5;
+    filter.node_cmp.right_value = fpta_value_str(md5_content);
+
+    fpta_cursor *cursor = nullptr;
+    EXPECT_EQ(FPTA_OK,
+              fpta_cursor_open(txn, &md5, fpta_value_begin(), fpta_value_end(),
+                               &filter, fpta_unsorted, &cursor));
+    ASSERT_NE(nullptr, txn);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_eof(cursor));
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+    cursor = nullptr;
+
+    std::string md5_left(md5_content.substr(0, fpta_bits::fpta_max_keylen - 1));
+    std::string md5_right = md5_left;
+    md5_right.back() += 1;
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &md5, fpta_value_str(md5_left),
+                                        fpta_value_str(md5_right), &filter,
+                                        fpta_unsorted, &cursor));
+    ASSERT_NE(nullptr, txn);
+    EXPECT_EQ(FPTA_OK, fpta_cursor_eof(cursor));
+    EXPECT_EQ(FPTA_OK, fpta_cursor_close(cursor));
+    cursor = nullptr;
+  }
+  EXPECT_EQ(FPTA_OK, fpta_transaction_end(txn, false));
+  txn = nullptr;
+
+  // разрушаем привязанные идентификаторы
+  fpta_name_destroy(&table);
+  fpta_name_destroy(&_id);
+  fpta_name_destroy(&date);
+  fpta_name_destroy(&id_str);
+  fpta_name_destroy(&desc);
+  fpta_name_destroy(&score);
+  fpta_name_destroy(&threat);
+  fpta_name_destroy(&sha256);
+  fpta_name_destroy(&sha1);
+  fpta_name_destroy(&md5);
+
+  EXPECT_EQ(FPTA_OK, fpta_db_close(db));
+  db = nullptr;
+  ASSERT_TRUE(REMOVE_FILE(testdb_name) == 0);
+  ASSERT_TRUE(REMOVE_FILE(testdb_name_lck) == 0);
+}
 
 //----------------------------------------------------------------------------
 
@@ -1440,8 +1785,6 @@ TEST_P(Select, Filter) {
   }
 }
 
-//----------------------------------------------------------------------------
-
 #ifdef INSTANTIATE_TEST_SUITE_P
 INSTANTIATE_TEST_SUITE_P(
     Combine, Select,
@@ -1468,7 +1811,7 @@ INSTANTIATE_TEST_CASE_P(
                                          fpta_descending_dont_fetch)));
 #endif
 
-//==============================================================================
+//----------------------------------------------------------------------------
 
 class Metrics : public ::testing::TestWithParam<GTEST_TUPLE_NAMESPACE_::tuple<
                     fpta_index_type, fpta_cursor_options, unsigned>> {
