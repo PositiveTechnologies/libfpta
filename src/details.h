@@ -188,9 +188,11 @@ public:
 
 //----------------------------------------------------------------------------
 
+#define FILTER_PROPAGATE_TRUE (FPTA_ERRROR_LAST + 11)
+#define FILTER_PROPAGATE_FALSE (FPTA_ERRROR_LAST + 12)
 int fpta_filter_validate(fpta_filter *filter);
-int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id);
 int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter);
+int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id);
 
 static __inline bool fpta_db_validate(const fpta_db *db) {
   if (unlikely(db == nullptr || db->mdbx_env == nullptr))
