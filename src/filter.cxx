@@ -420,6 +420,10 @@ static int fpta_filter_rewrite_on_error(fpta_filter *filter, int err) {
 }
 
 int fpta_filter_validate(fpta_filter *filter) {
+  /* Функция fpta_filter_validate() не доступна пользователю
+   * и вызывается только из fpta_cursor_open(). Причем до вызова
+   * validate_filter() проверяется транзакци и вызывается refresh_filter().
+   * Поэтому здесь не нужны проверки fpta_id_validate(). */
   int rc;
 
   switch (filter->type) {
@@ -433,9 +437,6 @@ int fpta_filter_validate(fpta_filter *filter) {
     return FPTA_SUCCESS;
 
   case fpta_node_fncol:
-    rc = fpta_id_validate(filter->node_fncol.column_id, fpta_column);
-    if (unlikely(rc != FPTA_SUCCESS))
-      return rc;
     if (unlikely(fpta_column_is_composite(filter->node_fncol.column_id)))
       return FPTA_ETYPE;
     if (unlikely(!filter->node_fncol.predicate))
@@ -478,10 +479,6 @@ int fpta_filter_validate(fpta_filter *filter) {
   case fpta_node_ge:
   case fpta_node_eq:
   case fpta_node_ne:
-    rc = fpta_id_validate(filter->node_cmp.left_id, fpta_column);
-    if (unlikely(rc != FPTA_SUCCESS))
-      return rc;
-
     if (unlikely(filter->node_cmp.right_value.type == fpta_null) &&
         fpta_column_is_nullable(filter->node_cmp.left_id->shove))
       return FPTA_SUCCESS;
