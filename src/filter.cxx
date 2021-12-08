@@ -306,8 +306,11 @@ fptu_lge __fpta_filter_cmp(const fptu_field *pf, const fpta_value *right) {
 #endif /* FPTA_ENABLE_TESTS */
 
 bool fpta_filter_match(const fpta_filter *filter, fptu_ro tuple) {
-  return likely(filter) ? fpta_filter_match_internal(filter, tuple)
-                        : /* empty filter */ true;
+  if (unlikely(filter == fpta_filter_any))
+    return true;
+  if (unlikely(filter == fpta_filter_none))
+    return false;
+  return fpta_filter_match_internal(filter, tuple);
 }
 
 __hot __noinline bool fpta_filter_match_internal(const fpta_filter *f,

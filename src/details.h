@@ -268,7 +268,7 @@ static cxx14_constexpr int fpta_id_validate(const fpta_name *id,
 
 static __inline int fpta_cursor_validate(const fpta_cursor *cursor,
                                          fpta_level min_level) {
-  if (unlikely(cursor == nullptr || cursor->mdbx_cursor == nullptr))
+  if (unlikely(cursor == nullptr))
     return FPTA_EINVAL;
 
   return fpta_txn_validate(cursor->txn, min_level);

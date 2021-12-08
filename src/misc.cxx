@@ -373,7 +373,9 @@ __cold std::ostream &operator<<(std::ostream &out, const fpta_name *value) {
 }
 
 __cold std::ostream &operator<<(std::ostream &out, const fpta_filter *filter) {
-  if (!filter)
+  if (filter == fpta_filter_any)
+    return out << "ANY";
+  if (filter == fpta_filter_none)
     return out << "NONE";
 
   switch (filter->type) {

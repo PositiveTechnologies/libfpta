@@ -394,37 +394,37 @@ struct fpta_cursor {
   } metrics;
   int bring(MDBX_val *key, MDBX_val *data, const MDBX_cursor_op op);
 
-  static constexpr void *poor = nullptr;
-  bool is_poor() const { return current.iov_base == poor; }
-  void set_poor() { current.iov_base = poor; }
-
-  enum eof_mode : uintptr_t { before_first = 1, after_last = 2 };
-
+  enum eof_mode : uintptr_t {
+    poor = 0,
 #if FPTA_ENABLE_RETURN_INTO_RANGE
-  static void *eof(eof_mode mode = after_last) { return (void *)mode; }
-  bool is_filled() const { return current.iov_base > eof(); }
-
+    before_first = 1,
+    after_last = 2,
+#else
+    before_first = poor,
+    after_last = poor,
+#endif /* FPTA_ENABLE_RETURN_INTO_RANGE */
+    nodata
+  };
+  void set_poor() { current.iov_base = nullptr; }
+  bool is_poor() const { return !current.iov_base; }
+  void set_eof(eof_mode mode) {
+    current.iov_base = reinterpret_cast<void *>(mode);
+  }
+  bool is_filled() const {
+    return reinterpret_cast<uintptr_t>(current.iov_base) > nodata;
+  }
   int unladed_state() const {
     assert(!is_filled());
     return current.iov_base ? FPTA_NODATA : FPTA_ECURSOR;
   }
-
-  bool is_before_first() const { return current.iov_base == eof(before_first); }
-  bool is_after_last() const { return current.iov_base == eof(after_last); }
-  void set_eof(eof_mode mode) { current.iov_base = eof(mode); }
-#else
-  bool is_filled() const { return !is_poor(); }
-  int unladed_state() const {
-    assert(!is_filled());
-    return FPTA_ECURSOR;
+  bool is_before_first() const {
+    return FPTA_ENABLE_RETURN_INTO_RANGE &&
+           current.iov_base == reinterpret_cast<void *>(before_first);
   }
-  void set_eof(eof_mode mode) {
-    (void)mode;
-    set_poor();
+  bool is_after_last() const {
+    return FPTA_ENABLE_RETURN_INTO_RANGE &&
+           current.iov_base == reinterpret_cast<void *>(after_last);
   }
-  bool is_before_first() const { return false; }
-  bool is_after_last() const { return false; }
-#endif
 
   const fpta_filter *filter;
   fpta_txn *txn;

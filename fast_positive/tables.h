@@ -2431,6 +2431,13 @@ typedef struct fpta_filter {
    Предполагается внутреннее использование, но функция также
    доступна извне. */
 FPTA_API bool fpta_filter_match(const fpta_filter *filter, fptu_ro tuple);
+#ifdef __cplusplus
+#define fpta_filter_any reinterpret_cast<fpta_filter *>(intptr_t(0))
+#define fpta_filter_none reinterpret_cast<fpta_filter *>(intptr_t(-1))
+#else
+#define fpta_filter_any ((fpta_filter *)(intptr_t)0)
+#define fpta_filter_none ((fpta_filter *)(intptr_t)-1)
+#endif /* __cplusplus */
 
 //----------------------------------------------------------------------------
 /* Управление курсорами. */

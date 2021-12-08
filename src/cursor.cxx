@@ -91,17 +91,24 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
       return FPTA_NO_INDEX;
   }
 
-  if (filter) {
+  if (filter != fpta_filter_any) {
     rc = fpta_name_refresh_filter(column_id->column.table, filter);
     if (unlikely(rc != FPTA_SUCCESS))
       return rc;
     rc = fpta_filter_validate_and_rewrite(filter);
     if (unlikely(rc != FPTA_SUCCESS)) {
-      if (rc != FILTER_PROPAGATE_TRUE && rc != FILTER_PROPAGATE_FALSE)
+      if (rc == FILTER_PROPAGATE_TRUE)
+        filter = fpta_filter_any;
+      else if (rc == FILTER_PROPAGATE_FALSE)
+        filter = fpta_filter_none;
+      else
         return rc;
+      rc = FPTA_SUCCESS;
     }
-    rc = FPTA_SUCCESS;
   }
+
+  if (unlikely(filter == fpta_filter_none) && !(options & fpta_dont_fetch))
+    return FPTA_NODATA;
 
   fpta_db *db = txn->db;
   fpta_cursor *cursor = fpta_cursor_alloc(db);
@@ -117,6 +124,15 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
   cursor->column_number = column_id->column.num;
   cursor->tbl_handle = tbl_handle;
   cursor->idx_handle = idx_handle;
+  if (unlikely(filter == fpta_filter_none)) {
+    assert(options & fpta_dont_fetch);
+    cursor->filter = filter;
+    assert(cursor->mdbx_cursor == nullptr);
+    cursor->set_eof(fpta_cursor::nodata);
+    assert(!cursor->is_filled());
+    *pcursor = cursor;
+    return FPTA_SUCCESS;
+  }
 
   assert(cursor->seek_range_flags == 0);
   if (range_from.type <= fpta_shoved) {
@@ -246,6 +262,7 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
                             const MDBX_cursor_op mdbx_step_op,
                             const MDBX_val *mdbx_seek_key,
                             const MDBX_val *mdbx_seek_data) {
+  assert(cursor->filter != fpta_filter_none && cursor->mdbx_cursor);
   assert(mdbx_seek_key != &cursor->current);
   int rc;
   fptu_ro mdbx_data;
@@ -433,7 +450,7 @@ static int fpta_cursor_seek(fpta_cursor *cursor,
       }
     }
 
-    if (!cursor->filter) {
+    if (cursor->filter == fpta_filter_any) {
       cursor->metrics.results += 1;
       return FPTA_SUCCESS;
     }
@@ -496,6 +513,12 @@ int fpta_cursor_move(fpta_cursor *cursor, fpta_seek_operations op) {
   if (unlikely(op < fpta_first || op > fpta_key_prev)) {
     cursor->set_poor();
     return FPTA_EFLAG;
+  }
+
+  if (unlikely(!cursor->mdbx_cursor)) {
+    assert(cursor->filter == fpta_filter_none);
+    assert(!cursor->is_filled());
+    return FPTA_NODATA;
   }
 
   if (fpta_cursor_is_descending(cursor->options))
@@ -631,6 +654,12 @@ int fpta_cursor_locate(fpta_cursor *cursor, bool exactly, const fpta_value *key,
     }
     /* Принудительно включаем точный поиск для курсора без сортировки. */
     exactly = true;
+  }
+
+  if (unlikely(!cursor->mdbx_cursor)) {
+    assert(cursor->filter == fpta_filter_none);
+    assert(!cursor->is_filled());
+    return FPTA_NODATA;
   }
 
   /* устанавливаем базовый режим поиска */
@@ -1329,6 +1358,12 @@ int fpta_cursor_rerere(fpta_cursor *cursor) {
   /* всегда перезапускаем транзакцию и собираем ошибки */
   int err = fpta_transaction_restart(cursor->txn);
   rc = (err == MDBX_SUCCESS) ? rc : err;
+
+  if (unlikely(!cursor->mdbx_cursor)) {
+    assert(cursor->filter == fpta_filter_none);
+    assert(!cursor->is_filled());
+    return cursor->unladed_state();
+  }
 
   /* всегда обновляем курсор и собираем ошибки */
   err = mdbx_cursor_renew(cursor->txn->mdbx_txn, cursor->mdbx_cursor);
