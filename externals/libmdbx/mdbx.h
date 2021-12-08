@@ -172,6 +172,9 @@ as a duplicates or as like a multiple values corresponds to keys.
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#if !defined(NDEBUG) && !defined(assert)
+#include <assert.h>
+#endif /* NDEBUG */
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
@@ -393,7 +396,8 @@ typedef mode_t mdbx_mode_t;
 #define MDBX_CXX01_CONSTEXPR __inline
 #define MDBX_CXX01_CONSTEXPR_VAR const
 #elif !defined(DOXYGEN) &&                                                     \
-    (!defined(__cpp_constexpr) || __cpp_constexpr < 200704L ||                 \
+    ((__cplusplus < 201103L && defined(__cpp_constexpr) &&                     \
+      __cpp_constexpr < 200704L) ||                                            \
      (defined(__LCC__) && __LCC__ < 124) ||                                    \
      (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ < 407) &&          \
       !defined(__clang__) && !defined(__LCC__)) ||                             \
@@ -410,7 +414,7 @@ typedef mode_t mdbx_mode_t;
 #define MDBX_CXX11_CONSTEXPR __inline
 #define MDBX_CXX11_CONSTEXPR_VAR const
 #elif !defined(DOXYGEN) &&                                                     \
-    (!defined(__cpp_constexpr) || __cpp_constexpr < 201304 ||                  \
+    (!defined(__cpp_constexpr) || __cpp_constexpr < 201304L ||                 \
      (defined(__LCC__) && __LCC__ < 124) ||                                    \
      (defined(__GNUC__) && __GNUC__ < 6 && !defined(__clang__) &&              \
       !defined(__LCC__)) ||                                                    \
@@ -1382,29 +1386,32 @@ DEFINE_ENUM_FLAG_OPERATORS(MDBX_txn_flags_t)
 enum MDBX_db_flags_t {
   MDBX_DB_DEFAULTS = 0,
 
-  /** Use reverse string keys */
+  /** Use reverse string comparison for keys. */
   MDBX_REVERSEKEY = UINT32_C(0x02),
 
-  /** Use sorted duplicates, i.e. allow multi-values */
+  /** Use sorted duplicates, i.e. allow multi-values for a keys. */
   MDBX_DUPSORT = UINT32_C(0x04),
 
-  /** Numeric keys in native byte order either uint32_t or uint64_t. The keys
-   * must all be of the same size and must be aligned while passing as
+  /** Numeric keys in native byte order either uint32_t or uint64_t
+   * (must be one of uint32_t or uint64_t, other integer types, for example,
+   * signed integer or uint16_t will not work).
+   * The keys must all be of the same size and must be aligned while passing as
    * arguments. */
   MDBX_INTEGERKEY = UINT32_C(0x08),
 
-  /** With \ref MDBX_DUPSORT; sorted dup items have fixed size */
+  /** With \ref MDBX_DUPSORT; sorted dup items have fixed size. The data values
+   * must all be of the same size. */
   MDBX_DUPFIXED = UINT32_C(0x10),
 
   /** With \ref MDBX_DUPSORT and with \ref MDBX_DUPFIXED; dups are fixed size
-   * \ref MDBX_INTEGERKEY -style integers. The data values must all be of the
-   * same size and must be aligned while passing as arguments. */
+   * like \ref MDBX_INTEGERKEY -style integers. The data values must all be of
+   * the same size and must be aligned while passing as arguments. */
   MDBX_INTEGERDUP = UINT32_C(0x20),
 
-  /** With \ref MDBX_DUPSORT; use reverse string comparison */
+  /** With \ref MDBX_DUPSORT; use reverse string comparison for data values. */
   MDBX_REVERSEDUP = UINT32_C(0x40),
 
-  /** Create DB if not already existing */
+  /** Create DB if not already existing. */
   MDBX_CREATE = UINT32_C(0x40000),
 
   /** Opens an existing sub-database created with unknown flags.
@@ -1735,7 +1742,7 @@ enum MDBX_error_t {
 #ifdef ENODATA
   MDBX_ENODATA = ENODATA,
 #else
-  MDBX_ENODATA = -1,
+  MDBX_ENODATA = 9919 /* for compatibility with LLVM's C++ libraries/headers */,
 #endif /* ENODATA */
   MDBX_EINVAL = EINVAL,
   MDBX_EACCESS = EACCES,
@@ -2427,6 +2434,7 @@ LIBMDBX_INLINE_API(int, mdbx_env_sync_poll, (MDBX_env * env)) {
 /** \brief Sets threshold to force flush the data buffers to disk, even any of
  * \ref MDBX_SAFE_NOSYNC flag in the environment.
  * \ingroup c_settings
+ * \see mdbx_env_get_syncbytes \see MDBX_opt_sync_bytes
  *
  * The threshold value affects all processes which operates with given
  * environment until the last process close environment or a new value will be
@@ -2451,11 +2459,39 @@ LIBMDBX_INLINE_API(int, mdbx_env_set_syncbytes,
   return mdbx_env_set_option(env, MDBX_opt_sync_bytes, threshold);
 }
 
+/** \brief Get threshold to force flush the data buffers to disk, even any of
+ * \ref MDBX_SAFE_NOSYNC flag in the environment.
+ * \ingroup c_statinfo
+ * \see mdbx_env_set_syncbytes() \see MDBX_opt_sync_bytes
+ *
+ * \param [in] env       An environment handle returned
+ *                       by \ref mdbx_env_create().
+ * \param [out] threshold  Address of an size_t to store
+ *                         the number of bytes of summary changes when
+ *                         a synchronous flush would be made.
+ *
+ * \returns A non-zero error value on failure and 0 on success,
+ *          some possible errors are:
+ * \retval MDBX_EINVAL   An invalid parameter was specified. */
+LIBMDBX_INLINE_API(int, mdbx_env_get_syncbytes,
+                   (const MDBX_env *env, size_t *threshold)) {
+  int rc = MDBX_EINVAL;
+  if (threshold) {
+    uint64_t proxy = 0;
+    rc = mdbx_env_get_option(env, MDBX_opt_sync_bytes, &proxy);
+#ifdef assert
+    assert(proxy <= SIZE_MAX);
+#endif /* assert */
+    *threshold = (size_t)proxy;
+  }
+  return rc;
+}
+
 /** \brief Sets relative period since the last unsteady commit to force flush
  * the data buffers to disk, even of \ref MDBX_SAFE_NOSYNC flag in the
  * environment.
- *
  * \ingroup c_settings
+ * \see mdbx_env_get_syncperiod \see MDBX_opt_sync_period
  *
  * The relative period value affects all processes which operates with given
  * environment until the last process close environment or a new value will be
@@ -2484,6 +2520,36 @@ LIBMDBX_INLINE_API(int, mdbx_env_set_syncbytes,
 LIBMDBX_INLINE_API(int, mdbx_env_set_syncperiod,
                    (MDBX_env * env, unsigned seconds_16dot16)) {
   return mdbx_env_set_option(env, MDBX_opt_sync_period, seconds_16dot16);
+}
+
+/** \brief Get relative period since the last unsteady commit to force flush
+ * the data buffers to disk, even of \ref MDBX_SAFE_NOSYNC flag in the
+ * environment.
+ * \ingroup c_statinfo
+ * \see mdbx_env_set_syncperiod() \see MDBX_opt_sync_period
+ *
+ * \param [in] env       An environment handle returned
+ *                       by \ref mdbx_env_create().
+ * \param [out] period_seconds_16dot16  Address of an size_t to store
+ *                                      the period in 1/65536 of second when
+ *                                      a synchronous flush would be made since
+ *                                      the last unsteady commit.
+ *
+ * \returns A non-zero error value on failure and 0 on success,
+ *          some possible errors are:
+ * \retval MDBX_EINVAL   An invalid parameter was specified. */
+LIBMDBX_INLINE_API(int, mdbx_env_get_syncperiod,
+                   (const MDBX_env *env, unsigned *period_seconds_16dot16)) {
+  int rc = MDBX_EINVAL;
+  if (period_seconds_16dot16) {
+    uint64_t proxy = 0;
+    rc = mdbx_env_get_option(env, MDBX_opt_sync_period, &proxy);
+#ifdef assert
+    assert(proxy <= UINT32_MAX);
+#endif /* assert */
+    *period_seconds_16dot16 = (unsigned)proxy;
+  }
+  return rc;
 }
 
 /** \brief Close the environment and release the memory map.
@@ -3284,9 +3350,11 @@ struct MDBX_commit_latency {
   uint32_t gc;
   /** \brief Duration of internal audit if enabled. */
   uint32_t audit;
-  /** \brief Duration of writing dirty/modified data pages. */
+  /** \brief Duration of writing dirty/modified data pages to a filesystem,
+   * i.e. the summary duration of a `write()` syscalls during commit. */
   uint32_t write;
-  /** \brief Duration of syncing written data to the dist/storage. */
+  /** \brief Duration of syncing written data to the disk/storage, i.e.
+   * the duration of a `fdatasync()` or a `msync()` syscall during commit. */
   uint32_t sync;
   /** \brief Duration of transaction ending (releasing resources). */
   uint32_t ending;
@@ -3509,10 +3577,14 @@ LIBMDBX_API int mdbx_canary_get(const MDBX_txn *txn, MDBX_canary *canary);
  * The reasons to not using custom comparators are:
  *   - The order of records could not be validated without your code.
  *     So `mdbx_chk` utility will reports "wrong order" errors
- *     and the `-i` option is required to ignore ones.
+ *     and the `-i` option is required to suppress ones.
  *   - A records could not be ordered or sorted without your code.
- *     So mdbx_load utility should be used with `-a` option to preserve
- *     input data order. */
+ *     So `mdbx_load` utility should be used with `-a` option to preserve
+ *     input data order.
+ *   - However, the custom comparators feature will never be removed.
+ *     You have been warned but still can use custom comparators knowing
+ *     about the issues noted above. In this case you should ignore `deprecated`
+ *     warnings or define `MDBX_DEPRECATED` macro to empty to avoid ones. */
 typedef int(MDBX_cmp_func)(const MDBX_val *a,
                            const MDBX_val *b) MDBX_CXX17_NOEXCEPT;
 
