@@ -528,31 +528,20 @@ __hot int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter) {
    * транзакцию, table_id и при необходимости подгружает и обновляет схему.
    * Поэтому здесь достаточно fpta_name_refresh_column(), что позволяет
    * избавиться от повторения проверок. */
-tail_recursion:
-  int rc = FPTA_SUCCESS;
-  if (filter) {
+  while (true) {
     switch (filter->type) {
     default:
       return FPTA_EINVAL;
 
+    case fpta_node_collapsed_true:
+    case fpta_node_cond_true:
+    case fpta_node_collapsed_false:
+    case fpta_node_cond_false:
     case fpta_node_fnrow:
-      break;
+      return FPTA_SUCCESS;
 
     case fpta_node_fncol:
-      rc = fpta_name_refresh_column(table_id, filter->node_fncol.column_id);
-      break;
-
-    case fpta_node_not:
-      filter = filter->node_not;
-      goto tail_recursion;
-
-    case fpta_node_or:
-    case fpta_node_and:
-      rc = fpta_name_refresh_filter(table_id, filter->node_and.a);
-      if (unlikely(rc != FPTA_SUCCESS))
-        break;
-      filter = filter->node_and.b;
-      goto tail_recursion;
+      return fpta_name_refresh_column(table_id, filter->node_fncol.column_id);
 
     case fpta_node_lt:
     case fpta_node_gt:
@@ -560,12 +549,21 @@ tail_recursion:
     case fpta_node_ge:
     case fpta_node_eq:
     case fpta_node_ne:
-      rc = fpta_name_refresh_column(table_id, filter->node_cmp.left_id);
-      break;
+      return fpta_name_refresh_column(table_id, filter->node_cmp.left_id);
+
+    case fpta_node_not:
+      filter = filter->node_not;
+      continue /* tail recursion */;
+
+    case fpta_node_or:
+    case fpta_node_and:
+      int err = fpta_name_refresh_filter(table_id, filter->node_and.a);
+      if (unlikely(err != FPTA_SUCCESS))
+        return err;
+      filter = filter->node_and.b;
+      continue /* tail recursion */;
     }
   }
-
-  return rc;
 }
 
 //----------------------------------------------------------------------------
