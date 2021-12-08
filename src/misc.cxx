@@ -374,18 +374,24 @@ __cold std::ostream &operator<<(std::ostream &out, const fpta_name *value) {
 
 __cold std::ostream &operator<<(std::ostream &out, const fpta_filter *filter) {
   if (!filter)
-    return out << "TRUE";
+    return out << "NONE";
 
   switch (filter->type) {
   default:
     return invalid(out, "filter-type", filter->type);
+  case fpta_node_collapsed_true:
+  case fpta_node_cond_true:
+    return out << "TRUE";
+  case fpta_node_collapsed_false:
+  case fpta_node_cond_false:
+    return out << "FALSE";
   case fpta_node_not:
     return out << "NOT (" << filter->node_not << ")";
   case fpta_node_or:
-    return out << "(" << filter->node_or.a << " OR " << filter->node_or.b
+    return out << "(" << filter->node_or.a << ") OR (" << filter->node_or.b
                << ")";
   case fpta_node_and:
-    return out << "(" << filter->node_or.a << " AND " << filter->node_or.b
+    return out << "(" << filter->node_or.a << ") AND (" << filter->node_or.b
                << ")";
   case fpta_node_fncol:
     return out << "FN_COLUMN." << filter->node_fncol.predicate << "("
