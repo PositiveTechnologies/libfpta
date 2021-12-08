@@ -2430,7 +2430,7 @@ typedef struct fpta_filter {
 
    Предполагается внутреннее использование, но функция также
    доступна извне. */
-FPTA_API bool fpta_filter_match(const fpta_filter *fn, fptu_ro tuple);
+FPTA_API bool fpta_filter_match(const fpta_filter *filter, fptu_ro tuple);
 
 //----------------------------------------------------------------------------
 /* Управление курсорами. */

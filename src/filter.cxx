@@ -305,67 +305,70 @@ fptu_lge __fpta_filter_cmp(const fptu_field *pf, const fpta_value *right) {
 }
 #endif /* FPTA_ENABLE_TESTS */
 
-__hot bool fpta_filter_match(const fpta_filter *fn, fptu_ro tuple) {
-  if (unlikely(fn == nullptr))
-    // empty filter
-    return true;
+bool fpta_filter_match(const fpta_filter *filter, fptu_ro tuple) {
+  return likely(filter) ? fpta_filter_match_internal(filter, tuple)
+                        : /* empty filter */ true;
+}
 
-tail_recursion:
-  switch (fn->type) {
-  case fpta_node_collapsed_true:
-  case fpta_node_cond_true:
-    return true;
-  case fpta_node_collapsed_false:
-  case fpta_node_cond_false:
-    return false;
-
-  case fpta_node_not:
-    assert(fn->node_not->type != fpta_node_cond_true &&
-           fn->node_not->type != fpta_node_collapsed_true &&
-           fn->node_not->type != fpta_node_cond_true &&
-           fn->node_not->type != fpta_node_collapsed_true);
-#if FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS
-    assert(fn->node_not->type != fpta_node_not);
-#endif /* FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS */
-    return !fpta_filter_match(fn->node_not, tuple);
-
-  case fpta_node_or:
-    assert(fn->node_or.a->type != fpta_node_cond_true &&
-           fn->node_or.a->type != fpta_node_collapsed_true);
-    assert(fn->node_or.b->type != fpta_node_cond_true &&
-           fn->node_or.b->type != fpta_node_collapsed_true);
-    if (fpta_filter_match(fn->node_or.a, tuple))
+__hot __noinline bool fpta_filter_match_internal(const fpta_filter *f,
+                                                 fptu_ro tuple) {
+  while (true) {
+    switch (f->type) {
+    case fpta_node_collapsed_true:
+    case fpta_node_cond_true:
       return true;
-    fn = fn->node_or.b;
-    goto tail_recursion;
-
-  case fpta_node_and:
-    assert(fn->node_or.a->type != fpta_node_cond_false &&
-           fn->node_or.a->type != fpta_node_collapsed_false);
-    assert(fn->node_or.b->type != fpta_node_cond_false &&
-           fn->node_or.b->type != fpta_node_collapsed_false);
-    if (!fpta_filter_match(fn->node_and.a, tuple))
+    case fpta_node_collapsed_false:
+    case fpta_node_cond_false:
       return false;
-    fn = fn->node_and.b;
-    goto tail_recursion;
 
-  case fpta_node_fncol:
-    return fn->node_fncol.predicate(
-        fptu::lookup(tuple, fn->node_fncol.column_id->column.num,
-                     fpta_id2type(fn->node_fncol.column_id)),
-        fn->node_fncol.arg);
+    case fpta_node_not:
+      assert(f->node_not->type != fpta_node_cond_true &&
+             f->node_not->type != fpta_node_collapsed_true &&
+             f->node_not->type != fpta_node_cond_true &&
+             f->node_not->type != fpta_node_collapsed_true);
+#if FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS
+      assert(f->node_not->type != fpta_node_not);
+#endif /* FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS */
+      return !fpta_filter_match_internal(f->node_not, tuple);
 
-  case fpta_node_fnrow:
-    return fn->node_fnrow.predicate(&tuple, fn->node_fnrow.context,
-                                    fn->node_fnrow.arg);
+    case fpta_node_or:
+      assert(f->node_or.a->type != fpta_node_cond_true &&
+             f->node_or.a->type != fpta_node_collapsed_true);
+      assert(f->node_or.b->type != fpta_node_cond_true &&
+             f->node_or.b->type != fpta_node_collapsed_true);
+      if (fpta_filter_match_internal(f->node_or.a, tuple))
+        return true;
+      f = f->node_or.b;
+      continue /* tail recursion */;
 
-  default:
-    int cmp_bits =
-        fpta_filter_cmp(fptu::lookup(tuple, fn->node_cmp.left_id->column.num,
-                                     fpta_id2type(fn->node_cmp.left_id)),
-                        fn->node_cmp.right_value);
+    case fpta_node_and:
+      assert(f->node_or.a->type != fpta_node_cond_false &&
+             f->node_or.a->type != fpta_node_collapsed_false);
+      assert(f->node_or.b->type != fpta_node_cond_false &&
+             f->node_or.b->type != fpta_node_collapsed_false);
+      if (!fpta_filter_match_internal(f->node_and.a, tuple))
+        return false;
+      f = f->node_and.b;
+      continue /* tail recursion */;
 
-    return (cmp_bits & fn->type) != 0;
+    case fpta_node_fncol:
+      return f->node_fncol.predicate(
+          fptu::lookup(tuple, f->node_fncol.column_id->column.num,
+                       fpta_id2type(f->node_fncol.column_id)),
+          f->node_fncol.arg);
+
+    case fpta_node_fnrow:
+      return f->node_fnrow.predicate(&tuple, f->node_fnrow.context,
+                                     f->node_fnrow.arg);
+
+    default:
+      int cmp_bits =
+          fpta_filter_cmp(fptu::lookup(tuple, f->node_cmp.left_id->column.num,
+                                       fpta_id2type(f->node_cmp.left_id)),
+                          f->node_cmp.right_value);
+
+      return (cmp_bits & f->type) != 0;
+    }
   }
 }
 

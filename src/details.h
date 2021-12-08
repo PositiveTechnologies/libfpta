@@ -193,6 +193,8 @@ public:
 int fpta_filter_validate(fpta_filter *filter);
 int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter);
 int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id);
+__hot __noinline bool fpta_filter_match_internal(const fpta_filter *f,
+                                                 fptu_ro tuple);
 
 static __inline bool fpta_db_validate(const fpta_db *db) {
   if (unlikely(db == nullptr || db->mdbx_env == nullptr))
