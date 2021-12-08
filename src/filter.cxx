@@ -468,7 +468,7 @@ int fpta_filter_validate_and_rewrite(fpta_filter *filter) {
            filter->node_not == filter->node_and.a &&
            filter->node_or.b == filter->node_and.b);
     if (unlikely(!filter->node_not))
-      return FPTA_EINVAL;
+      return FPTA_TAUTOLOGICAL_FILTER;
 #if FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS
     if (unlikely(filter->node_not->type == fpta_node_not))
       return FPTA_TAUTOLOGICAL_FILTER;
@@ -483,7 +483,7 @@ int fpta_filter_validate_and_rewrite(fpta_filter *filter) {
     assert(filter->node_or.a == filter->node_and.a &&
            filter->node_or.b == filter->node_and.b);
     if (unlikely(!filter->node_and.a || !filter->node_and.b))
-      return FPTA_EINVAL;
+      return FPTA_TAUTOLOGICAL_FILTER;
     rc = fpta_filter_validate_and_rewrite(filter->node_and.a);
     if (unlikely(rc != FPTA_SUCCESS)) {
       rc = fpta_filter_rewrite_on_error(filter, rc);
