@@ -2230,12 +2230,14 @@ TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToFalse) {
     invalid_cmp_with_null.node_cmp.left_id = &pk_int;
     invalid_cmp_with_null.node_cmp.right_value = fpta_value_null();
 
+    const auto filter = &invalid_cmp_with_null;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
-    EXPECT_EQ(FPTA_OK,
-              fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                               fpta_value_end(), &invalid_cmp_with_null,
-                               fpta_unsorted_dont_fetch, &cursor));
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), filter,
+                                        fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(0u, rows);
@@ -2250,11 +2252,14 @@ TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToFalse) {
     invalid_cmp_with_str.node_cmp.left_id = &pk_int;
     invalid_cmp_with_str.node_cmp.right_value = fpta_value_str("42");
 
+    const auto filter = &invalid_cmp_with_str;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &invalid_cmp_with_str,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(0u, rows);
@@ -2269,11 +2274,14 @@ TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToFalse) {
     invalid_cmp_with_int.node_cmp.left_id = &se_str;
     invalid_cmp_with_int.node_cmp.right_value = fpta_value_uint(42);
 
+    const auto filter = &invalid_cmp_with_int;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &invalid_cmp_with_int,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(0u, rows);
@@ -2292,12 +2300,14 @@ TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToTrue) {
     invalid_cmp_with_null.node_cmp.left_id = &pk_int;
     invalid_cmp_with_null.node_cmp.right_value = fpta_value_null();
 
+    const auto filter = &invalid_cmp_with_null;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
-    EXPECT_EQ(FPTA_OK,
-              fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                               fpta_value_end(), &invalid_cmp_with_null,
-                               fpta_unsorted_dont_fetch, &cursor));
+    EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
+                                        fpta_value_end(), filter,
+                                        fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2312,11 +2322,14 @@ TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToTrue) {
     invalid_cmp_with_str.node_cmp.left_id = &pk_int;
     invalid_cmp_with_str.node_cmp.right_value = fpta_value_str("42");
 
+    const auto filter = &invalid_cmp_with_str;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &invalid_cmp_with_str,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2331,11 +2344,14 @@ TEST_F(FilterTautologyRewriter, SimpleInvalidComparisonToTrue) {
     invalid_cmp_with_int.node_cmp.left_id = &se_str;
     invalid_cmp_with_int.node_cmp.right_value = fpta_value_uint(42);
 
+    const auto filter = &invalid_cmp_with_int;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &invalid_cmp_with_int,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2357,11 +2373,15 @@ TEST_F(FilterTautologyRewriter, CompoundNot) {
     fpta_filter compoind;
     compoind.type = fpta_node_not;
     compoind.node_not = &invalid_cmp;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2380,11 +2400,15 @@ TEST_F(FilterTautologyRewriter, CompoundNot) {
     fpta_filter compoind;
     compoind.type = fpta_node_not;
     compoind.node_not = &invalid_cmp;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(0u, rows);
@@ -2415,11 +2439,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithoutPropagation) {
     compoind.type = fpta_node_or;
     compoind.node_or.a = &invalid_cmp;
     compoind.node_or.b = &predicate_counter;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2447,11 +2475,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithoutPropagation) {
     compoind.type = fpta_node_or;
     compoind.node_or.a = &predicate_counter;
     compoind.node_or.b = &invalid_cmp;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2479,11 +2511,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithoutPropagation) {
     compoind.type = fpta_node_and;
     compoind.node_or.a = &invalid_cmp;
     compoind.node_or.b = &predicate_counter;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2511,11 +2547,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithoutPropagation) {
     compoind.type = fpta_node_and;
     compoind.node_or.a = &predicate_counter;
     compoind.node_or.b = &invalid_cmp;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2547,11 +2587,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithPropagation) {
     compoind.type = fpta_node_or;
     compoind.node_or.a = &invalid_cmp;
     compoind.node_or.b = &predicate_counter;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2579,11 +2623,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithPropagation) {
     compoind.type = fpta_node_or;
     compoind.node_or.a = &predicate_counter;
     compoind.node_or.b = &invalid_cmp;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(1u, rows);
@@ -2611,11 +2659,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithPropagation) {
     compoind.type = fpta_node_and;
     compoind.node_or.a = &invalid_cmp;
     compoind.node_or.b = &predicate_counter;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(0u, rows);
@@ -2643,11 +2695,15 @@ TEST_F(FilterTautologyRewriter, CompoundNestedWithPropagation) {
     compoind.type = fpta_node_and;
     compoind.node_or.a = &predicate_counter;
     compoind.node_or.b = &invalid_cmp;
+
+    const auto filter = &compoind;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &compoind,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(0u, rows);
@@ -2704,11 +2760,14 @@ TEST_F(FilterTautologyRewriter, CompoundNestedDeepPropagation) {
     root_and.node_and.a = &or_1;
     root_and.node_and.b = &the_not;
 
+    const auto filter = &root_and;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &root_and,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(fpta_node_cond_true, invalid_cmp_2.type);
@@ -2766,11 +2825,14 @@ TEST_F(FilterTautologyRewriter, CompoundNestedDeepPropagation) {
     root_or.node_or.a = &the_not;
     root_or.node_or.b = &and_2;
 
+    const auto filter = &root_or;
+    SCOPED_TRACE("before rewrite: " + std::to_string(filter));
     fpta_cursor *cursor = nullptr;
     EXPECT_EQ(FPTA_OK, fpta_cursor_open(txn, &pk_int, fpta_value_begin(),
-                                        fpta_value_end(), &root_or,
+                                        fpta_value_end(), filter,
                                         fpta_unsorted_dont_fetch, &cursor));
     ASSERT_NE(nullptr, cursor);
+    SCOPED_TRACE("after rewrite: " + std::to_string(cursor->filter));
     size_t rows;
     EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &rows, INT_MAX));
     EXPECT_EQ(fpta_node_cond_false, invalid_cmp_1.type);
