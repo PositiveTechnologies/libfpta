@@ -190,7 +190,7 @@ public:
 
 #define FILTER_PROPAGATE_TRUE (FPTA_ERRROR_LAST + 11)
 #define FILTER_PROPAGATE_FALSE (FPTA_ERRROR_LAST + 12)
-int fpta_filter_validate(fpta_filter *filter);
+int fpta_filter_validate_and_rewrite(fpta_filter *filter);
 int fpta_name_refresh_filter(fpta_name *table_id, fpta_filter *filter);
 int fpta_name_refresh_column(fpta_name *table_id, fpta_name *column_id);
 __hot __noinline bool fpta_filter_match_internal(const fpta_filter *f,

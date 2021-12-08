@@ -95,7 +95,7 @@ int fpta_cursor_open(fpta_txn *txn, fpta_name *column_id, fpta_value range_from,
     rc = fpta_name_refresh_filter(column_id->column.table, filter);
     if (unlikely(rc != FPTA_SUCCESS))
       return rc;
-    rc = fpta_filter_validate(filter);
+    rc = fpta_filter_validate_and_rewrite(filter);
     if (unlikely(rc != FPTA_SUCCESS)) {
       if (rc != FILTER_PROPAGATE_TRUE && rc != FILTER_PROPAGATE_FALSE)
         return rc;

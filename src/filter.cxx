@@ -432,7 +432,7 @@ static int fpta_filter_rewrite_on_error(fpta_filter *filter, int err) {
   return err;
 }
 
-int fpta_filter_validate(fpta_filter *filter) {
+int fpta_filter_validate_and_rewrite(fpta_filter *filter) {
   /* Функция fpta_filter_validate() не доступна пользователю
    * и вызывается только из fpta_cursor_open(). Причем до вызова
    * validate_filter() проверяется транзакци и вызывается refresh_filter().
@@ -473,7 +473,7 @@ int fpta_filter_validate(fpta_filter *filter) {
     if (unlikely(filter->node_not->type == fpta_node_not))
       return FPTA_TAUTOLOGICAL_FILTER;
 #endif /* FPTA_CHECK_DOUBLE_NOT_FOR_FILTERS */
-    rc = fpta_filter_validate(filter->node_not);
+    rc = fpta_filter_validate_and_rewrite(filter->node_not);
     if (unlikely(rc != FPTA_SUCCESS))
       return fpta_filter_rewrite_on_error(filter, rc);
     return FPTA_SUCCESS;
@@ -484,13 +484,13 @@ int fpta_filter_validate(fpta_filter *filter) {
            filter->node_or.b == filter->node_and.b);
     if (unlikely(!filter->node_and.a || !filter->node_and.b))
       return FPTA_EINVAL;
-    rc = fpta_filter_validate(filter->node_and.a);
+    rc = fpta_filter_validate_and_rewrite(filter->node_and.a);
     if (unlikely(rc != FPTA_SUCCESS)) {
       rc = fpta_filter_rewrite_on_error(filter, rc);
       if (unlikely(rc != FPTA_SUCCESS))
         return rc;
     }
-    rc = fpta_filter_validate(filter->node_and.b);
+    rc = fpta_filter_validate_and_rewrite(filter->node_and.b);
     if (unlikely(rc != FPTA_SUCCESS))
       return fpta_filter_rewrite_on_error(filter, rc);
     return FPTA_SUCCESS;
