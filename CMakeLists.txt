@@ -237,10 +237,6 @@ include(externals/libfptu/src/erthink/cmake/testing.cmake)
 
 find_program(GIT git)
 
-check_function_exists(memmem HAVE_MEMMEM)
-check_function_exists(memrchr HAVE_MEMRCHR)
-check_function_exists(uuidgen HAVE_UUIDGEN)
-CHECK_INCLUDE_FILES(unistd.h HAVE_UNISTD_H)
 CHECK_INCLUDE_FILES(sys/uio.h HAVE_SYS_UIO_H)
 CHECK_INCLUDE_FILES(sys/stat.h HAVE_SYS_STAT_H)
 CHECK_STRUCT_HAS_MEMBER("struct timeval" tv_usec sys/time.h HAVE_SYSTIME_H_TIMEVAL_TV_USEC)
@@ -261,14 +257,9 @@ else()
     message(FATAL_ERROR "No libm found for math support")
   endif()
 endif()
-CHECK_SYMBOL_EXISTS(nan math.h HAVE_nan)
-CHECK_SYMBOL_EXISTS(nanf math.h HAVE_nanf)
 CHECK_INCLUDE_FILES(ieee754.h HAVE_IEEE754_H)
 CHECK_INCLUDE_FILES(endian.h HAVE_ENDIAN_H)
-CHECK_INCLUDE_FILES(byteswap.h HAVE_BYTESWAP_H)
 CHECK_INCLUDE_FILES(sys/param.h HAVE_SYS_PARAM_H)
-CHECK_INCLUDE_FILES(netinet/in.h HAVE_NETINET_IN_H)
-CHECK_INCLUDE_FILES(resolv.h HAVE_RESOLV_H)
 
 #
 # Enable 'make tags' target.

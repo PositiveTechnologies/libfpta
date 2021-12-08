@@ -55,14 +55,12 @@ TEST(Trivia, Denil) {
   EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
   denil64 = {fptu_fp64_denil()};
   EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
-#ifdef HAVE_nan
   denil64 = {-nan("0x000FffffFFFFffff")};
 #if defined(FPTU_DENIL_FP64_MAS) || defined(__LCC__)
   EXPECT_EQ(FPTU_DENIL_FP64_BIN, denil64.u);
 #else
   EXPECT_NE(FPTU_DENIL_FP64_BIN, denil64.u);
 #endif
-#endif /* HAVE_nan */
   denil64 = {fptu_fp32_denil()};
   EXPECT_NE(FPTU_DENIL_FP64_BIN, denil64.u);
 
@@ -74,14 +72,12 @@ TEST(Trivia, Denil) {
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
   denil32 = {fptu_fp32_denil()};
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
-#ifdef HAVE_nanf
   denil32 = {-nanf("0x007FFFFF")};
 #if defined(FPTU_DENIL_FP32_MAS) || defined(__LCC__)
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
 #else
   EXPECT_NE(FPTU_DENIL_FP32_BIN, denil32.u);
 #endif
-#endif /* HAVE_nanf */
   denil32 = {static_cast<float>(fptu_fp64_denil())};
   EXPECT_EQ(FPTU_DENIL_FP32_BIN, denil32.u);
 }

@@ -94,11 +94,11 @@
 
 __extern_C int_fast32_t mrand64(void);
 
-#if defined(HAVE_UNISTD_H) && !(defined(_WIN32) || defined(_WIN64))
-#include <unistd.h>
-#else
+#if defined(_WIN32) || defined(_WIN64)
 static __inline int_fast32_t mrand48(void) { return mrand64(); }
-#endif
+#else
+#include <unistd.h>
+#endif /* Windows */
 
 #include <algorithm>
 #include <cfloat> // for float limits
