@@ -312,15 +312,9 @@ TEST(SmokeComposite, Primary) {
   EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
   // еще раз удаляем запись
   EXPECT_EQ(FPTA_OK, fpta_cursor_delete(cursor));
-#if FPTA_ENABLE_RETURN_INTO_RANGE
   // теперь должно быть пусто
   EXPECT_EQ(FPTA_NODATA, fpta_cursor_dups(cursor, &dups));
   EXPECT_EQ(0u, dups);
-#else
-  // курсор должен стать неустановленным
-  EXPECT_EQ(FPTA_ECURSOR, fpta_cursor_dups(cursor, &dups));
-  EXPECT_EQ((size_t)FPTA_DEADBEEF, dups);
-#endif
   // ради теста проверям что данных больше нет
   EXPECT_EQ(FPTA_NODATA, fpta_cursor_eof(cursor));
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));
@@ -706,15 +700,9 @@ TEST(SmokeIndex, Secondary) {
   EXPECT_EQ(FPTA_OK, fpta_cursor_move(cursor, fpta_first));
   // еще раз удаляем запись
   EXPECT_EQ(FPTA_OK, fpta_cursor_delete(cursor));
-#if FPTA_ENABLE_RETURN_INTO_RANGE
   // теперь должно быть пусто
   EXPECT_EQ(FPTA_NODATA, fpta_cursor_dups(cursor, &dups));
   EXPECT_EQ(0u, dups);
-#else
-  // курсор должен стать неустановленным
-  EXPECT_EQ(FPTA_ECURSOR, fpta_cursor_dups(cursor, &dups));
-  EXPECT_EQ((size_t)FPTA_DEADBEEF, dups);
-#endif
   // ради теста проверям что данных больше нет
   EXPECT_EQ(FPTA_NODATA, fpta_cursor_eof(cursor));
   EXPECT_EQ(FPTA_OK, fpta_cursor_count(cursor, &count, INT_MAX));

@@ -396,13 +396,8 @@ struct fpta_cursor {
 
   enum eof_mode : uintptr_t {
     poor = 0,
-#if FPTA_ENABLE_RETURN_INTO_RANGE
     before_first = 1,
     after_last = 2,
-#else
-    before_first = poor,
-    after_last = poor,
-#endif /* FPTA_ENABLE_RETURN_INTO_RANGE */
     nodata
   };
   void set_poor() { current.iov_base = nullptr; }
@@ -418,12 +413,10 @@ struct fpta_cursor {
     return current.iov_base ? FPTA_NODATA : FPTA_ECURSOR;
   }
   bool is_before_first() const {
-    return FPTA_ENABLE_RETURN_INTO_RANGE &&
-           current.iov_base == reinterpret_cast<void *>(before_first);
+    return current.iov_base == reinterpret_cast<void *>(before_first);
   }
   bool is_after_last() const {
-    return FPTA_ENABLE_RETURN_INTO_RANGE &&
-           current.iov_base == reinterpret_cast<void *>(after_last);
+    return current.iov_base == reinterpret_cast<void *>(after_last);
   }
 
   const fpta_filter *filter;

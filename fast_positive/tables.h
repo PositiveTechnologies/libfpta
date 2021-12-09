@@ -169,14 +169,6 @@ typedef unsigned short mode_t;
 #define FPTA_PROHIBIT_LOSS_PRECISION 0
 #endif /* FPTA_PROHIBIT_LOSS_PRECISION */
 
-#ifndef FPTA_ENABLE_RETURN_INTO_RANGE
-/* Опция определяет, поддерживать ли для курсора возврат в диапазон строк
- * после его исчерпания при итерировании. Например, позволить ли возврат
- * к последней строке посредством move(prev), после того как move(next)
- * вернул FPTA_NODATA, так как курсор уже был на последней строке. */
-#define FPTA_ENABLE_RETURN_INTO_RANGE 1
-#endif /*FPTA_ENABLE_RETURN_INTO_RANGE */
-
 #ifndef FPTA_ENABLE_ABORT_ON_PANIC
 /* Опция определяет, что делать при фатальных ошибках, например в случае
  * ошибки отката/прерывания транзакции.
