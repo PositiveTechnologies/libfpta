@@ -88,6 +88,7 @@ endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/compiler.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/profile.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/std_thread.cmake")
 
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 HAS_CXX11)
 list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_14 HAS_CXX14)
