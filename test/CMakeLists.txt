@@ -15,10 +15,18 @@
 ##  limitations under the License.
 ##
 
+include(../externals/libfptu/src/erthink/cmake/std_thread.cmake)
+
 include_directories(${UT_INCLUDE_DIRECTORIES})
 
 if(BUILD_SHARED_LIBS)
   add_definitions("-DGTEST_LINKED_AS_SHARED_LIBRARY=1")
+endif()
+
+if(STDTHREAD_WORKS)
+  add_definitions("-DSTDTHREAD_WORKS=1")
+else()
+  add_definitions("-DSTDTHREAD_WORKS=0")
 endif()
 
 # LY: reduce compilation time (significantly on Elbrus)

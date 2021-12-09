@@ -19,9 +19,19 @@
 #include <functional> // for std::ref
 #include <string>
 
+#ifndef STDTHREAD_WORKS
 #if defined(__cpp_lib_jthread) ||                                              \
-    (defined(_GLIBCXX_HAS_GTHREADS) || !defined(__GLIBCXX__))
+    (defined(_GLIBCXX_HAS_GTHREADS) &&                                         \
+     (!defined(__clang__) || __clang_major__ > 9))
+#define STDTHREAD_WORKS 1
+#elif __cplusplus >= 201103L && __has_include(<thread>)
+#define STDTHREAD_WORKS 1
+#else
+#define STDTHREAD_WORKS 0
+#endif
+#endif /* STDTHREAD_WORKS */
 
+#if STDTHREAD_WORKS
 #include <thread>
 
 static const char testdb_name[] = TEST_DB_DIR "ut_thread.fpta";
@@ -916,7 +926,7 @@ TEST(Threaded, AsyncSchemaChange) {
 //------------------------------------------------------------------------------
 #else
 TEST(ReadMe, CXX_STD_Threads_NotAvailadble) {}
-#endif /* std::thread */
+#endif /* STDTHREAD_WORKS */
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
