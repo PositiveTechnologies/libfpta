@@ -12,7 +12,7 @@
  * <http://www.OpenLDAP.org/license.html>. */
 
 #define xMDBX_ALLOY 1
-#define MDBX_BUILD_SOURCERY de4f6e694cfe431787b332d512abb16e80067d60f9f3911ff48c5c7f25e6e1f1_v0_11_2_11_gdf6b9028
+#define MDBX_BUILD_SOURCERY c5b9a3e9ba7c98987e7554f0c84c1e12e9f82d0d470ad881d54923ecf3599c17_v0_11_2_15_gca197965
 #ifdef MDBX_CONFIG_H
 #include MDBX_CONFIG_H
 #endif
@@ -3372,7 +3372,7 @@ MDBX_MAYBE_UNUSED static void static_checks(void) {
 // Copyright (c) 2020-2021, Leonid Yuriev <leo@yuriev.ru>.
 // SPDX-License-Identifier: Apache-2.0
 //
-// Non-inline part of the libmdbx C++ API (preliminary)
+// Non-inline part of the libmdbx C++ API
 //
 
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
