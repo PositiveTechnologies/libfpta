@@ -248,7 +248,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.cxx.in ${CMAKE_CURRENT_BINARY
 
 set(options VERSION C_COMPILER CXX_COMPILER DEFINITIONS BUILD_TARGET BUILD_TYPE
   ENABLE_GCOV ENABLE_GPROF ENABLE_VALGRIND ENABLE_BACKTRACE
-  HAVE_BFD ENABLE_ASAN)
+  HAVE_BFD ENABLE_ASAN ENABLE_UBSAN)
 foreach(option IN LISTS options)
   if(DEFINED "FPTA_${option}")
     set(value "${FPTA_${option}}")
@@ -257,5 +257,5 @@ foreach(option IN LISTS options)
   else()
     set(value "${CMAKE_${option}}")
   endif()
-  find_package_message("FPTA_${option}" "FPTA_${option}: ${value}" "${value}")
+  message(STATUS "FPTA_${option}" "FPTA_${option}: ${value}" "${value}")
 endforeach(option)
