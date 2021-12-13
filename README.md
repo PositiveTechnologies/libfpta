@@ -17,7 +17,7 @@ variety of indexes, saturation, sequences and much more.
 [![CircleCI](https://circleci.com/gh/erthink/libfpta/tree/master.svg?style=svg)](https://circleci.com/gh/erthink/libfpta/tree/master)
 [![Coverity Scan Status](https://scan.coverity.com/projects/12920/badge.svg)](https://scan.coverity.com/projects/erthink-libfpta)
 
-English version [by Google](https://translate.googleusercontent.com/translate_c?act=url&ie=UTF8&sl=ru&tl=en&u=https://github.com/erthink/libfpta/tree/master)
+English version [by Google](https://github-com.translate.goog/erthink/libfpta/tree/master?_x_tr_sl=ru&_x_tr_tl=en)
 and [by Yandex](https://translate.yandex.ru/translate?url=https%3A%2F%2Fgithub.com%2Ferthink%2Flibfpta%2Ftree%2Fmaster&lang=ru-en).
 
 
